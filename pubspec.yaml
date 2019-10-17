@@ -1,8 +1,8 @@
 name: ux
 description: UX Kit
-version: 0.0.2
-author: Alexandru R. Agrapine <alex@swipelab.co>
-homepage: https://swipelab.co/
+version: 0.0.3
+author: Alexandru Agrapine <alex@swipelab.co>
+homepage: https://swipelab.co/ux.html
 
 environment:
   sdk: ">=2.1.0 <3.0.0"
