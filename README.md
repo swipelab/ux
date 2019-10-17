@@ -40,5 +40,5 @@ Within this kit we should find:
 - [ ] Cupertino
 - [ ] Fluid
 
-### Other
+### OTHER
 - [x] BendBox
