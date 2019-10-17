@@ -1,5 +1,5 @@
 
-Deploy
+Deploy (...)
 ```zsh
-flutter pub publish
+flutter pub pub publish
 ```
