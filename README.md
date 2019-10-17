@@ -4,37 +4,37 @@ UX Kit
 
 ## Includes
 
-DATAGRID
+### DATAGRID
 [ ] Table
 [ ] Tree
 [ ] Pivot
 [ ] Cross Tab
 
-FIELD
+### FIELD
 [ ] Text
 [ ] Number
 [ ] Date
 [ ] List
 
-CHART
+### CHART
 [ ] Bar
 [ ] Area
 [ ] Pie
 [ ] Scatter
 
-BUTTON
+### BUTTON
 [ ] Button
 [ ] Group
 [ ] Split
 [ ] Drop
 
-ANIMATION
+### ANIMATION
 [ ] Expand
 [ ] Fade
 [ ] Push
 [ ] Slide
 
-THEME
+### THEME
 [ ] Material
 [ ] Cupertino
 [ ] Fluid
