@@ -4,40 +4,40 @@ UX Kit
 
 ## Includes
 
-### DATAGRID
-[ ] Table
-[ ] Tree
-[ ] Pivot
-[ ] Cross Tab
+DATAGRID
+- [ ] Table
+- [ ] Tree
+- [ ] Pivot
+- [ ] Cross Tab
 
-### FIELD
-[ ] Text
-[ ] Number
-[ ] Date
-[ ] List
+FIELD
+- [ ] Text
+- [ ] Number
+- [ ] Date
+- [ ] List
 
-### CHART
-[ ] Bar
-[ ] Area
-[ ] Pie
-[ ] Scatter
+CHART
+- [ ] Bar
+- [ ] Area
+- [ ] Pie
+- [ ] Scatter
 
-### BUTTON
-[ ] Button
-[ ] Group
-[ ] Split
-[ ] Drop
+BUTTON
+- [ ] Button
+- [ ] Group
+- [ ] Split
+- [ ] Drop
 
-### ANIMATION
-[ ] Expand
-[ ] Fade
-[ ] Push
-[ ] Slide
+ANIMATION
+- [ ] Expand
+- [ ] Fade
+- [ ] Push
+- [ ] Slide
 
-### THEME
-[ ] Material
-[ ] Cupertino
-[ ] Fluid
+THEME
+- [ ] Material
+- [ ] Cupertino
+- [ ] Fluid
 
 Other
-[x] BendBox
+- [x] BendBox
