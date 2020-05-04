@@ -16,6 +16,6 @@ void main() {
   });
 
   test('getPlatformVersion', () async {
-    expect(await Ux.platformVersion, '42');
+    expect(await UX.platformVersion, '42');
   });
 }

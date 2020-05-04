@@ -25,7 +25,7 @@ class _MyAppState extends State<MyApp> {
     String platformVersion;
     // Platform messages may fail, so we use a try/catch PlatformException.
     try {
-      platformVersion = await Ux.platformVersion;
+      platformVersion = await UX.platformVersion;
     } on PlatformException {
       platformVersion = 'Failed to get platform version.';
     }
@@ -42,14 +42,32 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      home: Scaffold(
-        appBar: AppBar(
-          title: const Text('Plugin example app'),
-        ),
-        body: Center(
-          child: Text('Running on: $_platformVersion\n'),
-        ),
+    return UxApp(
+      child: MaterialApp(
+        routes: {
+          '/': (context) => Scaffold(
+                appBar: AppBar(
+                  title: const Text('Plugin example app'),
+                ),
+                body: Builder(
+                  builder: (context) => ListView(
+                    padding: EdgeInsets.only(top: 48),
+                    children: [
+                      ListTile(title: Text('Running on: $_platformVersion\n')),
+                      ListTile(
+                        title: Text('Show a simple note'),
+                        onTap: () => context.showText('This is a simple note'),
+                      ),
+                      ListTile(
+                        title: Text('Show modal note'),
+                        onTap: () => context.showText('This is a modal note',
+                            backdropBlur: 6, modal: true),
+                      )
+                    ],
+                  ),
+                ),
+              )
+        },
       ),
     );
   }
