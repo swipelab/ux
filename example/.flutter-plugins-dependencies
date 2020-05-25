@@ -1,1 +1,1 @@
-{"_info":"// This is a generated file; do not edit or check into version control.","dependencyGraph":[{"name":"ux","dependencies":[]}]}
+{"info":"This is a generated file; do not edit or check into version control.","plugins":{"ios":[{"name":"ux","path":"/Users/zen/swipelab/ux/","dependencies":[]}],"android":[{"name":"ux","path":"/Users/zen/swipelab/ux/","dependencies":[]}],"macos":[],"linux":[],"windows":[],"web":[]},"dependencyGraph":[{"name":"ux","dependencies":[]}],"date_created":"2020-05-25 08:49:54.524717","version":"1.17.1"}

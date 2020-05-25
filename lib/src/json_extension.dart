@@ -1,11 +1,11 @@
-typedef T FromJson<T>(Map<String, dynamic> json);
+typedef T _JsonConvert<T>(Map<String, dynamic> json);
 
 class Json {
-  static List<T> list<T>(List json, FromJson<T> fromJson) => json == null
+  static List<T> list<T>(List json, _JsonConvert<T> fromJson) => json == null
       ? []
       : json.cast<Map<String, dynamic>>().map(fromJson).toList();
 
-  static Map<String, T> map<T>(Map json, FromJson<T> fromJson) => json == null
+  static Map<String, T> map<T>(Map json, _JsonConvert<T> fromJson) => json == null
       ? {}
       : Map.fromEntries(
           json.entries.map((e) => MapEntry(e.key, fromJson(e.value))));

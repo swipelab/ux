@@ -30,9 +30,6 @@ class _MyAppState extends State<MyApp> {
       platformVersion = 'Failed to get platform version.';
     }
 
-    // If the widget was removed from the tree while the asynchronous platform
-    // message was in flight, we want to discard the reply rather than calling
-    // setState to update our non-existent appearance.
     if (!mounted) return;
 
     setState(() {
@@ -42,33 +39,30 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    return UxApp(
-      child: MaterialApp(
-        routes: {
-          '/': (context) => Scaffold(
-                appBar: AppBar(
-                  title: const Text('Plugin example app'),
+    return MaterialApp(
+      routes: {
+        '/': (context) => Scaffold(
+              appBar: AppBar(
+                title: const Text('Plugin example app'),
+              ),
+              body: Builder(
+                builder: (context) => ListView(
+                  padding: EdgeInsets.only(top: 48),
+                  children: [
+                    ListTile(title: Text('Running on: $_platformVersion\n')),
+                    ListTile(
+                      title: Text('Show a simple note'),
+                      //onTap: () => context.showText('This is a simple note'),
+                    ),
+                    ListTile(
+                      title: Text('Show modal note'),
+                      //onTap: () => context.showText('This is a modal note', backdropBlur: 6, modal: true),
+                    )
+                  ],
                 ),
-                body: Builder(
-                  builder: (context) => ListView(
-                    padding: EdgeInsets.only(top: 48),
-                    children: [
-                      ListTile(title: Text('Running on: $_platformVersion\n')),
-                      ListTile(
-                        title: Text('Show a simple note'),
-                        onTap: () => context.showText('This is a simple note'),
-                      ),
-                      ListTile(
-                        title: Text('Show modal note'),
-                        onTap: () => context.showText('This is a modal note',
-                            backdropBlur: 6, modal: true),
-                      )
-                    ],
-                  ),
-                ),
-              )
-        },
-      ),
+              ),
+            )
+      },
     );
   }
 }
