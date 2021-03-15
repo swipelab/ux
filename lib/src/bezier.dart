@@ -64,7 +64,8 @@ class CubicBezier extends Bezier {
 
   CubicBezier(this.p0, this.p1, this.p2, this.p3);
 
-  Offset point(double t) => Offset(
+  Offset point(double t) =>
+      Offset(
         _cubicBezier(t, p0.dx, p1.dx, p2.dx, p3.dx),
         _cubicBezier(t, p0.dy, p1.dy, p2.dy, p3.dy),
       );
@@ -84,10 +85,11 @@ class PathBezier extends Bezier {
   PathBezier(this.p0) : _p0 = p0;
 
   static PathBezier roundedRect(RRect rrect) {
-    return PathBezier(Offset(rrect.left + rrect.tlRadiusX, rrect.top))
+    return PathBezier(Offset(rrect.left + rrect.width / 2, rrect.top))
       ..lineTo(Offset(rrect.right - rrect.trRadiusX, rrect.top))
       ..quadTo(
-          Offset(rrect.right, rrect.top), Offset(rrect.right, rrect.trRadiusY))
+          Offset(rrect.right, rrect.top),
+          Offset(rrect.right, rrect.top + rrect.trRadiusY))
       ..lineTo(Offset(rrect.right, rrect.bottom - rrect.brRadiusY))
       ..quadTo(Offset(rrect.right, rrect.bottom),
           Offset(rrect.right - rrect.brRadiusX, rrect.bottom))
@@ -96,12 +98,13 @@ class PathBezier extends Bezier {
           Offset(rrect.left, rrect.bottom - rrect.blRadiusY))
       ..lineTo(Offset(rrect.left, rrect.top + rrect.tlRadiusX))
       ..quadTo(Offset(rrect.left, rrect.top),
-          Offset(rrect.left + rrect.tlRadiusX, rrect.top));
+          Offset(rrect.left + rrect.tlRadiusX, rrect.top))
+      ..lineTo(Offset(rrect.left + rrect.width / 2, rrect.top));
   }
 
   _add(Bezier bezier, Offset pn) {
-    _curves.add(bezier);
     final bl = bezierLength(bezier);
+    _curves.add(bezier);
     _lens.add(bl);
     _length += bl;
     _p0 = pn;
@@ -114,22 +117,30 @@ class PathBezier extends Bezier {
   cubeTo(Offset p1, Offset p2, Offset p3) =>
       _add(CubicBezier(_p0, p1, p2, p3), p3);
 
-  relativeLineTo(Offset p1) => lineTo(
+  relativeLineTo(Offset p1) =>
+      lineTo(
         p1 + _p0,
       );
 
-  relativeQuadTo(Offset p1, Offset p2) => quadTo(
+  relativeQuadTo(Offset p1, Offset p2) =>
+      quadTo(
         p1 + p0,
         p1 + p2 + p0,
       );
 
-  relativeCubeTo(Offset p1, Offset p2, Offset p3) => cubeTo(
+  relativeCubeTo(Offset p1, Offset p2, Offset p3) =>
+      cubeTo(
         p0 + p1,
         p0 + p1 + p2,
         p0 + p1 + p2 + p3,
       );
 
+
   Offset point(double t) {
+    if (t > 1) {
+      t = t - t.floor();
+    }
+
     if (_length == 0) return p0;
     var distance = _length * t;
     var index = 0;
