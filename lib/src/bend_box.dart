@@ -15,7 +15,10 @@ class _BendBoxPainter extends CustomPainter {
   final EdgeInsets inward;
   final Color color;
 
-  _BendBoxPainter({this.inward, this.color});
+  _BendBoxPainter({
+    required this.inward,
+    required this.color,
+  });
 
   void paint(Canvas canvas, Size size) {
     final paint = Paint()

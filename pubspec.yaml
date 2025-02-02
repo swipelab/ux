@@ -1,11 +1,10 @@
 name: ux
 description: UX Kit
-version: 0.1.1
-author: Alexandru Agrapine <alex@swipelab.co>
+version: 0.2.0
 homepage: https://swipelab.co/ux.html
 
 environment:
-  sdk: ">=2.6.0 <3.0.0"
+  sdk: ">=3.0.0"
 
 dependencies:
   flutter:

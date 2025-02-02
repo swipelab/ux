@@ -2,7 +2,7 @@ import 'dart:math';
 import 'dart:ui';
 
 double bezierLength(Bezier bezier, [double steps = 10]) {
-  assert(bezier != null && steps != 0);
+  assert(steps != 0);
   final step = 1 / steps;
   var c = bezier.point(0);
   var length = 0.0;
