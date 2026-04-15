@@ -16,5 +16,9 @@ dev_dependencies:
 
 flutter:
   plugin:
-    androidPackage: io.swipelab.ux
-    pluginClass: UxPlugin
+    platforms:
+      ios:
+        pluginClass: KeyboardPlugin
+      android:
+        package: io.swipelab.ux
+        pluginClass: KeyboardPlugin

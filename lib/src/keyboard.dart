@@ -5,11 +5,10 @@ import 'package:flutter/animation.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 
-final bool _isIOS = Platform.isIOS;
-
 DynamicLibrary? _initLib() {
-  if (!_isIOS) return null;
-  return DynamicLibrary.process();
+  if (Platform.isIOS) return DynamicLibrary.process();
+  if (Platform.isAndroid) return DynamicLibrary.open('libux_keyboard.so');
+  return null;
 }
 
 final DynamicLibrary? _lib = _initLib();
@@ -90,7 +89,7 @@ class _SampledCurve extends Curve {
 
 class UxKeyboard with ChangeNotifier {
   UxKeyboard._() {
-    if (!_isIOS) return;
+    if (_lib == null) return;
     SchedulerBinding.instance.addPersistentFrameCallback(_onFrame);
   }
 
@@ -116,18 +115,22 @@ class UxKeyboard with ChangeNotifier {
 
     final ts = timestamp.inMicroseconds / Duration.microsecondsPerSecond;
 
-    // Detect new keyboard animation from native
-    final gen = _uxAnimGen?.call() ?? 0;
-    if (gen != _lastAnimGen) {
-      _lastAnimGen = gen;
-      final target = _uxAnimTarget?.call() ?? 0;
-      final duration = _uxAnimDuration?.call() ?? 0;
-      if (duration > 0) {
-        _animFrom = _height;
-        _animTo = target;
-        _animDuration = duration - 0.01; // finish 10ms ahead of native
-        _animStartTime = ts - 0.016; // compensate 2-frame pipeline delay
-        _isAnimating = true;
+    // On iOS, replay the animation in Dart with a head start (native only
+    // gives start/end via notification). On Android, WindowInsetsAnimation
+    // pushes per-frame values directly — no replay needed.
+    if (Platform.isIOS) {
+      final gen = _uxAnimGen?.call() ?? 0;
+      if (gen != _lastAnimGen) {
+        _lastAnimGen = gen;
+        final target = _uxAnimTarget?.call() ?? 0;
+        final duration = _uxAnimDuration?.call() ?? 0;
+        if (duration > 0) {
+          _animFrom = _height;
+          _animTo = target;
+          _animDuration = duration - 0.01; // finish 10ms ahead of native
+          _animStartTime = ts - 0.016; // compensate 2-frame pipeline delay
+          _isAnimating = true;
+        }
       }
     }
 
@@ -155,7 +158,8 @@ class UxKeyboard with ChangeNotifier {
       notifyListeners();
     }
 
-    if (_isAnimating) {
+    // Keep scheduling frames while animating or keyboard is active
+    if (_isAnimating || (!Platform.isIOS && (h > 0 || _height > 0))) {
       SchedulerBinding.instance.scheduleFrame();
     }
   }

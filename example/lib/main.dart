@@ -1,68 +1,102 @@
 import 'package:flutter/material.dart';
-import 'dart:async';
-
-import 'package:flutter/services.dart';
 import 'package:ux/ux.dart';
 
-void main() => runApp(MyApp());
+void main() => runApp(MaterialApp(home: KeyboardExample()));
 
-class MyApp extends StatefulWidget {
+class KeyboardExample extends StatefulWidget {
   @override
-  _MyAppState createState() => _MyAppState();
+  State<KeyboardExample> createState() => _KeyboardExampleState();
 }
 
-class _MyAppState extends State<MyApp> {
-  String _platformVersion = 'Unknown';
+class _KeyboardExampleState extends State<KeyboardExample> {
+  final _keyboard = UxKeyboard.instance;
+  final _focusNode = FocusNode();
 
   @override
   void initState() {
     super.initState();
-    initPlatformState();
-  }
-
-  // Platform messages are asynchronous, so we initialize in an async method.
-  Future<void> initPlatformState() async {
-    String platformVersion;
-    // Platform messages may fail, so we use a try/catch PlatformException.
-    try {
-      platformVersion = await UX.platformVersion;
-    } on PlatformException {
-      platformVersion = 'Failed to get platform version.';
-    }
-
-    if (!mounted) return;
-
-    setState(() {
-      _platformVersion = platformVersion;
-    });
+    _keyboard.addListener(_onKeyboard);
+    _keyboard.enableInteractiveDismiss(trackingInset: 56);
   }
 
   @override
+  void dispose() {
+    _keyboard.removeListener(_onKeyboard);
+    _keyboard.disableInteractiveDismiss();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _onKeyboard() => setState(() {});
+
+  @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      routes: {
-        '/': (context) => Scaffold(
-              appBar: AppBar(
-                title: const Text('Plugin example app'),
-              ),
-              body: Builder(
-                builder: (context) => ListView(
-                  padding: EdgeInsets.only(top: 48),
-                  children: [
-                    ListTile(title: Text('Running on: $_platformVersion\n')),
-                    ListTile(
-                      title: Text('Show a simple note'),
-                      //onTap: () => context.showText('This is a simple note'),
+    final bottomInset = _keyboard.height;
+    final safeArea = MediaQuery.paddingOf(context).bottom;
+    final bottom = bottomInset > 0 ? bottomInset : safeArea;
+
+    return Scaffold(
+      resizeToAvoidBottomInset: false,
+      appBar: AppBar(title: Text('UxKeyboard')),
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView.builder(
+              reverse: true,
+              padding: EdgeInsets.only(bottom: 60 + bottom, top: 16),
+              itemCount: 30,
+              itemBuilder: (context, i) => Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: Align(
+                  alignment: i % 3 == 0 ? Alignment.centerRight : Alignment.centerLeft,
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: i % 3 == 0 ? Colors.blue[100] : Colors.grey[200],
+                      borderRadius: BorderRadius.circular(16),
                     ),
-                    ListTile(
-                      title: Text('Show modal note'),
-                      //onTap: () => context.showText('This is a modal note', backdropBlur: 6, modal: true),
-                    )
-                  ],
+                    child: Text('Message ${30 - i}'),
+                  ),
                 ),
               ),
-            )
-      },
+            ),
+          ),
+          Container(
+            padding: EdgeInsets.only(
+              left: 12,
+              right: 12,
+              top: 8,
+              bottom: 8 + bottom,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border(top: BorderSide(color: Colors.grey[300]!)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    focusNode: _focusNode,
+                    decoration: InputDecoration(
+                      hintText: 'Type a message...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      isDense: true,
+                    ),
+                  ),
+                ),
+                SizedBox(width: 8),
+                IconButton(
+                  icon: Icon(Icons.send, color: Colors.blue),
+                  onPressed: () {},
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
