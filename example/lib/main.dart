@@ -22,7 +22,10 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final _keyboard = UxKeyboard.instance;
   final _textController = TextEditingController();
-  final _messages = List.generate(30, (i) => 'Message ${i + 1}');
+  final _messages = List.generate(
+    30,
+    (i) => (text: 'Message ${30 - i}', isMe: i % 3 == 0),
+  );
 
   @override
   void initState() {
@@ -42,7 +45,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void _send() {
     final text = _textController.text.trim();
     if (text.isEmpty) return;
-    setState(() => _messages.add(text));
+    setState(() => _messages.insert(0, (text: text, isMe: true)));
     _textController.clear();
   }
 
@@ -75,7 +78,8 @@ class _ChatScreenState extends State<ChatScreen> {
                     padding: EdgeInsets.only(top: 16, bottom: 8),
                     itemCount: _messages.length,
                     itemBuilder: (context, i) {
-                      final isMe = i % 3 == 0;
+                      final msg = _messages[i];
+                      final isMe = msg.isMe;
                       return Padding(
                         padding:
                             EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -97,7 +101,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                       .surfaceContainerHighest,
                               borderRadius: BorderRadius.circular(16),
                             ),
-                            child: Text(_messages[i]),
+                            child: Text(msg.text),
                           ),
                         ),
                       );
