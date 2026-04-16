@@ -104,6 +104,7 @@ public class KeyboardPlugin: NSObject, FlutterPlugin {
     // Pan gesture
     private var keyboardOriginY: CGFloat = 0
     fileprivate var snapBackAnimator: UIViewPropertyAnimator?
+    private var dismissAnimator: UIViewPropertyAnimator?
     private var trackingInset: CGFloat = 0
 
     // Animation params — passed to Dart so it can replay the same animation
@@ -147,12 +148,21 @@ public class KeyboardPlugin: NSObject, FlutterPlugin {
     }
 
     @objc private func keyboardWillChange(_ notification: Notification) {
-        guard !isTracking else { return }
-
         guard let userInfo = notification.userInfo else { return }
         let endFrame = (userInfo[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue ?? .zero
         let screenHeight = UIScreen.main.bounds.height
         let height = max(0, screenHeight - endFrame.origin.y)
+
+        // If the keyboard is closing while we're tracking (e.g. resignFirstResponder
+        // fired from a completed dismiss during a new pan), stop tracking and process
+        // the close — otherwise Dart never learns the keyboard went away.
+        if isTracking {
+            if height == 0 {
+                isTracking = false
+            } else {
+                return
+            }
+        }
 
         // Pass animation params to Dart so it can replay the same animation
         let duration = (userInfo[UIResponder.keyboardAnimationDurationUserInfoKey] as? NSNumber)?.doubleValue ?? 0.25
@@ -161,6 +171,16 @@ public class KeyboardPlugin: NSObject, FlutterPlugin {
         animGeneration &+= 1
 
         if height > 0 {
+            // Cancel any in-flight dismiss so it doesn't resignFirstResponder
+            // after the user has already re-focused.
+            if let anim = dismissAnimator {
+                anim.stopAnimation(true)
+                dismissAnimator = nil
+            }
+            // Always reset bounds — the dismiss animation (or its completion)
+            // may have shifted the keyboard view offscreen.
+            isDismissing = false
+            keyboardView?.layer.bounds.origin = .zero
             keyboardFullHeight = height
         } else {
             keyboardFullHeight = 0
@@ -291,6 +311,8 @@ public class KeyboardPlugin: NSObject, FlutterPlugin {
 
         case .changed:
             if !isTracking {
+                // Don't start tracking during a dismiss — the keyboard is going away.
+                guard dismissAnimator == nil, !isDismissing else { return }
                 // Use system keyboard height as source of truth
                 guard keyboardFullHeight > 0, keyboardView != nil else { return }
 
@@ -352,6 +374,10 @@ public class KeyboardPlugin: NSObject, FlutterPlugin {
         animDuration = 0.25
         animGeneration &+= 1
 
+        // Snapshot the generation so the completion can detect if the keyboard
+        // was reopened between now and when the animator finishes.
+        let genAtDismiss = animGeneration
+
         let animator = UIViewPropertyAnimator(duration: 0.25, dampingRatio: 0.9) { [weak self] in
             guard let kbView = self?.keyboardView else { return }
             kbView.layer.bounds = CGRect(
@@ -360,9 +386,14 @@ public class KeyboardPlugin: NSObject, FlutterPlugin {
             )
         }
         animator.addCompletion { [weak self] _ in
+            self?.dismissAnimator = nil
             self?.isDismissing = false
+            // Only resign if no new keyboard event arrived since the dismiss started.
+            // Otherwise we'd kill a keyboard the user just re-opened.
+            guard self?.animGeneration == genAtDismiss else { return }
             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         }
+        dismissAnimator = animator
         animator.startAnimation()
     }
 

@@ -1,101 +1,156 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:ux/ux.dart';
 
-void main() => runApp(MaterialApp(home: KeyboardExample()));
+void main() => runApp(MaterialApp(
+      theme: ThemeData(useMaterial3: true),
+      home: ChatScreen(),
+    ));
 
-class KeyboardExample extends StatefulWidget {
+/// Demonstrates UxKeyboard in a chat UI:
+/// - Frame-accurate keyboard height tracking (no Flutter viewInsets lag)
+/// - Interactive dismiss (swipe the keyboard down like iMessage)
+/// - Scroll freeze while the user is panning the keyboard
+class ChatScreen extends StatefulWidget {
+  const ChatScreen({super.key});
+
   @override
-  State<KeyboardExample> createState() => _KeyboardExampleState();
+  State<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _KeyboardExampleState extends State<KeyboardExample> {
+class _ChatScreenState extends State<ChatScreen> {
   final _keyboard = UxKeyboard.instance;
-  final _focusNode = FocusNode();
+  final _textController = TextEditingController();
+  final _messages = List.generate(30, (i) => 'Message ${i + 1}');
 
   @override
   void initState() {
     super.initState();
-    _keyboard.addListener(_onKeyboard);
+    // trackingInset: height of the input bar, so the pan-to-dismiss gesture
+    // activates when the finger enters the keyboard zone below the input bar.
     _keyboard.enableInteractiveDismiss(trackingInset: 56);
   }
 
   @override
   void dispose() {
-    _keyboard.removeListener(_onKeyboard);
     _keyboard.disableInteractiveDismiss();
-    _focusNode.dispose();
+    _textController.dispose();
     super.dispose();
   }
 
-  void _onKeyboard() => setState(() {});
+  void _send() {
+    final text = _textController.text.trim();
+    if (text.isEmpty) return;
+    setState(() => _messages.add(text));
+    _textController.clear();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final bottomInset = _keyboard.height;
-    final safeArea = MediaQuery.paddingOf(context).bottom;
-    final bottom = bottomInset > 0 ? bottomInset : safeArea;
-
+    // Disable Flutter's built-in resize — we handle it ourselves.
     return Scaffold(
       resizeToAvoidBottomInset: false,
-      appBar: AppBar(title: Text('UxKeyboard')),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView.builder(
-              reverse: true,
-              padding: EdgeInsets.only(bottom: 60 + bottom, top: 16),
-              itemCount: 30,
-              itemBuilder: (context, i) => Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                child: Align(
-                  alignment: i % 3 == 0 ? Alignment.centerRight : Alignment.centerLeft,
-                  child: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: i % 3 == 0 ? Colors.blue[100] : Colors.grey[200],
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Text('Message ${30 - i}'),
+      appBar: AppBar(title: Text('UxKeyboard Chat')),
+      // ListenableBuilder rebuilds only when UxKeyboard notifies (height changes).
+      body: ListenableBuilder(
+        listenable: _keyboard,
+        builder: (context, _) {
+          final keyboardHeight = _keyboard.height;
+          final safeBottom = MediaQuery.viewPaddingOf(context).bottom;
+          final bottom = math.max(keyboardHeight, safeBottom);
+
+          return Column(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => FocusScope.of(context).unfocus(),
+                  child: ListView.builder(
+                    // Freeze scrolling while the user is panning the keyboard down.
+                    // This prevents the list from bouncing during interactive dismiss.
+                    reverse: true,
+                    physics: _keyboard.isTracking
+                        ? NeverScrollableScrollPhysics()
+                        : null,
+                    padding: EdgeInsets.only(top: 16, bottom: 8),
+                    itemCount: _messages.length,
+                    itemBuilder: (context, i) {
+                      final isMe = i % 3 == 0;
+                      return Padding(
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                        child: Align(
+                          alignment: isMe
+                              ? Alignment.centerRight
+                              : Alignment.centerLeft,
+                          child: Container(
+                            constraints: BoxConstraints(
+                              maxWidth: MediaQuery.sizeOf(context).width * 0.75,
+                            ),
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: isMe
+                                  ? Theme.of(context).colorScheme.primaryContainer
+                                  : Theme.of(context)
+                                      .colorScheme
+                                      .surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Text(_messages[i]),
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
               ),
-            ),
-          ),
-          Container(
-            padding: EdgeInsets.only(
-              left: 12,
-              right: 12,
-              top: 8,
-              bottom: 8 + bottom,
-            ),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border(top: BorderSide(color: Colors.grey[300]!)),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    focusNode: _focusNode,
-                    decoration: InputDecoration(
-                      hintText: 'Type a message...',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
-                      ),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      isDense: true,
+              // Input bar — sits directly above the keyboard.
+              Container(
+                padding: EdgeInsets.only(
+                  left: 12,
+                  right: 4,
+                  top: 8,
+                  bottom: 8 + bottom,
+                ),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  border: Border(
+                    top: BorderSide(
+                      color: Theme.of(context).colorScheme.outlineVariant,
                     ),
                   ),
                 ),
-                SizedBox(width: 8),
-                IconButton(
-                  icon: Icon(Icons.send, color: Colors.blue),
-                  onPressed: () {},
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _textController,
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: (_) => _send(),
+                        decoration: InputDecoration(
+                          hintText: 'Type a message...',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          contentPadding: EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 10),
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: 4),
+                    IconButton(
+                      icon: Icon(Icons.send),
+                      color: Theme.of(context).colorScheme.primary,
+                      onPressed: _send,
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-        ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }
