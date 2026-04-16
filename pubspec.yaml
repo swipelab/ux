@@ -1,7 +1,16 @@
 name: ux
-description: UX Kit
+description: >-
+  Flutter toolkit for fluid, native-feeling UIs. Includes frame-accurate
+  keyboard height tracking via FFI with interactive dismiss, bezier utilities,
+  and layout primitives.
 version: 0.3.0
 homepage: https://swipelab.co/ux.html
+repository: https://github.com/swipelab/ux
+issue_tracker: https://github.com/swipelab/ux/issues
+topics:
+  - keyboard
+  - ui
+  - animation
 
 environment:
   sdk: ">=3.0.0"
@@ -11,6 +20,7 @@ dependencies:
     sdk: flutter
 
 dev_dependencies:
+  flutter_lints: ^6.0.0
   flutter_test:
     sdk: flutter
 

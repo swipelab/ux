@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'dart:ui';
 
+/// Computes the approximate arc length of a [Bezier] curve by sampling.
 double bezierLength(Bezier bezier, [double steps = 10]) {
   assert(steps != 0);
   final step = 1 / steps;
@@ -14,36 +15,56 @@ double bezierLength(Bezier bezier, [double steps = 10]) {
   return length;
 }
 
+/// Base class for parametric bezier curves.
+///
+/// Evaluate a point on the curve with [point] at parameter `t` in [0, 1].
 abstract class Bezier {
+  /// Returns the point on the curve at parameter [t] (0 = start, 1 = end).
   Offset point(double t);
 
+  /// The approximate arc length of the curve.
   double get length => bezierLength(this);
 }
 
+/// A straight line segment from [p0] to [p1].
 class LinearBezier extends Bezier {
-  Offset p0, p1;
+  /// The start point.
+  Offset p0;
 
+  /// The end point.
+  Offset p1;
+
+  /// Creates a linear bezier from [p0] to [p1].
   LinearBezier(this.p0, this.p1);
 
+  @override
   Offset point(double t) {
     return p0 + (p1 - p0) * t;
   }
 
+  @override
   double get length => (p1 - p0).distance;
 }
 
+/// A quadratic bezier curve with one control point.
 class QuadraticBezier extends Bezier {
   double _quadraticBezier(double t, double p0, double p1, double p2) {
-    //final lt = 1 - t;
-    //return lt * (lt * p0 + t * p1) + t * (lt * p1 + t * p2);
-    //return pow(1 - t, 2) * p0 + 2 * (1 - t) * t * p1 + pow(t, 2) * p2;
     return p1 + pow(1 - t, 2) * (p0 - p1) + pow(t, 2) * (p2 - p1);
   }
 
-  Offset p0, p1, p2;
+  /// The start point.
+  Offset p0;
 
+  /// The control point.
+  Offset p1;
+
+  /// The end point.
+  Offset p2;
+
+  /// Creates a quadratic bezier from [p0] to [p2] with control point [p1].
   QuadraticBezier(this.p0, this.p1, this.p2);
 
+  @override
   Offset point(double t) {
     return Offset(
       _quadraticBezier(t, p0.dx, p1.dx, p2.dx),
@@ -52,6 +73,7 @@ class QuadraticBezier extends Bezier {
   }
 }
 
+/// A cubic bezier curve with two control points.
 class CubicBezier extends Bezier {
   double _cubicBezier(double t, double p0, double p1, double p2, double p3) {
     return pow(1 - t, 3) * p0 +
@@ -60,35 +82,53 @@ class CubicBezier extends Bezier {
         pow(t, 3) * p3;
   }
 
-  Offset p0, p1, p2, p3;
+  /// The start point.
+  Offset p0;
 
+  /// The first control point.
+  Offset p1;
+
+  /// The second control point.
+  Offset p2;
+
+  /// The end point.
+  Offset p3;
+
+  /// Creates a cubic bezier from [p0] to [p3] with control points [p1] and [p2].
   CubicBezier(this.p0, this.p1, this.p2, this.p3);
 
-  Offset point(double t) =>
-      Offset(
+  @override
+  Offset point(double t) => Offset(
         _cubicBezier(t, p0.dx, p1.dx, p2.dx, p3.dx),
         _cubicBezier(t, p0.dy, p1.dy, p2.dy, p3.dy),
       );
 }
 
+/// A composite path of multiple bezier segments.
+///
+/// Build a path incrementally with [lineTo], [quadTo], and [cubeTo].
+/// Evaluate any point along the total path with [point].
 class PathBezier extends Bezier {
   double _length = 0;
 
+  @override
   double get length => _length;
 
-  List<Bezier> _curves = [];
-  List<double> _lens = [];
+  final List<Bezier> _curves = [];
+  final List<double> _lens = [];
 
+  /// The starting point of the path.
   final Offset p0;
   Offset _p0;
 
+  /// Creates a path starting at [p0].
   PathBezier(this.p0) : _p0 = p0;
 
+  /// Creates a path tracing a rounded rectangle.
   static PathBezier roundedRect(RRect rrect) {
     return PathBezier(Offset(rrect.left + rrect.width / 2, rrect.top))
       ..lineTo(Offset(rrect.right - rrect.trRadiusX, rrect.top))
-      ..quadTo(
-          Offset(rrect.right, rrect.top),
+      ..quadTo(Offset(rrect.right, rrect.top),
           Offset(rrect.right, rrect.top + rrect.trRadiusY))
       ..lineTo(Offset(rrect.right, rrect.bottom - rrect.brRadiusY))
       ..quadTo(Offset(rrect.right, rrect.bottom),
@@ -102,7 +142,7 @@ class PathBezier extends Bezier {
       ..lineTo(Offset(rrect.left + rrect.width / 2, rrect.top));
   }
 
-  _add(Bezier bezier, Offset pn) {
+  void _add(Bezier bezier, Offset pn) {
     final bl = bezierLength(bezier);
     _curves.add(bezier);
     _lens.add(bl);
@@ -110,32 +150,29 @@ class PathBezier extends Bezier {
     _p0 = pn;
   }
 
-  lineTo(Offset p1) => _add(LinearBezier(_p0, p1), p1);
+  /// Appends a straight line to [p1].
+  void lineTo(Offset p1) => _add(LinearBezier(_p0, p1), p1);
 
-  quadTo(Offset p1, Offset p2) => _add(QuadraticBezier(_p0, p1, p2), p2);
+  /// Appends a quadratic curve with control point [p1] to endpoint [p2].
+  void quadTo(Offset p1, Offset p2) =>
+      _add(QuadraticBezier(_p0, p1, p2), p2);
 
-  cubeTo(Offset p1, Offset p2, Offset p3) =>
+  /// Appends a cubic curve with control points [p1], [p2] to endpoint [p3].
+  void cubeTo(Offset p1, Offset p2, Offset p3) =>
       _add(CubicBezier(_p0, p1, p2, p3), p3);
 
-  relativeLineTo(Offset p1) =>
-      lineTo(
-        p1 + _p0,
-      );
+  /// Appends a straight line to a point relative to the current position.
+  void relativeLineTo(Offset p1) => lineTo(p1 + _p0);
 
-  relativeQuadTo(Offset p1, Offset p2) =>
-      quadTo(
-        p1 + p0,
-        p1 + p2 + p0,
-      );
+  /// Appends a quadratic curve with relative control and end points.
+  void relativeQuadTo(Offset p1, Offset p2) =>
+      quadTo(p1 + p0, p1 + p2 + p0);
 
-  relativeCubeTo(Offset p1, Offset p2, Offset p3) =>
-      cubeTo(
-        p0 + p1,
-        p0 + p1 + p2,
-        p0 + p1 + p2 + p3,
-      );
+  /// Appends a cubic curve with relative control and end points.
+  void relativeCubeTo(Offset p1, Offset p2, Offset p3) =>
+      cubeTo(p0 + p1, p0 + p1 + p2, p0 + p1 + p2 + p3);
 
-
+  @override
   Offset point(double t) {
     if (t > 1) {
       t = t - t.floor();

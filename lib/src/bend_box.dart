@@ -1,11 +1,19 @@
 import 'package:flutter/material.dart';
 
+/// A widget that paints a filled shape with curved (bent) edges.
+///
+/// Each edge bends inward by the amount specified in [inward].
 class BendBox extends StatelessWidget {
+  /// How far each edge bends inward. Positive values bend toward the center.
   final EdgeInsets inward;
+
+  /// The fill color of the shape.
   final Color color;
 
-  BendBox({this.inward = const EdgeInsets.all(0), this.color = Colors.red});
+  /// Creates a [BendBox] with the given [inward] bend and [color].
+  const BendBox({super.key, this.inward = const EdgeInsets.all(0), this.color = Colors.red});
 
+  @override
   Widget build(BuildContext context) {
     return CustomPaint(painter: _BendBoxPainter(inward: inward, color: color));
   }
@@ -20,6 +28,7 @@ class _BendBoxPainter extends CustomPainter {
     required this.color,
   });
 
+  @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..style = PaintingStyle.fill
@@ -39,5 +48,6 @@ class _BendBoxPainter extends CustomPainter {
     canvas.drawPath(path, paint);
   }
 
+  @override
   bool shouldRepaint(CustomPainter oldDelegate) => true;
 }

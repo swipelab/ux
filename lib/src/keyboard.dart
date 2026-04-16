@@ -2,7 +2,6 @@ import 'dart:ffi';
 import 'dart:io';
 import 'dart:math' as math;
 
-import 'package:flutter/animation.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 
@@ -126,19 +125,50 @@ double _inverseLerp(List<double> samples, double value) {
 
 // ---------------------------------------------------------------------------
 
+/// Frame-accurate keyboard height tracking for iOS and Android.
+///
+/// Reads the keyboard position directly from the native layer via FFI each
+/// frame, bypassing Flutter's `MediaQuery.viewInsets` which lags behind.
+///
+/// Supports interactive dismiss (swipe-to-dismiss like iMessage) and provides
+/// sampled native animation curves with adaptive learning.
+///
+/// Use the singleton [instance] and listen for changes via [addListener]:
+///
+/// ```dart
+/// final keyboard = UxKeyboard.instance;
+/// keyboard.enableInteractiveDismiss(trackingInset: 56);
+/// ```
 class UxKeyboard with ChangeNotifier {
   UxKeyboard._() {
     if (_lib == null) return;
     SchedulerBinding.instance.addPersistentFrameCallback(_onFrame);
   }
 
+  /// The singleton instance.
   static final UxKeyboard instance = UxKeyboard._();
 
   double _height = 0;
 
+  /// The current keyboard height in logical pixels.
+  ///
+  /// Updated every frame while the keyboard is animating or open.
+  /// Returns 0 when the keyboard is fully closed.
   double get height => _height;
+
+  /// The last system-reported keyboard height.
+  ///
+  /// Unlike [height], this is not interpolated — it reflects the target
+  /// height from the most recent keyboard notification.
   double get systemHeight => _uxSystemHeight?.call() ?? 0;
+
+  /// Whether the keyboard is currently visible.
   bool get isOpen => _height > 0;
+
+  /// Whether an interactive dismiss pan gesture is active.
+  ///
+  /// When true, the user is dragging the keyboard down. Use this to freeze
+  /// scroll views so they don't fight the pan gesture.
   bool get isTracking => (_uxIsTracking?.call() ?? 0) > 0;
 
   // Animation state — replays the keyboard's own animation inside Flutter.
@@ -308,6 +338,13 @@ class UxKeyboard with ChangeNotifier {
     _obs.clear();
   }
 
+  /// Enables swipe-to-dismiss on the keyboard.
+  ///
+  /// [trackingInset] is the height of your input bar in logical pixels.
+  /// The dismiss gesture activates when the finger enters the keyboard zone
+  /// below this inset.
   void enableInteractiveDismiss({double trackingInset = 0}) => _uxEnableInteractiveDismiss?.call(trackingInset);
+
+  /// Disables the swipe-to-dismiss gesture.
   void disableInteractiveDismiss() => _uxDisableInteractiveDismiss?.call();
 }
