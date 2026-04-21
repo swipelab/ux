@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 
 DynamicLibrary? _initLib() {
   if (Platform.isIOS) return DynamicLibrary.process();
@@ -141,12 +142,35 @@ double _inverseLerp(List<double> samples, double value) {
 /// ```
 class UxKeyboard with ChangeNotifier {
   UxKeyboard._() {
+    if (Platform.isAndroid) {
+      _channel.setMethodCallHandler(_onMethodCall);
+    }
     if (_lib == null) return;
     SchedulerBinding.instance.addPersistentFrameCallback(_onFrame);
   }
 
   /// The singleton instance.
   static final UxKeyboard instance = UxKeyboard._();
+
+  static const _channel = MethodChannel('ux/keyboard');
+
+  /// Increments each time the native window gains input focus — the signal
+  /// Android needs before the IME can be raised. Listen for changes when you
+  /// want to re-trigger a pending focus request at cold start (e.g. a
+  /// `TextField(autofocus: true)` whose initial `TextInput.show` was dropped
+  /// because the window wasn't yet focused).
+  ///
+  /// The value itself is a monotonically-increasing counter — only useful as a
+  /// change signal, not as an absolute state.
+  final windowFocusCounter = ValueNotifier<int>(0);
+
+  Future<dynamic> _onMethodCall(MethodCall call) async {
+    switch (call.method) {
+      case 'onWindowFocused':
+        windowFocusCounter.value++;
+        break;
+    }
+  }
 
   double _height = 0;
 

@@ -4,6 +4,7 @@
 /// [BendBox] for curved layout painting, and bezier curve utilities.
 library;
 
+export 'src/app_info.dart';
 export 'src/bend_box.dart';
 export 'src/json_extension.dart';
 export 'src/bezier.dart';

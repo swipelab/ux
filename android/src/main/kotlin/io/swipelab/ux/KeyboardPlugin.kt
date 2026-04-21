@@ -3,6 +3,7 @@ package io.swipelab.ux
 import android.app.Activity
 import android.graphics.Insets
 import android.os.Build
+import android.view.ViewTreeObserver
 import android.view.WindowInsets
 import android.view.WindowInsetsAnimation
 import io.flutter.embedding.engine.plugins.FlutterPlugin
@@ -14,6 +15,7 @@ import io.flutter.plugin.common.MethodChannel
 class KeyboardPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, ActivityAware {
     private var methodChannel: MethodChannel? = null
     private var activity: Activity? = null
+    private var windowFocusListener: ViewTreeObserver.OnWindowFocusChangeListener? = null
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         methodChannel = MethodChannel(binding.binaryMessenger, "ux/keyboard").also {
@@ -37,19 +39,45 @@ class KeyboardPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, ActivityA
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
         activity = binding.activity
         setupInsetsCallback()
+        setupWindowFocusListener()
     }
 
     override fun onDetachedFromActivity() {
+        teardownWindowFocusListener()
         activity = null
     }
 
     override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
         activity = binding.activity
         setupInsetsCallback()
+        setupWindowFocusListener()
     }
 
     override fun onDetachedFromActivityForConfigChanges() {
+        teardownWindowFocusListener()
         activity = null
+    }
+
+    /// Reports window-focus changes to Dart via the `onWindowFocused` method.
+    /// Needed because Flutter's `TextField(autofocus: true)` at cold start
+    /// fires before the Activity window has native focus, so its `TextInput.show`
+    /// is ignored ("view not served"). Dart listens and re-requests focus once
+    /// the window is focused, at which point the IME reliably appears.
+    private fun setupWindowFocusListener() {
+        val decor = activity?.window?.decorView ?: return
+        val listener = ViewTreeObserver.OnWindowFocusChangeListener { hasFocus ->
+            if (hasFocus) {
+                methodChannel?.invokeMethod("onWindowFocused", null)
+            }
+        }
+        decor.viewTreeObserver.addOnWindowFocusChangeListener(listener)
+        windowFocusListener = listener
+    }
+
+    private fun teardownWindowFocusListener() {
+        val listener = windowFocusListener ?: return
+        activity?.window?.decorView?.viewTreeObserver?.removeOnWindowFocusChangeListener(listener)
+        windowFocusListener = null
     }
 
     private fun setupInsetsCallback() {
