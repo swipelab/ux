@@ -1,3 +1,12 @@
+### 0.4.0
+- `package:ux/testing.dart`: new entry point for test-only utilities
+- `matchesTextGolden(path, {update})`: `matchesGoldenFile`-style matcher for
+  plain-text snapshots (RPC responses, log output, formatted data). Writes on
+  first run or when `update: true`; compares byte-for-byte otherwise. Runtime
+  stays flutter_test-free — depends only on `package:matcher`. For
+  flutter_test users, pass `update: autoUpdateGoldenFiles` so
+  `flutter test --update-goldens` regenerates text goldens too.
+
 ### 0.3.0
 - `UxKeyboard`: fix interactive dismiss race conditions — keyboard height no longer
   gets stuck when rapidly dismissing and re-focusing
