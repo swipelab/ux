@@ -86,7 +86,7 @@ public func ux_keyboard_anim_gen() -> Int32 {
 
 // MARK: - Plugin
 
-public class KeyboardPlugin: NSObject, FlutterPlugin {
+public class KeyboardPlugin: NSObject, NativePlugin {
     fileprivate static var shared: KeyboardPlugin?
 
     fileprivate var wakeCallback: WakeCallback?
@@ -112,15 +112,9 @@ public class KeyboardPlugin: NSObject, FlutterPlugin {
     fileprivate var animDuration: Double = 0
     fileprivate var animGeneration: Int32 = 0
 
-    public static func register(with registrar: FlutterPluginRegistrar) {
-        let instance = KeyboardPlugin()
-        KeyboardPlugin.shared = instance
-
-        instance.startObserving()
-    }
-
-    public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
-        result(FlutterMethodNotImplemented)
+    public func register(with registrar: FlutterPluginRegistrar) {
+        KeyboardPlugin.shared = self
+        startObserving()
     }
 
     /// Wake Dart so it reads the height on its next frame

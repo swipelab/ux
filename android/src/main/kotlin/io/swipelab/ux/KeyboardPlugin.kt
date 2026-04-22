@@ -7,12 +7,11 @@ import android.view.ViewTreeObserver
 import android.view.WindowInsets
 import android.view.WindowInsetsAnimation
 import io.flutter.embedding.engine.plugins.FlutterPlugin
-import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 
-class KeyboardPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, ActivityAware {
+class KeyboardPlugin : NativePlugin, MethodChannel.MethodCallHandler {
     private var methodChannel: MethodChannel? = null
     private var activity: Activity? = null
     private var windowFocusListener: ViewTreeObserver.OnWindowFocusChangeListener? = null

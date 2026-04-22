@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 project(ux_keyboard)
 
-add_library(ux_keyboard SHARED keyboard_bridge.c)
+add_library(ux_keyboard SHARED keyboard_bridge.c sensor_bridge.c)
 target_link_libraries(ux_keyboard log)
 
 # 16KB page size support (required for Android 15+)
