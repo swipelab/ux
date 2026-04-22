@@ -8,6 +8,7 @@ class UxPlugin : FlutterPlugin, ActivityAware {
     private val plugins: List<NativePlugin> = listOf(
         KeyboardPlugin(),
         SensorPlugin(),
+        FilePlugin(),
     )
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) =

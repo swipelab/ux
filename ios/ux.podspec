@@ -1,7 +1,7 @@
 Pod::Spec.new do |s|
   s.name             = 'ux'
-  s.version          = '0.2.0'
-  s.summary          = 'UX Kit – Flutter plugin with keyboard tracking and interactive dismiss.'
+  s.version          = '0.6.0'
+  s.summary          = 'UX Kit — Flutter plugin: keyboard, sensor, and file share/open.'
   s.homepage         = 'https://swipelab.co/ux.html'
   s.license          = { :file => '../LICENSE' }
   s.author           = { 'Swipelab' => 'hello@swipelab.co' }

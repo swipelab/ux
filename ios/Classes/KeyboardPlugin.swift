@@ -267,22 +267,8 @@ public class KeyboardPlugin: NSObject, NativePlugin {
     }
 
     private func setupPanGesture() {
-        var targetView: UIView?
-
-        if let window = UIApplication.shared.delegate?.window ?? nil {
-            targetView = window.rootViewController?.view ?? window
-        } else {
-            for scene in UIApplication.shared.connectedScenes {
-                if let ws = scene as? UIWindowScene {
-                    for window in ws.windows where window.isKeyWindow {
-                        targetView = window.rootViewController?.view ?? window
-                        break
-                    }
-                }
-            }
-        }
-
-        guard let view = targetView else { return }
+        guard let window = UxWindow.keyWindow else { return }
+        let view: UIView = window.rootViewController?.view ?? window
 
         let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan))
         pan.cancelsTouchesInView = false
