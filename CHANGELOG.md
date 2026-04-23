@@ -1,3 +1,11 @@
+### 0.7.0
+- `AutoMap<K, V>`: insertion-ordered collection with O(1) lookup by key
+  **and** by index. Backed by a `List<V>` + `Map<K, int>` kept in sync by
+  four mutation methods (`add`, `addAll`, `remove`, `clear`); both fields
+  are private so callers cannot break the invariant. Extends `Iterable<V>`
+  for `where` / `map` / `firstWhere` / etc. `remove` is O(n) to preserve
+  order; every other op is O(1).
+
 ### 0.6.0
 - `UxFile`: new module for handing files to the OS
   - `UxFile.share(path, {title, mimeType, sourceRect})` — iOS `UIActivityViewController`,
