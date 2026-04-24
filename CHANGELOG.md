@@ -1,3 +1,18 @@
+### 0.8.0
+- `Log`: pretty, production-ready logger. Static entry (`Log.d/i/w/e/f/t`),
+  scoped loggers via `Log.tag('KB')`, lazy messages (`Log.d(() => expensive)`),
+  structured `fields`, ANSI-colored `ConsoleSink`, `DeveloperSink` for DevTools,
+  `MemorySink` ring buffer (tests + breadcrumbs), `NoopSink`. Sinks fan out via
+  `+` with per-sink `minLevel`; throwing sinks can't take down the pipeline.
+- `Log.configure`: one-call setup that also wires `FlutterError.onError`,
+  `PlatformDispatcher.onError`, and isolate errors through `Log.e`. Pair of
+  log-then-rethrow is deduped via an `Expando` mark so crash handlers don't
+  double-report. Override the `captureCrashes` hook to customise or pass
+  `() {}` to opt out.
+- `UxKeyboard`: adaptive-learning debug output now uses `Log.tag('KB').d`
+  instead of `print`, lazy-built so the formatted line is only constructed
+  when debug level is enabled.
+
 ### 0.7.0
 - `AutoMap<K, V>`: insertion-ordered collection with O(1) lookup by key
   **and** by index. Backed by a `List<V>` + `Map<K, int>` kept in sync by

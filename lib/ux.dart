@@ -13,3 +13,4 @@ export 'src/keyboard.dart';
 export 'src/auto_map.dart';
 export 'src/sensor.dart';
 export 'src/functional.dart';
+export 'src/log.dart';

@@ -5,6 +5,9 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
+import 'package:ux/src/log.dart';
+
+final _kbLog = Log.tag('KB');
 
 DynamicLibrary? _initLib() {
   if (Platform.isIOS) return DynamicLibrary.process();
@@ -352,11 +355,12 @@ class UxKeyboard with ChangeNotifier {
 
       _converged = maxError < _kAdaptThreshold;
 
-      if (kDebugMode) {
-        print('[KB] adapt #$_learnCount headStart=${(_headStart * 1000).toStringAsFixed(1)}ms '
+      _kbLog.d(
+        () => 'adapt #$_learnCount '
+            'headStart=${(_headStart * 1000).toStringAsFixed(1)}ms '
             'maxErr=${(maxError * 100).toStringAsFixed(1)}% '
-            '${_converged ? "CONVERGED" : "learning"}');
-      }
+            '${_converged ? "CONVERGED" : "learning"}',
+      );
     }
 
     _obs.clear();
