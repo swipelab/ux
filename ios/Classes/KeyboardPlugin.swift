@@ -114,6 +114,7 @@ public class KeyboardPlugin: NSObject, NativePlugin {
 
     public func register(with registrar: FlutterPluginRegistrar) {
         KeyboardPlugin.shared = self
+        KeyboardPlugin.warmup()
         startObserving()
     }
 
