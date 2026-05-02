@@ -1,5 +1,7 @@
-import FlutterMacOS
 import AppKit
+import AVFoundation
+import CoreServices
+import FlutterMacOS
 import Quartz
 
 public class FilePlugin: NSObject, NativePlugin {
@@ -15,10 +17,129 @@ public class FilePlugin: NSObject, NativePlugin {
 
     private func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         switch call.method {
-        case "share": handleShare(call, result: result)
-        case "open":  handleOpen(call, result: result)
-        default:      result(FlutterMethodNotImplemented)
+        case "share":          handleShare(call, result: result)
+        case "open":           handleOpen(call, result: result)
+        case "pick":           handlePick(call, result: result)
+        case "videoThumbnail": handleVideoThumbnail(call, result: result)
+        default:               result(FlutterMethodNotImplemented)
         }
+    }
+
+    private func handleVideoThumbnail(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+        guard let args = call.arguments as? [String: Any],
+              let path = args["path"] as? String else {
+            return result(FlutterError(code: "bad_args", message: "path is required", details: nil))
+        }
+        let atMs = (args["atMs"] as? NSNumber)?.intValue ?? 0
+        let maxWidth = (args["maxWidth"] as? NSNumber)?.intValue ?? 320
+
+        let url = URL(fileURLWithPath: path)
+        let asset = AVURLAsset(url: url)
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.appliesPreferredTrackTransform = true
+        generator.maximumSize = CGSize(width: CGFloat(maxWidth), height: 0)
+        generator.requestedTimeToleranceBefore = CMTime(value: 500, timescale: 1000)
+        generator.requestedTimeToleranceAfter  = CMTime(value: 500, timescale: 1000)
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let cgImage = try generator.copyCGImage(
+                    at: CMTime(value: Int64(atMs) * 1000, timescale: 1_000_000),
+                    actualTime: nil,
+                )
+                let bitmap = NSBitmapImageRep(cgImage: cgImage)
+                guard let png = bitmap.representation(using: .png, properties: [:]) else {
+                    DispatchQueue.main.async { result(nil) }
+                    return
+                }
+                let reply: [String: Any] = [
+                    "png": FlutterStandardTypedData(bytes: png),
+                    "width": cgImage.width,
+                    "height": cgImage.height,
+                ]
+                DispatchQueue.main.async { result(reply) }
+            } catch {
+                DispatchQueue.main.async {
+                    result(FlutterError(
+                        code: "decode_failed",
+                        message: "could not extract frame: \(error.localizedDescription)",
+                        details: nil,
+                    ))
+                }
+            }
+        }
+    }
+
+    private func handlePick(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+        let args = call.arguments as? [String: Any]
+        let mimeTypes = (args?["mimeTypes"] as? [String]) ?? []
+
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.resolvesAliases = true
+
+        let utis = utiStrings(forMimeTypes: mimeTypes)
+        // Empty / `public.data` only means "any" — leave allowed types unset
+        // so users can pick any file.
+        if !(utis.count == 1 && utis[0] == kUTTypeData as String) {
+            // `allowedFileTypes` accepts both UTI strings and bare file
+            // extensions. Deprecated on macOS 12+ but still functional.
+            panel.allowedFileTypes = utis
+        }
+
+        let host = UxWindow.flutterView?.window
+        let completion: (NSApplication.ModalResponse) -> Void = { response in
+            guard response == .OK, let url = panel.url else {
+                result(nil)
+                return
+            }
+            let path = url.path
+            let attrs = try? FileManager.default.attributesOfItem(atPath: path)
+            let size = (attrs?[.size] as? NSNumber)?.intValue
+            let mime = mimeFromExtension(url.pathExtension)
+            result([
+                "path": path,
+                "name": url.lastPathComponent,
+                "mimeType": mime as Any,
+                "size": size as Any,
+            ])
+        }
+
+        if let host = host {
+            panel.beginSheetModal(for: host, completionHandler: completion)
+        } else {
+            panel.begin(completionHandler: completion)
+        }
+    }
+
+    /// Maps Dart-side MIME strings to legacy UTI strings (CoreServices,
+    /// macOS 10.15-compatible). Wildcards and unknown MIMEs degrade to
+    /// `public.data`.
+    private func utiStrings(forMimeTypes mimes: [String]) -> [String] {
+        if mimes.isEmpty { return [kUTTypeData as String] }
+        var out: [String] = []
+        for m in mimes {
+            if m == "*/*" { return [kUTTypeData as String] }
+            if m.hasSuffix("/*") {
+                switch String(m.dropLast(2)) {
+                case "image":       out.append(kUTTypeImage as String)
+                case "video":       out.append(kUTTypeMovie as String)
+                case "audio":       out.append(kUTTypeAudio as String)
+                case "text":        out.append(kUTTypeText as String)
+                case "application": out.append(kUTTypeData as String)
+                default:            out.append(kUTTypeData as String)
+                }
+                continue
+            }
+            if let unmanaged = UTTypeCreatePreferredIdentifierForTag(
+                kUTTagClassMIMEType, m as CFString, nil
+            ) {
+                out.append(unmanaged.takeRetainedValue() as String)
+            }
+        }
+        return out.isEmpty ? [kUTTypeData as String] : out
     }
 
     private func handleShare(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -75,6 +196,19 @@ public class FilePlugin: NSObject, NativePlugin {
 
         result(NSWorkspace.shared.open(url))
     }
+}
+
+/// MIME-type lookup from a filename extension via the legacy UTI machinery
+/// (macOS 10.15 compatible).
+fileprivate func mimeFromExtension(_ ext: String) -> String? {
+    guard !ext.isEmpty else { return nil }
+    guard let uti = UTTypeCreatePreferredIdentifierForTag(
+        kUTTagClassFilenameExtension, ext as CFString, nil
+    )?.takeRetainedValue() else { return nil }
+    guard let mime = UTTypeCopyPreferredTagWithClass(
+        uti, kUTTagClassMIMEType
+    )?.takeRetainedValue() else { return nil }
+    return mime as String
 }
 
 private final class UxQLPreviewResponder: NSView, QLPreviewPanelDataSource {

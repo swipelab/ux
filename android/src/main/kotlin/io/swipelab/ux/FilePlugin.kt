@@ -4,18 +4,31 @@ import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.media.MediaMetadataRetriever
+import android.net.Uri
+import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugin.common.PluginRegistry
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileOutputStream
 
-class FilePlugin : NativePlugin, MethodChannel.MethodCallHandler {
+class FilePlugin : NativePlugin, MethodChannel.MethodCallHandler,
+    PluginRegistry.ActivityResultListener {
     private var methodChannel: MethodChannel? = null
     private var context: Context? = null
     private var activity: Activity? = null
+    private var activityBinding: ActivityPluginBinding? = null
+
+    /// Active pick request — set when [handlePick] launches the picker,
+    /// cleared in [onActivityResult]. Reentrancy is rejected.
+    private var pendingPickResult: MethodChannel.Result? = null
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         context = binding.applicationContext
@@ -32,16 +45,26 @@ class FilePlugin : NativePlugin, MethodChannel.MethodCallHandler {
 
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
         activity = binding.activity
+        activityBinding = binding
+        binding.addActivityResultListener(this)
     }
 
     override fun onDetachedFromActivity() {
+        activityBinding?.removeActivityResultListener(this)
+        activityBinding = null
         activity = null
+        // If the activity tears down with a request still in flight, settle
+        // it cleanly rather than leaking the Result.
+        pendingPickResult?.success(null)
+        pendingPickResult = null
     }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
             "share" -> handleShare(call, result)
             "open" -> handleOpen(call, result)
+            "pick" -> handlePick(call, result)
+            "videoThumbnail" -> handleVideoThumbnail(call, result)
             else -> result.notImplemented()
         }
     }
@@ -101,6 +124,165 @@ class FilePlugin : NativePlugin, MethodChannel.MethodCallHandler {
         }
     }
 
+    private fun handlePick(call: MethodCall, result: MethodChannel.Result) {
+        val act = activity
+            ?: return result.error("no_activity", "plugin not attached to an activity", null)
+        if (pendingPickResult != null) {
+            return result.error(
+                "in_progress", "a pick request is already in progress", null
+            )
+        }
+        val mimeTypes = (call.argument<List<*>>("mimeTypes"))
+            ?.filterIsInstance<String>()
+            ?.takeIf { it.isNotEmpty() }
+
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = if (mimeTypes != null && mimeTypes.size == 1) mimeTypes[0] else "*/*"
+            if (mimeTypes != null && mimeTypes.size > 1) {
+                putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes.toTypedArray())
+            }
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        pendingPickResult = result
+        try {
+            act.startActivityForResult(intent, REQUEST_CODE_PICK)
+        } catch (e: ActivityNotFoundException) {
+            pendingPickResult = null
+            result.error("no_picker", "no document picker available: ${e.message}", null)
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
+        if (requestCode != REQUEST_CODE_PICK) return false
+        val r = pendingPickResult ?: return true
+        pendingPickResult = null
+        if (resultCode != Activity.RESULT_OK) {
+            r.success(null)
+            return true
+        }
+        val uri = data?.data
+        if (uri == null) {
+            r.success(null)
+            return true
+        }
+        val ctx = context
+        if (ctx == null) {
+            r.error("no_context", "lost application context", null)
+            return true
+        }
+        try {
+            val picked = copyUriToCache(ctx, uri)
+            r.success(picked)
+        } catch (e: Throwable) {
+            r.error("copy_failed", "could not stream-copy URI to cache: ${e.message}", null)
+        }
+        return true
+    }
+
+    /// Stream-copies the [uri]'s content (an SAF document) to a fresh file
+    /// in `cacheDir/ux_pick/`. Returns a map ready for the platform-channel
+    /// reply. Crucially, the bytes never live in JVM heap — they flow
+    /// `InputStream → 8KB buffer → FileOutputStream`.
+    private fun copyUriToCache(ctx: Context, uri: Uri): Map<String, Any?> {
+        val resolver = ctx.contentResolver
+        var displayName: String? = null
+        var size: Long? = null
+        resolver.query(
+            uri,
+            arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE),
+            null, null, null,
+        )?.use { c ->
+            if (c.moveToFirst()) {
+                val nameIdx = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (nameIdx >= 0 && !c.isNull(nameIdx)) displayName = c.getString(nameIdx)
+                val sizeIdx = c.getColumnIndex(OpenableColumns.SIZE)
+                if (sizeIdx >= 0 && !c.isNull(sizeIdx)) size = c.getLong(sizeIdx)
+            }
+        }
+        val safeName = (displayName ?: "picked").replace(Regex("[\\\\/:*?\"<>|]"), "_")
+        val mimeType = resolver.getType(uri)
+
+        val dir = File(ctx.cacheDir, "ux_pick").apply { mkdirs() }
+        val out = File(dir, "${System.currentTimeMillis()}_$safeName")
+
+        var copied = 0L
+        resolver.openInputStream(uri).use { input ->
+            requireNotNull(input) { "openInputStream returned null for $uri" }
+            FileOutputStream(out).use { output ->
+                val buf = ByteArray(8 * 1024)
+                while (true) {
+                    val n = input.read(buf)
+                    if (n <= 0) break
+                    output.write(buf, 0, n)
+                    copied += n
+                }
+            }
+        }
+
+        return mapOf(
+            "path" to out.absolutePath,
+            "name" to displayName,
+            "mimeType" to mimeType,
+            "size" to (size ?: copied),
+        )
+    }
+
+    private fun handleVideoThumbnail(call: MethodCall, result: MethodChannel.Result) {
+        val path = call.argument<String>("path")
+            ?: return result.error("bad_args", "path is required", null)
+        val atMs = (call.argument<Number>("atMs") ?: 0).toLong()
+        val maxWidth = (call.argument<Number>("maxWidth") ?: 320).toInt()
+
+        val retriever = MediaMetadataRetriever()
+        try {
+            retriever.setDataSource(path)
+            // OPTION_CLOSEST_SYNC is fastest — picks the nearest keyframe.
+            // For atMs=0 this is the first frame, which is what callers
+            // typically want for a thumbnail.
+            val frame = retriever.getFrameAtTime(
+                atMs * 1000L, // µs
+                MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
+            )
+            if (frame == null) {
+                result.success(null)
+                return
+            }
+            val scaled = scaleBitmap(frame, maxWidth)
+            try {
+                val baos = ByteArrayOutputStream()
+                scaled.compress(Bitmap.CompressFormat.PNG, 100, baos)
+                result.success(
+                    mapOf<String, Any?>(
+                        "png" to baos.toByteArray(),
+                        "width" to scaled.width,
+                        "height" to scaled.height,
+                    ),
+                )
+            } finally {
+                if (scaled !== frame) scaled.recycle()
+                frame.recycle()
+            }
+        } catch (e: Throwable) {
+            result.error("decode_failed", "could not extract frame: ${e.message}", null)
+        } finally {
+            try { retriever.release() } catch (_: Throwable) {}
+        }
+    }
+
+    /// Scales [bitmap] so its longer edge equals [maxWidth] while
+    /// preserving aspect ratio. Returns the original if already small enough.
+    private fun scaleBitmap(bitmap: Bitmap, maxWidth: Int): Bitmap {
+        val w = bitmap.width
+        val h = bitmap.height
+        val longEdge = maxOf(w, h)
+        if (longEdge <= maxWidth) return bitmap
+        val scale = maxWidth.toFloat() / longEdge
+        val outW = (w * scale).toInt().coerceAtLeast(1)
+        val outH = (h * scale).toInt().coerceAtLeast(1)
+        return Bitmap.createScaledBitmap(bitmap, outW, outH, true)
+    }
+
     private fun inferMime(supplied: String?, path: String): String {
         if (!supplied.isNullOrBlank() && supplied != "application/octet-stream") {
             return supplied
@@ -116,6 +298,8 @@ class FilePlugin : NativePlugin, MethodChannel.MethodCallHandler {
     }
 
     companion object {
+        private const val REQUEST_CODE_PICK = 0xC51 // arbitrary, namespaced
+
         private val textExtensions = setOf(
             "dart", "swift", "kt", "kts", "java", "scala", "groovy",
             "py", "rb", "php", "pl", "sh", "bash", "zsh", "fish",

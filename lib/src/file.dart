@@ -1,6 +1,42 @@
+import 'dart:typed_data';
 import 'dart:ui' show Rect;
 
 import 'package:flutter/services.dart';
+
+/// A single frame extracted from a video file. [pngBytes] is the encoded
+/// PNG ready to embed in a thumbnail proto / paint via `Image.memory`;
+/// [width] / [height] describe the encoded image, which may be smaller
+/// than the source video due to the `maxWidth` constraint at extraction.
+class UxVideoThumbnail {
+  const UxVideoThumbnail({
+    required this.pngBytes,
+    required this.width,
+    required this.height,
+  });
+
+  final Uint8List pngBytes;
+  final int width;
+  final int height;
+}
+
+/// A file the user picked. [path] is on local disk and readable by
+/// `dart:io File` — for Android content:// URIs the native side
+/// stream-copies the source to the app's cache; for iOS/macOS picks the
+/// file is copied to the temp dir so the path is stable after the picker
+/// dismisses. Bytes are never marshalled across the platform channel.
+class UxPickedFile {
+  const UxPickedFile({
+    required this.path,
+    this.name,
+    this.mimeType,
+    this.size,
+  });
+
+  final String path;
+  final String? name;
+  final String? mimeType;
+  final int? size;
+}
 
 class UxFile {
   UxFile._();
@@ -66,5 +102,63 @@ class UxFile {
       if (mimeType != null) 'mimeType': mimeType,
     });
     return result ?? false;
+  }
+
+  /// Present the system file picker. Returns the picked file's local-disk
+  /// path (and optional metadata), or null if the user cancelled.
+  ///
+  /// File content is **never** marshalled across the platform channel —
+  /// the native side only ships back the path. Use `dart:io` to read the
+  /// file: `File(picked.path).openRead()` etc.
+  ///
+  /// [mimeTypes] filters the picker. Each entry can be a concrete type
+  /// (`image/png`), a wildcard (`image/*`), or `*/*`. Null = `[*/*]`.
+  /// Note: Apple platforms map MIME → UTType internally; common types
+  /// (`image/*`, `video/*`, `application/pdf`) work on all three. For
+  /// Apple-specific types prefer concrete MIME like `image/jpeg` over
+  /// wildcards.
+  static Future<UxPickedFile?> pick({
+    List<String>? mimeTypes,
+  }) async {
+    final result = await _channel.invokeMapMethod<String, Object?>('pick', {
+      if (mimeTypes != null) 'mimeTypes': mimeTypes,
+    });
+    if (result == null) return null;
+    final path = result['path'] as String?;
+    if (path == null) return null;
+    return UxPickedFile(
+      path: path,
+      name: result['name'] as String?,
+      mimeType: result['mimeType'] as String?,
+      size: (result['size'] as num?)?.toInt(),
+    );
+  }
+
+  /// Extract a single frame from the video at [path]. Returns null if the
+  /// platform's media decoder couldn't open the file (unsupported codec /
+  /// corrupt / not actually a video).
+  ///
+  /// [atMs] picks the frame timestamp in milliseconds (default 0 = first
+  /// available keyframe). [maxWidth] caps the output's longer edge while
+  /// preserving aspect ratio.
+  static Future<UxVideoThumbnail?> videoThumbnail({
+    required String path,
+    int atMs = 0,
+    int maxWidth = 320,
+  }) async {
+    final result = await _channel.invokeMapMethod<String, Object?>(
+      'videoThumbnail',
+      <String, Object?>{
+        'path': path,
+        'atMs': atMs,
+        'maxWidth': maxWidth,
+      },
+    );
+    if (result == null) return null;
+    final bytes = result['png'] as Uint8List?;
+    final width = (result['width'] as num?)?.toInt();
+    final height = (result['height'] as num?)?.toInt();
+    if (bytes == null || width == null || height == null) return null;
+    return UxVideoThumbnail(pngBytes: bytes, width: width, height: height);
   }
 }
