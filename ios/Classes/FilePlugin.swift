@@ -9,6 +9,13 @@ public class FilePlugin: NSObject, NativePlugin {
     private var previewDataSource: FilePreviewDataSource?
     private var pickerDelegate: UxDocumentPickerDelegate?
 
+    private struct ScopedEntry {
+        let url: URL
+        var count: Int
+    }
+    private var scoped: [String: ScopedEntry] = [:]
+    private let scopedQueue = DispatchQueue(label: "ux.file.scoped")
+
     public func register(with registrar: FlutterPluginRegistrar) {
         let c = FlutterMethodChannel(name: "ux/file", binaryMessenger: registrar.messenger())
         c.setMethodCallHandler { [weak self] call, result in
@@ -19,11 +26,14 @@ public class FilePlugin: NSObject, NativePlugin {
 
     private func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         switch call.method {
-        case "share":          handleShare(call, result: result)
-        case "open":           handleOpen(call, result: result)
-        case "pick":           handlePick(call, result: result)
-        case "videoThumbnail": handleVideoThumbnail(call, result: result)
-        default:               result(FlutterMethodNotImplemented)
+        case "share":              handleShare(call, result: result)
+        case "open":               handleOpen(call, result: result)
+        case "pick":               handlePick(call, result: result)
+        case "showInFolder":       result(false) // no Finder equivalent on iOS
+        case "beginScopedAccess":  handleBeginScopedAccess(call, result: result)
+        case "endScopedAccess":    handleEndScopedAccess(call, result: result)
+        case "videoThumbnail":     handleVideoThumbnail(call, result: result)
+        default:                   result(FlutterMethodNotImplemented)
         }
     }
 
@@ -120,10 +130,11 @@ public class FilePlugin: NSObject, NativePlugin {
         let mimeTypes = (args?["mimeTypes"] as? [String]) ?? []
         let utis = utiStrings(forMimeTypes: mimeTypes)
 
-        // `.import` mode copies the picked file into the app's Documents/Inbox
-        // so the URL is stable after the picker dismisses (matches Android's
-        // cache-copy semantics).
-        let picker = UIDocumentPickerViewController(documentTypes: utis, in: .import)
+        // `.open` returns a security-scoped URL pointing at the user's
+        // original file (no Documents/Inbox copy). Persist the bookmark
+        // returned to Dart so future opens can re-acquire scope across
+        // cold starts.
+        let picker = UIDocumentPickerViewController(documentTypes: utis, in: .open)
         picker.allowsMultipleSelection = false
         let delegate = UxDocumentPickerDelegate(result: result) { [weak self] in
             self?.pickerDelegate = nil
@@ -173,9 +184,15 @@ public class FilePlugin: NSObject, NativePlugin {
             return result(FlutterError(code: "no_view", message: "no top view controller", details: nil))
         }
 
-        let url = URL(fileURLWithPath: path)
-        let ds = FilePreviewDataSource(url: url)
-        // QLPreviewController requires a strong-retained data source.
+        let bookmarkData = (args["bookmark"] as? FlutterStandardTypedData)?.data
+        let resolved = resolveURL(path: path, bookmark: bookmarkData)
+        let url = resolved.url
+        let started = resolved.scoped
+        // QuickLook keeps the URL alive while presented; we hold scope for
+        // the controller's lifetime by deferring stop until dismiss.
+        let ds = FilePreviewDataSource(url: url) {
+            if started { url.stopAccessingSecurityScopedResource() }
+        }
         previewDataSource = ds
 
         let vc = QLPreviewController()
@@ -185,11 +202,101 @@ public class FilePlugin: NSObject, NativePlugin {
             result(true)
         }
     }
+
+    private func handleBeginScopedAccess(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+        guard let args = call.arguments as? [String: Any],
+              let bookmarkData = (args["bookmark"] as? FlutterStandardTypedData)?.data else {
+            return result(FlutterError(code: "bad_args", message: "bookmark is required", details: nil))
+        }
+        var stale = false
+        let url: URL
+        do {
+            url = try URL(
+                resolvingBookmarkData: bookmarkData,
+                options: [],
+                relativeTo: nil,
+                bookmarkDataIsStale: &stale,
+            )
+        } catch {
+            return result(FlutterError(code: "stale_bookmark",
+                message: "could not resolve bookmark: \(error.localizedDescription)",
+                details: nil))
+        }
+        guard url.startAccessingSecurityScopedResource() else {
+            return result(FlutterError(code: "access_denied",
+                message: "startAccessingSecurityScopedResource failed",
+                details: nil))
+        }
+        let path = url.path
+        scopedQueue.sync {
+            if var entry = scoped[path] {
+                entry.count += 1
+                scoped[path] = entry
+                url.stopAccessingSecurityScopedResource()
+            } else {
+                scoped[path] = ScopedEntry(url: url, count: 1)
+            }
+        }
+        var reply: [String: Any] = ["path": path]
+        if stale {
+            if let refreshed = try? url.bookmarkData(
+                options: [],
+                includingResourceValuesForKeys: nil,
+                relativeTo: nil,
+            ) {
+                reply["bookmark"] = FlutterStandardTypedData(bytes: refreshed)
+            }
+        }
+        result(reply)
+    }
+
+    private func handleEndScopedAccess(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+        guard let args = call.arguments as? [String: Any],
+              let path = args["path"] as? String else {
+            return result(FlutterError(code: "bad_args", message: "path is required", details: nil))
+        }
+        scopedQueue.sync {
+            guard var entry = scoped[path] else { return }
+            entry.count -= 1
+            if entry.count <= 0 {
+                entry.url.stopAccessingSecurityScopedResource()
+                scoped.removeValue(forKey: path)
+            } else {
+                scoped[path] = entry
+            }
+        }
+        result(nil)
+    }
+
+    /// Resolves [bookmark] (when present) into a security-scoped URL and
+    /// starts access. Falls back to a plain `URL(fileURLWithPath:)` when no
+    /// bookmark is provided or resolution fails.
+    private func resolveURL(path: String, bookmark: Data?) -> (url: URL, scoped: Bool) {
+        guard let bookmark = bookmark else {
+            return (URL(fileURLWithPath: path), false)
+        }
+        var stale = false
+        guard let url = try? URL(
+            resolvingBookmarkData: bookmark,
+            options: [],
+            relativeTo: nil,
+            bookmarkDataIsStale: &stale,
+        ) else {
+            return (URL(fileURLWithPath: path), false)
+        }
+        let started = url.startAccessingSecurityScopedResource()
+        return (url, started)
+    }
 }
 
 private final class FilePreviewDataSource: NSObject, QLPreviewControllerDataSource {
     let url: URL
-    init(url: URL) { self.url = url }
+    let onDeinit: (() -> Void)?
+    init(url: URL, onDeinit: (() -> Void)? = nil) {
+        self.url = url
+        self.onDeinit = onDeinit
+    }
+    deinit { onDeinit?() }
 
     func numberOfPreviewItems(in controller: QLPreviewController) -> Int { 1 }
 
@@ -211,9 +318,10 @@ fileprivate func mimeFromExtension(_ ext: String) -> String? {
     return mime as String
 }
 
-/// Picker delegate that converts a [UIDocumentPickerViewController] result
-/// into the Dart-side reply map. `.import` mode copies the picked file
-/// into the app's Documents/Inbox, so the URL is stable.
+/// Picker delegate for `.open` mode. The returned URL is security-scoped;
+/// we briefly start access to read attributes + create a bookmark, then
+/// stop access. Persisted bookmark lets Dart re-acquire scope later via
+/// `beginScopedAccess`.
 private final class UxDocumentPickerDelegate: NSObject, UIDocumentPickerDelegate {
     let result: FlutterResult
     let onDone: () -> Void
@@ -232,16 +340,30 @@ private final class UxDocumentPickerDelegate: NSObject, UIDocumentPickerDelegate
             result(nil)
             return
         }
+        let started = url.startAccessingSecurityScopedResource()
+        defer { if started { url.stopAccessingSecurityScopedResource() } }
+
         let path = url.path
         let attrs = try? FileManager.default.attributesOfItem(atPath: path)
         let size = (attrs?[.size] as? NSNumber)?.intValue
         let mime = mimeFromExtension(url.pathExtension)
-        result([
+        // iOS bookmarks don't take `.withSecurityScope` (that's macOS-only);
+        // bookmarks created from a security-scoped URL stay scoped.
+        let bookmark = try? url.bookmarkData(
+            options: [],
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil,
+        )
+        var reply: [String: Any] = [
             "path": path,
             "name": url.lastPathComponent,
             "mimeType": mime as Any,
             "size": size as Any,
-        ])
+        ]
+        if let bookmark = bookmark {
+            reply["bookmark"] = FlutterStandardTypedData(bytes: bookmark)
+        }
+        result(reply)
     }
 
     func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {

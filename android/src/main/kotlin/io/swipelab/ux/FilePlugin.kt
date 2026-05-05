@@ -64,6 +64,15 @@ class FilePlugin : NativePlugin, MethodChannel.MethodCallHandler,
             "share" -> handleShare(call, result)
             "open" -> handleOpen(call, result)
             "pick" -> handlePick(call, result)
+            // No file-manager equivalent that's reliable across OEMs.
+            "showInFolder" -> result.success(false)
+            // Android URI permissions, once persisted, don't need a per-read
+            // begin/end cycle — these are no-ops for API symmetry.
+            "beginScopedAccess" -> {
+                val path = call.argument<String>("path")
+                if (path != null) result.success(mapOf("path" to path)) else result.success(null)
+            }
+            "endScopedAccess" -> result.success(null)
             "videoThumbnail" -> handleVideoThumbnail(call, result)
             else -> result.notImplemented()
         }
@@ -171,6 +180,17 @@ class FilePlugin : NativePlugin, MethodChannel.MethodCallHandler,
             r.error("no_context", "lost application context", null)
             return true
         }
+        // Persist the URI grant so we can resolve the original later
+        // (e.g. across cold restarts). Best-effort — some providers (notably
+        // ones without `FLAG_GRANT_PERSISTABLE_URI_PERMISSION` in the
+        // returned intent) reject this; the cached copy still works.
+        try {
+            ctx.contentResolver.takePersistableUriPermission(
+                uri, Intent.FLAG_GRANT_READ_URI_PERMISSION,
+            )
+        } catch (_: SecurityException) {
+            // No persistable grant — proceed with cache copy only.
+        }
         try {
             val picked = copyUriToCache(ctx, uri)
             r.success(picked)
@@ -225,6 +245,11 @@ class FilePlugin : NativePlugin, MethodChannel.MethodCallHandler,
             "name" to displayName,
             "mimeType" to mimeType,
             "size" to (size ?: copied),
+            // The "bookmark" on Android is the original SAF URI as UTF-8
+            // bytes — kept for symmetry with macOS/iOS scoped bookmarks
+            // and so callers can re-resolve the source if a future code
+            // path needs it (read via ContentResolver).
+            "bookmark" to uri.toString().toByteArray(Charsets.UTF_8),
         )
     }
 

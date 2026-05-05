@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'dart:typed_data';
 import 'dart:ui' show Rect;
 
@@ -20,22 +21,33 @@ class UxVideoThumbnail {
 }
 
 /// A file the user picked. [path] is on local disk and readable by
-/// `dart:io File` — for Android content:// URIs the native side
-/// stream-copies the source to the app's cache; for iOS/macOS picks the
-/// file is copied to the temp dir so the path is stable after the picker
-/// dismisses. Bytes are never marshalled across the platform channel.
+/// `dart:io File` while the picker session's grant is active.
+///
+/// On macOS / iOS the picker returns the user's original location (no
+/// temp-dir copy); access across cold restarts is preserved by storing
+/// [bookmark] and re-acquiring scope via [UxFile.withScopedAccess] /
+/// [UxFile.open] / [UxFile.showInFolder]. On Android the native side
+/// stream-copies a `content://` source into the app cache (since
+/// `dart:io` can't open content URIs); [bookmark] holds the source URI
+/// as UTF-8 bytes for symmetry but isn't required for reads.
 class UxPickedFile {
   const UxPickedFile({
     required this.path,
     this.name,
     this.mimeType,
     this.size,
+    this.bookmark,
   });
 
   final String path;
   final String? name;
   final String? mimeType;
   final int? size;
+
+  /// macOS / iOS scoped bookmark, or Android URI bytes. Persist alongside
+  /// [path] so future opens can re-acquire access. Null on platforms that
+  /// don't need it (or when the platform supplied no bookmark).
+  final Uint8List? bookmark;
 }
 
 class UxFile {
@@ -59,6 +71,34 @@ class UxFile {
   ///
   /// Returns true if the sheet was presented. Returns false if the host
   /// couldn't present it (no activity on Android, no window on macOS).
+  /// Run [body] with scoped access to a file. On macOS / iOS, when
+  /// [bookmark] is non-null, the plugin resolves the bookmark into a
+  /// security-scoped URL, starts access, hands the resolved path to
+  /// [body], and stops access in `finally`. On all other platforms (and
+  /// when [bookmark] is null) [body] is invoked with [path] directly.
+  ///
+  /// The plugin maintains a per-path begin counter so nested calls are
+  /// safe. Access is always released in `finally`, including on errors.
+  static Future<T> withScopedAccess<T>(
+    String path,
+    Uint8List? bookmark,
+    Future<T> Function(String path) body,
+  ) async {
+    if (bookmark == null || !(Platform.isMacOS || Platform.isIOS)) {
+      return body(path);
+    }
+    final result = await _channel.invokeMapMethod<String, Object?>(
+      'beginScopedAccess',
+      {'bookmark': bookmark},
+    );
+    final resolvedPath = result?['path'] as String? ?? path;
+    try {
+      return await body(resolvedPath);
+    } finally {
+      await _channel.invokeMethod<void>('endScopedAccess', {'path': resolvedPath});
+    }
+  }
+
   static Future<bool> share({
     required String path,
     String? title,
@@ -96,10 +136,12 @@ class UxFile {
   static Future<bool> open({
     required String path,
     String? mimeType,
+    Uint8List? bookmark,
   }) async {
     final result = await _channel.invokeMethod<bool>('open', {
       'path': path,
       if (mimeType != null) 'mimeType': mimeType,
+      if (bookmark != null) 'bookmark': bookmark,
     });
     return result ?? false;
   }
@@ -131,8 +173,33 @@ class UxFile {
       name: result['name'] as String?,
       mimeType: result['mimeType'] as String?,
       size: (result['size'] as num?)?.toInt(),
+      bookmark: result['bookmark'] as Uint8List?,
     );
   }
+
+  /// Reveal a file on disk in the system's file browser.
+  ///
+  /// - macOS: opens (or surfaces) a Finder window with the file selected
+  ///   (`NSWorkspace.activateFileViewerSelecting`).
+  /// - All other platforms: no-op, returns false.
+  ///
+  /// Returns true on macOS when Finder accepted the request.
+  static Future<bool> showInFolder({
+    required String path,
+    Uint8List? bookmark,
+  }) async {
+    if (!Platform.isMacOS) return false;
+    final result = await _channel.invokeMethod<bool>('showInFolder', {
+      'path': path,
+      if (bookmark != null) 'bookmark': bookmark,
+    });
+    return result ?? false;
+  }
+
+  /// Whether the host platform supports [showInFolder]. Currently macOS
+  /// only — call sites can use this to gate UI affordances ("Show in
+  /// Finder" buttons) so they don't appear where they're inert.
+  static bool get supportsShowInFolder => Platform.isMacOS;
 
   /// Extract a single frame from the video at [path]. Returns null if the
   /// platform's media decoder couldn't open the file (unsupported codec /
