@@ -1,3 +1,11 @@
+### 0.9.0
+- `UxScanner`: new platform-view widget for QR-code (and forward-compat
+  barcode) scanning. iOS uses `AVCaptureMetadataOutput` (no extra pod);
+  Android uses CameraX preview + ZXing decoder
+  (`com.google.zxing:core:3.5.3`, ~470 KB jar, no Play Services dep).
+  `UxScannerPermission.requestCamera()` requests OS permission first;
+  decoded payloads stream through `EventChannel('ux/scanner/events')`.
+
 ### 0.8.0
 - `Log`: pretty, production-ready logger. Static entry (`Log.d/i/w/e/f/t`),
   scoped loggers via `Log.tag('KB')`, lazy messages (`Log.d(() => expensive)`),

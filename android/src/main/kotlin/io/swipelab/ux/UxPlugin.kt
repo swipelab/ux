@@ -9,6 +9,7 @@ class UxPlugin : FlutterPlugin, ActivityAware {
         KeyboardPlugin(),
         SensorPlugin(),
         FilePlugin(),
+        ScannerPlugin(),
     )
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) =
