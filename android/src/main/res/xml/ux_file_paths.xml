@@ -2,4 +2,6 @@
 <paths>
   <cache-path name="ux_share" path="ux_share/" />
   <external-cache-path name="ux_share_ext" path="ux_share/" />
+  <cache-path name="ux_files" path="files/" />
+  <external-cache-path name="ux_files_ext" path="files/" />
 </paths>
