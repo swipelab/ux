@@ -7,6 +7,7 @@ public class UxPlugin: NSObject, FlutterPlugin {
     public static func register(with registrar: FlutterPluginRegistrar) {
         plugins = [
             FilePlugin(),
+            ClipboardPlugin(),
         ]
         for plugin in plugins {
             plugin.register(with: registrar)

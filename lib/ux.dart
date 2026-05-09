@@ -8,6 +8,7 @@ export 'src/app_info.dart';
 export 'src/bend_box.dart';
 export 'src/json_extension.dart';
 export 'src/bezier.dart';
+export 'src/clipboard.dart';
 export 'src/file.dart';
 export 'src/keyboard.dart';
 export 'src/auto_map.dart';
