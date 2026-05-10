@@ -5,4 +5,5 @@
 /// ```
 library;
 
+export 'src/testing/fake_gallery.dart';
 export 'src/testing/text_golden.dart';

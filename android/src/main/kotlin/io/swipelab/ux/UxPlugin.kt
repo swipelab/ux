@@ -11,6 +11,7 @@ class UxPlugin : FlutterPlugin, ActivityAware {
         FilePlugin(),
         ScannerPlugin(),
         ClipboardPlugin(),
+        GalleryPlugin(),
     )
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) =

@@ -11,6 +11,7 @@ public class UxPlugin: NSObject, FlutterPlugin {
             FilePlugin(),
             ScannerPlugin(),
             ClipboardPlugin(),
+            GalleryPlugin(),
         ]
         for plugin in plugins {
             plugin.register(with: registrar)
