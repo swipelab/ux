@@ -98,12 +98,17 @@ public class GalleryPlugin: NSObject, NativePlugin, PHPhotoLibraryChangeObserver
             }
             result(nil)
         case "presentLimitedLibraryPicker":
-            // Just dismissal signal — the actual reload trigger is the
-            // `ux/gallery/changes` event channel driven by the library
-            // observer (which fires after iOS commits the new subset).
+            // Completion handler signals dismissal; reload is driven by
+            // `ux/gallery/changes` via the library observer (fires after
+            // iOS commits the new subset).
             if #available(iOS 15, *), let vc = UxWindow.topViewController {
                 PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: vc) { _ in
-                    result(nil)
+                    // Apple's docs: the completion handler runs on "an
+                    // arbitrary serial dispatch queue". Flutter method-
+                    // channel results must be invoked on the main queue.
+                    DispatchQueue.main.async {
+                        result(nil)
+                    }
                 }
             } else if #available(iOS 14, *), let vc = UxWindow.topViewController {
                 PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: vc)
