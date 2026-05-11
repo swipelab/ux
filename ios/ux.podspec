@@ -7,6 +7,7 @@ Pod::Spec.new do |s|
   s.author           = { 'Swipelab' => 'hello@swipelab.co' }
   s.source           = { :path => '.' }
   s.source_files     = 'Classes/**/*.swift'
+  s.frameworks       = ['Photos', 'PhotosUI']
   s.dependency 'Flutter'
   s.ios.deployment_target = '13.0'
   s.swift_version = '5.0'
