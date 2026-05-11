@@ -16,4 +16,6 @@ export 'src/auto_map.dart';
 export 'src/scanner.dart';
 export 'src/sensor.dart';
 export 'src/functional.dart';
+export 'src/crash.dart';
 export 'src/log.dart';
+export 'src/log_http.dart';
