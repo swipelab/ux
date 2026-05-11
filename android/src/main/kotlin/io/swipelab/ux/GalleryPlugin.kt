@@ -6,15 +6,19 @@ import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.database.ContentObserver
 import android.database.Cursor
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.MediaStore
 import android.provider.Settings
 import android.util.Size
 import androidx.core.content.ContextCompat
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
+import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.PluginRegistry
@@ -28,8 +32,9 @@ import java.io.FileOutputStream
 /// resolution into the app cache so `dart:io` can read what the
 /// system holds behind a `content://` URI.
 class GalleryPlugin : NativePlugin, MethodChannel.MethodCallHandler,
-    PluginRegistry.RequestPermissionsResultListener {
+    PluginRegistry.RequestPermissionsResultListener, EventChannel.StreamHandler {
     private var methodChannel: MethodChannel? = null
+    private var changesChannel: EventChannel? = null
     private var context: Context? = null
     private var activity: Activity? = null
     private var activityBinding: ActivityPluginBinding? = null
@@ -39,17 +44,62 @@ class GalleryPlugin : NativePlugin, MethodChannel.MethodCallHandler,
     /// is rejected.
     private var pendingPermissionResult: MethodChannel.Result? = null
 
+    /// Dart subscriber on `ux/gallery/changes` — fed by [mediaObserver]
+    /// when `MediaStore` reports an insert/update/delete so picker UIs
+    /// can reload reactively (parity with iOS's `photoLibraryDidChange`).
+    private var libraryEventSink: EventChannel.EventSink? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val mediaObserver = object : ContentObserver(mainHandler) {
+        override fun onChange(selfChange: Boolean, uri: Uri?) {
+            libraryEventSink?.success(null)
+        }
+    }
+    private var mediaObserverRegistered = false
+
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         context = binding.applicationContext
         methodChannel = MethodChannel(binding.binaryMessenger, "ux/gallery").also {
             it.setMethodCallHandler(this)
         }
+        changesChannel = EventChannel(
+            binding.binaryMessenger, "ux/gallery/changes",
+        ).also { it.setStreamHandler(this) }
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         methodChannel?.setMethodCallHandler(null)
         methodChannel = null
+        changesChannel?.setStreamHandler(null)
+        changesChannel = null
+        unregisterMediaObserver()
         context = null
+    }
+
+    override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+        libraryEventSink = events
+        registerMediaObserver()
+    }
+
+    override fun onCancel(arguments: Any?) {
+        libraryEventSink = null
+        unregisterMediaObserver()
+    }
+
+    private fun registerMediaObserver() {
+        if (mediaObserverRegistered) return
+        val ctx = context ?: return
+        ctx.contentResolver.registerContentObserver(
+            MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL),
+            /* notifyForDescendants */ true,
+            mediaObserver,
+        )
+        mediaObserverRegistered = true
+    }
+
+    private fun unregisterMediaObserver() {
+        if (!mediaObserverRegistered) return
+        context?.contentResolver?.unregisterContentObserver(mediaObserver)
+        mediaObserverRegistered = false
     }
 
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {

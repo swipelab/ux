@@ -6,9 +6,17 @@ import UIKit
 /// `Photos.framework` bridge for `UxGallery` — paginated asset queries,
 /// cell-sized thumbnails via `PHCachingImageManager`, and on-demand
 /// file resolution into the app cache.
-public class GalleryPlugin: NSObject, NativePlugin {
+public class GalleryPlugin: NSObject, NativePlugin, PHPhotoLibraryChangeObserver, FlutterStreamHandler {
     private let imageManager = PHCachingImageManager()
     private var fetchCache: [String: PHFetchResult<PHAsset>] = [:]
+    private var libraryObserverRegistered = false
+
+    /// Active Dart subscriber for the `ux/gallery/changes` event channel.
+    /// Push a `nil` event on every `photoLibraryDidChange` so callers
+    /// reload reactively against the committed library state — the
+    /// observer fires after iOS commits, sidestepping the
+    /// `presentLimitedLibraryPicker` completion-vs-commit race.
+    private var libraryEventSink: FlutterEventSink?
 
     public func register(with registrar: FlutterPluginRegistrar) {
         let channel = FlutterMethodChannel(
@@ -18,15 +26,69 @@ public class GalleryPlugin: NSObject, NativePlugin {
         channel.setMethodCallHandler { [weak self] call, result in
             self?.handle(call: call, result: result)
         }
+        let events = FlutterEventChannel(
+            name: "ux/gallery/changes",
+            binaryMessenger: registrar.messenger(),
+        )
+        events.setStreamHandler(self)
+    }
+
+    public func onListen(
+        withArguments arguments: Any?,
+        eventSink events: @escaping FlutterEventSink,
+    ) -> FlutterError? {
+        libraryEventSink = events
+        return nil
+    }
+
+    public func onCancel(withArguments arguments: Any?) -> FlutterError? {
+        libraryEventSink = nil
+        return nil
+    }
+
+    /// `PHFetchResult` snapshots go stale after the limited-library
+    /// subset changes or any external Photos.app edit; observing
+    /// change events lets us drop the cache so the next `assets`
+    /// call re-fetches against the live library. Deferred to first
+    /// granted/limited authorization — registering at plugin init
+    /// triggers iOS's permission evaluation on app launch even before
+    /// the user touches the picker.
+    private func ensureLibraryObserver() {
+        guard !libraryObserverRegistered else { return }
+        PHPhotoLibrary.shared().register(self)
+        libraryObserverRegistered = true
+    }
+
+    deinit {
+        if libraryObserverRegistered {
+            PHPhotoLibrary.shared().unregisterChangeObserver(self)
+        }
+    }
+
+    public func photoLibraryDidChange(_ changeInstance: PHChange) {
+        // Callback runs on an arbitrary background thread; hop to main
+        // before touching `fetchCache` or pushing the Flutter event so
+        // we don't race the method-channel handler.
+        DispatchQueue.main.async { [weak self] in
+            self?.fetchCache.removeAll()
+            self?.libraryEventSink?(nil)
+        }
     }
 
     private func handle(call: FlutterMethodCall, result: @escaping FlutterResult) {
         switch call.method {
         case "permission":
-            result(Self.permissionString(Self.currentAuthorization()))
+            let status = Self.currentAuthorization()
+            if Self.isAuthorizedForLibrary(status) {
+                ensureLibraryObserver()
+            }
+            result(Self.permissionString(status))
         case "requestPermission":
-            Self.requestAuthorization { status in
+            Self.requestAuthorization { [weak self] status in
                 DispatchQueue.main.async {
+                    if Self.isAuthorizedForLibrary(status) {
+                        self?.ensureLibraryObserver()
+                    }
                     result(Self.permissionString(status))
                 }
             }
@@ -36,10 +98,19 @@ public class GalleryPlugin: NSObject, NativePlugin {
             }
             result(nil)
         case "presentLimitedLibraryPicker":
-            if #available(iOS 14, *), let vc = UxWindow.topViewController {
+            // Just dismissal signal — the actual reload trigger is the
+            // `ux/gallery/changes` event channel driven by the library
+            // observer (which fires after iOS commits the new subset).
+            if #available(iOS 15, *), let vc = UxWindow.topViewController {
+                PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: vc) { _ in
+                    result(nil)
+                }
+            } else if #available(iOS 14, *), let vc = UxWindow.topViewController {
                 PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: vc)
+                result(nil)
+            } else {
+                result(nil)
             }
-            result(nil)
         case "albums":
             handleAlbums(call: call, result: result)
         case "assets":
@@ -68,6 +139,12 @@ public class GalleryPlugin: NSObject, NativePlugin {
         } else {
             PHPhotoLibrary.requestAuthorization(handler)
         }
+    }
+
+    private static func isAuthorizedForLibrary(_ status: PHAuthorizationStatus) -> Bool {
+        if status == .authorized { return true }
+        if #available(iOS 14, *), status == .limited { return true }
+        return false
     }
 
     private static func permissionString(_ status: PHAuthorizationStatus) -> String {

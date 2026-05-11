@@ -91,6 +91,13 @@ abstract class UxGalleryBackend {
   });
   Future<UxAssetThumbnail> thumbnail(String assetId, {required int sizePx});
   Future<io.File> resolveFile(String assetId);
+
+  /// Emits whenever the underlying photo library reports a change —
+  /// limited-subset edits via `presentLimitedLibraryPicker`, external
+  /// edits from Photos.app, or permission flips from Settings.
+  /// Subscribers should re-fetch any cached album / asset listings on
+  /// each event.
+  Stream<void> get libraryChanges;
 }
 
 /// Static facade for the system photo library. All state lives in the
@@ -150,6 +157,11 @@ class UxGallery {
   /// app cache (since `dart:io` can't read content URIs directly).
   static Future<io.File> resolveFile(String assetId) =>
       backend.resolveFile(assetId);
+
+  /// Emits whenever the system photo library changes — limited-subset
+  /// edits, external edits, permission changes. Picker UIs subscribe
+  /// to reload their cached asset list reactively.
+  static Stream<void> get libraryChanges => backend.libraryChanges;
 }
 
 /// Default [UxGalleryBackend] — dispatches to native code via the
@@ -157,6 +169,14 @@ class UxGallery {
 /// after swapping to a fake.
 class MethodChannelGalleryBackend implements UxGalleryBackend {
   static const _channel = MethodChannel('ux/gallery');
+  static const _changesChannel = EventChannel('ux/gallery/changes');
+
+  /// Lazy broadcast view of `ux/gallery/changes`. The native side only
+  /// holds a single sink; a broadcast Stream lets multiple Dart
+  /// listeners (e.g. picker + selected-strip) subscribe independently.
+  @override
+  late final Stream<void> libraryChanges =
+      _changesChannel.receiveBroadcastStream().map((_) {});
 
   static String _kindArg(UxAssetKind? k) => switch (k) {
         null => 'any',

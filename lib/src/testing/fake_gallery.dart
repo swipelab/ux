@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io' as io;
 import 'dart:typed_data';
@@ -44,6 +45,17 @@ class FakeUxGalleryBackend implements UxGalleryBackend {
   final List<UxAsset> _recents;
   final UxAssetThumbnail Function(String assetId, int sizePx) _thumbnailFor;
   final io.File Function(String assetId) _fileFor;
+
+  final StreamController<void> _libraryChanges =
+      StreamController<void>.broadcast();
+
+  /// Tests call this to simulate the platform `photoLibraryDidChange`
+  /// event — drives any reactive reload wiring without going through
+  /// the real method channel.
+  void emitLibraryChange() => _libraryChanges.add(null);
+
+  @override
+  Stream<void> get libraryChanges => _libraryChanges.stream;
 
   /// Optional hook fired on `requestPermission`. Default updates
   /// `permissionState` to [UxGalleryPermission.granted].

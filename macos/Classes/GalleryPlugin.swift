@@ -5,9 +5,14 @@ import Photos
 /// macOS counterpart of the iOS gallery bridge — same `Photos.framework`
 /// data layer, with `NSImage` swapped in for `UIImage` and the
 /// limited-library picker dropped (macOS has no equivalent).
-public class GalleryPlugin: NSObject, NativePlugin {
+public class GalleryPlugin: NSObject, NativePlugin, PHPhotoLibraryChangeObserver, FlutterStreamHandler {
     private let imageManager = PHCachingImageManager()
     private var fetchCache: [String: PHFetchResult<PHAsset>] = [:]
+    private var libraryObserverRegistered = false
+
+    /// Sink for the `ux/gallery/changes` event channel — emits void on
+    /// every `photoLibraryDidChange` so picker UIs can reload reactively.
+    private var libraryEventSink: FlutterEventSink?
 
     public func register(with registrar: FlutterPluginRegistrar) {
         let channel = FlutterMethodChannel(
@@ -17,15 +22,68 @@ public class GalleryPlugin: NSObject, NativePlugin {
         channel.setMethodCallHandler { [weak self] call, result in
             self?.handle(call: call, result: result)
         }
+        let events = FlutterEventChannel(
+            name: "ux/gallery/changes",
+            binaryMessenger: registrar.messenger,
+        )
+        events.setStreamHandler(self)
+    }
+
+    public func onListen(
+        withArguments arguments: Any?,
+        eventSink events: @escaping FlutterEventSink,
+    ) -> FlutterError? {
+        libraryEventSink = events
+        return nil
+    }
+
+    public func onCancel(withArguments arguments: Any?) -> FlutterError? {
+        libraryEventSink = nil
+        return nil
+    }
+
+    /// Photos delivers change events only after the user grants access;
+    /// defer registration until then so plugin init doesn't poke the
+    /// permission machinery at app launch.
+    private func ensureLibraryObserver() {
+        guard !libraryObserverRegistered else { return }
+        PHPhotoLibrary.shared().register(self)
+        libraryObserverRegistered = true
+    }
+
+    deinit {
+        if libraryObserverRegistered {
+            PHPhotoLibrary.shared().unregisterChangeObserver(self)
+        }
+    }
+
+    public func photoLibraryDidChange(_ changeInstance: PHChange) {
+        DispatchQueue.main.async { [weak self] in
+            self?.fetchCache.removeAll()
+            self?.libraryEventSink?(nil)
+        }
+    }
+
+    private static func isAuthorizedForLibrary(_ status: PHAuthorizationStatus) -> Bool {
+        if status == .authorized { return true }
+        if #available(macOS 11.0, *), status == .limited { return true }
+        return false
     }
 
     private func handle(call: FlutterMethodCall, result: @escaping FlutterResult) {
         switch call.method {
         case "permission":
-            result(Self.permissionString(Self.currentAuthorization()))
+            let status = Self.currentAuthorization()
+            if Self.isAuthorizedForLibrary(status) {
+                ensureLibraryObserver()
+            }
+            result(Self.permissionString(status))
         case "requestPermission":
-            Self.requestAuthorization { status in
+            Self.requestAuthorization { [weak self] status in
                 DispatchQueue.main.async {
+                    if Self.isAuthorizedForLibrary(status) {
+                        self?.ensureLibraryObserver()
+                    }
                     result(Self.permissionString(status))
                 }
             }
