@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import ImageIO
 
 /// Wraps `AVCapturePhotoOutput`. One instance per
 /// [CameraInstance]; gets added to the session at create time and
@@ -16,6 +17,15 @@ final class PhotoOutput {
     let avOutput = AVCapturePhotoOutput()
 
     private var inFlight: PhotoCaptureDelegate?
+
+    /// Forward post-capture diagnostics (encoded JPEG dimensions +
+    /// EXIF Orientation) through `CameraInstance.emit` so they land
+    /// in `banlu.jsonl`. macOS-only debug aid for "photo is rotated
+    /// 90° CW" cases — Apple's docs say
+    /// `AVCapturePhotoOutput`'s connection rotation only affects EXIF
+    /// tags, not pixel data, but observation contradicts that. Logging
+    /// the actual file metadata helps tell which side is rotated.
+    var onCapturedDiagnostic: ((String) -> Void)?
 
     /// Capture a single still. [orientation] applies to the photo
     /// connection. [flashMode] is applied to the per-shot
@@ -59,7 +69,11 @@ final class PhotoOutput {
             }
         }
 
-        let delegate = PhotoCaptureDelegate { [weak self] result in
+        let delegate = PhotoCaptureDelegate(
+            diag: { [weak self] message in
+                self?.onCapturedDiagnostic?(message)
+            }
+        ) { [weak self] result in
             // Reset orientation back to portraitUp on the photo
             // connection so a follow-up shot without an explicit
             // snapshot defaults cleanly. No-op on macOS (the
@@ -81,9 +95,14 @@ final class PhotoOutput {
 /// `NSTemporaryDirectory()`, invokes the completion. The plugin
 /// retains it via [PhotoOutput.inFlight] across the async hop.
 private final class PhotoCaptureDelegate: NSObject, AVCapturePhotoCaptureDelegate {
+    private let diag: (String) -> Void
     private let completion: (Result<String, NSError>) -> Void
 
-    init(completion: @escaping (Result<String, NSError>) -> Void) {
+    init(
+        diag: @escaping (String) -> Void,
+        completion: @escaping (Result<String, NSError>) -> Void
+    ) {
+        self.diag = diag
         self.completion = completion
     }
 
@@ -104,6 +123,22 @@ private final class PhotoCaptureDelegate: NSObject, AVCapturePhotoCaptureDelegat
             )))
             return
         }
+
+        // Parse the produced JPEG's actual pixel dimensions + EXIF
+        // Orientation so we can see in `banlu.jsonl` whether the
+        // pixel buffer is sensor-native (landscape) or rotated. The
+        // dimensions come from `CGImageSourceCopyProperties` reading
+        // the SOFn marker, EXIF orientation from kCGImagePropertyOrientation.
+        if let src = CGImageSourceCreateWithData(data as CFData, nil),
+           let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil)
+            as? [CFString: Any] {
+            let w = (props[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue ?? -1
+            let h = (props[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue ?? -1
+            let orient = (props[kCGImagePropertyOrientation] as? NSNumber)?.intValue ?? -1
+            let aspect = w > h ? "landscape" : (h > w ? "portrait" : "square")
+            diag("photo: \(w)x\(h) \(aspect) exifOrientation=\(orient)")
+        }
+
         let url = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("ux_camera_\(UUID().uuidString).jpg")
         do {

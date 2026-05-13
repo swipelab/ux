@@ -102,6 +102,13 @@ final class CameraInstance {
         session.onInterrupted = { [weak self] reason in
             self?.emit(["event": "sessionInterrupted", "reason": reason])
         }
+
+        photoOutput.onCapturedDiagnostic = { [weak self] message in
+            self?.emit([
+                "event": "diagnostic",
+                "message": message,
+            ])
+        }
         session.onResumed = { [weak self] in
             self?.emit(["event": "sessionResumed"])
         }
