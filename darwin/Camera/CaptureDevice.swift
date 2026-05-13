@@ -8,18 +8,20 @@ import AVFoundation
 /// `TripleCamera` / `DualCamera` is for multi-cam zoom UX we don't
 /// build today; if we ever need it, this is where it goes.
 enum CaptureDevice {
-    /// Enumerate the front + back wide-angle cameras the system
-    /// exposes. Order: back first, front second. Stable for the
-    /// lifetime of the process — iOS doesn't hot-swap cameras.
+    /// Enumerate the cameras the system exposes. On iOS that's the
+    /// front + back wide-angle cameras (in that order, back first).
+    /// On macOS it's the built-in FaceTime HD plus any external /
+    /// Continuity cameras the OS reports.
     static func discover() -> [DiscoveredCamera] {
         let session = AVCaptureDevice.DiscoverySession(
-            deviceTypes: [.builtInWideAngleCamera],
+            deviceTypes: deviceTypes,
             mediaType: .video,
             position: .unspecified
         )
         // Sort so back devices come first; the chat composer opens
         // the back camera by default elsewhere, so this matches the
-        // common "first available" pick.
+        // common "first available" pick. On macOS positions are all
+        // `.unspecified`, so the sort is a no-op there.
         return session.devices
             .sorted { positionRank($0.position) < positionRank($1.position) }
             .map { device in
@@ -29,10 +31,32 @@ enum CaptureDevice {
                     // iOS doesn't expose sensor orientation directly;
                     // 90° matches what `camera_avfoundation` reports
                     // and what banlu's `normalizeCameraCapture` math
-                    // assumes for iOS sensors.
+                    // assumes for iOS sensors. macOS desktop cameras
+                    // are already landscape — 0 is the right answer
+                    // there but the value is unused on macOS (no
+                    // recording rotation, no preview rotation).
                     sensorOrientation: 90
                 )
             }
+    }
+
+    /// Per-platform set of device types the discovery session asks
+    /// for. iOS only has the built-in cameras; macOS additionally
+    /// surfaces externals + Continuity Camera (iPhone-as-webcam).
+    /// `.external` / `.externalUnknown` / `.continuityCamera` are
+    /// macOS-only enum cases — referencing them on iOS would not
+    /// compile, hence the `#if os(macOS)` block.
+    private static var deviceTypes: [AVCaptureDevice.DeviceType] {
+        var types: [AVCaptureDevice.DeviceType] = [.builtInWideAngleCamera]
+        #if os(macOS)
+        if #available(macOS 14.0, *) {
+            types.append(.external)
+            types.append(.continuityCamera)
+        } else {
+            types.append(.externalUnknown)
+        }
+        #endif
+        return types
     }
 
     /// Apply our default per-device config: continuous autofocus,
