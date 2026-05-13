@@ -132,6 +132,12 @@ class MethodChannelUxCameraBackend implements UxCameraBackend {
   }
 
   @override
+  Future<bool> audioPermissionGranted() => _invoke<bool>('audioPermissionStatus');
+
+  @override
+  Future<void> openSettings() => _invokeVoid('openSettings');
+
+  @override
   Stream<UxCameraEvent> events(int handle) {
     return _rawEvents
         .map((e) => (e as Map).cast<Object?, Object?>())
@@ -162,6 +168,11 @@ class MethodChannelUxCameraBackend implements UxCameraBackend {
         );
       case 'sessionResumed':
         return UxCameraSessionResumed(handle);
+      case 'diagnostic':
+        return UxCameraDiagnostic(
+          handle,
+          m['message'] as String? ?? '',
+        );
       default:
         return UxCameraSessionError(handle, 'unknown_event', null);
     }

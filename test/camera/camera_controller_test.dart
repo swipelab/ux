@@ -68,6 +68,31 @@ void main() {
     expect(ctrl.value.deviceOrientation, DeviceOrientation.portraitDown);
   });
 
+  test('diagnostic events route through Log.tag("camera") and do not '
+      'mutate value', () async {
+    final records = <LogRecord>[];
+    final prevSink = Log.sink;
+    Log.configure(
+      minLevel: LogLevel.info,
+      sink: _CapturingSink(records),
+      captureCrashes: () {},
+    );
+    addTearDown(() => Log.configure(sink: prevSink, captureCrashes: () {}));
+
+    final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: false);
+    addTearDown(ctrl.dispose);
+    await ctrl.initialize();
+
+    final beforeValue = ctrl.value;
+    fake.emitDiagnostic(1, 'video input added');
+    await Future<void>.delayed(Duration.zero);
+
+    expect(ctrl.value, beforeValue);
+    final diag = records.singleWhere((r) => r.tag == 'camera');
+    expect(diag.level, LogLevel.info);
+    expect(diag.message, 'recorder: video input added');
+  });
+
   test('sessionError events surface as value.errorDescription', () async {
     final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: false);
     addTearDown(ctrl.dispose);
@@ -216,6 +241,36 @@ void main() {
     expect(b.value.deviceOrientation, DeviceOrientation.landscapeRight);
   });
 
+  test('initialize captures audioPermissionGranted into value', () async {
+    fake.audioPermission = false;
+    final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: true);
+    addTearDown(ctrl.dispose);
+
+    await ctrl.initialize();
+
+    expect(ctrl.value.audioPermissionGranted, isFalse);
+    expect(fake.audioPermissionCalls, 1);
+  });
+
+  test('refreshAudioPermission re-polls and updates value', () async {
+    fake.audioPermission = false;
+    final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: true);
+    addTearDown(ctrl.dispose);
+    await ctrl.initialize();
+    expect(ctrl.value.audioPermissionGranted, isFalse);
+
+    fake.audioPermission = true;
+    await ctrl.refreshAudioPermission();
+
+    expect(ctrl.value.audioPermissionGranted, isTrue);
+    expect(fake.audioPermissionCalls, 2);
+  });
+
+  test('openSystemSettings dispatches to the backend', () async {
+    await UxCameraController.openSystemSettings();
+    expect(fake.openSettingsCalls, 1);
+  });
+
   test('initialize propagates UxCameraException("permission_denied")', () async {
     fake.createError = const UxCameraException('permission_denied', 'camera');
     final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: false);
@@ -224,4 +279,16 @@ void main() {
     expect(() => ctrl.initialize(),
         throwsA(isA<UxCameraException>().having((e) => e.code, 'code', 'permission_denied')));
   });
+}
+
+class _CapturingSink extends LogSink {
+  _CapturingSink(this.records);
+
+  final List<LogRecord> records;
+
+  @override
+  LogLevel get minLevel => LogLevel.trace;
+
+  @override
+  void emit(LogRecord record) => records.add(record);
 }

@@ -6,9 +6,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart' show Widget;
 
 import '../file.dart' show UxFile;
+import '../log.dart' show Log;
 import '../sensor.dart' show UxSensor;
 import 'camera_backend.dart';
 import 'camera_preview.dart' show UxCameraPreview;
+
+final _log = Log.tag('camera');
 
 /// Describes a camera device on the system. Returned by
 /// [uxAvailableCameras]; passed to [UxCameraController] to bind a
@@ -67,6 +70,7 @@ class UxCameraValue {
     this.isRecordingVideo = false,
     this.deviceOrientation = DeviceOrientation.portraitUp,
     this.enableAudio = false,
+    this.audioPermissionGranted = false,
     this.errorDescription,
   });
 
@@ -91,6 +95,14 @@ class UxCameraValue {
 
   final bool enableAudio;
 
+  /// True iff the user has granted microphone access. Updated when
+  /// the controller initialises and on
+  /// [UxCameraController.refreshAudioPermission]. Independent of
+  /// [enableAudio] — a controller can request audio (`enableAudio:
+  /// true`) without having permission, in which case recordings have
+  /// no audio track and callers should surface a hint.
+  final bool audioPermissionGranted;
+
   /// Set to the last native session error's message when one fires.
   /// Cleared on the next successful state transition.
   final String? errorDescription;
@@ -104,6 +116,7 @@ class UxCameraValue {
     bool? isRecordingVideo,
     DeviceOrientation? deviceOrientation,
     bool? enableAudio,
+    bool? audioPermissionGranted,
     Object? errorDescription = _unset,
   }) =>
       UxCameraValue(
@@ -113,6 +126,7 @@ class UxCameraValue {
         isRecordingVideo: isRecordingVideo ?? this.isRecordingVideo,
         deviceOrientation: deviceOrientation ?? this.deviceOrientation,
         enableAudio: enableAudio ?? this.enableAudio,
+        audioPermissionGranted: audioPermissionGranted ?? this.audioPermissionGranted,
         errorDescription: identical(errorDescription, _unset)
             ? this.errorDescription
             : errorDescription as String?,
@@ -177,24 +191,37 @@ class UxCameraController extends ValueNotifier<UxCameraValue> {
   /// instance already holds the requested device or the audio session.
   Future<void> initialize() async {
     _throwIfDisposed('initialize');
-    final result = await UxCameraBackend.instance.create(
-      cameraId: description.id,
-      enableAudio: value.enableAudio,
-      preset: resolutionPreset,
-    );
-    _handle = result.handle;
-    _textureId = result.textureId;
-    _eventsSub = UxCameraBackend.instance.events(result.handle).listen(
-          _onEvent,
-          onError: (Object error, StackTrace? stack) {
-            value = value.copyWith(errorDescription: error.toString());
-          },
-        );
-    await UxCameraBackend.instance.initialize(result.handle);
-    value = value.copyWith(
-      isInitialized: true,
-      previewSize: result.previewSize,
-    );
+    try {
+      final result = await UxCameraBackend.instance.create(
+        cameraId: description.id,
+        enableAudio: value.enableAudio,
+        preset: resolutionPreset,
+      );
+      _handle = result.handle;
+      _textureId = result.textureId;
+      _eventsSub = UxCameraBackend.instance.events(result.handle).listen(
+            _onEvent,
+            onError: (Object error, StackTrace? stack) {
+              value = value.copyWith(errorDescription: error.toString());
+            },
+          );
+      await UxCameraBackend.instance.initialize(result.handle);
+      final audioGranted =
+          await UxCameraBackend.instance.audioPermissionGranted();
+      value = value.copyWith(
+        isInitialized: true,
+        previewSize: result.previewSize,
+        audioPermissionGranted: audioGranted,
+      );
+    } catch (_) {
+      // initialize failed mid-way. The native side may have allocated
+      // a handle + claimed the camera/audio. Tear down what we have
+      // so the next attempt isn't blocked by a leaked device claim.
+      // [_handle] / [_eventsSub] are cleaned by [dispose] which
+      // tolerates the partial state.
+      await dispose();
+      rethrow;
+    }
   }
 
   void _onEvent(UxCameraEvent event) {
@@ -205,8 +232,9 @@ class UxCameraController extends ValueNotifier<UxCameraValue> {
         value = value.copyWith(errorDescription: description ?? code);
       case UxCameraSessionInterrupted():
       case UxCameraSessionResumed():
-        // Lifecycle pings; recovery is automatic on the native side.
         break;
+      case UxCameraDiagnostic(:final message):
+        _log.i('recorder: $message');
     }
   }
 
@@ -277,6 +305,31 @@ class UxCameraController extends ValueNotifier<UxCameraValue> {
     value = value.copyWith(isRecordingVideo: false);
     return file;
   }
+
+  /// Re-poll the OS for mic permission state and update
+  /// [value.audioPermissionGranted]. Call on
+  /// `AppLifecycleState.resumed` to pick up grants made via Settings.
+  Future<void> refreshAudioPermission() async {
+    _throwIfDisposed('refreshAudioPermission');
+    final granted = await UxCameraBackend.instance.audioPermissionGranted();
+    if (granted != value.audioPermissionGranted) {
+      value = value.copyWith(audioPermissionGranted: granted);
+    }
+  }
+
+  /// Whether the user has granted mic permission to the app. Static
+  /// because the answer is global to the process — useful from UI that
+  /// needs the status before any controller has been created (e.g.
+  /// the camera page's "Tap to enable mic" banner).
+  static Future<bool> audioPermissionGranted() =>
+      UxCameraBackend.instance.audioPermissionGranted();
+
+  /// Deep-link into the system Settings page so the user can grant
+  /// mic permission. Static because it doesn't depend on any active
+  /// controller — useful from the banner tap before the controller
+  /// has finished initialising.
+  static Future<void> openSystemSettings() =>
+      UxCameraBackend.instance.openSettings();
 
   /// Texture-backed widget that renders the live preview at its parent's
   /// size. Hero-flightable.

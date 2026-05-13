@@ -60,6 +60,12 @@ class FakeUxCameraBackend implements UxCameraBackend {
   UxCameraException? startVideoRecordingError;
   UxCameraException? stopVideoRecordingError;
 
+  /// Audio permission state returned by [audioPermissionGranted].
+  /// Tests mutate this to drive the mic-permission UI banner.
+  bool audioPermission = true;
+  int audioPermissionCalls = 0;
+  int openSettingsCalls = 0;
+
   // ---- internal ---------------------------------------------------
 
   int _nextHandle = 1;
@@ -92,6 +98,10 @@ class FakeUxCameraBackend implements UxCameraBackend {
 
   void emitSessionResumed(int handle) {
     _controllerFor(handle).add(UxCameraSessionResumed(handle));
+  }
+
+  void emitDiagnostic(int handle, String message) {
+    _controllerFor(handle).add(UxCameraDiagnostic(handle, message));
   }
 
   // ---- UxCameraBackend impl --------------------------------------
@@ -195,4 +205,15 @@ class FakeUxCameraBackend implements UxCameraBackend {
 
   @override
   Stream<UxCameraEvent> events(int handle) => _controllerFor(handle).stream;
+
+  @override
+  Future<bool> audioPermissionGranted() async {
+    audioPermissionCalls += 1;
+    return audioPermission;
+  }
+
+  @override
+  Future<void> openSettings() async {
+    openSettingsCalls += 1;
+  }
 }

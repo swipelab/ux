@@ -152,6 +152,60 @@ void main() {
       expect(file.path, '/tmp/v.mp4');
     });
 
+    test('events stream filters by handle and decodes diagnostic events',
+        () async {
+      const eventsChannel = EventChannel('ux/camera/events');
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+
+      messenger.setMockStreamHandler(
+        eventsChannel,
+        MockStreamHandler.inline(
+          onListen: (_, sink) {
+            sink.success({
+              'event': 'diagnostic',
+              'handle': 4,
+              'message': 'video input added',
+            });
+            sink.success({
+              'event': 'diagnostic',
+              'handle': 7,
+              'message': 'audio input added sr=44100 ch=1',
+            });
+            sink.endOfStream();
+          },
+        ),
+      );
+      addTearDown(() => messenger.setMockStreamHandler(eventsChannel, null));
+
+      final received = <UxCameraEvent>[];
+      await backend.events(4).forEach(received.add);
+
+      expect(received, hasLength(1));
+      final e = received.single as UxCameraDiagnostic;
+      expect(e.handle, 4);
+      expect(e.message, 'video input added');
+    });
+
+    test('audioPermissionStatus + openSettings round-trip', () async {
+      var permissionReply = true;
+      handle((call) {
+        if (call.method == 'audioPermissionStatus') return permissionReply;
+        if (call.method == 'openSettings') return null;
+        return null;
+      });
+
+      expect(await backend.audioPermissionGranted(), isTrue);
+      permissionReply = false;
+      expect(await backend.audioPermissionGranted(), isFalse);
+      await backend.openSettings();
+
+      expect(
+        calls.map((c) => c.method).toList(),
+        ['audioPermissionStatus', 'audioPermissionStatus', 'openSettings'],
+      );
+    });
+
     test('PlatformException maps to UxCameraException carrying code/message',
         () async {
       handle((_) => throw PlatformException(

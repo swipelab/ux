@@ -85,6 +85,15 @@ abstract class UxCameraBackend {
   /// controller subscribes during [initialize] and unsubscribes on
   /// [disposeInstance].
   Stream<UxCameraEvent> events(int handle);
+
+  /// True iff the user has granted microphone access. Cheap; safe to
+  /// re-poll on app foregrounding to detect grants made via Settings.
+  Future<bool> audioPermissionGranted();
+
+  /// Deep-link into the system Settings page for this app. Caller is
+  /// expected to refresh [audioPermissionGranted] on
+  /// `AppLifecycleState.resumed`.
+  Future<void> openSettings();
 }
 
 /// The tuple returned by [UxCameraBackend.create] — everything the
@@ -127,4 +136,12 @@ class UxCameraSessionInterrupted extends UxCameraEvent {
 
 class UxCameraSessionResumed extends UxCameraEvent {
   const UxCameraSessionResumed(super.handle);
+}
+
+/// Free-text diagnostic message from the native recorder. Routed by
+/// the controller to `Log.tag('camera').i(...)` so it lands in the
+/// log_server pipeline (`~/banlu/tools/log_server/data/banlu.jsonl`).
+class UxCameraDiagnostic extends UxCameraEvent {
+  const UxCameraDiagnostic(super.handle, this.message);
+  final String message;
 }
