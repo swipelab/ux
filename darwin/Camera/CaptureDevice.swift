@@ -28,17 +28,21 @@ enum CaptureDevice {
                 DiscoveredCamera(
                     device: device,
                     lens: lensName(for: device.position),
-                    // iOS doesn't expose sensor orientation directly;
-                    // 90° matches what `camera_avfoundation` reports
-                    // and what banlu's `normalizeCameraCapture` math
-                    // assumes for iOS sensors. macOS desktop cameras
-                    // are already landscape — 0 is the right answer
-                    // there but the value is unused on macOS (no
-                    // recording rotation, no preview rotation).
-                    sensorOrientation: 90
+                    sensorOrientation: defaultSensorOrientation
                 )
             }
     }
+
+    /// Hardcoded per platform: 90° on iOS (matches the value
+    /// `camera_avfoundation` reports and that banlu's
+    /// `normalizeCameraCapture` math assumes), 0° on macOS (desktop
+    /// cams are already physically landscape — any non-zero value
+    /// would make `normalizeCameraCapture` rotate the saved JPEG).
+    #if os(iOS)
+    private static let defaultSensorOrientation = 90
+    #else
+    private static let defaultSensorOrientation = 0
+    #endif
 
     /// Per-platform set of device types the discovery session asks
     /// for. iOS only has the built-in cameras; macOS additionally

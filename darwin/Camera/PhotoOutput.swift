@@ -34,9 +34,12 @@ final class PhotoOutput {
             )))
             return
         }
-        if connection.isVideoOrientationSupported {
-            connection.videoOrientation = orientation.avVideoOrientation
-        }
+        // Rotation handled per-platform: iOS applies the snapshot
+        // orientation to the connection (which rotates the captured
+        // JPEG); macOS is a no-op (desktop cams are physically
+        // landscape, any rotation skews the photo). See
+        // `AVCaptureConnection+iOS.swift` / `…+macOS.swift`.
+        connection.applyUxCaptureOrientation(orientation)
         // The recorded photo carries no mirror; mirroring is a
         // preview-only concern.
         if connection.isVideoMirroringSupported {
@@ -57,12 +60,12 @@ final class PhotoOutput {
         }
 
         let delegate = PhotoCaptureDelegate { [weak self] result in
-            // Reset orientation on the photo connection so a future
-            // capture without a snapshot defaults to portrait.
-            if let conn = self?.avOutput.connection(with: .video),
-               conn.isVideoOrientationSupported {
-                conn.videoOrientation = .portrait
-            }
+            // Reset orientation back to portraitUp on the photo
+            // connection so a follow-up shot without an explicit
+            // snapshot defaults cleanly. No-op on macOS (the
+            // extension method is empty there).
+            self?.avOutput.connection(with: .video)?
+                .applyUxCaptureOrientation(.portraitUp)
             self?.inFlight = nil
             DispatchQueue.main.async { completion(result) }
         }

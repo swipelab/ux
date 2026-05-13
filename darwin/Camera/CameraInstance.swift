@@ -425,10 +425,9 @@ final class CameraInstance {
             // front camera — raw sensor feed at capture, mirror as a
             // playback decision.
             if let videoConn = videoDataOutput?.connection(with: .video) {
-                if videoConn.isVideoOrientationSupported {
-                    videoConn.videoOrientation = lockedOrientation?.avVideoOrientation
-                        ?? orientation.current.avVideoOrientation
-                }
+                videoConn.applyUxCaptureOrientation(
+                    lockedOrientation ?? orientation.current
+                )
                 if videoConn.isVideoMirroringSupported {
                     videoConn.automaticallyAdjustsVideoMirroring = false
                     videoConn.isVideoMirrored = false
@@ -457,11 +456,8 @@ final class CameraInstance {
     }
 
     private func applyVideoOrientationOnPreview(_ next: DeviceOrientationFlutter) {
-        guard let conn = videoDataOutput?.connection(with: .video),
-              conn.isVideoOrientationSupported else {
-            return
-        }
-        conn.videoOrientation = next.avVideoOrientation
+        videoDataOutput?.connection(with: .video)?
+            .applyUxCaptureOrientation(next)
     }
 
     private func emit(_ extras: [String: Any]) {
