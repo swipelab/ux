@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/widgets.dart';
 
 import 'camera.dart' show UxCameraController, UxCameraLens, UxCameraValue;
@@ -35,7 +37,17 @@ class UxCameraPreview extends StatelessWidget {
         if (turns != 0) {
           child = RotatedBox(quarterTurns: turns, child: child);
         }
-        if (value.description.lens == UxCameraLens.front) {
+        // iOS only: AVCaptureConnection.isVideoMirrored is `false` on
+        // the data output (capture stays raw), so Flutter mirrors the
+        // selfie preview here. On Android, CameraX's Preview use case
+        // builds a SurfaceTexture transform matrix that already
+        // mirrors the front cam — adding our own flip on top
+        // double-mirrors and, when the device tilts, makes CameraX's
+        // counter-rotation appear to double in the same direction as
+        // the phone tilt (because we're flipping the axis CameraX
+        // rotated around).
+        if (defaultTargetPlatform != TargetPlatform.android &&
+            value.description.lens == UxCameraLens.front) {
           child = Transform.flip(flipX: true, child: child);
         }
         return child;
