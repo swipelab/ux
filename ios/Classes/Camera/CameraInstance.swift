@@ -411,7 +411,15 @@ final class CameraInstance {
                 }
             }
 
-            // Apply preview-output settings on the (new) connection.
+            // Apply preview-output orientation. Mirroring is deliberately
+            // NOT set here — the data output feeds both the preview
+            // texture and the recorder, so mirroring at the connection
+            // would land in the recorded MP4 too. Telegram avoids this
+            // by mirroring at the preview-LAYER level (CALayer transform
+            // in `CameraPreviewView.mirroring`). Our FlutterTexture
+            // equivalent is a `Transform.flip` in [CameraThumb] for the
+            // front camera — raw sensor feed at capture, mirror as a
+            // playback decision.
             if let videoConn = videoDataOutput?.connection(with: .video) {
                 if videoConn.isVideoOrientationSupported {
                     videoConn.videoOrientation = lockedOrientation?.avVideoOrientation
@@ -419,7 +427,7 @@ final class CameraInstance {
                 }
                 if videoConn.isVideoMirroringSupported {
                     videoConn.automaticallyAdjustsVideoMirroring = false
-                    videoConn.isVideoMirrored = (device.position == .front)
+                    videoConn.isVideoMirrored = false
                 }
             }
 
