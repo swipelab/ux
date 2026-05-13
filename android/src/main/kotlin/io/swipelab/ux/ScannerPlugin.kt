@@ -171,6 +171,8 @@ private class ScannerPlatformView(
             ),
         )
     }
+    private var cameraProvider: ProcessCameraProvider? = null
+    private var disposed = false
 
     init {
         if (lifecycleOwner != null) bindCamera(context, lifecycleOwner)
@@ -179,7 +181,9 @@ private class ScannerPlatformView(
     private fun bindCamera(context: Context, lifecycleOwner: LifecycleOwner) {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
         cameraProviderFuture.addListener({
-            val cameraProvider = cameraProviderFuture.get()
+            if (disposed) return@addListener
+            val provider = cameraProviderFuture.get()
+            cameraProvider = provider
 
             val preview = Preview.Builder().build().also {
                 it.setSurfaceProvider(previewView.surfaceProvider)
@@ -191,8 +195,8 @@ private class ScannerPlatformView(
                 .also { it.setAnalyzer(analysisExecutor, ::analyze) }
 
             try {
-                cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(
+                provider.unbindAll()
+                provider.bindToLifecycle(
                     lifecycleOwner,
                     CameraSelector.DEFAULT_BACK_CAMERA,
                     preview,
@@ -238,6 +242,9 @@ private class ScannerPlatformView(
     override fun getView(): View = previewView
 
     override fun dispose() {
+        disposed = true
+        cameraProvider?.unbindAll()
+        cameraProvider = null
         analysisExecutor.shutdown()
     }
 }
