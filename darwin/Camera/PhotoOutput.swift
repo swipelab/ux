@@ -112,9 +112,66 @@ private final class PhotoCaptureDelegate: NSObject, AVCapturePhotoCaptureDelegat
         error: Error?
     ) {
         if let error = error as NSError? {
+            diag("photo capture failed: domain=\(error.domain)"
+                 + " code=\(error.code) desc=\(error.localizedDescription)")
             completion(.failure(error))
             return
         }
+
+        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("ux_camera_\(UUID().uuidString).jpg")
+
+        #if os(macOS)
+        // Bypass `fileDataRepresentation()` on macOS — it writes EXIF
+        // orientation tags whose semantics differ from iOS and that
+        // we can't reliably override (none of the
+        // `fileDataRepresentationWith…` variants are available on
+        // macOS). Instead grab the raw CGImage — per Apple's docs,
+        // "the physical rotation of the CGImageRef matches that of
+        // the main image. Exif orientation has not been applied." —
+        // and re-encode via ImageIO with no orientation tag at all.
+        // The resulting JPEG carries sensor-native pixel data and
+        // viewers ignore (absent) EXIF, displaying landscape.
+        guard let cgImage = photo.cgImageRepresentation() else {
+            completion(.failure(NSError(
+                domain: "ux.camera",
+                code: -2,
+                userInfo: [NSLocalizedDescriptionKey: "No CGImage data"]
+            )))
+            return
+        }
+        diag("photo: \(cgImage.width)x\(cgImage.height) " +
+             "(cgImageRepresentation, no EXIF)")
+        let destination = CGImageDestinationCreateWithURL(
+            url as CFURL,
+            "public.jpeg" as CFString,
+            1,
+            nil
+        )
+        guard let dest = destination else {
+            completion(.failure(NSError(
+                domain: "ux.camera",
+                code: -3,
+                userInfo: [NSLocalizedDescriptionKey:
+                    "Failed to create JPEG destination"]
+            )))
+            return
+        }
+        let properties: [CFString: Any] = [
+            kCGImageDestinationLossyCompressionQuality: 0.9,
+        ]
+        CGImageDestinationAddImage(dest, cgImage, properties as CFDictionary)
+        if CGImageDestinationFinalize(dest) {
+            completion(.success(url.path))
+        } else {
+            completion(.failure(NSError(
+                domain: "ux.camera",
+                code: -4,
+                userInfo: [NSLocalizedDescriptionKey:
+                    "Failed to finalize JPEG"]
+            )))
+        }
+        #else
         guard let data = photo.fileDataRepresentation() else {
             completion(.failure(NSError(
                 domain: "ux.camera",
@@ -123,29 +180,12 @@ private final class PhotoCaptureDelegate: NSObject, AVCapturePhotoCaptureDelegat
             )))
             return
         }
-
-        // Parse the produced JPEG's actual pixel dimensions + EXIF
-        // Orientation so we can see in `banlu.jsonl` whether the
-        // pixel buffer is sensor-native (landscape) or rotated. The
-        // dimensions come from `CGImageSourceCopyProperties` reading
-        // the SOFn marker, EXIF orientation from kCGImagePropertyOrientation.
-        if let src = CGImageSourceCreateWithData(data as CFData, nil),
-           let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil)
-            as? [CFString: Any] {
-            let w = (props[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue ?? -1
-            let h = (props[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue ?? -1
-            let orient = (props[kCGImagePropertyOrientation] as? NSNumber)?.intValue ?? -1
-            let aspect = w > h ? "landscape" : (h > w ? "portrait" : "square")
-            diag("photo: \(w)x\(h) \(aspect) exifOrientation=\(orient)")
-        }
-
-        let url = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("ux_camera_\(UUID().uuidString).jpg")
         do {
             try data.write(to: url, options: .atomic)
             completion(.success(url.path))
         } catch let error as NSError {
             completion(.failure(error))
         }
+        #endif
     }
 }
