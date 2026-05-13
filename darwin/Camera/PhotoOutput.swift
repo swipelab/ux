@@ -1,7 +1,6 @@
 import AVFoundation
 import Foundation
 import ImageIO
-import os.log
 
 /// Wraps `AVCapturePhotoOutput`. One instance per
 /// [CameraInstance]; gets added to the session at create time and
@@ -112,13 +111,6 @@ private final class PhotoCaptureDelegate: NSObject, AVCapturePhotoCaptureDelegat
         didFinishProcessingPhoto photo: AVCapturePhoto,
         error: Error?
     ) {
-        // Belt-and-suspenders logging: the event-channel `diag` is the
-        // primary path (lands in `banlu.jsonl` via ux.Log), but NSLog
-        // is a fallback that ALWAYS lands in `flutter run` stderr +
-        // macOS Console regardless of channel state. Helps confirm
-        // whether the delegate is even firing when the jsonl shows
-        // nothing.
-        NSLog("[ux.camera] photoOutput callback fired error=\(error?.localizedDescription ?? "none")")
         if let error = error as NSError? {
             diag("photo capture failed: domain=\(error.domain)"
                  + " code=\(error.code) desc=\(error.localizedDescription)")
@@ -148,7 +140,6 @@ private final class PhotoCaptureDelegate: NSObject, AVCapturePhotoCaptureDelegat
             )))
             return
         }
-        NSLog("[ux.camera] cgImage: %dx%d", cgImage.width, cgImage.height)
         diag("photo: \(cgImage.width)x\(cgImage.height) " +
              "(cgImageRepresentation, no EXIF)")
         let destination = CGImageDestinationCreateWithURL(
