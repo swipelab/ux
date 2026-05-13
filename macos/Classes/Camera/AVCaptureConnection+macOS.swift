@@ -2,16 +2,21 @@ import AVFoundation
 
 /// macOS counterpart of `AVCaptureConnection+iOS.swift`.
 ///
-/// macOS desktop cameras are physically fixed landscape — applying any
-/// `AVCaptureVideoOrientation` would skew the captured photo (and on
-/// some macOS versions the preview's data-output buffers) by 90°.
-/// The orientation snapshot from Flutter (always `portraitUp` on
-/// macOS — desktops don't rotate) is therefore ignored at the
-/// connection layer; the recorded video's track transform is still
-/// `.identity` from VideoRecorder's existing mapping, so video stays
-/// landscape too.
+/// macOS desktop cameras are physically fixed landscape. AVFoundation
+/// initialises `connection.videoOrientation` to `.portrait` by
+/// default though — same as iOS — which on macOS *also* rotates the
+/// sensor frame 90° CW (manifested as a 90° CW selfie photo + a
+/// rotated preview). So we *do* set the orientation on macOS, but
+/// pin it to `.landscapeRight` regardless of the snapshot Flutter
+/// passes (which is always `portraitUp` on macOS — desktops don't
+/// rotate). That tells AVFoundation "leave the sensor frame alone";
+/// captured JPEG ends up landscape with EXIF orientation = 1 (no
+/// rotation), and preview data-output buffers flow at the sensor's
+/// native aspect.
 extension AVCaptureConnection {
     func applyUxCaptureOrientation(_ orientation: DeviceOrientationFlutter) {
-        // Intentionally empty.
+        if isVideoOrientationSupported {
+            videoOrientation = .landscapeRight
+        }
     }
 }
