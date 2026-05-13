@@ -9,9 +9,26 @@ Pod::Spec.new do |s|
   # Mirror the shared `darwin/Camera/` Swift files into a local
   # `Classes/Camera-shared/` so CocoaPods picks them up via the
   # normal glob — neither symlinks nor `../` escapes work
-  # (Pathname.glob bails on both). The mirror runs on every
-  # `pod install`; the destination is `.gitignore`'d.
+  # (Pathname.glob bails on both).
+  #
+  # `prepare_command` only runs on `pod install`. Swift edits in
+  # `darwin/Camera/` between installs would never reach the built
+  # binary — the mirror would be stale. The build script phase
+  # below re-runs the mirror before each compile to keep contents
+  # fresh.
   s.prepare_command  = 'rm -rf Classes/Camera-shared && cp -R ../darwin/Camera Classes/Camera-shared'
+  s.script_phases    = [{
+    :name             => 'Mirror darwin/Camera',
+    :execution_position => :before_compile,
+    :script           => <<-CMD
+set -e
+SRC="${PODS_TARGET_SRCROOT}/../darwin/Camera"
+DEST="${PODS_TARGET_SRCROOT}/Classes/Camera-shared"
+[ -d "$SRC" ] || exit 0
+mkdir -p "$DEST"
+rsync -a --delete "$SRC/" "$DEST/"
+CMD
+  }]
   s.source_files     = 'Classes/**/*.swift'
   s.frameworks       = ['AVFoundation', 'CoreMedia', 'CoreVideo', 'Photos', 'PhotosUI']
   s.dependency 'Flutter'
