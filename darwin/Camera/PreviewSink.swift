@@ -1,6 +1,10 @@
 import AVFoundation
 import CoreVideo
+#if canImport(UIKit)
 import Flutter
+#else
+import FlutterMacOS
+#endif
 
 /// Single-slot latest-pixel-buffer sink that feeds a `FlutterTexture`.
 ///

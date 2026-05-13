@@ -7,3 +7,8 @@
 
 build/
 .cxx/
+
+# Mirror destinations populated by `prepare_command` in the iOS/macOS
+# podspecs from `darwin/Camera/` — see those podspecs for context.
+ios/Classes/Camera-shared/
+macos/Classes/Camera-shared/

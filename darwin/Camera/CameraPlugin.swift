@@ -1,6 +1,9 @@
 import AVFoundation
+#if canImport(UIKit)
 import Flutter
-import UIKit
+#else
+import FlutterMacOS
+#endif
 
 /// `ux/camera` + `ux/camera/events` registrar. Routes channel calls
 /// to per-handle [CameraInstance]s. Enforces device + audio claims
@@ -22,11 +25,15 @@ public class CameraPlugin: NSObject, NativePlugin, FlutterStreamHandler {
     private var eventSink: FlutterEventSink?
 
     public func register(with registrar: FlutterPluginRegistrar) {
-        textureRegistry = registrar.textures()
+        // `uxTextures` / `uxMessenger` are per-platform shims —
+        // see `FlutterRegistrar+iOS.swift` / `…+macOS.swift`. iOS has
+        // them as methods, macOS as properties; the extensions paper
+        // over that so this call site stays platform-agnostic.
+        textureRegistry = registrar.uxTextures
 
         let methods = FlutterMethodChannel(
             name: "ux/camera",
-            binaryMessenger: registrar.messenger()
+            binaryMessenger: registrar.uxMessenger
         )
         methods.setMethodCallHandler { [weak self] call, result in
             self?.handle(call, result: result)
@@ -34,7 +41,7 @@ public class CameraPlugin: NSObject, NativePlugin, FlutterStreamHandler {
 
         let events = FlutterEventChannel(
             name: "ux/camera/events",
-            binaryMessenger: registrar.messenger()
+            binaryMessenger: registrar.uxMessenger
         )
         events.setStreamHandler(self)
     }
@@ -267,9 +274,11 @@ public class CameraPlugin: NSObject, NativePlugin, FlutterStreamHandler {
 
         case "openSettings":
             DispatchQueue.main.async {
-                if let url = URL(string: UIApplication.openSettingsURLString) {
-                    UIApplication.shared.open(url)
-                }
+                // Per-platform helper: iOS opens app-specific Settings
+                // via UIApplication; macOS opens the Camera privacy
+                // pane via NSWorkspace. See `CameraSettings.swift` in
+                // each platform's Classes/Camera/ folder.
+                CameraSettings.openAppSettings()
                 result(nil)
             }
 

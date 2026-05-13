@@ -1,18 +1,19 @@
 import AVFoundation
 import UIKit
 
-/// Translates between Flutter's `DeviceOrientation` (4 enum values
-/// shipped as strings across the channel) and AVFoundation's
-/// `AVCaptureVideoOrientation`, and bridges physical-device rotation
-/// notifications to a closure callback.
-///
-/// Observed orientation source is `UIDevice.current.orientation` —
-/// independent of any UI orientation lock, so this fires even while
-/// the app's window is portrait-locked. `.faceUp` / `.faceDown` are
-/// ignored (no useful direction).
+/// Bridges physical-device rotation notifications to a closure callback.
+/// Observed source is `UIDevice.current.orientation` — independent of
+/// any UI orientation lock, so this fires even while the app's window
+/// is portrait-locked. `.faceUp` / `.faceDown` are ignored (no useful
+/// direction).
 ///
 /// `UIDevice.beginGeneratingDeviceOrientationNotifications()` must be
 /// called on main, balanced with `end…()`; this class enforces both.
+///
+/// iOS-only. The macOS counterpart in
+/// `macos/Classes/Camera/DeviceOrientationBridge.swift` is a no-op —
+/// desktops don't rotate, so `current` stays at the initial
+/// `portraitUp` and the listener never fires.
 final class DeviceOrientationBridge {
     typealias Listener = (DeviceOrientationFlutter) -> Void
 
@@ -74,23 +75,7 @@ final class DeviceOrientationBridge {
     deinit { stop() }
 }
 
-/// Mirrors Flutter's `DeviceOrientation` — the four cardinal values
-/// that travel over the `ux/camera` channel as wire strings. `public`
-/// so the host app's XCTest target can verify the
-/// `DeviceOrientationFlutter` / `AVCaptureVideoOrientation` mapping
-/// without `@testable import`.
-public enum DeviceOrientationFlutter: String {
-    case portraitUp
-    case landscapeLeft
-    case portraitDown
-    case landscapeRight
-
-    /// Parse a wire string. Returns `.portraitUp` for unknown inputs
-    /// (matches the Dart-side fallback in `MethodChannelUxCameraBackend`).
-    public static func parse(_ raw: String?) -> DeviceOrientationFlutter {
-        return DeviceOrientationFlutter(rawValue: raw ?? "") ?? .portraitUp
-    }
-
+extension DeviceOrientationFlutter {
     /// `UIDeviceOrientation` → Flutter convention is a direct 1:1 by
     /// name. Despite the AV-side flip, `UIDeviceOrientation.landscapeLeft`
     /// and Flutter's `landscapeLeft` describe the same physical pose
@@ -103,18 +88,6 @@ public enum DeviceOrientationFlutter: String {
         case .landscapeLeft: self = .landscapeLeft
         case .landscapeRight: self = .landscapeRight
         default: return nil
-        }
-    }
-
-    /// AVFoundation video orientation. Translates Flutter's portrait-
-    /// relative convention to AVFoundation's hardware-relative one.
-    /// Used to drive `AVCaptureConnection.videoOrientation`.
-    public var avVideoOrientation: AVCaptureVideoOrientation {
-        switch self {
-        case .portraitUp: return .portrait
-        case .portraitDown: return .portraitUpsideDown
-        case .landscapeLeft: return .landscapeRight
-        case .landscapeRight: return .landscapeLeft
         }
     }
 }

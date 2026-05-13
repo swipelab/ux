@@ -3,13 +3,20 @@ import Foundation
 
 /// Thin wrapper around `AVCaptureSession` that owns the lifecycle
 /// helpers and observes the runtime-error / interruption
-/// notifications, surfacing them through closures so
-/// [CameraInstance] doesn't repeat the boilerplate.
+/// notifications (iOS only — macOS has no equivalent), surfacing them
+/// through closures so [CameraInstance] doesn't repeat the boilerplate.
 ///
 /// All `AVCaptureSession` mutations (input/output add/remove, start,
 /// stop) must run on the caller's `sessionQueue`. This class doesn't
 /// enforce that; the contract is that
 /// [CameraInstance.sessionQueue.async { … }] wraps every call site.
+///
+/// Platform-specific init bits — the application-audio-session flags
+/// and the interruption observers — live in `setupPlatform()` whose
+/// real implementation is in `ios/Classes/Camera/CameraSession+iOS.swift`.
+/// The macOS counterpart (`macos/Classes/Camera/CameraSession+macOS.swift`)
+/// is a no-op: macOS has no `AVAudioSession` and no
+/// `AVCaptureSessionWasInterrupted` notification.
 final class CameraSession {
     let av: AVCaptureSession
 
@@ -21,26 +28,18 @@ final class CameraSession {
     /// Called on `.main` when the session is interrupted (e.g. video
     /// device taken by another foreground client, audio session
     /// interruption, or app backgrounded with `usesApplicationAudioSession`).
-    /// String describes the reason — `"videoDeviceInUseByAnotherClient"`,
-    /// `"audioDeviceInUseByAnotherClient"`, `"videoDeviceNotAvailableInBackground"`, etc.
+    /// iOS only — never fires on macOS.
     var onInterrupted: ((String) -> Void)?
 
-    /// Called on `.main` when an earlier interruption ends.
+    /// Called on `.main` when an earlier interruption ends. iOS only.
     var onResumed: (() -> Void)?
 
-    private var runtimeErrorObserver: NSObjectProtocol?
-    private var interruptedObserver: NSObjectProtocol?
-    private var resumedObserver: NSObjectProtocol?
+    var runtimeErrorObserver: NSObjectProtocol?
+    var interruptedObserver: NSObjectProtocol?
+    var resumedObserver: NSObjectProtocol?
 
     init() {
         av = AVCaptureSession()
-
-        // Telegram + camera_avfoundation both set this — keeps
-        // AVFoundation from yanking our audio session category out
-        // from under the app.
-        av.automaticallyConfiguresApplicationAudioSession = false
-        av.usesApplicationAudioSession = true
-
         runtimeErrorObserver = NotificationCenter.default.addObserver(
             forName: .AVCaptureSessionRuntimeError,
             object: av,
@@ -50,24 +49,7 @@ final class CameraSession {
                 ?? NSError(domain: "ux.camera", code: -1)
             self?.onRuntimeError?(error)
         }
-
-        interruptedObserver = NotificationCenter.default.addObserver(
-            forName: .AVCaptureSessionWasInterrupted,
-            object: av,
-            queue: .main
-        ) { [weak self] note in
-            let reason = note.userInfo?[AVCaptureSessionInterruptionReasonKey]
-                as? Int ?? 0
-            self?.onInterrupted?(reasonName(for: reason))
-        }
-
-        resumedObserver = NotificationCenter.default.addObserver(
-            forName: .AVCaptureSessionInterruptionEnded,
-            object: av,
-            queue: .main
-        ) { [weak self] _ in
-            self?.onResumed?()
-        }
+        setupPlatform()
     }
 
     deinit {
@@ -95,28 +77,5 @@ final class CameraSession {
     /// Caller must be on sessionQueue.
     func stop() {
         if av.isRunning { av.stopRunning() }
-    }
-}
-
-/// Decode the integer reason that comes with
-/// `AVCaptureSessionWasInterrupted`. Used in the event payload sent
-/// to Dart.
-private func reasonName(for code: Int) -> String {
-    guard let reason = AVCaptureSession.InterruptionReason(rawValue: code) else {
-        return "unknown"
-    }
-    switch reason {
-    case .videoDeviceNotAvailableInBackground:
-        return "videoDeviceNotAvailableInBackground"
-    case .audioDeviceInUseByAnotherClient:
-        return "audioDeviceInUseByAnotherClient"
-    case .videoDeviceInUseByAnotherClient:
-        return "videoDeviceInUseByAnotherClient"
-    case .videoDeviceNotAvailableWithMultipleForegroundApps:
-        return "videoDeviceNotAvailableWithMultipleForegroundApps"
-    case .videoDeviceNotAvailableDueToSystemPressure:
-        return "videoDeviceNotAvailableDueToSystemPressure"
-    @unknown default:
-        return "unknown"
     }
 }

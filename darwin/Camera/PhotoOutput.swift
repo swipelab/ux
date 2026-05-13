@@ -45,8 +45,15 @@ final class PhotoOutput {
         }
 
         let settings = AVCapturePhotoSettings()
-        if avOutput.supportedFlashModes.contains(flashMode) {
-            settings.flashMode = flashMode
+        // `supportedFlashModes` arrived in macOS 11; `flashMode` setter
+        // in macOS 13. iOS has both since iOS 10. Gated via Swift
+        // availability so we don't have to bump the macOS deployment
+        // target just to use a flash that almost no Mac has anyway.
+        if #available(macOS 11.0, *),
+           avOutput.supportedFlashModes.contains(flashMode) {
+            if #available(macOS 13.0, *) {
+                settings.flashMode = flashMode
+            }
         }
 
         let delegate = PhotoCaptureDelegate { [weak self] result in

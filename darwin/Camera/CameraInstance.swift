@@ -1,5 +1,9 @@
 import AVFoundation
+#if canImport(UIKit)
 import Flutter
+#else
+import FlutterMacOS
+#endif
 import Foundation
 
 /// One per `UxCameraController` on the Dart side. Owns its
