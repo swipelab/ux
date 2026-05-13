@@ -153,6 +153,22 @@ void main() {
     expect(fake.stopVideoRecordingCalls.single, 1);
   });
 
+  test('previewSizeChanged events update value.previewSize without losing rotation',
+      () async {
+    final ctrl = UxCameraController(_back, UxResolutionPreset.high, enableAudio: false);
+    addTearDown(ctrl.dispose);
+    await ctrl.initialize();
+
+    // Fake create returns Size(1920, 1080); simulate Android's async
+    // first-SurfaceRequest landing with a revised resolution.
+    expect(ctrl.value.previewSize, const Size(1920, 1080));
+    fake.emitPreviewSizeChanged(1, const Size(1280, 720));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(ctrl.value.previewSize, const Size(1280, 720));
+    expect(ctrl.value.previewRotationQuarterTurns, 0);
+  });
+
   test('setDescription updates value.description and previewSize', () async {
     final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: false);
     addTearDown(ctrl.dispose);
