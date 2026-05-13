@@ -63,6 +63,11 @@ dependencies {
     implementation "androidx.camera:camera-lifecycle:$cameraxVersion"
     implementation "androidx.camera:camera-view:$cameraxVersion"
     implementation "androidx.camera:camera-video:$cameraxVersion"
+    // ProcessLifecycleOwner so CameraInstance can release the camera
+    // when the host app backgrounds (and re-acquire on foreground).
+    // camera-lifecycle pulls in lifecycle-common but not the process
+    // observer; this adds it.
+    implementation 'androidx.lifecycle:lifecycle-process:2.7.0'
     // Pure-Kotlin/Java QR decoder. ~470 KB jar, no Play Services dep.
     implementation 'com.google.zxing:core:3.5.3'
 }

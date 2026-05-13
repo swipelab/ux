@@ -8,6 +8,9 @@ import androidx.camera.core.ImageCapture
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.ProcessLifecycleOwner
 import io.flutter.view.TextureRegistry
 
 /// One per `UxCameraController` on the Dart side. Owns CameraX's
@@ -41,6 +44,44 @@ class CameraInstance(
     private var lens: String = "back"
     private var enableAudio: Boolean = false
     private var disposed = false
+
+    /// True iff `pauseForBackground` actually stopped a running
+    /// lifecycle owner — `resumeForForeground` consults this so it
+    /// doesn't restart instances the caller never initialised.
+    private var wasRunningBeforePause = false
+
+    /// Observer attached to [ProcessLifecycleOwner.get] in [create]
+    /// and removed in [dispose]. ON_STOP releases the camera so a
+    /// backgrounded chat composer doesn't keep streaming; ON_START
+    /// reacquires if we stopped it.
+    private val processObserver = LifecycleEventObserver { _, event ->
+        when (event) {
+            Lifecycle.Event.ON_STOP -> pauseForBackground()
+            Lifecycle.Event.ON_START -> resumeForForeground()
+            else -> Unit
+        }
+    }
+
+    private fun pauseForBackground() {
+        if (disposed) return
+        if (video.isRecording) video.cancel()
+        // Move the per-instance lifecycle owner to CREATED so
+        // CameraX releases the camera. STARTED → CREATED is
+        // CameraX's "release-but-keep-bindings" transition.
+        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+            lifecycleOwner.stop()
+            wasRunningBeforePause = true
+            emit(mapOf("event" to "sessionInterrupted", "reason" to "appBackgrounded"))
+        }
+    }
+
+    private fun resumeForForeground() {
+        if (disposed) return
+        if (!wasRunningBeforePause) return
+        wasRunningBeforePause = false
+        lifecycleOwner.start()
+        emit(mapOf("event" to "sessionResumed"))
+    }
 
     val textureId: Long get() = previewSink.textureId
     val previewSize: Size get() = previewSink.previewSize
@@ -100,6 +141,15 @@ class CameraInstance(
                 onReady(t)
             }
         }, ContextCompat.getMainExecutor(context))
+
+        // ProcessLifecycleOwner is the app-wide foreground/background
+        // signal — independent of which Activity the engine is bound
+        // to. Observer must be added on the main thread.
+        ContextCompat.getMainExecutor(context).execute {
+            if (!disposed) {
+                ProcessLifecycleOwner.get().lifecycle.addObserver(processObserver)
+            }
+        }
     }
 
     /// Move the lifecycle owner to STARTED — CameraX starts streaming
@@ -114,6 +164,12 @@ class CameraInstance(
     fun dispose() {
         if (disposed) return
         disposed = true
+        // Drop the app-lifecycle observer FIRST so a foreground/background
+        // hop during teardown can't try to start/stop a half-disposed
+        // session. Removal must be on the main thread.
+        ContextCompat.getMainExecutor(context).execute {
+            ProcessLifecycleOwner.get().lifecycle.removeObserver(processObserver)
+        }
         // Mirror iOS' dispose: any in-flight recording is hard-cancelled
         // (file discarded) rather than left to flush, since there's no
         // caller waiting on the result anymore.

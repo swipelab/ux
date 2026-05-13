@@ -164,6 +164,56 @@ final class CameraInstance {
                 "orientation": next.rawValue,
             ])
         }
+
+        observeLifecycle()
+    }
+
+    // MARK: - App lifecycle
+
+    /// Set to `true` by [pauseForBackground] when it stops a
+    /// running session, so [resumeForForeground] knows whether to
+    /// restart. Skipped when the session was already stopped
+    /// (e.g. dispose racing background).
+    private var wasRunningBeforePause = false
+
+    /// Cleanup closure installed by per-platform `observeLifecycle()`
+    /// — undoes whatever observers it registered. Invoked from
+    /// [dispose] so the instance doesn't leak NotificationCenter /
+    /// `ProcessLifecycleOwner` subscriptions.
+    var lifecycleCleanup: (() -> Void)?
+
+    /// Called by the per-platform lifecycle observer when the host
+    /// app moves to background. Hard-cancels any in-flight recording
+    /// (matches every messaging app — backgrounding ends the take)
+    /// and stops the session so the camera hardware is released.
+    /// Runs on sessionQueue.
+    func pauseForBackground() {
+        if disposed { return }
+        if let recorder = videoRecorder {
+            recorder.cancel()
+            videoRecorder = nil
+            fanout.recorder = nil
+            emit([
+                "event": "sessionInterrupted",
+                "reason": "appBackgrounded",
+            ])
+        }
+        if session.av.isRunning {
+            session.stop()
+            wasRunningBeforePause = true
+        }
+    }
+
+    /// Called by the per-platform lifecycle observer when the host
+    /// app returns to foreground. Restarts the session only if
+    /// [pauseForBackground] stopped a running one. Runs on
+    /// sessionQueue.
+    func resumeForForeground() {
+        if disposed { return }
+        guard wasRunningBeforePause else { return }
+        wasRunningBeforePause = false
+        session.start()
+        emit(["event": "sessionResumed"])
     }
 
     /// Start the session. Must run on sessionQueue.
@@ -194,6 +244,12 @@ final class CameraInstance {
     func dispose() {
         if disposed { return }
         disposed = true
+
+        // Tear down the lifecycle observer FIRST so a notification
+        // arriving mid-dispose doesn't try to pause/resume a
+        // half-torn-down session.
+        lifecycleCleanup?()
+        lifecycleCleanup = nil
 
         if let recorder = videoRecorder {
             recorder.cancel()
