@@ -291,6 +291,21 @@ public class CameraPlugin: NSObject, NativePlugin, FlutterStreamHandler {
 
     private func availableCameras(result: @escaping FlutterResult) {
         let cameras = CaptureDevice.discover().map { $0.toWire() }
+        if cameras.isEmpty {
+            // Empty discovery has two common causes that look the same
+            // to Dart: real permission denial vs a zombie AVCaptureSession
+            // somewhere holding the device. Emit a diagnostic with the
+            // current plugin claim state so the log_server jsonl shows
+            // which side the leak is on if this reproduces.
+            eventSink?([
+                "handle": -1,
+                "event": "diagnostic",
+                "message": "availableCameras: empty"
+                    + " devicesInUse=\(Array(devicesInUse).sorted())"
+                    + " audioInUse=\(audioInUse)"
+                    + " instances=\(Array(instances.keys).sorted())",
+            ])
+        }
         result(cameras)
     }
 

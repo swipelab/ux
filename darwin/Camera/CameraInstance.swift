@@ -169,6 +169,21 @@ final class CameraInstance {
     /// recording (drops queued audio, `cancelWriting`, deletes the
     /// partial file — telegram-ios's `cancelRecording` path). Must run
     /// on sessionQueue.
+    ///
+    /// Order matters for releasing the camera back to the OS:
+    /// 1. Cancel the recorder so its retain on the audio data output
+    ///    drops.
+    /// 2. Stop the session so the hardware stops streaming.
+    /// 3. Detach sample-buffer delegates — `setSampleBufferDelegate`
+    ///    holds a strong reference to the delegate (our `SampleFanout`),
+    ///    which transitively keeps the session alive on macOS.
+    /// 4. Remove inputs + outputs inside a single
+    ///    `beginConfiguration` / `commitConfiguration` so AVFoundation
+    ///    sees one atomic teardown rather than a sequence of partial
+    ///    states. macOS's `AVCaptureDevice.DiscoverySession` won't
+    ///    return a device that's still claimed by a half-torn-down
+    ///    session, which is what was causing "camera not found" on
+    ///    re-open after a few use cycles.
     func dispose() {
         if disposed { return }
         disposed = true
@@ -180,11 +195,17 @@ final class CameraInstance {
         }
 
         session.stop()
-        if let input = deviceInput { session.av.removeInput(input) }
-        if let input = audioDeviceInput { session.av.removeInput(input) }
-        if let output = videoDataOutput { session.av.removeOutput(output) }
-        if let output = audioDataOutput { session.av.removeOutput(output) }
-        session.av.removeOutput(photoOutput.avOutput)
+
+        videoDataOutput?.setSampleBufferDelegate(nil, queue: nil)
+        audioDataOutput?.setSampleBufferDelegate(nil, queue: nil)
+
+        session.configure {
+            if let input = deviceInput { session.av.removeInput(input) }
+            if let input = audioDeviceInput { session.av.removeInput(input) }
+            if let output = videoDataOutput { session.av.removeOutput(output) }
+            if let output = audioDataOutput { session.av.removeOutput(output) }
+            session.av.removeOutput(photoOutput.avOutput)
+        }
 
         videoDataOutput = nil
         deviceInput = nil

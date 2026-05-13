@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 
 import '../file.dart' show UxFile;
+import '../log.dart' show Log;
 import 'camera.dart'
     show
         UxCameraDescription,
@@ -11,6 +12,8 @@ import 'camera.dart'
         UxFlashMode,
         UxResolutionPreset;
 import 'camera_backend.dart';
+
+final _log = Log.tag('camera');
 
 /// Production [UxCameraBackend]. Hand-rolled MethodChannel +
 /// EventChannel — matches the rest of `package:ux`, no pigeon.
@@ -23,8 +26,21 @@ class MethodChannelUxCameraBackend implements UxCameraBackend {
   /// Single broadcast stream over the native event channel. We
   /// demultiplex per-handle inside [events] so a Stream subscription
   /// is cheap (no per-instance EventChannel hop).
-  late final Stream<Object?> _rawEvents =
-      _eventsChannel.receiveBroadcastStream();
+  late final Stream<Object?> _rawEvents = () {
+    final stream = _eventsChannel.receiveBroadcastStream();
+    // Plugin-level diagnostics (handle == -1) flow over the same
+    // channel but aren't claimed by any controller's per-handle
+    // filter. Subscribe once globally so they reach `ux.Log` (and
+    // therefore the log_server jsonl) even before any controller
+    // is alive.
+    stream.listen((e) {
+      final m = (e as Map).cast<Object?, Object?>();
+      if (m['event'] != 'diagnostic') return;
+      if ((m['handle'] as num?)?.toInt() != -1) return;
+      _log.i('plugin: ${m['message'] ?? ''}');
+    });
+    return stream;
+  }();
 
   @override
   Future<List<UxCameraDescription>> availableCameras() async {
