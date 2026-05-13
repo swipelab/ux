@@ -20,13 +20,25 @@ class UxVideoThumbnail {
   final int height;
 }
 
+/// A handle to a file on local disk. Minimal — [path] is the only
+/// guaranteed field. Returned from anything in `package:ux` that produces
+/// a file (camera capture today; future writers).
+class UxFile {
+  const UxFile(this.path);
+
+  /// Absolute path on local disk. Readable through `dart:io File`. Lifetime
+  /// is producer-defined — camera capture writes to a temp dir, the
+  /// picker grant is held by the OS while the session is alive, etc.
+  final String path;
+}
+
 /// A file the user picked. [path] is on local disk and readable by
 /// `dart:io File` while the picker session's grant is active.
 ///
 /// On macOS / iOS the picker returns the user's original location (no
 /// temp-dir copy); access across cold restarts is preserved by storing
-/// [bookmark] and re-acquiring scope via [UxFile.withScopedAccess] /
-/// [UxFile.open] / [UxFile.showInFolder]. On Android the native side
+/// [bookmark] and re-acquiring scope via [UxFiles.withScopedAccess] /
+/// [UxFiles.open] / [UxFiles.showInFolder]. On Android the native side
 /// stream-copies a `content://` source into the app cache (since
 /// `dart:io` can't open content URIs); [bookmark] holds the source URI
 /// as UTF-8 bytes for symmetry but isn't required for reads.
@@ -50,8 +62,8 @@ class UxPickedFile {
   final Uint8List? bookmark;
 }
 
-class UxFile {
-  UxFile._();
+class UxFiles {
+  UxFiles._();
 
   static const _channel = MethodChannel('ux/file');
 
