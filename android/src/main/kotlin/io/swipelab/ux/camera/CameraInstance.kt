@@ -46,18 +46,17 @@ class CameraInstance(
     val currentLens: String get() = lens
     val audioClaimed: Boolean get() = enableAudio
 
-    /// Number of 90° CW rotations the Flutter Texture needs so the
-    /// sensor frames display upright on a portrait screen. Derived
-    /// from the active camera's `sensorRotationDegrees`.
-    val previewRotationQuarterTurns: Int get() {
-        val degrees = cameraProvider?.let {
-            val selector = if (lens == "front") CameraSelector.DEFAULT_FRONT_CAMERA
-                else CameraSelector.DEFAULT_BACK_CAMERA
-            selector.filter(it.availableCameraInfos).firstOrNull()
-                ?.sensorRotationDegrees ?: 0
-        } ?: 0
-        return ((degrees % 360 + 360) % 360) / 90
-    }
+    /// Always 0 on Android: Flutter's `Texture` widget samples the
+    /// underlying `SurfaceTexture` with its transform matrix applied
+    /// (`GL_TEXTURE_EXTERNAL_OES` sampling reads
+    /// `SurfaceTexture.getTransformMatrix()`), and CameraX populates
+    /// that matrix with the rotation needed for upright display. Any
+    /// `RotatedBox` on top of that would double-apply the rotation.
+    /// The field stays in the wire protocol for iOS' sake (always 0
+    /// there too, since AVCaptureConnection pre-rotates the sample
+    /// buffers) and as a future hook if a non-CameraX preview path
+    /// ever lands.
+    val previewRotationQuarterTurns: Int get() = 0
 
     /// Bind the provider against [lens]. Resolves the
     /// [ProcessCameraProvider.getInstance] future on the main executor
