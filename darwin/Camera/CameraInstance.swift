@@ -132,6 +132,23 @@ final class CameraInstance {
 
         try configureSession(forDeviceUniqueID: cameraId, replacing: false)
 
+        // The active-format dims from `device.activeFormat` don't
+        // always match the buffer the data output actually delivers
+        // (notably on macOS, where the session preset gets remapped
+        // mid-pipeline). Forward the real first-frame size to Dart
+        // so camera_thumb's SizedBox aspect matches the texture's
+        // actual aspect — without this the FittedBox(cover) stretches
+        // a 16:9 buffer that's been sized as 4:3.
+        sink.onFirstFrameSize = { [weak self] size in
+            self?.emit([
+                "event": "previewSizeChanged",
+                "previewSize": [
+                    "width": size.width,
+                    "height": size.height,
+                ],
+            ])
+        }
+
         orientation.start { [weak self] next in
             guard let self = self else { return }
             self.sessionQueue.async { self.applyOrientationFollowDevice(next) }

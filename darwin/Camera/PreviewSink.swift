@@ -31,6 +31,16 @@ final class PreviewSink: NSObject, FlutterTexture {
     )
     private var latestPixelBuffer: CVPixelBuffer?
 
+    /// Fires once after the first sample buffer arrives, carrying the
+    /// buffer's actual `CVPixelBuffer` dimensions. The active-format
+    /// dims reported by `device.activeFormat` aren't always what the
+    /// data output actually delivers (notably on macOS where the
+    /// session preset gets remapped). [CameraInstance] forwards this
+    /// to Dart as a `previewSizeChanged` event so the camera_thumb's
+    /// SizedBox aspect matches the texture's real aspect.
+    var onFirstFrameSize: ((CGSize) -> Void)?
+    private var emittedFirstSize = false
+
     func register(with registry: FlutterTextureRegistry) -> Int64 {
         self.registry = registry
         textureId = registry.register(self)
@@ -63,6 +73,14 @@ final class PreviewSink: NSObject, FlutterTexture {
             return
         }
         bufferQueue.sync { latestPixelBuffer = pb }
+        if !emittedFirstSize {
+            emittedFirstSize = true
+            let size = CGSize(
+                width: CGFloat(CVPixelBufferGetWidth(pb)),
+                height: CGFloat(CVPixelBufferGetHeight(pb))
+            )
+            onFirstFrameSize?(size)
+        }
         if let registry = registry {
             registry.textureFrameAvailable(textureId)
         }
