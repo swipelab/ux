@@ -109,10 +109,29 @@ public class CameraPlugin: NSObject, NativePlugin, FlutterStreamHandler {
                 return
             }
             withInstance(args, result: result) { instance in
+                // Contention check against other instances. The instance's
+                // current cameraId is held by us in `devicesInUse`; only a
+                // foreign holder should block. (A no-op flip — same id —
+                // also passes.)
+                let oldId = instance.currentCameraId
+                if oldId != cameraId, self.devicesInUse.contains(cameraId) {
+                    result(FlutterError(
+                        code: "device_busy",
+                        message: cameraId,
+                        details: nil
+                    ))
+                    return
+                }
+                // Tentatively claim the new id before the async swap so a
+                // concurrent create can't race us. Roll back on failure.
+                self.devicesInUse.insert(cameraId)
                 instance.sessionQueueAsync {
                     do {
                         let size = try instance.setDescription(cameraId: cameraId)
                         DispatchQueue.main.async {
+                            if let oldId, oldId != cameraId {
+                                self.devicesInUse.remove(oldId)
+                            }
                             result([
                                 "previewSize": [
                                     "width": size.width,
@@ -122,6 +141,9 @@ public class CameraPlugin: NSObject, NativePlugin, FlutterStreamHandler {
                         }
                     } catch let error as NSError {
                         DispatchQueue.main.async {
+                            if oldId != cameraId {
+                                self.devicesInUse.remove(cameraId)
+                            }
                             result(FlutterError(
                                 code: "init_failed",
                                 message: error.localizedDescription,
@@ -326,7 +348,13 @@ public class CameraPlugin: NSObject, NativePlugin, FlutterStreamHandler {
                 }
             } catch let error as NSError {
                 DispatchQueue.main.async {
-                    self.releaseClaim(for: instance)
+                    // Can't rely on `releaseClaim(for: instance)` here —
+                    // if `configureSession` threw before `instance.device`
+                    // was set, `instance.currentCameraId` is nil and the
+                    // claim we inserted on line above would leak. Drop the
+                    // ids we know we inserted explicitly.
+                    self.devicesInUse.remove(cameraId)
+                    if enableAudio { self.audioInUse = false }
                     self.instances.removeValue(forKey: handle)
                     result(FlutterError(
                         code: "init_failed",
