@@ -3,6 +3,7 @@ package io.swipelab.ux
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
+import io.swipelab.ux.camera.CameraPlugin
 
 class UxPlugin : FlutterPlugin, ActivityAware {
     private val plugins: List<NativePlugin> = listOf(
@@ -12,6 +13,7 @@ class UxPlugin : FlutterPlugin, ActivityAware {
         ScannerPlugin(),
         ClipboardPlugin(),
         GalleryPlugin(),
+        CameraPlugin(),
         CrashPlugin(),
     )
 
