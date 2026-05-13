@@ -47,8 +47,13 @@ abstract class UxCameraBackend {
   Future<void> disposeInstance(int handle);
 
   /// Swap to a different camera mid-session. Resets the lock and clears
-  /// any pending recording. Returns the new preview size.
-  Future<Size> setDescription(int handle, String cameraId);
+  /// any pending recording. Returns the new preview size and rotation;
+  /// the size may again be `Size.zero` initially on Android, with a
+  /// follow-up [UxCameraPreviewSizeChanged] event.
+  Future<({Size previewSize, int previewRotationQuarterTurns})> setDescription(
+    int handle,
+    String cameraId,
+  );
 
   /// Set the flash mode used for the next [takePicture]. On front cameras
   /// without a screen-flash fallback the backend silently no-ops; the
@@ -104,11 +109,21 @@ class UxCameraCreateResult {
     required this.handle,
     required this.textureId,
     required this.previewSize,
+    this.previewRotationQuarterTurns = 0,
   });
 
   final int handle;
   final int textureId;
+
+  /// Initial preview size; may be `Size.zero` when the native side
+  /// can't determine it synchronously (Android CameraX needs the
+  /// first `SurfaceRequest` to fire before it knows). In that case
+  /// a [UxCameraPreviewSizeChanged] event follows.
   final Size previewSize;
+
+  /// Number of 90° CW rotations the Texture widget needs. iOS: 0.
+  /// Android: derived from the selected camera's sensor orientation.
+  final int previewRotationQuarterTurns;
 }
 
 /// Events pushed by the native side over `ux/camera/events`. Sealed —
@@ -136,6 +151,16 @@ class UxCameraSessionInterrupted extends UxCameraEvent {
 
 class UxCameraSessionResumed extends UxCameraEvent {
   const UxCameraSessionResumed(super.handle);
+}
+
+/// Fired when the native side learns or revises the preview's pixel
+/// dimensions. Android emits this after CameraX's first
+/// `SurfaceRequest` resolves (the size isn't known at `create` time);
+/// iOS doesn't emit it (the size lands in the `create` result
+/// synchronously from `device.activeFormat`).
+class UxCameraPreviewSizeChanged extends UxCameraEvent {
+  const UxCameraPreviewSizeChanged(super.handle, this.previewSize);
+  final Size previewSize;
 }
 
 /// Free-text diagnostic message from the native recorder. Routed by

@@ -9,7 +9,7 @@ export 'src/bend_box.dart';
 export 'src/json_extension.dart';
 export 'src/bezier.dart';
 export 'src/camera/camera.dart';
-export 'src/camera/camera_backend.dart' show UxCameraBackend, UxCameraCreateResult, UxCameraEvent, UxCameraDeviceOrientationChanged, UxCameraSessionError, UxCameraSessionInterrupted, UxCameraSessionResumed, UxCameraDiagnostic;
+export 'src/camera/camera_backend.dart' show UxCameraBackend, UxCameraCreateResult, UxCameraEvent, UxCameraDeviceOrientationChanged, UxCameraSessionError, UxCameraSessionInterrupted, UxCameraSessionResumed, UxCameraDiagnostic, UxCameraPreviewSizeChanged;
 export 'src/camera/camera_channel.dart' show MethodChannelUxCameraBackend;
 export 'src/camera/camera_preview.dart';
 export 'src/clipboard.dart';

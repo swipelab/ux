@@ -58,6 +58,8 @@ class MethodChannelUxCameraBackend implements UxCameraBackend {
         (size['width'] as num).toDouble(),
         (size['height'] as num).toDouble(),
       ),
+      previewRotationQuarterTurns:
+          (m['previewRotationQuarterTurns'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -70,15 +72,22 @@ class MethodChannelUxCameraBackend implements UxCameraBackend {
       _invokeVoid('dispose', {'handle': handle});
 
   @override
-  Future<Size> setDescription(int handle, String cameraId) async {
+  Future<({Size previewSize, int previewRotationQuarterTurns})> setDescription(
+    int handle,
+    String cameraId,
+  ) async {
     final m = await _invokeMap('setDescription', {
       'handle': handle,
       'cameraId': cameraId,
     });
     final s = (m['previewSize'] as Map).cast<Object?, Object?>();
-    return Size(
-      (s['width'] as num).toDouble(),
-      (s['height'] as num).toDouble(),
+    return (
+      previewSize: Size(
+        (s['width'] as num).toDouble(),
+        (s['height'] as num).toDouble(),
+      ),
+      previewRotationQuarterTurns:
+          (m['previewRotationQuarterTurns'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -172,6 +181,15 @@ class MethodChannelUxCameraBackend implements UxCameraBackend {
         return UxCameraDiagnostic(
           handle,
           m['message'] as String? ?? '',
+        );
+      case 'previewSizeChanged':
+        final s = (m['previewSize'] as Map).cast<Object?, Object?>();
+        return UxCameraPreviewSizeChanged(
+          handle,
+          Size(
+            (s['width'] as num).toDouble(),
+            (s['height'] as num).toDouble(),
+          ),
         );
       default:
         return UxCameraSessionError(handle, 'unknown_event', null);

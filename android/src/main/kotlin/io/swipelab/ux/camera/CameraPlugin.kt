@@ -224,6 +224,7 @@ class CameraPlugin :
                     "width" to instance.previewSize.width.toDouble(),
                     "height" to instance.previewSize.height.toDouble(),
                 ),
+                "previewRotationQuarterTurns" to instance.previewRotationQuarterTurns,
             ))
         }
     }
@@ -278,6 +279,7 @@ class CameraPlugin :
                         "width" to size.width.toDouble(),
                         "height" to size.height.toDouble(),
                     ),
+                    "previewRotationQuarterTurns" to instance.previewRotationQuarterTurns,
                 ))
             } catch (t: Throwable) {
                 if (oldLens != newLens) lensesInUse.remove(newLens)

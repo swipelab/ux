@@ -81,16 +81,18 @@ void main() {
       expect(calls.every((c) => (c.arguments as Map)['handle'] == 11), isTrue);
     });
 
-    test('setDescription returns the new previewSize', () async {
+    test('setDescription returns previewSize + rotation', () async {
       handle((_) => {
             'previewSize': {'width': 1280, 'height': 720},
+            'previewRotationQuarterTurns': 1,
           });
 
-      final size = await backend.setDescription(7, 'next');
+      final r = await backend.setDescription(7, 'next');
 
       expect(calls.single.method, 'setDescription');
       expect(calls.single.arguments, {'handle': 7, 'cameraId': 'next'});
-      expect(size, const Size(1280, 720));
+      expect(r.previewSize, const Size(1280, 720));
+      expect(r.previewRotationQuarterTurns, 1);
     });
 
     test('setFlashMode encodes the enum', () async {

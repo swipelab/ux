@@ -29,12 +29,21 @@ class PreviewSink(
     var previewSize: android.util.Size = android.util.Size(0, 0)
         private set
 
+    /// Fired every time CameraX hands us a [SurfaceRequest] with a
+    /// (possibly new) resolution. The [CameraInstance] forwards this
+    /// to Dart as a `previewSizeChanged` event so the controller's
+    /// `value.previewSize` updates after CameraX's first negotiation
+    /// (which lands after `create` has already returned).
+    var onResize: ((android.util.Size) -> Unit)? = null
+
     /// `Preview.SurfaceProvider` callback. Pass directly to
     /// `previewUseCase.setSurfaceProvider(sink::provideSurface)`.
     fun provideSurface(request: SurfaceRequest) {
         val res = request.resolution
         surfaceTexture.setDefaultBufferSize(res.width, res.height)
+        val changed = res != previewSize
         previewSize = res
+        if (changed) onResize?.invoke(res)
 
         // Tear down any prior surface BEFORE handing out the new one —
         // CameraX retains it until provideSurface's listener fires.

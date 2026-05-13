@@ -136,7 +136,8 @@ public class CameraPlugin: NSObject, NativePlugin, FlutterStreamHandler {
                                 "previewSize": [
                                     "width": size.width,
                                     "height": size.height,
-                                ]
+                                ],
+                                "previewRotationQuarterTurns": 0,
                             ])
                         }
                     } catch let error as NSError {
@@ -344,6 +345,10 @@ public class CameraPlugin: NSObject, NativePlugin, FlutterStreamHandler {
                             "width": size.width,
                             "height": size.height,
                         ],
+                        // iOS pre-rotates frames via the data-output
+                        // connection's videoOrientation, so the Flutter
+                        // Texture displays upright as-is.
+                        "previewRotationQuarterTurns": 0,
                     ])
                 }
             } catch let error as NSError {

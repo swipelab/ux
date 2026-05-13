@@ -46,6 +46,19 @@ class CameraInstance(
     val currentLens: String get() = lens
     val audioClaimed: Boolean get() = enableAudio
 
+    /// Number of 90° CW rotations the Flutter Texture needs so the
+    /// sensor frames display upright on a portrait screen. Derived
+    /// from the active camera's `sensorRotationDegrees`.
+    val previewRotationQuarterTurns: Int get() {
+        val degrees = cameraProvider?.let {
+            val selector = if (lens == "front") CameraSelector.DEFAULT_FRONT_CAMERA
+                else CameraSelector.DEFAULT_BACK_CAMERA
+            selector.filter(it.availableCameraInfos).firstOrNull()
+                ?.sensorRotationDegrees ?: 0
+        } ?: 0
+        return ((degrees % 360 + 360) % 360) / 90
+    }
+
     /// Bind the provider against [lens]. Resolves the
     /// [ProcessCameraProvider.getInstance] future on the main executor
     /// before invoking [onReady]. [onReady] fires with success or the
@@ -58,6 +71,16 @@ class CameraInstance(
         check(!disposed)
         this.lens = lens
         this.enableAudio = enableAudio
+
+        previewSink.onResize = { size ->
+            emit(mapOf(
+                "event" to "previewSizeChanged",
+                "previewSize" to mapOf(
+                    "width" to size.width.toDouble(),
+                    "height" to size.height.toDouble(),
+                ),
+            ))
+        }
 
         val future = ProcessCameraProvider.getInstance(context)
         future.addListener({

@@ -27,11 +27,18 @@ class UxCameraPreview extends StatelessWidget {
       builder: (context, value, _) {
         final id = controller.textureId;
         if (id == null) return SizedBox.expand();
-        final mirror = value.description.lens == UxCameraLens.front;
-        final texture = Texture(textureId: id);
-        return mirror
-            ? Transform.flip(flipX: true, child: texture)
-            : texture;
+        Widget child = Texture(textureId: id);
+        // Order matters: rotate first (sensor → screen frame), then
+        // mirror in screen space. Reversing them would mirror across
+        // an axis that's still aligned with the sensor.
+        final turns = value.previewRotationQuarterTurns;
+        if (turns != 0) {
+          child = RotatedBox(quarterTurns: turns, child: child);
+        }
+        if (value.description.lens == UxCameraLens.front) {
+          child = Transform.flip(flipX: true, child: child);
+        }
+        return child;
       },
     );
   }

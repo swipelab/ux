@@ -148,9 +148,18 @@ class FakeUxCameraBackend implements UxCameraBackend {
   }
 
   @override
-  Future<Size> setDescription(int handle, String cameraId) async {
+  Future<({Size previewSize, int previewRotationQuarterTurns})> setDescription(
+    int handle,
+    String cameraId,
+  ) async {
     setDescriptionCalls.add((handle: handle, cameraId: cameraId));
-    return previewSize;
+    return (previewSize: previewSize, previewRotationQuarterTurns: 0);
+  }
+
+  /// Push a `previewSizeChanged` event for [handle]. Tests that need
+  /// to simulate Android's async preview-size resolve drive this.
+  void emitPreviewSizeChanged(int handle, Size size) {
+    _controllerFor(handle).add(UxCameraPreviewSizeChanged(handle, size));
   }
 
   @override

@@ -71,6 +71,7 @@ class UxCameraValue {
     this.deviceOrientation = DeviceOrientation.portraitUp,
     this.enableAudio = false,
     this.audioPermissionGranted = false,
+    this.previewRotationQuarterTurns = 0,
     this.errorDescription,
   });
 
@@ -103,6 +104,16 @@ class UxCameraValue {
   /// no audio track and callers should surface a hint.
   final bool audioPermissionGranted;
 
+  /// Number of 90° clockwise rotations the preview Texture needs so
+  /// the sensor frames display upright. On iOS the data output
+  /// pre-rotates via `AVCaptureConnection.videoOrientation` and this
+  /// is always 0. On Android CameraX delivers sensor-native frames to
+  /// the Surface and the consumer rotates — typically 1 for
+  /// `sensorOrientation: 90` back cams and 3 for `sensorOrientation:
+  /// 270` front cams. Applied inside [UxCameraPreview]; consumers
+  /// don't read this directly.
+  final int previewRotationQuarterTurns;
+
   /// Set to the last native session error's message when one fires.
   /// Cleared on the next successful state transition.
   final String? errorDescription;
@@ -117,6 +128,7 @@ class UxCameraValue {
     DeviceOrientation? deviceOrientation,
     bool? enableAudio,
     bool? audioPermissionGranted,
+    int? previewRotationQuarterTurns,
     Object? errorDescription = _unset,
   }) =>
       UxCameraValue(
@@ -127,6 +139,8 @@ class UxCameraValue {
         deviceOrientation: deviceOrientation ?? this.deviceOrientation,
         enableAudio: enableAudio ?? this.enableAudio,
         audioPermissionGranted: audioPermissionGranted ?? this.audioPermissionGranted,
+        previewRotationQuarterTurns:
+            previewRotationQuarterTurns ?? this.previewRotationQuarterTurns,
         errorDescription: identical(errorDescription, _unset)
             ? this.errorDescription
             : errorDescription as String?,
@@ -211,6 +225,7 @@ class UxCameraController extends ValueNotifier<UxCameraValue> {
       value = value.copyWith(
         isInitialized: true,
         previewSize: result.previewSize,
+        previewRotationQuarterTurns: result.previewRotationQuarterTurns,
         audioPermissionGranted: audioGranted,
       );
     } catch (_) {
@@ -235,6 +250,8 @@ class UxCameraController extends ValueNotifier<UxCameraValue> {
         break;
       case UxCameraDiagnostic(:final message):
         _log.i('recorder: $message');
+      case UxCameraPreviewSizeChanged(:final previewSize):
+        value = value.copyWith(previewSize: previewSize);
     }
   }
 
@@ -257,8 +274,12 @@ class UxCameraController extends ValueNotifier<UxCameraValue> {
   /// recording is in flight — call [stopVideoRecording] first.
   Future<void> setDescription(UxCameraDescription description) async {
     final handle = _requireHandle('setDescription');
-    final size = await UxCameraBackend.instance.setDescription(handle, description.id);
-    value = value.copyWith(description: description, previewSize: size);
+    final r = await UxCameraBackend.instance.setDescription(handle, description.id);
+    value = value.copyWith(
+      description: description,
+      previewSize: r.previewSize,
+      previewRotationQuarterTurns: r.previewRotationQuarterTurns,
+    );
   }
 
   Future<void> setFlashMode(UxFlashMode mode) async {
