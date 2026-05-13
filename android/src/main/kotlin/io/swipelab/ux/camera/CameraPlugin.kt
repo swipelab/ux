@@ -135,12 +135,8 @@ class CameraPlugin :
             "lockCaptureOrientation" -> result.success(null) // preview always portrait
             "unlockCaptureOrientation" -> result.success(null)
             "takePicture" -> handleTakePicture(call, result)
-            "startVideoRecording" -> result.error(
-                "unsupported_format", "video recording not yet on Android", null,
-            )
-            "stopVideoRecording" -> result.error(
-                "unsupported_format", "video recording not yet on Android", null,
-            )
+            "startVideoRecording" -> handleStartVideo(call, result)
+            "stopVideoRecording" -> handleStopVideo(call, result)
             "audioPermissionStatus" -> result.success(isAudioGranted())
             "openSettings" -> handleOpenSettings(result)
             else -> result.notImplemented()
@@ -308,6 +304,36 @@ class CameraPlugin :
                     onSuccess = { path -> result.success(mapOf("path" to path)) },
                     onFailure = { t ->
                         result.error("take_picture_failed", t.localizedMessage, null)
+                    },
+                )
+            }
+        }
+    }
+
+    private fun handleStartVideo(call: MethodCall, result: MethodChannel.Result) {
+        val args = call.arguments as? Map<*, *>
+            ?: return result.error("bad_args", "startVideoRecording", null)
+        val snapshotRaw = args["snapshotOrientation"] as? String ?: "portraitUp"
+        withInstance(call, result) { instance ->
+            instance.startVideoRecording(flutterToSurfaceRotation(snapshotRaw)) {
+                outcome ->
+                outcome.fold(
+                    onSuccess = { result.success(null) },
+                    onFailure = { t ->
+                        result.error("recorder_failed", t.localizedMessage, null)
+                    },
+                )
+            }
+        }
+    }
+
+    private fun handleStopVideo(call: MethodCall, result: MethodChannel.Result) {
+        withInstance(call, result) { instance ->
+            instance.stopVideoRecording { outcome ->
+                outcome.fold(
+                    onSuccess = { path -> result.success(mapOf("path" to path)) },
+                    onFailure = { t ->
+                        result.error("recorder_failed", t.localizedMessage, null)
                     },
                 )
             }

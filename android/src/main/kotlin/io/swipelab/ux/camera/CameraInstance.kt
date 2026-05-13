@@ -30,6 +30,7 @@ class CameraInstance(
     private val lifecycleOwner = CustomLifecycleOwner()
     private val previewSink = PreviewSink(registry, context)
     private val photo = PhotoCapture()
+    private val video = VideoCapture()
     private val orientation = DeviceOrientationBridge(context)
 
     private var cameraProvider: ProcessCameraProvider? = null
@@ -113,6 +114,10 @@ class CameraInstance(
     fun dispose() {
         if (disposed) return
         disposed = true
+        // Mirror iOS' dispose: any in-flight recording is hard-cancelled
+        // (file discarded) rather than left to flush, since there's no
+        // caller waiting on the result anymore.
+        if (video.isRecording) video.cancel()
         orientation.stop()
         cameraProvider?.unbindAll()
         cameraProvider = null
@@ -150,6 +155,26 @@ class CameraInstance(
         photo.take(context, snapshotRotation, onResult)
     }
 
+    /// Begin recording. [snapshotRotation] is baked into the file's
+    /// rotation metadata; the file plays back rotated even if the
+    /// device returns to portrait mid-recording. [onStartResult] fires
+    /// when CameraX's `Recording.start()` returns (immediately on
+    /// success), not when the first frame lands.
+    fun startVideoRecording(
+        snapshotRotation: Int,
+        onStartResult: (Result<Unit>) -> Unit,
+    ) {
+        check(!disposed)
+        video.start(context, enableAudio, snapshotRotation, onStartResult)
+    }
+
+    /// Stop the in-flight recording. [onResult] fires asynchronously
+    /// when CameraX delivers the Finalize event.
+    fun stopVideoRecording(onResult: (Result<String>) -> Unit) {
+        check(!disposed)
+        video.stop(onResult)
+    }
+
     private fun bind(provider: ProcessCameraProvider) {
         provider.unbindAll()
 
@@ -167,11 +192,17 @@ class CameraInstance(
             .also { it.setSurfaceProvider(previewSink::provideSurface) }
         this.preview = preview
 
+        // Preview + ImageCapture + VideoCapture as a single binding.
+        // CameraX 1.4 supports this combination on essentially every
+        // device that supports video — if a device can't deliver all
+        // three simultaneously, `bindToLifecycle` throws and we'd
+        // need to fall back. Not observed on Pixel-class hardware.
         camera = provider.bindToLifecycle(
             lifecycleOwner,
             selector,
             preview,
             photo.useCase,
+            video.useCase,
         )
     }
 
