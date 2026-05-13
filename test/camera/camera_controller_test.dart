@@ -1,0 +1,227 @@
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ux/testing.dart';
+import 'package:ux/ux.dart';
+
+const _front = UxCameraDescription(
+  id: 'front',
+  lens: UxCameraLens.front,
+  sensorOrientation: 270,
+);
+const _back = UxCameraDescription(
+  id: 'back',
+  lens: UxCameraLens.back,
+  sensorOrientation: 90,
+);
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  late FakeUxCameraBackend fake;
+
+  setUp(() {
+    fake = FakeUxCameraBackend(cameras: const [_front, _back]);
+    UxCameraBackend.instance = fake;
+  });
+
+  tearDown(() {
+    UxCameraBackend.instance = MethodChannelUxCameraBackend();
+  });
+
+  test('uxAvailableCameras dispatches through the backend', () async {
+    final cameras = await uxAvailableCameras();
+    expect(cameras, [_front, _back]);
+    expect(fake.availableCamerasCalls, 1);
+  });
+
+  test('initialize creates the native instance, subscribes to events, '
+      'and reports previewSize / isInitialized', () async {
+    final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: false);
+    addTearDown(ctrl.dispose);
+
+    expect(ctrl.value.isInitialized, isFalse);
+    expect(ctrl.value.previewSize, isNull);
+
+    await ctrl.initialize();
+
+    expect(fake.createCalls.single,
+        (cameraId: 'front', enableAudio: false, preset: UxResolutionPreset.high));
+    expect(fake.initializeCalls.single, 1);
+    expect(ctrl.textureId, 100);
+    expect(ctrl.value.isInitialized, isTrue);
+    expect(ctrl.value.previewSize, const Size(1920, 1080));
+  });
+
+  test('deviceOrientationChanged events update value.deviceOrientation', () async {
+    final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: false);
+    addTearDown(ctrl.dispose);
+    await ctrl.initialize();
+
+    expect(ctrl.value.deviceOrientation, DeviceOrientation.portraitUp);
+
+    fake.emitOrientationChanged(1, DeviceOrientation.landscapeLeft);
+    await Future<void>.delayed(Duration.zero);
+    expect(ctrl.value.deviceOrientation, DeviceOrientation.landscapeLeft);
+
+    fake.emitOrientationChanged(1, DeviceOrientation.portraitDown);
+    await Future<void>.delayed(Duration.zero);
+    expect(ctrl.value.deviceOrientation, DeviceOrientation.portraitDown);
+  });
+
+  test('sessionError events surface as value.errorDescription', () async {
+    final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: false);
+    addTearDown(ctrl.dispose);
+    await ctrl.initialize();
+
+    fake.emitSessionError(1, 'recorder_failed', 'writer ended');
+    await Future<void>.delayed(Duration.zero);
+    expect(ctrl.value.errorDescription, 'writer ended');
+    expect(ctrl.value.hasError, isTrue);
+  });
+
+  test('takePicture passes the explicit captureOrientation through', () async {
+    final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: false);
+    addTearDown(ctrl.dispose);
+    await ctrl.initialize();
+
+    final file = await ctrl.takePicture(captureOrientation: DeviceOrientation.landscapeRight);
+
+    expect(file.path, '/tmp/fake_picture.jpg');
+    expect(fake.takePictureCalls.single,
+        (handle: 1, snapshotOrientation: DeviceOrientation.landscapeRight));
+  });
+
+  test('takePicture without captureOrientation falls back to UxSensor', () async {
+    // UxSensor.orientation returns portraitUp under flutter_test (no native sensor).
+    final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: false);
+    addTearDown(ctrl.dispose);
+    await ctrl.initialize();
+
+    await ctrl.takePicture();
+
+    expect(fake.takePictureCalls.single,
+        (handle: 1, snapshotOrientation: DeviceOrientation.portraitUp));
+  });
+
+  test('startVideoRecording flips isRecordingVideo and passes orientation', () async {
+    final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: true);
+    addTearDown(ctrl.dispose);
+    await ctrl.initialize();
+
+    await ctrl.startVideoRecording(captureOrientation: DeviceOrientation.landscapeLeft);
+
+    expect(ctrl.value.isRecordingVideo, isTrue);
+    expect(fake.startVideoRecordingCalls.single,
+        (handle: 1, snapshotOrientation: DeviceOrientation.landscapeLeft));
+  });
+
+  test('stopVideoRecording resets isRecordingVideo and returns the file', () async {
+    final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: true);
+    addTearDown(ctrl.dispose);
+    await ctrl.initialize();
+    await ctrl.startVideoRecording(captureOrientation: DeviceOrientation.landscapeLeft);
+
+    final file = await ctrl.stopVideoRecording();
+
+    expect(ctrl.value.isRecordingVideo, isFalse);
+    expect(file.path, '/tmp/fake_video.mp4');
+    expect(fake.stopVideoRecordingCalls.single, 1);
+  });
+
+  test('setDescription updates value.description and previewSize', () async {
+    final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: false);
+    addTearDown(ctrl.dispose);
+    await ctrl.initialize();
+
+    fake.previewSize = const Size(1280, 720);
+    await ctrl.setDescription(_back);
+
+    expect(ctrl.value.description, _back);
+    expect(ctrl.value.previewSize, const Size(1280, 720));
+    expect(fake.setDescriptionCalls.single, (handle: 1, cameraId: 'back'));
+  });
+
+  test('setFlashMode forwards to the backend', () async {
+    final ctrl = UxCameraController(_back, UxResolutionPreset.high, enableAudio: false);
+    addTearDown(ctrl.dispose);
+    await ctrl.initialize();
+
+    await ctrl.setFlashMode(UxFlashMode.always);
+
+    expect(fake.setFlashModeCalls.single, (handle: 1, mode: UxFlashMode.always));
+  });
+
+  test('lockCaptureOrientation / unlockCaptureOrientation forward to backend',
+      () async {
+    final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: false);
+    addTearDown(ctrl.dispose);
+    await ctrl.initialize();
+
+    await ctrl.lockCaptureOrientation(DeviceOrientation.portraitUp);
+    expect(fake.lockCaptureOrientationCalls.single,
+        (handle: 1, orientation: DeviceOrientation.portraitUp));
+
+    await ctrl.unlockCaptureOrientation();
+    expect(fake.unlockCaptureOrientationCalls.single, 1);
+  });
+
+  test('dispose tears down the native instance and is idempotent', () async {
+    final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: false);
+    await ctrl.initialize();
+
+    await ctrl.dispose();
+    expect(fake.disposeCalls.single, 1);
+
+    // Second dispose is a no-op (does not call backend again, does not throw).
+    await ctrl.dispose();
+    expect(fake.disposeCalls, [1]);
+  });
+
+  test('calls against a disposed controller throw UxCameraException', () async {
+    final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: false);
+    await ctrl.initialize();
+    await ctrl.dispose();
+
+    expect(() => ctrl.takePicture(captureOrientation: DeviceOrientation.portraitUp),
+        throwsA(isA<UxCameraException>().having((e) => e.code, 'code', 'disposed')));
+  });
+
+  test('calls before initialize throw UxCameraException("not_initialized")',
+      () async {
+    final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: false);
+    addTearDown(ctrl.dispose);
+
+    expect(() => ctrl.setFlashMode(UxFlashMode.off),
+        throwsA(isA<UxCameraException>().having((e) => e.code, 'code', 'not_initialized')));
+  });
+
+  test('multi-instance: two controllers get distinct handles + textures',
+      () async {
+    final a = UxCameraController(_front, UxResolutionPreset.high, enableAudio: false);
+    final b = UxCameraController(_back, UxResolutionPreset.high, enableAudio: false);
+    addTearDown(a.dispose);
+    addTearDown(b.dispose);
+
+    await a.initialize();
+    await b.initialize();
+
+    expect(a.textureId, isNot(b.textureId));
+    expect(fake.createCalls.map((c) => c.cameraId), ['front', 'back']);
+
+    // Events route per-handle: orientation update to A doesn't touch B.
+    fake.emitOrientationChanged(1, DeviceOrientation.landscapeLeft);
+    fake.emitOrientationChanged(2, DeviceOrientation.landscapeRight);
+    await Future<void>.delayed(Duration.zero);
+    expect(a.value.deviceOrientation, DeviceOrientation.landscapeLeft);
+    expect(b.value.deviceOrientation, DeviceOrientation.landscapeRight);
+  });
+
+  test('initialize propagates UxCameraException("permission_denied")', () async {
+    fake.createError = const UxCameraException('permission_denied', 'camera');
+    final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: false);
+    addTearDown(ctrl.dispose);
+
+    expect(() => ctrl.initialize(),
+        throwsA(isA<UxCameraException>().having((e) => e.code, 'code', 'permission_denied')));
+  });
+}
