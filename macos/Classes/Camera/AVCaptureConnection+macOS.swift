@@ -16,23 +16,25 @@ import AVFoundation
 /// available, fall back to the deprecated one for older macOS.
 extension AVCaptureConnection {
     func applyUxCaptureOrientation(_ orientation: DeviceOrientationFlutter) {
-        // macOS `AVCapturePhotoOutput`'s photo connection captures in
-        // landscape natively when its rotation hint is `.portrait`
-        // (90°). Counter-intuitive vs iOS where `.portrait` rotates
-        // the landscape sensor to portrait, but verified empirically
-        // — setting `.landscapeRight` / `videoRotationAngle = 0` left
-        // the JPEG rotated 90° CW. The data output's connection on
-        // macOS doesn't honor `videoOrientation` / `videoRotationAngle`
-        // (or returns supported = false), so this setter is a no-op
-        // there and preview + video stay correct.
+        // Pin to 0° rotation (`.landscapeRight`) on macOS — desktop
+        // cameras are physically landscape and any non-zero rotation
+        // physically rotates the buffer. Diagnostic build confirmed
+        // a 720x1280 CGImage (portrait) when this was set to 90°,
+        // proving Apple's docs ("AVCapturePhotoOutput uses EXIF only,
+        // no physical rotation") don't apply on macOS — and the data
+        // output's connection honors the same setter, so preview +
+        // video also rotate.
+        //
+        // The Flutter snapshot is always `portraitUp` on macOS
+        // (desktops don't rotate); we ignore it and force landscape.
         if #available(macOS 14.0, *) {
-            if isVideoRotationAngleSupported(90) {
-                videoRotationAngle = 90
+            if isVideoRotationAngleSupported(0) {
+                videoRotationAngle = 0
                 return
             }
         }
         if isVideoOrientationSupported {
-            videoOrientation = .portrait
+            videoOrientation = .landscapeRight
         }
     }
 }
