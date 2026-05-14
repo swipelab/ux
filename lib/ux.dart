@@ -18,6 +18,7 @@ export 'src/gallery.dart';
 export 'src/keyboard.dart';
 export 'src/auto_map.dart';
 export 'src/scanner.dart';
+export 'src/url.dart';
 export 'src/sensor.dart';
 export 'src/functional.dart';
 export 'src/crash.dart';

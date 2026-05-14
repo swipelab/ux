@@ -3,7 +3,7 @@ package io.swipelab.ux
 /// JNI bridge to the C globals that Dart reads via FFI.
 object KeyboardBridge {
     init {
-        System.loadLibrary("ux_keyboard")
+        System.loadLibrary("ux")
     }
 
     @JvmStatic external fun nSetHeight(h: Double)

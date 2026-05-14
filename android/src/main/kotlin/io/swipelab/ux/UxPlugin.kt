@@ -15,6 +15,7 @@ class UxPlugin : FlutterPlugin, ActivityAware {
         GalleryPlugin(),
         CameraPlugin(),
         CrashPlugin(),
+        UrlPlugin(),
     )
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) =

@@ -14,6 +14,7 @@ public class UxPlugin: NSObject, FlutterPlugin {
             GalleryPlugin(),
             CrashPlugin(),
             CameraPlugin(),
+            UrlPlugin(),
         ]
         for plugin in plugins {
             plugin.register(with: registrar)

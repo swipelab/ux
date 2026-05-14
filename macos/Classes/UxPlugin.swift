@@ -10,6 +10,7 @@ public class UxPlugin: NSObject, FlutterPlugin {
             ClipboardPlugin(),
             GalleryPlugin(),
             CameraPlugin(),
+            UrlPlugin(),
         ]
         for plugin in plugins {
             plugin.register(with: registrar)

@@ -1,28 +1,11 @@
 import 'dart:async';
-import 'dart:ffi';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-DynamicLibrary? _initLib() {
-  if (Platform.isIOS) return DynamicLibrary.process();
-  if (Platform.isAndroid) return DynamicLibrary.open('libux_keyboard.so');
-  return null;
-}
+import 'package:ux/src/_ffi.dart';
 
-final DynamicLibrary? _lib = _initLib();
-
-int Function()? _lookupInt32(String name) {
-  if (_lib == null) return null;
-  try {
-    return _lib!.lookup<NativeFunction<Int32 Function()>>(name).asFunction<int Function()>();
-  } catch (_) {
-    return null;
-  }
-}
-
-final _uxDeviceOrientation = _lookupInt32('ux_device_orientation');
+final _uxDeviceOrientation = uxLookupInt32('ux_device_orientation');
 
 class UxSensor {
   UxSensor._();

@@ -1,69 +1,24 @@
-import 'dart:ffi';
 import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
+
+import 'package:ux/src/_ffi.dart';
 import 'package:ux/src/log.dart';
 
 final _kbLog = Log.tag('KB');
 
-DynamicLibrary? _initLib() {
-  if (Platform.isIOS) return DynamicLibrary.process();
-  if (Platform.isAndroid) return DynamicLibrary.open('libux_keyboard.so');
-  return null;
-}
+final _uxKeyboardHeight = uxLookupDouble('ux_keyboard_height');
+final _uxSystemHeight = uxLookupDouble('ux_system_keyboard_height');
+final _uxIsTracking = uxLookupInt32('ux_is_tracking');
+final _uxAnimTarget = uxLookupDouble('ux_keyboard_anim_target');
+final _uxAnimDuration = uxLookupDouble('ux_keyboard_anim_duration');
+final _uxAnimGen = uxLookupInt32('ux_keyboard_anim_gen');
 
-final DynamicLibrary? _lib = _initLib();
-
-double Function()? _lookupDouble(String name) {
-  if (_lib == null) return null;
-  try {
-    return _lib!.lookup<NativeFunction<Double Function()>>(name).asFunction<double Function()>();
-  } catch (e) {
-    return null;
-  }
-}
-
-int Function()? _lookupInt32(String name) {
-  if (_lib == null) return null;
-  try {
-    return _lib!.lookup<NativeFunction<Int32 Function()>>(name).asFunction<int Function()>();
-  } catch (e) {
-    return null;
-  }
-}
-
-void Function()? _lookupVoid(String name) {
-  if (_lib == null) return null;
-  try {
-    return _lib!.lookup<NativeFunction<Void Function()>>(name).asFunction<void Function()>();
-  } catch (e) {
-    return null;
-  }
-}
-
-final _uxKeyboardHeight = _lookupDouble('ux_keyboard_height');
-final _uxSystemHeight = _lookupDouble('ux_system_keyboard_height');
-final _uxIsTracking = _lookupInt32('ux_is_tracking');
-final _uxAnimTarget = _lookupDouble('ux_keyboard_anim_target');
-final _uxAnimDuration = _lookupDouble('ux_keyboard_anim_duration');
-final _uxAnimGen = _lookupInt32('ux_keyboard_anim_gen');
-
-void Function(double)? _lookupEnableInteractiveDismiss() {
-  if (_lib == null) return null;
-  try {
-    return _lib!
-        .lookup<NativeFunction<Void Function(Double)>>('ux_enable_interactive_dismiss')
-        .asFunction<void Function(double)>();
-  } catch (e) {
-    return null;
-  }
-}
-
-final _uxEnableInteractiveDismiss = _lookupEnableInteractiveDismiss();
-final _uxDisableInteractiveDismiss = _lookupVoid('ux_disable_interactive_dismiss');
+final _uxEnableInteractiveDismiss = uxLookupVoidDouble('ux_enable_interactive_dismiss');
+final _uxDisableInteractiveDismiss = uxLookupVoid('ux_disable_interactive_dismiss');
 
 /// iOS keyboard animation curve — sampled from native CADisplayLink.
 /// 21 points at t = 0.00, 0.05, ..., 1.00. Averaged from multiple open/close cycles.
@@ -148,7 +103,7 @@ class UxKeyboard with ChangeNotifier {
     if (Platform.isAndroid) {
       _channel.setMethodCallHandler(_onMethodCall);
     }
-    if (_lib == null) return;
+    if (uxLib == null) return;
     SchedulerBinding.instance.addPersistentFrameCallback(_onFrame);
   }
 

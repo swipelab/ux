@@ -29,7 +29,7 @@ mkdir -p "$DEST"
 rsync -a --delete "$SRC/" "$DEST/"
 CMD
   }]
-  s.source_files     = 'Classes/**/*.swift'
+  s.source_files     = 'Classes/**/*.{swift,m}'
   s.frameworks       = ['AVFoundation', 'CoreMedia', 'CoreVideo', 'Photos', 'PhotosUI']
   s.dependency 'Flutter'
   s.ios.deployment_target = '13.0'
