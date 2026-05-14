@@ -186,12 +186,22 @@ std::string canonical_web_url(const std::string& match) {
   return std::string("http://") + match;
 }
 
+// AOSP's `Patterns.PHONE` matches any run of 3+ digits, which fires on
+// short codes, ZIP codes, version strings, sport scores, etc. Require at
+// least this many digits to call something a dialable number.
+constexpr int kMinPhoneDigits = 7;
+
 std::string canonical_phone(const std::string& match) {
-  std::string out = "tel:";
+  std::string digits;
   for (char c : match) {
-    if ((c >= '0' && c <= '9') || c == '+') out.push_back(c);
+    if ((c >= '0' && c <= '9') || c == '+') digits.push_back(c);
   }
-  return out;
+  int count = 0;
+  for (char c : digits) {
+    if (c >= '0' && c <= '9') ++count;
+  }
+  if (count < kMinPhoneDigits) return {};
+  return std::string("tel:") + digits;
 }
 
 void run_pattern(JNIEnv* env, jstring text, jobject pattern, uint32_t kind,
@@ -229,6 +239,7 @@ void run_pattern(JNIEnv* env, jstring text, jobject pattern, uint32_t kind,
     } else if (kind == kKindPhone) {
       url = canonical_phone(group);
     }
+    if (url.empty()) continue;
     out.push_back(RawMatch{(int32_t)start, (int32_t)end, kind, std::move(url)});
   }
   env->DeleteLocalRef(matcher);

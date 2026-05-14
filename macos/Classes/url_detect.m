@@ -102,15 +102,21 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
                     NSString *folded = [raw decomposedStringWithCompatibilityMapping];
                     NSMutableString *digits = [NSMutableString stringWithCapacity:folded.length];
                     BOOL seenLetter = NO;
+                    NSUInteger digitCount = 0;
                     for (NSUInteger i = 0; i < folded.length; i++) {
                         unichar c = [folded characterAtIndex:i];
                         if ((c >= '0' && c <= '9') || c == '+') {
                             if (seenLetter) break;
                             [digits appendFormat:@"%C", c];
+                            if (c >= '0' && c <= '9') digitCount++;
                         } else if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
                             seenLetter = YES;
                         }
                     }
+                    // 7 digits is the conventional minimum dialable
+                    // length; below that the match is almost certainly a
+                    // short code / version / ZIP / score, not a phone.
+                    if (digitCount < 7) return;
                     url = [NSString stringWithFormat:@"tel:%@", digits];
                     kind = kKindPhone;
                 } else if (result.resultType == NSTextCheckingTypeLink) {
