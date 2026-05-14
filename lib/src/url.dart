@@ -228,6 +228,7 @@ final _MatchUrl? _matchUrl = _lookupMatchUrl();
 final _Free? _free = _lookupFree();
 
 bool _hasSigil(String text) {
+  int digits = 0;
   for (int i = 0; i < text.length; i++) {
     final c = text.codeUnitAt(i);
     if (c == 0x2E /* . */ ||
@@ -235,6 +236,14 @@ bool _hasSigil(String text) {
         c == 0x40 /* @ */ ||
         c == 0x2B /* + */) {
       return true;
+    }
+    // A phone number with no `+` and no separators (e.g. `0731098515`)
+    // wouldn't otherwise reach the native detector. The native side
+    // applies its own min-digit-count filter, so even a five-digit ZIP
+    // here is harmless — the FFI hop is sub-ms.
+    if (c >= 0x30 && c <= 0x39) {
+      digits++;
+      if (digits >= 5) return true;
     }
   }
   return false;
