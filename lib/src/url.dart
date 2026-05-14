@@ -76,12 +76,14 @@ bool _isLaunchable(String url) {
   if (colon <= 0) return false;
   final scheme = url.substring(0, colon).toLowerCase();
   if (!_kLaunchSchemes.contains(scheme)) return false;
-  // Bidi controls let a sender visually reverse the displayed URL while
-  // the byte order — what the OS opens — points elsewhere. Reject any
-  // URL containing them rather than guessing the user's intent.
+  // Bidi controls + directional marks let a sender visually reverse the
+  // displayed URL while the byte order — what the OS opens — points
+  // elsewhere. Reject rather than guessing intent.
   for (int i = 0; i < url.length; i++) {
     final c = url.codeUnitAt(i);
-    if ((c >= 0x202A && c <= 0x202E) || (c >= 0x2066 && c <= 0x2069)) {
+    if (c == 0x200E || c == 0x200F /* LRM / RLM */ ||
+        (c >= 0x202A && c <= 0x202E) ||
+        (c >= 0x2066 && c <= 0x2069)) {
       return false;
     }
   }
@@ -91,6 +93,33 @@ bool _isLaunchable(String url) {
     if (body.contains('*') || body.contains('#')) return false;
   }
   return true;
+}
+
+/// Strips invisible / whitespace chars that NSDataDetector or
+/// `Patterns.WEB_URL` sometimes drag inside a URL — typically when the
+/// source text uses them as soft separators. Leaving them in produces a
+/// URL the OS refuses to open later. Bidi-override chars are NOT
+/// stripped here (they survive into [_isLaunchable] which rejects them
+/// outright; see comment there).
+String _sanitizeUrl(String url) {
+  StringBuffer? out;
+  for (int i = 0; i < url.length; i++) {
+    final c = url.codeUnitAt(i);
+    final strip =
+        c == 0x09 /* tab */ ||
+        c == 0x0A /* LF */ ||
+        c == 0x0D /* CR */ ||
+        c == 0xA0 /* NBSP */ ||
+        (c >= 0x200B && c <= 0x200D) /* ZWSP / ZWNJ / ZWJ */ ||
+        (c >= 0x2060 && c <= 0x206F) /* word joiner + invisible ops */ ||
+        c == 0xFEFF /* BOM / ZWNBSP */;
+    if (strip) {
+      out ??= StringBuffer(url.substring(0, i));
+      continue;
+    }
+    out?.writeCharCode(c);
+  }
+  return out?.toString() ?? url;
 }
 
 /// One detected span inside a source string.
@@ -232,7 +261,9 @@ List<UrlMatch> _decode(Uint8List buf) {
     final urlLen = view.getUint32(p + 12, Endian.little);
     p += 16;
     if (p + urlLen > buf.length) break;
-    final url = utf8.decode(Uint8List.sublistView(buf, p, p + urlLen));
+    final url = _sanitizeUrl(
+      utf8.decode(Uint8List.sublistView(buf, p, p + urlLen)),
+    );
     p += urlLen;
     out.add(UrlMatch(
       start: start,
