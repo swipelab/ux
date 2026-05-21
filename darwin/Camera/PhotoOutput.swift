@@ -49,7 +49,7 @@ final class PhotoOutput {
         // JPEG); macOS is a no-op (desktop cams are physically
         // landscape, any rotation skews the photo). See
         // `AVCaptureConnection+iOS.swift` / `…+macOS.swift`.
-        connection.applyUxCaptureOrientation(orientation)
+        connection.applyXCaptureOrientation(orientation)
         // The recorded photo carries no mirror; mirroring is a
         // preview-only concern.
         if connection.isVideoMirroringSupported {
@@ -79,7 +79,7 @@ final class PhotoOutput {
             // snapshot defaults cleanly. No-op on macOS (the
             // extension method is empty there).
             self?.avOutput.connection(with: .video)?
-                .applyUxCaptureOrientation(.portraitUp)
+                .applyXCaptureOrientation(.portraitUp)
             self?.inFlight = nil
             DispatchQueue.main.async { completion(result) }
         }

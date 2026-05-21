@@ -5,7 +5,7 @@ public protocol NativePlugin {
     func register(with registrar: FlutterPluginRegistrar)
 }
 
-public enum UxWindow {
+public enum XWindow {
     public static var keyWindow: UIWindow? {
         if let w = UIApplication.shared.delegate?.window ?? nil { return w }
         for scene in UIApplication.shared.connectedScenes {

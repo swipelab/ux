@@ -18,7 +18,7 @@ public enum DeviceOrientationFlutter: String {
     case landscapeRight
 
     /// Parse a wire string. Returns `.portraitUp` for unknown inputs
-    /// (matches the Dart-side fallback in `MethodChannelUxCameraBackend`).
+    /// (matches the Dart-side fallback in `MethodChannelXCameraBackend`).
     public static func parse(_ raw: String?) -> DeviceOrientationFlutter {
         return DeviceOrientationFlutter(rawValue: raw ?? "") ?? .portraitUp
     }

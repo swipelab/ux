@@ -7,8 +7,8 @@ import 'package:ux/src/_ffi.dart';
 
 final _uxDeviceOrientation = uxLookupInt32('ux_device_orientation');
 
-class UxSensor {
-  UxSensor._();
+class XSensor {
+  XSensor._();
 
   /// Accelerometer-driven physical device rotation; updates regardless of
   /// OS auto-rotate or app UI orientation lock.
@@ -32,7 +32,7 @@ class UxSensor {
 
 class _OrientationNotifier extends ChangeNotifier
     implements ValueListenable<DeviceOrientation> {
-  _OrientationNotifier() : _value = UxSensor.orientation;
+  _OrientationNotifier() : _value = XSensor.orientation;
 
   Timer? _timer;
   DeviceOrientation _value;
@@ -56,7 +56,7 @@ class _OrientationNotifier extends ChangeNotifier
   }
 
   void _tick(Timer _) {
-    final next = UxSensor.orientation;
+    final next = XSensor.orientation;
     if (next != _value) {
       _value = next;
       notifyListeners();

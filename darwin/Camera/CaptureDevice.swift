@@ -108,7 +108,7 @@ enum CaptureDevice {
 
 /// One row of the discovery result. `lens` and `sensorOrientation`
 /// match the wire shape expected by Dart's
-/// `MethodChannelUxCameraBackend.availableCameras()`.
+/// `MethodChannelXCameraBackend.availableCameras()`.
 struct DiscoveredCamera {
     let device: AVCaptureDevice
     let lens: String

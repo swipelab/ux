@@ -8,7 +8,7 @@ void main() => runApp(MaterialApp(
       home: ChatScreen(),
     ));
 
-/// Demonstrates UxKeyboard in a chat UI:
+/// Demonstrates XKeyboard in a chat UI:
 /// - Frame-accurate keyboard height tracking (no Flutter viewInsets lag)
 /// - Interactive dismiss (swipe the keyboard down like iMessage)
 /// - Scroll freeze while the user is panning the keyboard
@@ -20,7 +20,7 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  final _keyboard = UxKeyboard.instance;
+  final _keyboard = XKeyboard.instance;
   final _textController = TextEditingController();
   final _messages = List.generate(
     30,
@@ -54,8 +54,8 @@ class _ChatScreenState extends State<ChatScreen> {
     // Disable Flutter's built-in resize — we handle it ourselves.
     return Scaffold(
       resizeToAvoidBottomInset: false,
-      appBar: AppBar(title: Text('UxKeyboard Chat')),
-      // ListenableBuilder rebuilds only when UxKeyboard notifies (height changes).
+      appBar: AppBar(title: Text('XKeyboard Chat')),
+      // ListenableBuilder rebuilds only when XKeyboard notifies (height changes).
       body: ListenableBuilder(
         listenable: _keyboard,
         builder: (context, _) {

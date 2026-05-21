@@ -3,7 +3,7 @@ import Photos
 import PhotosUI
 import UIKit
 
-/// `Photos.framework` bridge for `UxGallery` — paginated asset queries,
+/// `Photos.framework` bridge for `XGallery` — paginated asset queries,
 /// cell-sized thumbnails via `PHCachingImageManager`, and on-demand
 /// file resolution into the app cache.
 public class GalleryPlugin: NSObject, NativePlugin, PHPhotoLibraryChangeObserver, FlutterStreamHandler {
@@ -101,7 +101,7 @@ public class GalleryPlugin: NSObject, NativePlugin, PHPhotoLibraryChangeObserver
             // Completion handler signals dismissal; reload is driven by
             // `ux/gallery/changes` via the library observer (fires after
             // iOS commits the new subset).
-            if #available(iOS 15, *), let vc = UxWindow.topViewController {
+            if #available(iOS 15, *), let vc = XWindow.topViewController {
                 PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: vc) { _ in
                     // Apple's docs: the completion handler runs on "an
                     // arbitrary serial dispatch queue". Flutter method-
@@ -110,7 +110,7 @@ public class GalleryPlugin: NSObject, NativePlugin, PHPhotoLibraryChangeObserver
                         result(nil)
                     }
                 }
-            } else if #available(iOS 14, *), let vc = UxWindow.topViewController {
+            } else if #available(iOS 14, *), let vc = XWindow.topViewController {
                 PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: vc)
                 result(nil)
             } else {

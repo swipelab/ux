@@ -5,7 +5,7 @@ public protocol NativePlugin {
     func register(with registrar: FlutterPluginRegistrar)
 }
 
-public enum UxWindow {
+public enum XWindow {
     public static var keyWindow: NSWindow? {
         NSApp.keyWindow ?? NSApp.mainWindow
     }

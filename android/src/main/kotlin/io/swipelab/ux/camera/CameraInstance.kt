@@ -13,7 +13,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ProcessLifecycleOwner
 import io.flutter.view.TextureRegistry
 
-/// One per `UxCameraController` on the Dart side. Owns CameraX's
+/// One per `XCameraController` on the Dart side. Owns CameraX's
 /// [ProcessCameraProvider] binding, the [PreviewSink] (texture +
 /// SurfaceProvider), the [PhotoCapture] use-case, and the per-instance
 /// [CustomLifecycleOwner] that drives them.

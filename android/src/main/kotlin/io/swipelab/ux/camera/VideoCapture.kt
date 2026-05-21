@@ -32,7 +32,7 @@ class VideoCapture {
     val useCase: androidx.camera.video.VideoCapture<Recorder> =
         androidx.camera.video.VideoCapture.Builder(recorder)
             // Raw sensor capture — selfie videos are "as others see
-            // you"; the preview-only mirror lives in UxCameraPreview.
+            // you"; the preview-only mirror lives in XCameraPreview.
             .setMirrorMode(MirrorMode.MIRROR_MODE_OFF)
             .build()
 

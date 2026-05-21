@@ -95,11 +95,11 @@ double _inverseLerp(List<double> samples, double value) {
 /// Use the singleton [instance] and listen for changes via [addListener]:
 ///
 /// ```dart
-/// final keyboard = UxKeyboard.instance;
+/// final keyboard = XKeyboard.instance;
 /// keyboard.enableInteractiveDismiss(trackingInset: 56);
 /// ```
-class UxKeyboard with ChangeNotifier {
-  UxKeyboard._() {
+class XKeyboard with ChangeNotifier {
+  XKeyboard._() {
     if (Platform.isAndroid) {
       _channel.setMethodCallHandler(_onMethodCall);
     }
@@ -108,7 +108,7 @@ class UxKeyboard with ChangeNotifier {
   }
 
   /// The singleton instance.
-  static final UxKeyboard instance = UxKeyboard._();
+  static final XKeyboard instance = XKeyboard._();
 
   static const _channel = MethodChannel('ux/keyboard');
 

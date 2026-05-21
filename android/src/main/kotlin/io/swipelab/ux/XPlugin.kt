@@ -5,7 +5,7 @@ import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.swipelab.ux.camera.CameraPlugin
 
-class UxPlugin : FlutterPlugin, ActivityAware {
+class XPlugin : FlutterPlugin, ActivityAware {
     private val plugins: List<NativePlugin> = listOf(
         KeyboardPlugin(),
         SensorPlugin(),

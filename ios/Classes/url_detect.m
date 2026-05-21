@@ -1,4 +1,4 @@
-// Native data detection for UxUrl. Synchronous, callable via dart:ffi.
+// Native data detection for XUrl. Synchronous, callable via dart:ffi.
 //
 // Exports two symbols:
 //   uint8_t* ux_match_url(const uint16_t* utf16, int32_t len, int32_t* out_size);
@@ -24,13 +24,13 @@ static const uint32_t kKindWeb   = 0;
 static const uint32_t kKindEmail = 1;
 static const uint32_t kKindPhone = 2;
 
-@interface UxUrlRawMatch : NSObject
+@interface XUrlRawMatch : NSObject
 @property (nonatomic) int32_t start;
 @property (nonatomic) int32_t end;
 @property (nonatomic) uint32_t kind;
 @property (nonatomic, copy) NSData *urlUtf8;
 @end
-@implementation UxUrlRawMatch
+@implementation XUrlRawMatch
 @end
 
 static NSDataDetector *ux_url_data_detector(void) {
@@ -76,7 +76,7 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
         if (text.length == 0) return NULL;
 
         NSRange whole = NSMakeRange(0, text.length);
-        NSMutableArray<UxUrlRawMatch *> *raws = [NSMutableArray array];
+        NSMutableArray<XUrlRawMatch *> *raws = [NSMutableArray array];
 
         NSDataDetector *detector = ux_url_data_detector();
         if (detector != nil) {
@@ -130,7 +130,7 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
                 }
                 if (url.length == 0) return;
 
-                UxUrlRawMatch *m = [[UxUrlRawMatch alloc] init];
+                XUrlRawMatch *m = [[XUrlRawMatch alloc] init];
                 m.start = (int32_t)r.location;
                 m.end   = (int32_t)(r.location + r.length);
                 m.kind  = kind;
@@ -152,7 +152,7 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
                 if (r.location == NSNotFound || r.length == 0) return;
                 NSString *substr = [text substringWithRange:r];
                 NSString *withScheme = [@"http://" stringByAppendingString:substr];
-                UxUrlRawMatch *m = [[UxUrlRawMatch alloc] init];
+                XUrlRawMatch *m = [[XUrlRawMatch alloc] init];
                 m.start = (int32_t)r.location;
                 m.end   = (int32_t)(r.location + r.length);
                 m.kind  = kKindWeb;
@@ -164,7 +164,7 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
         if (raws.count == 0) return NULL;
 
         // Sort: start asc, then length desc, then kind desc (phone > email > web on tie).
-        [raws sortUsingComparator:^NSComparisonResult(UxUrlRawMatch *a, UxUrlRawMatch *b) {
+        [raws sortUsingComparator:^NSComparisonResult(XUrlRawMatch *a, XUrlRawMatch *b) {
             if (a.start != b.start) return a.start < b.start ? NSOrderedAscending : NSOrderedDescending;
             int32_t la = a.end - a.start;
             int32_t lb = b.end - b.start;
@@ -174,10 +174,10 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
         }];
 
         // Greedy de-overlap.
-        NSMutableArray<UxUrlRawMatch *> *kept = [NSMutableArray arrayWithCapacity:raws.count];
+        NSMutableArray<XUrlRawMatch *> *kept = [NSMutableArray arrayWithCapacity:raws.count];
         int32_t lastEnd = 0;
         BOOL haveAny = NO;
-        for (UxUrlRawMatch *m in raws) {
+        for (XUrlRawMatch *m in raws) {
             if (haveAny && m.start < lastEnd) continue;
             [kept addObject:m];
             lastEnd = m.end;
@@ -185,7 +185,7 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
         }
 
         NSUInteger total = 4;
-        for (UxUrlRawMatch *m in kept) {
+        for (XUrlRawMatch *m in kept) {
             total += 16 + (NSUInteger)m.urlUtf8.length;
         }
 
@@ -194,7 +194,7 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
         uint32_t cnt = (uint32_t)kept.count;
         memcpy(buf, &cnt, 4);
         NSUInteger off = 4;
-        for (UxUrlRawMatch *m in kept) {
+        for (XUrlRawMatch *m in kept) {
             int32_t start = m.start;
             int32_t end   = m.end;
             uint32_t kind = m.kind;

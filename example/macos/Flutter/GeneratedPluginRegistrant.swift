@@ -8,5 +8,5 @@ import Foundation
 import ux
 
 func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
-  UxPlugin.register(with: registry.registrar(forPlugin: "UxPlugin"))
+  XPlugin.register(with: registry.registrar(forPlugin: "XPlugin"))
 }

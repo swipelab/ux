@@ -26,7 +26,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 
-/// `MediaStore` bridge for `UxGallery` — paginated photo + video
+/// `MediaStore` bridge for `XGallery` — paginated photo + video
 /// queries via `ContentResolver`, cell-sized thumbnails via
 /// `ContentResolver.loadThumbnail` (API 29+), and stream-copy file
 /// resolution into the app cache so `dart:io` can read what the

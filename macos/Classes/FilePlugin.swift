@@ -106,7 +106,7 @@ public class FilePlugin: NSObject, NativePlugin {
             panel.allowedFileTypes = utis
         }
 
-        let host = UxWindow.flutterView?.window
+        let host = XWindow.flutterView?.window
         let completion: (NSApplication.ModalResponse) -> Void = { response in
             guard response == .OK, let url = panel.url else {
                 result(nil)
@@ -173,7 +173,7 @@ public class FilePlugin: NSObject, NativePlugin {
               let path = args["path"] as? String else {
             return result(FlutterError(code: "bad_args", message: "path is required", details: nil))
         }
-        guard let view = UxWindow.flutterView else {
+        guard let view = XWindow.flutterView else {
             return result(FlutterError(code: "no_view", message: "no Flutter view", details: nil))
         }
 
@@ -314,10 +314,10 @@ public class FilePlugin: NSObject, NativePlugin {
         withScope(path: path, bookmark: bookmarkData) { url in
             // Prefer in-app Quick Look (keeps the host app in the foreground).
             // Fall back to NSWorkspace.open if there's no window to host the panel.
-            if let flutterView = UxWindow.flutterView,
+            if let flutterView = XWindow.flutterView,
                let window = flutterView.window,
                let panel = QLPreviewPanel.shared() {
-                let responder = UxQLPreviewResponder(url: url, window: window)
+                let responder = XQLPreviewResponder(url: url, window: window)
                 flutterView.addSubview(responder)
                 window.makeFirstResponder(responder)
                 panel.updateController()
@@ -344,7 +344,7 @@ fileprivate func mimeFromExtension(_ ext: String) -> String? {
     return mime as String
 }
 
-private final class UxQLPreviewResponder: NSView, QLPreviewPanelDataSource {
+private final class XQLPreviewResponder: NSView, QLPreviewPanelDataSource {
     let url: URL
     private weak var previousFirstResponder: NSResponder?
     private weak var previousWindow: NSWindow?

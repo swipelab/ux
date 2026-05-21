@@ -1,14 +1,18 @@
-import FlutterMacOS
-import AppKit
+import Flutter
+import UIKit
 
-public class UxPlugin: NSObject, FlutterPlugin {
+public class XPlugin: NSObject, FlutterPlugin {
     private static var plugins: [NativePlugin] = []
 
     public static func register(with registrar: FlutterPluginRegistrar) {
         plugins = [
+            KeyboardPlugin(),
+            SensorPlugin(),
             FilePlugin(),
+            ScannerPlugin(),
             ClipboardPlugin(),
             GalleryPlugin(),
+            CrashPlugin(),
             CameraPlugin(),
             UrlPlugin(),
         ]

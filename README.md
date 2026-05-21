@@ -2,12 +2,12 @@
 
 A Flutter toolkit for building fluid, native-feeling UIs.
 
-## UxKeyboard
+## XKeyboard
 
 Frame-accurate keyboard height tracking for iOS and Android, with interactive dismiss.
 
 Flutter's built-in `MediaQuery.viewInsets.bottom` lags behind the actual keyboard position
-and doesn't support interactive dismiss. `UxKeyboard` reads the keyboard height directly
+and doesn't support interactive dismiss. `XKeyboard` reads the keyboard height directly
 from the native layer via FFI — zero channel latency, every frame.
 
 ### Features
@@ -21,7 +21,7 @@ from the native layer via FFI — zero channel latency, every frame.
 ### Quick start
 
 ```dart
-final keyboard = UxKeyboard.instance;
+final keyboard = XKeyboard.instance;
 
 // Enable swipe-to-dismiss. trackingInset is the height of your input bar.
 keyboard.enableInteractiveDismiss(trackingInset: 56);
@@ -66,7 +66,7 @@ Scaffold(
 
 | Member | Description |
 |---|---|
-| `UxKeyboard.instance` | Singleton instance |
+| `XKeyboard.instance` | Singleton instance |
 | `.height` | Current keyboard height in logical pixels |
 | `.systemHeight` | Last system-reported keyboard height |
 | `.isOpen` | Whether the keyboard is visible |
@@ -78,7 +78,7 @@ Scaffold(
 ### Key points
 
 - Set `resizeToAvoidBottomInset: false` on your `Scaffold` — otherwise Flutter's built-in
-  resize fights with `UxKeyboard`
+  resize fights with `XKeyboard`
 - Use `MediaQuery.viewPaddingOf(context).bottom` for the safe area (not `paddingOf`, which
   is consumed by `Scaffold`)
 - Use `max(keyboardHeight, safeBottom)` for bottom padding — the keyboard height includes

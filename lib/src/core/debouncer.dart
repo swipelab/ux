@@ -1,0 +1,35 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+
+const kDefaultDebounce = const Duration(milliseconds: 100);
+
+/// Utility that delays execution of the last scheduled callback until
+/// [duration] has elapsed without a new schedule.
+class Debouncer {
+  Debouncer({
+    this.duration = kDefaultDebounce,
+  });
+
+  final Duration duration;
+  Timer? timer;
+
+  /// Schedules [f] to run after [duration]; resets the timer if called again.
+  void run(FutureOr<void> Function() f, {Duration? duration}) {
+    timer?.cancel();
+    timer = Timer(duration ?? this.duration, f);
+  }
+
+  /// Cancels a pending scheduled callback, if any.
+  void cancel() => timer?.cancel();
+}
+
+/// Returns a closure that debounces calls to [f] by [duration]. Re‑invocation
+/// resets the timer. Useful for text search, resize, etc.
+VoidCallback debounce(
+  FutureOr<void> Function() f, [
+  Duration duration = kDefaultDebounce,
+]) {
+  final debouncer = Debouncer(duration: duration);
+  return () => debouncer.run(f);
+}

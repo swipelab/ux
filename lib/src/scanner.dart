@@ -12,8 +12,8 @@ import 'package:flutter/widgets.dart';
 enum BarcodeFormat { qr }
 
 /// Static helpers exposed by the platform-side scanner plugin.
-class UxScannerPermission {
-  UxScannerPermission._();
+class XScannerPermission {
+  XScannerPermission._();
 
   static const _channel = MethodChannel('ux/scanner');
 
@@ -41,8 +41,8 @@ class UxScannerPermission {
 /// Camera permission must be granted by the host app before mounting.
 /// On platforms other than iOS / Android the widget renders an empty
 /// box.
-class UxScanner extends StatefulWidget {
-  const UxScanner({
+class XScanner extends StatefulWidget {
+  const XScanner({
     super.key,
     required this.onCode,
     this.formats = const [BarcodeFormat.qr],
@@ -52,10 +52,10 @@ class UxScanner extends StatefulWidget {
   final List<BarcodeFormat> formats;
 
   @override
-  State<UxScanner> createState() => _UxScannerState();
+  State<XScanner> createState() => _XScannerState();
 }
 
-class _UxScannerState extends State<UxScanner> {
+class _XScannerState extends State<XScanner> {
   static const _events = EventChannel('ux/scanner/events');
   StreamSubscription<dynamic>? _sub;
 

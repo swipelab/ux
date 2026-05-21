@@ -9,8 +9,8 @@ import 'package:flutter/services.dart';
 import 'package:ux/src/_ffi.dart';
 
 /// Native URL / phone / email detection plus an OS-handler launcher.
-class UxUrl {
-  UxUrl._();
+class XUrl {
+  XUrl._();
 
   static const _channel = MethodChannel('ux/url');
 

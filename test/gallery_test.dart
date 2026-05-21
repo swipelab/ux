@@ -6,11 +6,11 @@ import 'package:ux/ux.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('UxGallery facade — method channel parsing', () {
+  group('XGallery facade — method channel parsing', () {
     const channel = MethodChannel('ux/gallery');
 
     setUp(() {
-      UxGallery.backend = MethodChannelGalleryBackend();
+      XGallery.backend = MethodChannelGalleryBackend();
     });
 
     tearDown(() {
@@ -25,17 +25,17 @@ void main() {
         return 'granted';
       });
 
-      expect(await UxGallery.permission(), UxGalleryPermission.granted);
+      expect(await XGallery.permission(), XGalleryPermission.granted);
     });
 
     test('permission() falls back to denied on unknown values', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (_) async => 'mystery');
 
-      expect(await UxGallery.permission(), UxGalleryPermission.denied);
+      expect(await XGallery.permission(), XGalleryPermission.denied);
     });
 
-    test('albums() decodes a list of UxAlbum', () async {
+    test('albums() decodes a list of XAlbum', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (call) async {
         expect(call.method, 'albums');
@@ -56,12 +56,12 @@ void main() {
         ];
       });
 
-      final albums = await UxGallery.albums();
+      final albums = await XGallery.albums();
       expect(albums, hasLength(2));
       expect(albums[0].id, 'recents');
       expect(albums[0].count, 1234);
-      expect(albums[0].coverKind, UxAssetKind.image);
-      expect(albums[1].coverKind, UxAssetKind.video);
+      expect(albums[0].coverKind, XAssetKind.image);
+      expect(albums[1].coverKind, XAssetKind.video);
     });
 
     test('assets() decodes durations and timestamps', () async {
@@ -85,14 +85,14 @@ void main() {
         ];
       });
 
-      final assets = await UxGallery.assets(
+      final assets = await XGallery.assets(
         albumId: 'recents',
-        filter: UxAssetKind.video,
+        filter: XAssetKind.video,
         start: 0,
         end: 60,
       );
       expect(assets, hasLength(1));
-      expect(assets.single.kind, UxAssetKind.video);
+      expect(assets.single.kind, XAssetKind.video);
       expect(assets.single.duration, const Duration(milliseconds: 8500));
       expect(assets.single.createdAt.millisecondsSinceEpoch, 1700000000000);
     });
@@ -111,76 +111,76 @@ void main() {
         };
       });
 
-      final thumb = await UxGallery.thumbnail('a1', sizePx: 381);
+      final thumb = await XGallery.thumbnail('a1', sizePx: 381);
       expect(thumb.bytes, [1, 2, 3]);
       expect(thumb.width, 381);
       expect(thumb.height, 254);
     });
   });
 
-  group('FakeUxGalleryBackend', () {
+  group('FakeXGalleryBackend', () {
     test('requestPermission flips state to granted by default', () async {
-      final fake = FakeUxGalleryBackend(
-        permissionState: UxGalleryPermission.notDetermined,
+      final fake = FakeXGalleryBackend(
+        permissionState: XGalleryPermission.notDetermined,
       );
-      UxGallery.backend = fake;
+      XGallery.backend = fake;
 
-      expect(await UxGallery.permission(),
-          UxGalleryPermission.notDetermined);
-      expect(await UxGallery.requestPermission(),
-          UxGalleryPermission.granted);
-      expect(await UxGallery.permission(), UxGalleryPermission.granted);
+      expect(await XGallery.permission(),
+          XGalleryPermission.notDetermined);
+      expect(await XGallery.requestPermission(),
+          XGalleryPermission.granted);
+      expect(await XGallery.permission(), XGalleryPermission.granted);
     });
 
     test('assets honours the (start, end) page window per album', () async {
       final pile = [
         for (var i = 0; i < 50; i++)
-          UxAsset(
+          XAsset(
             id: 'a$i',
-            kind: UxAssetKind.image,
+            kind: XAssetKind.image,
             width: 100,
             height: 100,
             createdAt: DateTime.fromMillisecondsSinceEpoch(i * 1000),
           ),
       ];
-      final fake = FakeUxGalleryBackend(
+      final fake = FakeXGalleryBackend(
         recents: pile,
         assetsByAlbum: {'all': pile},
       );
-      UxGallery.backend = fake;
+      XGallery.backend = fake;
 
-      final firstPage = await UxGallery.assets(start: 0, end: 10);
+      final firstPage = await XGallery.assets(start: 0, end: 10);
       expect(firstPage.map((a) => a.id), [
         for (var i = 0; i < 10; i++) 'a$i',
       ]);
-      final tail = await UxGallery.assets(albumId: 'all', start: 45, end: 999);
+      final tail = await XGallery.assets(albumId: 'all', start: 45, end: 999);
       expect(tail, hasLength(5));
-      final past = await UxGallery.assets(start: 200, end: 210);
+      final past = await XGallery.assets(start: 200, end: 210);
       expect(past, isEmpty);
     });
 
     test('assets filters by kind when requested', () async {
       final mix = [
-        UxAsset(
+        XAsset(
           id: 'p',
-          kind: UxAssetKind.image,
+          kind: XAssetKind.image,
           width: 1,
           height: 1,
           createdAt: DateTime(2024),
         ),
-        UxAsset(
+        XAsset(
           id: 'v',
-          kind: UxAssetKind.video,
+          kind: XAssetKind.video,
           duration: const Duration(seconds: 3),
           width: 1,
           height: 1,
           createdAt: DateTime(2024),
         ),
       ];
-      UxGallery.backend = FakeUxGalleryBackend(recents: mix);
+      XGallery.backend = FakeXGalleryBackend(recents: mix);
 
-      final justVideos = await UxGallery.assets(
-        filter: UxAssetKind.video,
+      final justVideos = await XGallery.assets(
+        filter: XAssetKind.video,
         start: 0,
         end: 10,
       );

@@ -8,8 +8,8 @@ import 'package:flutter/services.dart';
 /// PNG ready to embed in a thumbnail proto / paint via `Image.memory`;
 /// [width] / [height] describe the encoded image, which may be smaller
 /// than the source video due to the `maxWidth` constraint at extraction.
-class UxVideoThumbnail {
-  const UxVideoThumbnail({
+class XVideoThumbnail {
+  const XVideoThumbnail({
     required this.pngBytes,
     required this.width,
     required this.height,
@@ -23,8 +23,8 @@ class UxVideoThumbnail {
 /// A handle to a file on local disk. Minimal — [path] is the only
 /// guaranteed field. Returned from anything in `package:ux` that produces
 /// a file (camera capture today; future writers).
-class UxFile {
-  const UxFile(this.path);
+class XFile {
+  const XFile(this.path);
 
   /// Absolute path on local disk. Readable through `dart:io File`. Lifetime
   /// is producer-defined — camera capture writes to a temp dir, the
@@ -37,13 +37,13 @@ class UxFile {
 ///
 /// On macOS / iOS the picker returns the user's original location (no
 /// temp-dir copy); access across cold restarts is preserved by storing
-/// [bookmark] and re-acquiring scope via [UxFiles.withScopedAccess] /
-/// [UxFiles.open] / [UxFiles.showInFolder]. On Android the native side
+/// [bookmark] and re-acquiring scope via [XFiles.withScopedAccess] /
+/// [XFiles.open] / [XFiles.showInFolder]. On Android the native side
 /// stream-copies a `content://` source into the app cache (since
 /// `dart:io` can't open content URIs); [bookmark] holds the source URI
 /// as UTF-8 bytes for symmetry but isn't required for reads.
-class UxPickedFile {
-  const UxPickedFile({
+class XPickedFile {
+  const XPickedFile({
     required this.path,
     this.name,
     this.mimeType,
@@ -62,8 +62,8 @@ class UxPickedFile {
   final Uint8List? bookmark;
 }
 
-class UxFiles {
-  UxFiles._();
+class XFiles {
+  XFiles._();
 
   static const _channel = MethodChannel('ux/file');
 
@@ -171,7 +171,7 @@ class UxFiles {
   /// (`image/*`, `video/*`, `application/pdf`) work on all three. For
   /// Apple-specific types prefer concrete MIME like `image/jpeg` over
   /// wildcards.
-  static Future<UxPickedFile?> pick({
+  static Future<XPickedFile?> pick({
     List<String>? mimeTypes,
   }) async {
     final result = await _channel.invokeMapMethod<String, Object?>('pick', {
@@ -180,7 +180,7 @@ class UxFiles {
     if (result == null) return null;
     final path = result['path'] as String?;
     if (path == null) return null;
-    return UxPickedFile(
+    return XPickedFile(
       path: path,
       name: result['name'] as String?,
       mimeType: result['mimeType'] as String?,
@@ -220,7 +220,7 @@ class UxFiles {
   /// [atMs] picks the frame timestamp in milliseconds (default 0 = first
   /// available keyframe). [maxWidth] caps the output's longer edge while
   /// preserving aspect ratio.
-  static Future<UxVideoThumbnail?> videoThumbnail({
+  static Future<XVideoThumbnail?> videoThumbnail({
     required String path,
     int atMs = 0,
     int maxWidth = 320,
@@ -238,6 +238,6 @@ class UxFiles {
     final width = (result['width'] as num?)?.toInt();
     final height = (result['height'] as num?)?.toInt();
     if (bytes == null || width == null || height == null) return null;
-    return UxVideoThumbnail(pngBytes: bytes, width: width, height: height);
+    return XVideoThumbnail(pngBytes: bytes, width: width, height: height);
   }
 }

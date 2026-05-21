@@ -5,14 +5,14 @@ import 'package:ux/ux.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('MethodChannelUxCameraBackend — arg/return parsing', () {
+  group('MethodChannelXCameraBackend — arg/return parsing', () {
     const channel = MethodChannel('ux/camera');
 
-    late MethodChannelUxCameraBackend backend;
+    late MethodChannelXCameraBackend backend;
     late List<MethodCall> calls;
 
     setUp(() {
-      backend = MethodChannelUxCameraBackend();
+      backend = MethodChannelXCameraBackend();
       calls = [];
     });
 
@@ -39,10 +39,10 @@ void main() {
 
       expect(calls.single.method, 'availableCameras');
       expect(result, [
-        const UxCameraDescription(
-            id: 'a', lens: UxCameraLens.front, sensorOrientation: 270),
-        const UxCameraDescription(
-            id: 'b', lens: UxCameraLens.back, sensorOrientation: 90),
+        const XCameraDescription(
+            id: 'a', lens: XCameraLens.front, sensorOrientation: 270),
+        const XCameraDescription(
+            id: 'b', lens: XCameraLens.back, sensorOrientation: 90),
       ]);
     });
 
@@ -57,7 +57,7 @@ void main() {
       final result = await backend.create(
         cameraId: 'cam-1',
         enableAudio: true,
-        preset: UxResolutionPreset.high,
+        preset: XResolutionPreset.high,
       );
 
       expect(calls.single.method, 'create');
@@ -98,8 +98,8 @@ void main() {
     test('setFlashMode encodes the enum', () async {
       handle((_) => null);
 
-      await backend.setFlashMode(3, UxFlashMode.always);
-      await backend.setFlashMode(3, UxFlashMode.off);
+      await backend.setFlashMode(3, XFlashMode.always);
+      await backend.setFlashMode(3, XFlashMode.off);
 
       expect(calls.map((c) => (c.arguments as Map)['mode']).toList(),
           ['always', 'off']);
@@ -180,11 +180,11 @@ void main() {
       );
       addTearDown(() => messenger.setMockStreamHandler(eventsChannel, null));
 
-      final received = <UxCameraEvent>[];
+      final received = <XCameraEvent>[];
       await backend.events(4).forEach(received.add);
 
       expect(received, hasLength(1));
-      final e = received.single as UxCameraDiagnostic;
+      final e = received.single as XCameraDiagnostic;
       expect(e.handle, 4);
       expect(e.message, 'video input added');
     });
@@ -208,7 +208,7 @@ void main() {
       );
     });
 
-    test('PlatformException maps to UxCameraException carrying code/message',
+    test('PlatformException maps to XCameraException carrying code/message',
         () async {
       handle((_) => throw PlatformException(
             code: 'device_busy',
@@ -217,7 +217,7 @@ void main() {
 
       await expectLater(
         backend.initialize(1),
-        throwsA(isA<UxCameraException>()
+        throwsA(isA<XCameraException>()
             .having((e) => e.code, 'code', 'device_busy')
             .having((e) => e.description, 'description', 'front camera in use')),
       );

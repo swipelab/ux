@@ -1,9 +1,9 @@
 ### 0.9.0
-- `UxScanner`: new platform-view widget for QR-code (and forward-compat
+- `XScanner`: new platform-view widget for QR-code (and forward-compat
   barcode) scanning. iOS uses `AVCaptureMetadataOutput` (no extra pod);
   Android uses CameraX preview + ZXing decoder
   (`com.google.zxing:core:3.5.3`, ~470 KB jar, no Play Services dep).
-  `UxScannerPermission.requestCamera()` requests OS permission first;
+  `XScannerPermission.requestCamera()` requests OS permission first;
   decoded payloads stream through `EventChannel('ux/scanner/events')`.
 
 ### 0.8.0
@@ -17,7 +17,7 @@
   log-then-rethrow is deduped via an `Expando` mark so crash handlers don't
   double-report. Override the `captureCrashes` hook to customise or pass
   `() {}` to opt out.
-- `UxKeyboard`: adaptive-learning debug output now uses `Log.tag('KB').d`
+- `XKeyboard`: adaptive-learning debug output now uses `Log.tag('KB').d`
   instead of `print`, lazy-built so the formatted line is only constructed
   when debug level is enabled.
 
@@ -30,11 +30,11 @@
   order; every other op is O(1).
 
 ### 0.6.0
-- `UxFile`: new module for handing files to the OS
-  - `UxFile.share(path, {title, mimeType, sourceRect})` — iOS `UIActivityViewController`,
+- `XFile`: new module for handing files to the OS
+  - `XFile.share(path, {title, mimeType, sourceRect})` — iOS `UIActivityViewController`,
     macOS `NSSharingServicePicker`, Android `Intent.ACTION_SEND` via FileProvider.
     `sourceRect` anchors the popover on iPad / macOS.
-  - `UxFile.open(path, {mimeType})` — in-app preview where possible:
+  - `XFile.open(path, {mimeType})` — in-app preview where possible:
     iOS `QLPreviewController`, macOS `QLPreviewPanel` (preview on top of the app,
     no foreground loss), Android `Intent.ACTION_VIEW` with MIME inference from
     `MimeTypeMap` + a fallback set of text/code extensions so unknown types
@@ -44,14 +44,14 @@
 - Android: ships a FileProvider under `${applicationId}.ux.fileprovider`
   scoped to `ux_share/` in the app cache — host apps don't need manifest
   plumbing.
-- iOS: `UxWindow` helper (`keyWindow` / `topViewController`) in
+- iOS: `XWindow` helper (`keyWindow` / `topViewController`) in
   `NativePlugin.swift`, shared between keyboard and file plugins.
 
 ### 0.5.0
-- `UxSensor.orientation`: accelerometer-driven physical device rotation,
+- `XSensor.orientation`: accelerometer-driven physical device rotation,
   independent of the OS auto-rotate setting or UI orientation lock
 - `AppInfo`: version + buildNumber surface
-- `UxKeyboard`: focus tracking integration
+- `XKeyboard`: focus tracking integration
 
 ### 0.4.0
 - `package:ux/testing.dart`: new entry point for test-only utilities
@@ -63,17 +63,17 @@
   `flutter test --update-goldens` regenerates text goldens too.
 
 ### 0.3.0
-- `UxKeyboard`: fix interactive dismiss race conditions — keyboard height no longer
+- `XKeyboard`: fix interactive dismiss race conditions — keyboard height no longer
   gets stuck when rapidly dismissing and re-focusing
-- `UxKeyboard`: handle zero-duration keyboard notifications (instant snap)
-- `UxKeyboard`: gate adaptive learning debug output behind `kDebugMode`
+- `XKeyboard`: handle zero-duration keyboard notifications (instant snap)
+- `XKeyboard`: gate adaptive learning debug output behind `kDebugMode`
 - Example: rewrite as chat UI demonstrating `ListenableBuilder`, scroll freeze,
   and interactive dismiss
 - Example: modernize Android project (v2 embedding, AGP 8.7, Gradle 8.11)
 
 ### 0.2.0
-- `UxKeyboard`: sampled native animation curves (iOS & Android) with adaptive learning
-- `UxKeyboard`: interactive dismiss via pan gesture
+- `XKeyboard`: sampled native animation curves (iOS & Android) with adaptive learning
+- `XKeyboard`: interactive dismiss via pan gesture
 - Android: keyboard height tracking via JNI/FFI bridge
 
 ### 0.1.1

@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/widgets.dart';
 
-import 'camera.dart' show UxCameraController, UxCameraLens, UxCameraValue;
+import 'camera.dart' show XCameraController, XCameraLens, XCameraValue;
 
 /// Renders the live preview for [controller] into a [Texture]. Sizes
 /// itself to the parent — wrap in `AspectRatio` / `FittedBox` / `Hero`
@@ -10,21 +10,21 @@ import 'camera.dart' show UxCameraController, UxCameraLens, UxCameraValue;
 ///
 /// While the controller is not yet initialized, this falls back to a
 /// transparent placeholder. The widget rebuilds on every
-/// `UxCameraValue` change, so once the native session starts
+/// `XCameraValue` change, so once the native session starts
 /// producing frames the texture appears automatically.
 ///
 /// Front-camera preview is auto-mirrored here (the analog of
 /// telegram-iOS's `CameraPreviewView.mirroring` property), so the
 /// recorded MP4 + captured JPEG carry the raw sensor feed while the
 /// on-screen preview still reads as a natural mirror to the user.
-class UxCameraPreview extends StatelessWidget {
-  const UxCameraPreview({super.key, required this.controller});
+class XCameraPreview extends StatelessWidget {
+  const XCameraPreview({super.key, required this.controller});
 
-  final UxCameraController controller;
+  final XCameraController controller;
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<UxCameraValue>(
+    return ValueListenableBuilder<XCameraValue>(
       valueListenable: controller,
       builder: (context, value, _) {
         final id = controller.textureId;
@@ -47,7 +47,7 @@ class UxCameraPreview extends StatelessWidget {
         // the phone tilt (because we're flipping the axis CameraX
         // rotated around).
         if (defaultTargetPlatform != TargetPlatform.android &&
-            value.description.lens == UxCameraLens.front) {
+            value.description.lens == XCameraLens.front) {
           child = Transform.flip(flipX: true, child: child);
         }
         return child;

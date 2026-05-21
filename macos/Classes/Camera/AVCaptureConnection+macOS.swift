@@ -15,7 +15,7 @@ import AVFoundation
 /// videoOrientation = .landscapeRight"). Prefer the new API where
 /// available, fall back to the deprecated one for older macOS.
 extension AVCaptureConnection {
-    func applyUxCaptureOrientation(_ orientation: DeviceOrientationFlutter) {
+    func applyXCaptureOrientation(_ orientation: DeviceOrientationFlutter) {
         // Pin to 0° rotation (`.landscapeRight`) on macOS — desktop
         // cameras are physically landscape and any non-zero rotation
         // physically rotates the buffer. Diagnostic build confirmed

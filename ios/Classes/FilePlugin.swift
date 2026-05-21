@@ -7,7 +7,7 @@ import UIKit
 public class FilePlugin: NSObject, NativePlugin {
     private var channel: FlutterMethodChannel?
     private var previewDataSource: FilePreviewDataSource?
-    private var pickerDelegate: UxDocumentPickerDelegate?
+    private var pickerDelegate: XDocumentPickerDelegate?
 
     private struct ScopedEntry {
         let url: URL
@@ -91,7 +91,7 @@ public class FilePlugin: NSObject, NativePlugin {
               let path = args["path"] as? String else {
             return result(FlutterError(code: "bad_args", message: "path is required", details: nil))
         }
-        guard let topVC = UxWindow.topViewController else {
+        guard let topVC = XWindow.topViewController else {
             return result(FlutterError(code: "no_view", message: "no top view controller", details: nil))
         }
 
@@ -123,7 +123,7 @@ public class FilePlugin: NSObject, NativePlugin {
     }
 
     private func handlePick(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
-        guard let topVC = UxWindow.topViewController else {
+        guard let topVC = XWindow.topViewController else {
             return result(FlutterError(code: "no_view", message: "no top view controller", details: nil))
         }
         let args = call.arguments as? [String: Any]
@@ -136,7 +136,7 @@ public class FilePlugin: NSObject, NativePlugin {
         // cold starts.
         let picker = UIDocumentPickerViewController(documentTypes: utis, in: .open)
         picker.allowsMultipleSelection = false
-        let delegate = UxDocumentPickerDelegate(result: result) { [weak self] in
+        let delegate = XDocumentPickerDelegate(result: result) { [weak self] in
             self?.pickerDelegate = nil
         }
         // The delegate is weak on UIDocumentPickerViewController; keep a strong ref.
@@ -180,7 +180,7 @@ public class FilePlugin: NSObject, NativePlugin {
               let path = args["path"] as? String else {
             return result(FlutterError(code: "bad_args", message: "path is required", details: nil))
         }
-        guard let topVC = UxWindow.topViewController else {
+        guard let topVC = XWindow.topViewController else {
             return result(FlutterError(code: "no_view", message: "no top view controller", details: nil))
         }
 
@@ -322,7 +322,7 @@ fileprivate func mimeFromExtension(_ ext: String) -> String? {
 /// we briefly start access to read attributes + create a bookmark, then
 /// stop access. Persisted bookmark lets Dart re-acquire scope later via
 /// `beginScopedAccess`.
-private final class UxDocumentPickerDelegate: NSObject, UIDocumentPickerDelegate {
+private final class XDocumentPickerDelegate: NSObject, UIDocumentPickerDelegate {
     let result: FlutterResult
     let onDone: () -> Void
     private var settled = false

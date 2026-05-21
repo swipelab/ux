@@ -3,8 +3,8 @@ import 'package:flutter/services.dart';
 /// OS clipboard access for shapes Flutter's [Clipboard] doesn't cover.
 /// Right now this is image bytes — the system text path is already
 /// handled by the SDK's `Clipboard.getData(Clipboard.kTextPlain)`.
-class UxClipboard {
-  UxClipboard._();
+class XClipboard {
+  XClipboard._();
 
   static const _channel = MethodChannel('ux/clipboard');
 

@@ -50,7 +50,7 @@ void main() {
       return null;
     });
 
-    await UxCrash.drainAndReport();
+    await XCrash.drainAndReport();
 
     final records = sink.snapshot();
     expect(records.length, 2);
@@ -78,7 +78,7 @@ void main() {
       throw MissingPluginException();
     });
 
-    await UxCrash.drainAndReport();
+    await XCrash.drainAndReport();
 
     expect(sink.snapshot(), isEmpty);
   });
@@ -91,7 +91,7 @@ void main() {
       throw PlatformException(code: 'oops');
     });
 
-    await UxCrash.drainAndReport();
+    await XCrash.drainAndReport();
 
     expect(sink.snapshot().length, 1);
     expect(sink.snapshot().single.level, LogLevel.warn);

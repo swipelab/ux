@@ -14,7 +14,7 @@ class UrlPlugin : NativePlugin, MethodChannel.MethodCallHandler {
         init {
             // Trigger JNI_OnLoad in libux.so so the FFI shim's
             // android.util.Patterns bindings are cached before the first
-            // UxUrl.match call from Dart.
+            // XUrl.match call from Dart.
             System.loadLibrary("ux")
         }
     }

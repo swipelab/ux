@@ -6,31 +6,31 @@ import 'dart:typed_data';
 import 'package:ux/src/gallery.dart';
 
 /// 1×1 transparent PNG. Decodable by `Image.memory`, so tests that
-/// mount the picker UI against [FakeUxGalleryBackend] don't need to
+/// mount the picker UI against [FakeXGalleryBackend] don't need to
 /// provide their own thumbnail bytes.
 final Uint8List _placeholderPng = base64Decode(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
 );
 
-/// In-memory backend for [UxGallery] tests. Swap in via
-/// `UxGallery.backend = FakeUxGalleryBackend(...)` before any UI
-/// mounts; restore with `UxGallery.backend = ...` (or by replacing
+/// In-memory backend for [XGallery] tests. Swap in via
+/// `XGallery.backend = FakeXGalleryBackend(...)` before any UI
+/// mounts; restore with `XGallery.backend = ...` (or by replacing
 /// with another fake) in `tearDown`.
-class FakeUxGalleryBackend implements UxGalleryBackend {
-  FakeUxGalleryBackend({
-    this.permissionState = UxGalleryPermission.granted,
-    List<UxAlbum> albums = const [],
-    Map<String, List<UxAsset>> assetsByAlbum = const {},
-    List<UxAsset> recents = const [],
+class FakeXGalleryBackend implements XGalleryBackend {
+  FakeXGalleryBackend({
+    this.permissionState = XGalleryPermission.granted,
+    List<XAlbum> albums = const [],
+    Map<String, List<XAsset>> assetsByAlbum = const {},
+    List<XAsset> recents = const [],
     this.onRequestPermission,
     this.onOpenSettings,
     this.onPresentLimitedLibraryPicker,
-    UxAssetThumbnail Function(String assetId, int sizePx)? thumbnailFor,
+    XAssetThumbnail Function(String assetId, int sizePx)? thumbnailFor,
     io.File Function(String assetId)? fileFor,
   })  : _albums = List.unmodifiable(albums),
         _assetsByAlbum = Map.unmodifiable(
           assetsByAlbum.map(
-            (k, v) => MapEntry(k, List<UxAsset>.unmodifiable(v)),
+            (k, v) => MapEntry(k, List<XAsset>.unmodifiable(v)),
           ),
         ),
         _recents = List.unmodifiable(recents),
@@ -38,12 +38,12 @@ class FakeUxGalleryBackend implements UxGalleryBackend {
         _fileFor = fileFor ?? _defaultFile;
 
   /// Mutable so tests can simulate user grant after `requestPermission`.
-  UxGalleryPermission permissionState;
+  XGalleryPermission permissionState;
 
-  final List<UxAlbum> _albums;
-  final Map<String, List<UxAsset>> _assetsByAlbum;
-  final List<UxAsset> _recents;
-  final UxAssetThumbnail Function(String assetId, int sizePx) _thumbnailFor;
+  final List<XAlbum> _albums;
+  final Map<String, List<XAsset>> _assetsByAlbum;
+  final List<XAsset> _recents;
+  final XAssetThumbnail Function(String assetId, int sizePx) _thumbnailFor;
   final io.File Function(String assetId) _fileFor;
 
   final StreamController<void> _libraryChanges =
@@ -58,13 +58,13 @@ class FakeUxGalleryBackend implements UxGalleryBackend {
   Stream<void> get libraryChanges => _libraryChanges.stream;
 
   /// Optional hook fired on `requestPermission`. Default updates
-  /// `permissionState` to [UxGalleryPermission.granted].
-  final UxGalleryPermission Function()? onRequestPermission;
+  /// `permissionState` to [XGalleryPermission.granted].
+  final XGalleryPermission Function()? onRequestPermission;
   final void Function()? onOpenSettings;
   final void Function()? onPresentLimitedLibraryPicker;
 
-  static UxAssetThumbnail _defaultThumbnail(String _, int sizePx) =>
-      UxAssetThumbnail(
+  static XAssetThumbnail _defaultThumbnail(String _, int sizePx) =>
+      XAssetThumbnail(
         bytes: _placeholderPng,
         width: sizePx,
         height: sizePx,
@@ -74,12 +74,12 @@ class FakeUxGalleryBackend implements UxGalleryBackend {
       io.File('/dev/null/$assetId');
 
   @override
-  Future<UxGalleryPermission> permission() async => permissionState;
+  Future<XGalleryPermission> permission() async => permissionState;
 
   @override
-  Future<UxGalleryPermission> requestPermission() async {
+  Future<XGalleryPermission> requestPermission() async {
     permissionState =
-        onRequestPermission?.call() ?? UxGalleryPermission.granted;
+        onRequestPermission?.call() ?? XGalleryPermission.granted;
     return permissionState;
   }
 
@@ -94,7 +94,7 @@ class FakeUxGalleryBackend implements UxGalleryBackend {
   }
 
   @override
-  Future<List<UxAlbum>> albums({UxAssetKind? filter}) async {
+  Future<List<XAlbum>> albums({XAssetKind? filter}) async {
     if (filter == null) return _albums;
     return [
       for (final a in _albums)
@@ -103,15 +103,15 @@ class FakeUxGalleryBackend implements UxGalleryBackend {
   }
 
   @override
-  Future<List<UxAsset>> assets({
+  Future<List<XAsset>> assets({
     String? albumId,
-    UxAssetKind? filter,
+    XAssetKind? filter,
     required int start,
     required int end,
   }) async {
     final source = albumId == null
         ? _recents
-        : _assetsByAlbum[albumId] ?? const <UxAsset>[];
+        : _assetsByAlbum[albumId] ?? const <XAsset>[];
     final filtered = filter == null
         ? source
         : [for (final a in source) if (a.kind == filter) a];
@@ -120,7 +120,7 @@ class FakeUxGalleryBackend implements UxGalleryBackend {
   }
 
   @override
-  Future<UxAssetThumbnail> thumbnail(
+  Future<XAssetThumbnail> thumbnail(
     String assetId, {
     required int sizePx,
   }) async =>

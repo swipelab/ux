@@ -10,8 +10,8 @@ import 'log.dart';
 
 /// Pull persisted native crash records and re-emit them as [Log.f]. Call once
 /// during app boot, after `Log.configure(...)`, before [runApp].
-class UxCrash {
-  UxCrash._();
+class XCrash {
+  XCrash._();
 
   static const _channel = MethodChannel('ux/crash');
 

@@ -1,4 +1,4 @@
-// Native data detection for UxUrl on Android. Synchronous, callable via dart:ffi.
+// Native data detection for XUrl on Android. Synchronous, callable via dart:ffi.
 //
 // Exports two symbols:
 //   uint8_t* ux_match_url(const uint16_t* utf16, int32_t len, int32_t* out_size);
@@ -24,7 +24,7 @@
 #include <string>
 #include <vector>
 
-#define UX_LOG_TAG "UxUrl"
+#define UX_LOG_TAG "XUrl"
 #define UX_LOGE(...) __android_log_print(ANDROID_LOG_ERROR, UX_LOG_TAG, __VA_ARGS__)
 
 namespace {

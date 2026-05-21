@@ -8,7 +8,7 @@ import AVFoundation
 /// the result. The macOS counterpart in
 /// `macos/Classes/Camera/AVCaptureConnection+macOS.swift` is a no-op.
 extension AVCaptureConnection {
-    func applyUxCaptureOrientation(_ orientation: DeviceOrientationFlutter) {
+    func applyXCaptureOrientation(_ orientation: DeviceOrientationFlutter) {
         if isVideoOrientationSupported {
             videoOrientation = orientation.avVideoOrientation
         }

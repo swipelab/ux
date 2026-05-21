@@ -6,7 +6,7 @@ import FlutterMacOS
 #endif
 import Foundation
 
-/// One per `UxCameraController` on the Dart side. Owns its
+/// One per `XCameraController` on the Dart side. Owns its
 /// `AVCaptureSession`, the texture-backed preview pipeline, photo
 /// output, audio + video data outputs, and the
 /// [VideoRecorder] when a recording is in flight. Multiple instances
@@ -526,7 +526,7 @@ final class CameraInstance {
             // front camera — raw sensor feed at capture, mirror as a
             // playback decision.
             if let videoConn = videoDataOutput?.connection(with: .video) {
-                videoConn.applyUxCaptureOrientation(
+                videoConn.applyXCaptureOrientation(
                     lockedOrientation ?? orientation.current
                 )
                 if videoConn.isVideoMirroringSupported {
@@ -558,7 +558,7 @@ final class CameraInstance {
 
     private func applyVideoOrientationOnPreview(_ next: DeviceOrientationFlutter) {
         videoDataOutput?.connection(with: .video)?
-            .applyUxCaptureOrientation(next)
+            .applyXCaptureOrientation(next)
     }
 
     private func emit(_ extras: [String: Any]) {

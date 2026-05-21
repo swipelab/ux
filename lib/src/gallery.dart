@@ -7,22 +7,22 @@ import 'package:flutter/services.dart';
 /// Mirrors the union of `PHAuthorizationStatus` (iOS / macOS) and
 /// Android's manifest-permission outcomes:
 /// - [notDetermined] — never asked. Prompt the user with
-///   [UxGallery.requestPermission].
-/// - [denied] — user said no. [UxGallery.openSettings] is the only
+///   [XGallery.requestPermission].
+/// - [denied] — user said no. [XGallery.openSettings] is the only
 ///   way back.
 /// - [restricted] — parental controls / MDM. Same UI as [denied].
 /// - [limited] — iOS 14+. User picked a subset; the grid still
 ///   populates from that subset. Call
-///   [UxGallery.presentLimitedLibraryPicker] to let them adjust.
+///   [XGallery.presentLimitedLibraryPicker] to let them adjust.
 /// - [granted] — full access.
-enum UxGalleryPermission { notDetermined, denied, restricted, limited, granted }
+enum XGalleryPermission { notDetermined, denied, restricted, limited, granted }
 
-enum UxAssetKind { image, video }
+enum XAssetKind { image, video }
 
 /// A user-visible album / collection in the system photo library
 /// (`PHAssetCollection` on Apple, `MediaStore.Bucket` on Android).
-class UxAlbum {
-  const UxAlbum({
+class XAlbum {
+  const XAlbum({
     required this.id,
     required this.name,
     required this.count,
@@ -32,13 +32,13 @@ class UxAlbum {
   final String id;
   final String name;
   final int count;
-  final UxAssetKind? coverKind;
+  final XAssetKind? coverKind;
 }
 
 /// A single asset (photo or video) in the system library
 /// (`PHAsset` / `ContentResolver` row).
-class UxAsset {
-  const UxAsset({
+class XAsset {
+  const XAsset({
     required this.id,
     required this.kind,
     this.duration,
@@ -49,7 +49,7 @@ class UxAsset {
 
   /// Stable identifier (e.g. iOS `localIdentifier`, Android `content://` URI).
   final String id;
-  final UxAssetKind kind;
+  final XAssetKind kind;
 
   /// Duration for videos; null for photos.
   final Duration? duration;
@@ -61,8 +61,8 @@ class UxAsset {
 /// Cell-sized thumbnail bytes ready for `Image.memory`. Backed by
 /// `PHCachingImageManager` on Apple and `MediaStore.Thumbnails` on
 /// Android.
-class UxAssetThumbnail {
-  const UxAssetThumbnail({
+class XAssetThumbnail {
+  const XAssetThumbnail({
     required this.bytes,
     required this.width,
     required this.height,
@@ -73,23 +73,23 @@ class UxAssetThumbnail {
   final int height;
 }
 
-/// Backend contract that [UxGallery] dispatches into. The default
+/// Backend contract that [XGallery] dispatches into. The default
 /// implementation calls into native code via the `ux/gallery` method
 /// channel; tests substitute their own (see
-/// `ux/lib/testing.dart`'s `FakeUxGalleryBackend`).
-abstract class UxGalleryBackend {
-  Future<UxGalleryPermission> permission();
-  Future<UxGalleryPermission> requestPermission();
+/// `ux/lib/testing.dart`'s `FakeXGalleryBackend`).
+abstract class XGalleryBackend {
+  Future<XGalleryPermission> permission();
+  Future<XGalleryPermission> requestPermission();
   Future<void> openSettings();
   Future<void> presentLimitedLibraryPicker();
-  Future<List<UxAlbum>> albums({UxAssetKind? filter});
-  Future<List<UxAsset>> assets({
+  Future<List<XAlbum>> albums({XAssetKind? filter});
+  Future<List<XAsset>> assets({
     String? albumId,
-    UxAssetKind? filter,
+    XAssetKind? filter,
     required int start,
     required int end,
   });
-  Future<UxAssetThumbnail> thumbnail(String assetId, {required int sizePx});
+  Future<XAssetThumbnail> thumbnail(String assetId, {required int sizePx});
   Future<io.File> resolveFile(String assetId);
 
   /// Emits whenever the underlying photo library reports a change —
@@ -103,17 +103,17 @@ abstract class UxGalleryBackend {
 /// Static facade for the system photo library. All state lives in the
 /// platform; this class is a thin Dart-side wrapper that dispatches
 /// into [backend].
-class UxGallery {
-  UxGallery._();
+class XGallery {
+  XGallery._();
 
   /// Swap to inject a fake (e.g.
-  /// `FakeUxGalleryBackend` from `package:ux/testing.dart`) before
+  /// `FakeXGalleryBackend` from `package:ux/testing.dart`) before
   /// any UI code mounts.
-  static UxGalleryBackend backend = MethodChannelGalleryBackend();
+  static XGalleryBackend backend = MethodChannelGalleryBackend();
 
-  static Future<UxGalleryPermission> permission() => backend.permission();
+  static Future<XGalleryPermission> permission() => backend.permission();
 
-  static Future<UxGalleryPermission> requestPermission() =>
+  static Future<XGalleryPermission> requestPermission() =>
       backend.requestPermission();
 
   static Future<void> openSettings() => backend.openSettings();
@@ -125,14 +125,14 @@ class UxGallery {
 
   /// Albums in the user's library, ordered Recents → smart → user.
   /// Pass [filter] to restrict to image-only / video-only albums.
-  static Future<List<UxAlbum>> albums({UxAssetKind? filter}) =>
+  static Future<List<XAlbum>> albums({XAssetKind? filter}) =>
       backend.albums(filter: filter);
 
   /// Paginate assets within [albumId] (or all assets if null), sorted
   /// by `createdAt DESC`. [start] inclusive, [end] exclusive.
-  static Future<List<UxAsset>> assets({
+  static Future<List<XAsset>> assets({
     String? albumId,
-    UxAssetKind? filter,
+    XAssetKind? filter,
     required int start,
     required int end,
   }) =>
@@ -146,7 +146,7 @@ class UxGallery {
   /// Cell-sized thumbnail at `~max(width,height) <= sizePx`. Native
   /// caches keep repeated calls cheap; the caller still maintains a
   /// small Dart-side LRU keyed by `(assetId, sizePx)`.
-  static Future<UxAssetThumbnail> thumbnail(
+  static Future<XAssetThumbnail> thumbnail(
     String assetId, {
     required int sizePx,
   }) =>
@@ -164,10 +164,10 @@ class UxGallery {
   static Stream<void> get libraryChanges => backend.libraryChanges;
 }
 
-/// Default [UxGalleryBackend] — dispatches to native code via the
+/// Default [XGalleryBackend] — dispatches to native code via the
 /// `ux/gallery` method channel. Public so test code can reinstall it
 /// after swapping to a fake.
-class MethodChannelGalleryBackend implements UxGalleryBackend {
+class MethodChannelGalleryBackend implements XGalleryBackend {
   static const _channel = MethodChannel('ux/gallery');
   static const _changesChannel = EventChannel('ux/gallery/changes');
 
@@ -178,26 +178,26 @@ class MethodChannelGalleryBackend implements UxGalleryBackend {
   late final Stream<void> libraryChanges =
       _changesChannel.receiveBroadcastStream().map((_) {});
 
-  static String _kindArg(UxAssetKind? k) => switch (k) {
+  static String _kindArg(XAssetKind? k) => switch (k) {
         null => 'any',
-        UxAssetKind.image => 'image',
-        UxAssetKind.video => 'video',
+        XAssetKind.image => 'image',
+        XAssetKind.video => 'video',
       };
 
-  static UxGalleryPermission _parsePermission(String? name) =>
+  static XGalleryPermission _parsePermission(String? name) =>
       switch (name) {
-        'notDetermined' => UxGalleryPermission.notDetermined,
-        'denied' => UxGalleryPermission.denied,
-        'restricted' => UxGalleryPermission.restricted,
-        'limited' => UxGalleryPermission.limited,
-        'granted' => UxGalleryPermission.granted,
-        _ => UxGalleryPermission.denied,
+        'notDetermined' => XGalleryPermission.notDetermined,
+        'denied' => XGalleryPermission.denied,
+        'restricted' => XGalleryPermission.restricted,
+        'limited' => XGalleryPermission.limited,
+        'granted' => XGalleryPermission.granted,
+        _ => XGalleryPermission.denied,
       };
 
-  static UxAssetKind _parseKind(Object? v) =>
-      v == 'video' ? UxAssetKind.video : UxAssetKind.image;
+  static XAssetKind _parseKind(Object? v) =>
+      v == 'video' ? XAssetKind.video : XAssetKind.image;
 
-  static UxAsset _parseAsset(Map<Object?, Object?> m) => UxAsset(
+  static XAsset _parseAsset(Map<Object?, Object?> m) => XAsset(
         id: m['id']! as String,
         kind: _parseKind(m['kind']),
         duration: m['duration_ms'] != null
@@ -210,7 +210,7 @@ class MethodChannelGalleryBackend implements UxGalleryBackend {
         ),
       );
 
-  static UxAlbum _parseAlbum(Map<Object?, Object?> m) => UxAlbum(
+  static XAlbum _parseAlbum(Map<Object?, Object?> m) => XAlbum(
         id: m['id']! as String,
         name: m['name']! as String,
         count: (m['count']! as num).toInt(),
@@ -218,13 +218,13 @@ class MethodChannelGalleryBackend implements UxGalleryBackend {
       );
 
   @override
-  Future<UxGalleryPermission> permission() async {
+  Future<XGalleryPermission> permission() async {
     final s = await _channel.invokeMethod<String>('permission');
     return _parsePermission(s);
   }
 
   @override
-  Future<UxGalleryPermission> requestPermission() async {
+  Future<XGalleryPermission> requestPermission() async {
     final s = await _channel.invokeMethod<String>('requestPermission');
     return _parsePermission(s);
   }
@@ -240,7 +240,7 @@ class MethodChannelGalleryBackend implements UxGalleryBackend {
   }
 
   @override
-  Future<List<UxAlbum>> albums({UxAssetKind? filter}) async {
+  Future<List<XAlbum>> albums({XAssetKind? filter}) async {
     final list = await _channel.invokeMethod<List<Object?>>(
       'albums',
       {'filter': _kindArg(filter)},
@@ -252,9 +252,9 @@ class MethodChannelGalleryBackend implements UxGalleryBackend {
   }
 
   @override
-  Future<List<UxAsset>> assets({
+  Future<List<XAsset>> assets({
     String? albumId,
-    UxAssetKind? filter,
+    XAssetKind? filter,
     required int start,
     required int end,
   }) async {
@@ -274,7 +274,7 @@ class MethodChannelGalleryBackend implements UxGalleryBackend {
   }
 
   @override
-  Future<UxAssetThumbnail> thumbnail(
+  Future<XAssetThumbnail> thumbnail(
     String assetId, {
     required int sizePx,
   }) async {
@@ -282,7 +282,7 @@ class MethodChannelGalleryBackend implements UxGalleryBackend {
       'thumbnail',
       {'assetId': assetId, 'sizePx': sizePx},
     );
-    return UxAssetThumbnail(
+    return XAssetThumbnail(
       bytes: m!['bytes']! as Uint8List,
       width: (m['width']! as num).toInt(),
       height: (m['height']! as num).toInt(),
