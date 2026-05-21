@@ -32,7 +32,9 @@ import java.io.FileOutputStream
 /// resolution into the app cache so `dart:io` can read what the
 /// system holds behind a `content://` URI.
 class GalleryPlugin : NativePlugin, MethodChannel.MethodCallHandler,
-    PluginRegistry.RequestPermissionsResultListener, EventChannel.StreamHandler {
+    PluginRegistry.RequestPermissionsResultListener,
+    PluginRegistry.ActivityResultListener,
+    EventChannel.StreamHandler {
     private var methodChannel: MethodChannel? = null
     private var changesChannel: EventChannel? = null
     private var context: Context? = null
@@ -43,6 +45,11 @@ class GalleryPlugin : NativePlugin, MethodChannel.MethodCallHandler,
     /// asks the user, cleared in [onRequestPermissionsResult]. Reentrancy
     /// is rejected.
     private var pendingPermissionResult: MethodChannel.Result? = null
+
+    /// In-flight `ACTION_PICK_IMAGES` Manage flow. Set by
+    /// [handlePresentLimitedLibraryPicker], cleared by [onActivityResult].
+    /// Reentrancy is rejected.
+    private var pendingPickerResult: MethodChannel.Result? = null
 
     /// Dart subscriber on `ux/gallery/changes` — fed by [mediaObserver]
     /// when `MediaStore` reports an insert/update/delete so picker UIs
@@ -64,6 +71,7 @@ class GalleryPlugin : NativePlugin, MethodChannel.MethodCallHandler,
         changesChannel = EventChannel(
             binding.binaryMessenger, "ux/gallery/changes",
         ).also { it.setStreamHandler(this) }
+        reconcilePersistedPickerUris()
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
@@ -106,14 +114,18 @@ class GalleryPlugin : NativePlugin, MethodChannel.MethodCallHandler,
         activity = binding.activity
         activityBinding = binding
         binding.addRequestPermissionsResultListener(this)
+        binding.addActivityResultListener(this)
     }
 
     override fun onDetachedFromActivity() {
         activityBinding?.removeRequestPermissionsResultListener(this)
+        activityBinding?.removeActivityResultListener(this)
         activityBinding = null
         activity = null
         pendingPermissionResult?.success("denied")
         pendingPermissionResult = null
+        pendingPickerResult?.success(null)
+        pendingPickerResult = null
     }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
@@ -121,7 +133,7 @@ class GalleryPlugin : NativePlugin, MethodChannel.MethodCallHandler,
             "permission" -> handlePermission(result)
             "requestPermission" -> handleRequestPermission(result)
             "openSettings" -> handleOpenSettings(result)
-            "presentLimitedLibraryPicker" -> result.success(null) // no-op on Android
+            "presentLimitedLibraryPicker" -> handlePresentLimitedLibraryPicker(result)
             "albums" -> handleAlbums(call, result)
             "assets" -> handleAssets(call, result)
             "thumbnail" -> handleThumbnail(call, result)
@@ -222,6 +234,86 @@ class GalleryPlugin : NativePlugin, MethodChannel.MethodCallHandler,
         return true
     }
 
+    /// Android analogue of iOS's `PHPhotoLibrary.presentLimitedLibraryPicker`.
+    /// Opens the system Photo Picker (`ACTION_PICK_IMAGES`, API 33+) for
+    /// multi-select; returned URIs are persisted via
+    /// `takePersistableUriPermission` in [onActivityResult] and merged
+    /// with the `MediaStore.Images` / `Video` queries in [handleAssets].
+    ///
+    /// The legacy `requestPermissions(USER_SELECTED, …)` path falls back to
+    /// the same Photo Picker UI on Android 14+ when `READ_MEDIA_IMAGES` /
+    /// `VIDEO` are `USER_FIXED`, but its Done press doesn't write back to
+    /// the `READ_MEDIA_VISUAL_USER_SELECTED` grant — only this explicit
+    /// flow reliably grows the accessible subset.
+    private fun handlePresentLimitedLibraryPicker(result: MethodChannel.Result) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            result.success(null)
+            return
+        }
+        val act = activity ?: run {
+            result.success(null)
+            return
+        }
+        if (pendingPickerResult != null) {
+            result.success(null)
+            return
+        }
+        pendingPickerResult = result
+        // Don't set `type` — default surfaces both images and video in
+        // one sheet. Mixing "image/*"+"video/*" in the type string is
+        // invalid; EXTRA_MIME_TYPES would be the workaround if we ever
+        // need to filter by kind.
+        val intent = Intent(MediaStore.ACTION_PICK_IMAGES).apply {
+            putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, 100)
+        }
+        try {
+            act.startActivityForResult(intent, REQUEST_CODE_PICKER)
+        } catch (_: Throwable) {
+            pendingPickerResult = null
+            result.success(null)
+        }
+    }
+
+    override fun onActivityResult(
+        requestCode: Int,
+        resultCode: Int,
+        data: Intent?,
+    ): Boolean {
+        if (requestCode != REQUEST_CODE_PICKER) return false
+        val r = pendingPickerResult ?: return true
+        pendingPickerResult = null
+        val ctx = context
+        if (resultCode == Activity.RESULT_OK && data != null && ctx != null) {
+            val picked = extractUris(data)
+            for (uri in picked) {
+                try {
+                    ctx.contentResolver.takePersistableUriPermission(
+                        uri, Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                    )
+                } catch (_: SecurityException) {
+                    // Picker URIs are always persistable, but stay defensive.
+                }
+            }
+            if (picked.isNotEmpty()) {
+                appendPickerUris(ctx, picked)
+                libraryEventSink?.success(null)
+            }
+        }
+        r.success(null)
+        return true
+    }
+
+    private fun extractUris(data: Intent): List<Uri> {
+        val out = mutableListOf<Uri>()
+        val clip = data.clipData
+        if (clip != null) {
+            for (i in 0 until clip.itemCount) out.add(clip.getItemAt(i).uri)
+        } else {
+            data.data?.let { out.add(it) }
+        }
+        return out
+    }
+
     private fun handleOpenSettings(result: MethodChannel.Result) {
         val ctx = context ?: run {
             result.error("no_context", "no application context", null)
@@ -286,12 +378,16 @@ class GalleryPlugin : NativePlugin, MethodChannel.MethodCallHandler,
             }
         }
         for ((id, name) in seenBuckets) {
+            // Skip system / unnamed buckets — their photos remain
+            // reachable via Recents, but an unlabeled row in the album
+            // dropdown is dead-end UX.
+            if (name.isNullOrBlank()) continue
             val count = countAssets(ctx, filter, bucketId = id)
             if (count == 0) continue
             albums.add(
                 mapOf(
                     "id" to id.toString(),
-                    "name" to (name ?: ""),
+                    "name" to name,
                     "count" to count,
                     "cover_kind" to firstAssetKind(ctx, filter, bucketId = id),
                 ),
@@ -347,70 +443,107 @@ class GalleryPlugin : NativePlugin, MethodChannel.MethodCallHandler,
         }
 
         val bucketId = albumId?.takeIf { it != "recents" }?.toLongOrNull()
-        val (selection, selectionArgs) = filterToSelection(filter, bucketId)
 
-        val projection = arrayOf(
-            MediaStore.Files.FileColumns._ID,
-            MediaStore.Files.FileColumns.MEDIA_TYPE,
-            MediaStore.Files.FileColumns.WIDTH,
-            MediaStore.Files.FileColumns.HEIGHT,
-            MediaStore.Files.FileColumns.DURATION,
-            MediaStore.Files.FileColumns.DATE_ADDED,
-            MediaStore.Files.FileColumns.DATE_TAKEN,
+        // Query per-type tables (Images / Video) rather than the unified
+        // `MediaStore.Files` URI. The Files URI requires the legacy
+        // `READ_EXTERNAL_STORAGE` for full visibility — under
+        // `READ_MEDIA_VISUAL_USER_SELECTED` (Android 14+ limited mode)
+        // it under-reports rows that the per-type URIs return in full.
+        val merged = mutableListOf<Map<String, Any?>>()
+        if (filter == "image" || filter == "any") {
+            merged.addAll(queryMediaTable(
+                ctx,
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                kind = "image",
+                bucketId = bucketId,
+                limit = end,
+            ))
+        }
+        if (filter == "video" || filter == "any") {
+            merged.addAll(queryMediaTable(
+                ctx,
+                MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                kind = "video",
+                bucketId = bucketId,
+                limit = end,
+            ))
+        }
+        // Picker URIs persisted from [handlePresentLimitedLibraryPicker]
+        // are an additional source: they have no MediaStore bucket so
+        // they only contribute to Recents, never to per-bucket album views.
+        if (bucketId == null) {
+            merged.addAll(queryPersistedPickerUris(ctx, filter, end))
+        }
+        merged.sortByDescending { (it["created_ms"] as? Long) ?: 0L }
+        result.success(merged.drop(start).take(limit))
+    }
+
+    private fun queryMediaTable(
+        ctx: Context,
+        tableUri: Uri,
+        kind: String,
+        bucketId: Long?,
+        limit: Int,
+    ): List<Map<String, Any?>> {
+        val projection = mutableListOf(
+            MediaStore.MediaColumns._ID,
+            MediaStore.MediaColumns.WIDTH,
+            MediaStore.MediaColumns.HEIGHT,
+            MediaStore.MediaColumns.DATE_ADDED,
+            MediaStore.MediaColumns.DATE_TAKEN,
         )
-
-        val uri = MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL)
-        // API 30+ rejects `LIMIT` / `OFFSET` baked into the sort-order
-        // string. Sort here, paginate via cursor positioning below.
-        val sortOrder = "${MediaStore.Files.FileColumns.DATE_ADDED} DESC"
-
+        if (kind == "video") projection.add(MediaStore.Video.Media.DURATION)
+        val sel = mutableListOf<String>()
+        val args = mutableListOf<String>()
+        if (bucketId != null) {
+            sel.add("${MediaStore.MediaColumns.BUCKET_ID} = ?")
+            args.add(bucketId.toString())
+        }
+        val selection = sel.joinToString(" AND ").takeIf { it.isNotEmpty() }
         val out = mutableListOf<Map<String, Any?>>()
-        ctx.contentResolver.query(uri, projection, selection, selectionArgs, sortOrder)
-            ?.use { c ->
-                val idIdx = c.getColumnIndex(MediaStore.Files.FileColumns._ID)
-                val typeIdx = c.getColumnIndex(MediaStore.Files.FileColumns.MEDIA_TYPE)
-                val widthIdx = c.getColumnIndex(MediaStore.Files.FileColumns.WIDTH)
-                val heightIdx = c.getColumnIndex(MediaStore.Files.FileColumns.HEIGHT)
-                val durationIdx = c.getColumnIndex(MediaStore.Files.FileColumns.DURATION)
-                val takenIdx = c.getColumnIndex(MediaStore.Files.FileColumns.DATE_TAKEN)
-                val addedIdx = c.getColumnIndex(MediaStore.Files.FileColumns.DATE_ADDED)
-                if (start > 0 && !c.moveToPosition(start - 1)) return@use
-                var taken = 0
-                while (taken < limit && c.moveToNext()) {
-                    val id = c.getLong(idIdx)
-                    val mediaType = c.getInt(typeIdx)
-                    val kind = mediaTypeToKind(mediaType) ?: continue
-                    val width = if (widthIdx >= 0) c.getInt(widthIdx) else 0
-                    val height = if (heightIdx >= 0) c.getInt(heightIdx) else 0
-                    val durationMs = if (durationIdx >= 0 && !c.isNull(durationIdx)) {
-                        c.getLong(durationIdx)
-                    } else null
-                    // DATE_TAKEN is in ms since epoch; DATE_ADDED is in
-                    // seconds. Prefer taken when set, fall back to added.
-                    val createdMs = when {
-                        takenIdx >= 0 && !c.isNull(takenIdx) && c.getLong(takenIdx) > 0 ->
-                            c.getLong(takenIdx)
-                        addedIdx >= 0 && !c.isNull(addedIdx) ->
-                            c.getLong(addedIdx) * 1000L
-                        else -> 0L
-                    }
-
-                    out.add(
-                        mapOf<String, Any?>(
-                            "id" to assetUri(id, mediaType).toString(),
-                            "kind" to kind,
-                            "duration_ms" to (
-                                if (kind == "video") durationMs else null
-                            ),
-                            "width" to width,
-                            "height" to height,
-                            "created_ms" to createdMs,
-                        ),
-                    )
-                    taken++
+        ctx.contentResolver.query(
+            tableUri,
+            projection.toTypedArray(),
+            selection,
+            args.toTypedArray(),
+            "${MediaStore.MediaColumns.DATE_ADDED} DESC",
+        )?.use { c ->
+            val idIdx = c.getColumnIndex(MediaStore.MediaColumns._ID)
+            val widthIdx = c.getColumnIndex(MediaStore.MediaColumns.WIDTH)
+            val heightIdx = c.getColumnIndex(MediaStore.MediaColumns.HEIGHT)
+            val takenIdx = c.getColumnIndex(MediaStore.MediaColumns.DATE_TAKEN)
+            val addedIdx = c.getColumnIndex(MediaStore.MediaColumns.DATE_ADDED)
+            val durationIdx = c.getColumnIndex(MediaStore.Video.Media.DURATION)
+            var taken = 0
+            while (taken < limit && c.moveToNext()) {
+                val id = c.getLong(idIdx)
+                val width = if (widthIdx >= 0) c.getInt(widthIdx) else 0
+                val height = if (heightIdx >= 0) c.getInt(heightIdx) else 0
+                val durationMs = if (kind == "video" && durationIdx >= 0 &&
+                    !c.isNull(durationIdx)) c.getLong(durationIdx) else null
+                // DATE_TAKEN is in ms since epoch; DATE_ADDED is in
+                // seconds. Prefer taken when set, fall back to added.
+                val createdMs = when {
+                    takenIdx >= 0 && !c.isNull(takenIdx) && c.getLong(takenIdx) > 0 ->
+                        c.getLong(takenIdx)
+                    addedIdx >= 0 && !c.isNull(addedIdx) ->
+                        c.getLong(addedIdx) * 1000L
+                    else -> 0L
                 }
+                out.add(
+                    mapOf<String, Any?>(
+                        "id" to ContentUris.withAppendedId(tableUri, id).toString(),
+                        "kind" to kind,
+                        "duration_ms" to durationMs,
+                        "width" to width,
+                        "height" to height,
+                        "created_ms" to createdMs,
+                    ),
+                )
+                taken++
             }
-        result.success(out)
+        }
+        return out
     }
 
     // ─── Thumbnail ──────────────────────────────────────────────────────
@@ -570,16 +703,6 @@ class GalleryPlugin : NativePlugin, MethodChannel.MethodCallHandler,
         else -> null
     }
 
-    private fun assetUri(id: Long, mediaType: Int): Uri {
-        val base = when (mediaType) {
-            MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO ->
-                MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
-            else ->
-                MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
-        }
-        return ContentUris.withAppendedId(base, id)
-    }
-
     private fun parseAssetUri(s: String): Uri? = try {
         val uri = Uri.parse(s)
         if (uri.scheme == "content") uri else null
@@ -600,7 +723,162 @@ class GalleryPlugin : NativePlugin, MethodChannel.MethodCallHandler,
         else -> mime.substringAfter('/', "bin")
     }
 
+    // ─── Photo Picker URI persistence ───────────────────────────────────
+
+    /// Reads the persisted picker-URI list in insertion order. Stored as
+    /// a single newline-separated string under [PICKER_URIS_KEY] —
+    /// `SharedPreferences.getStringSet` doesn't preserve order, which we
+    /// need for the "drop oldest on overflow" eviction.
+    private fun readPickerUris(ctx: Context): LinkedHashSet<String> {
+        val raw = ctx
+            .getSharedPreferences(PICKER_PREFS, Context.MODE_PRIVATE)
+            .getString(PICKER_URIS_KEY, null) ?: return LinkedHashSet()
+        return raw.split('\n')
+            .filter { it.isNotEmpty() }
+            .toCollection(LinkedHashSet())
+    }
+
+    private fun writePickerUris(ctx: Context, set: LinkedHashSet<String>) {
+        ctx.getSharedPreferences(PICKER_PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putString(PICKER_URIS_KEY, set.joinToString("\n"))
+            .commit()
+    }
+
+    /// Appends [new] URIs to the persisted set (union, ordered). On
+    /// overflow past [PICKER_URI_CAP], drops from the head (oldest first)
+    /// and releases the kernel-level URI grant for each evicted entry.
+    private fun appendPickerUris(ctx: Context, new: List<Uri>) {
+        val set = readPickerUris(ctx)
+        for (uri in new) set.add(uri.toString())
+        if (set.size > PICKER_URI_CAP) {
+            val excess = set.size - PICKER_URI_CAP
+            val iter = set.iterator()
+            repeat(excess) {
+                val dropped = iter.next()
+                iter.remove()
+                try {
+                    ctx.contentResolver.releasePersistableUriPermission(
+                        Uri.parse(dropped),
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                    )
+                } catch (_: SecurityException) {
+                    // Grant may already be gone — best effort.
+                }
+            }
+        }
+        writePickerUris(ctx, set)
+    }
+
+    /// Resolves each persisted picker URI to a row in the same shape as
+    /// [queryMediaTable]. URIs that the system has revoked (Settings,
+    /// kernel-eviction, deleted source) are pruned from the persisted
+    /// set inline.
+    private fun queryPersistedPickerUris(
+        ctx: Context,
+        filter: String,
+        limit: Int,
+    ): List<Map<String, Any?>> {
+        val set = readPickerUris(ctx)
+        if (set.isEmpty()) return emptyList()
+        val projection = arrayOf(
+            MediaStore.MediaColumns._ID,
+            MediaStore.MediaColumns.WIDTH,
+            MediaStore.MediaColumns.HEIGHT,
+            MediaStore.MediaColumns.DATE_ADDED,
+            MediaStore.MediaColumns.DATE_TAKEN,
+            MediaStore.MediaColumns.MIME_TYPE,
+            MediaStore.MediaColumns.DURATION,
+        )
+        val out = mutableListOf<Map<String, Any?>>()
+        val dead = mutableListOf<String>()
+        for (uriStr in set) {
+            if (out.size >= limit) break
+            val uri = try { Uri.parse(uriStr) } catch (_: Throwable) {
+                dead.add(uriStr); continue
+            }
+            val row = try {
+                ctx.contentResolver.query(uri, projection, null, null, null)
+                    ?.use { c -> if (c.moveToFirst()) readRow(c, uri) else null }
+            } catch (_: SecurityException) {
+                null
+            }
+            if (row == null) {
+                dead.add(uriStr)
+                continue
+            }
+            val kind = row["kind"] as String
+            val keep = when (filter) {
+                "image" -> kind == "image"
+                "video" -> kind == "video"
+                else -> true
+            }
+            if (keep) out.add(row)
+        }
+        if (dead.isNotEmpty()) {
+            set.removeAll(dead.toSet())
+            writePickerUris(ctx, set)
+            for (s in dead) {
+                try {
+                    ctx.contentResolver.releasePersistableUriPermission(
+                        Uri.parse(s), Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                    )
+                } catch (_: Throwable) { /* best effort */ }
+            }
+        }
+        return out
+    }
+
+    private fun readRow(c: Cursor, uri: Uri): Map<String, Any?> {
+        val widthIdx = c.getColumnIndex(MediaStore.MediaColumns.WIDTH)
+        val heightIdx = c.getColumnIndex(MediaStore.MediaColumns.HEIGHT)
+        val takenIdx = c.getColumnIndex(MediaStore.MediaColumns.DATE_TAKEN)
+        val addedIdx = c.getColumnIndex(MediaStore.MediaColumns.DATE_ADDED)
+        val mimeIdx = c.getColumnIndex(MediaStore.MediaColumns.MIME_TYPE)
+        val durIdx = c.getColumnIndex(MediaStore.MediaColumns.DURATION)
+        val mime = if (mimeIdx >= 0 && !c.isNull(mimeIdx)) c.getString(mimeIdx) else null
+        val kind = if (mime?.startsWith("video/") == true) "video" else "image"
+        val width = if (widthIdx >= 0 && !c.isNull(widthIdx)) c.getInt(widthIdx) else 0
+        val height = if (heightIdx >= 0 && !c.isNull(heightIdx)) c.getInt(heightIdx) else 0
+        val durationMs = if (kind == "video" && durIdx >= 0 && !c.isNull(durIdx)) {
+            c.getLong(durIdx)
+        } else null
+        val createdMs = when {
+            takenIdx >= 0 && !c.isNull(takenIdx) && c.getLong(takenIdx) > 0 ->
+                c.getLong(takenIdx)
+            addedIdx >= 0 && !c.isNull(addedIdx) ->
+                c.getLong(addedIdx) * 1000L
+            else -> 0L
+        }
+        return mapOf(
+            "id" to uri.toString(),
+            "kind" to kind,
+            "duration_ms" to durationMs,
+            "width" to width,
+            "height" to height,
+            "created_ms" to createdMs,
+        )
+    }
+
+    /// Prune persisted URIs that the kernel no longer reports as granted
+    /// — covers Settings-side revocation between app runs and the 512-
+    /// URI kernel cap evicting our oldest grants.
+    private fun reconcilePersistedPickerUris() {
+        val ctx = context ?: return
+        val persisted = readPickerUris(ctx)
+        if (persisted.isEmpty()) return
+        val live = ctx.contentResolver.persistedUriPermissions
+            .map { it.uri.toString() }
+            .toSet()
+        val alive = persisted.filterTo(LinkedHashSet()) { it in live }
+        if (alive.size != persisted.size) writePickerUris(ctx, alive)
+    }
+
     companion object {
         private const val REQUEST_CODE_PERMISSION = 0xC52
+        private const val REQUEST_CODE_PICKER = 0xC53
+        private const val PICKER_PREFS = "ux_gallery_picker"
+        private const val PICKER_URIS_KEY = "picker_uris"
+        private const val PICKER_URI_CAP = 400
     }
 }
