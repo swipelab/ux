@@ -5,19 +5,19 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart' show Widget;
 
-import '../file.dart' show UxFile;
+import '../file.dart' show XFile;
 import '../log.dart' show Log;
-import '../sensor.dart' show UxSensor;
+import '../sensor.dart' show XSensor;
 import 'camera_backend.dart';
-import 'camera_preview.dart' show UxCameraPreview;
+import 'camera_preview.dart' show XCameraPreview;
 
 final _log = Log.tag('camera');
 
 /// Describes a camera device on the system. Returned by
-/// [uxAvailableCameras]; passed to [UxCameraController] to bind a
+/// [uxAvailableCameras]; passed to [XCameraController] to bind a
 /// specific lens.
-class UxCameraDescription {
-  const UxCameraDescription({
+class XCameraDescription {
+  const XCameraDescription({
     required this.id,
     required this.lens,
     required this.sensorOrientation,
@@ -28,7 +28,7 @@ class UxCameraDescription {
   /// interprets it.
   final String id;
 
-  final UxCameraLens lens;
+  final XCameraLens lens;
 
   /// Clockwise rotation in degrees (0/90/180/270) from the camera
   /// sensor's natural orientation to the device's portrait-up
@@ -39,7 +39,7 @@ class UxCameraDescription {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is UxCameraDescription &&
+      other is XCameraDescription &&
           other.id == id &&
           other.lens == lens &&
           other.sensorOrientation == sensorOrientation;
@@ -48,22 +48,22 @@ class UxCameraDescription {
   int get hashCode => Object.hash(id, lens, sensorOrientation);
 }
 
-enum UxCameraLens { front, back }
+enum XCameraLens { front, back }
 
 /// Resolution preset for both photo and video. Single value today
 /// (`high`); the enum exists so future presets can land without
 /// breaking call sites.
-enum UxResolutionPreset { high }
+enum XResolutionPreset { high }
 
 /// Flash mode applied to the next still capture. Only the two values
 /// the chat composer actually uses today.
-enum UxFlashMode { off, always }
+enum XFlashMode { off, always }
 
-/// Immutable snapshot of a [UxCameraController]'s state, broadcast to
+/// Immutable snapshot of a [XCameraController]'s state, broadcast to
 /// listeners. Updated on lifecycle transitions and on device-
 /// orientation events from the native side.
-class UxCameraValue {
-  const UxCameraValue({
+class XCameraValue {
+  const XCameraValue({
     required this.description,
     this.previewSize,
     this.isInitialized = false,
@@ -75,10 +75,10 @@ class UxCameraValue {
     this.errorDescription,
   });
 
-  factory UxCameraValue.uninitialized(UxCameraDescription d) =>
-      UxCameraValue(description: d);
+  factory XCameraValue.uninitialized(XCameraDescription d) =>
+      XCameraValue(description: d);
 
-  final UxCameraDescription description;
+  final XCameraDescription description;
 
   /// Pixel dimensions of the active video format, in the camera
   /// sensor's natural orientation (so for typical phone sensors this
@@ -98,7 +98,7 @@ class UxCameraValue {
 
   /// True iff the user has granted microphone access. Updated when
   /// the controller initialises and on
-  /// [UxCameraController.refreshAudioPermission]. Independent of
+  /// [XCameraController.refreshAudioPermission]. Independent of
   /// [enableAudio] — a controller can request audio (`enableAudio:
   /// true`) without having permission, in which case recordings have
   /// no audio track and callers should surface a hint.
@@ -110,7 +110,7 @@ class UxCameraValue {
   /// is always 0. On Android CameraX delivers sensor-native frames to
   /// the Surface and the consumer rotates — typically 1 for
   /// `sensorOrientation: 90` back cams and 3 for `sensorOrientation:
-  /// 270` front cams. Applied inside [UxCameraPreview]; consumers
+  /// 270` front cams. Applied inside [XCameraPreview]; consumers
   /// don't read this directly.
   final int previewRotationQuarterTurns;
 
@@ -120,8 +120,8 @@ class UxCameraValue {
 
   bool get hasError => errorDescription != null;
 
-  UxCameraValue copyWith({
-    UxCameraDescription? description,
+  XCameraValue copyWith({
+    XCameraDescription? description,
     Size? previewSize,
     bool? isInitialized,
     bool? isRecordingVideo,
@@ -131,7 +131,7 @@ class UxCameraValue {
     int? previewRotationQuarterTurns,
     Object? errorDescription = _unset,
   }) =>
-      UxCameraValue(
+      XCameraValue(
         description: description ?? this.description,
         previewSize: previewSize ?? this.previewSize,
         isInitialized: isInitialized ?? this.isInitialized,
@@ -149,24 +149,24 @@ class UxCameraValue {
   static const _unset = Object();
 }
 
-/// Throws when a [UxCameraController] call fails on the platform side.
+/// Throws when a [XCameraController] call fails on the platform side.
 /// Maps from native `FlutterError` codes; see the table in
 /// `~/banlu/plans/ux_camera.md` §error-model for the full set.
-class UxCameraException implements Exception {
-  const UxCameraException(this.code, [this.description]);
+class XCameraException implements Exception {
+  const XCameraException(this.code, [this.description]);
 
   final String code;
   final String? description;
 
   @override
   String toString() =>
-      'UxCameraException($code${description == null ? '' : ': $description'})';
+      'XCameraException($code${description == null ? '' : ': $description'})';
 }
 
 /// Enumerate the cameras the platform exposes. Stable for the lifetime
 /// of the process; safe to cache the result.
-Future<List<UxCameraDescription>> uxAvailableCameras() =>
-    UxCameraBackend.instance.availableCameras();
+Future<List<XCameraDescription>> uxAvailableCameras() =>
+    XCameraBackend.instance.availableCameras();
 
 /// Owns one native camera session. Mirrors the surface
 /// `package:camera`'s `CameraController` exposes today — every method
@@ -174,29 +174,29 @@ Future<List<UxCameraDescription>> uxAvailableCameras() =>
 /// orientation snapshot is passed explicitly on capture calls.
 ///
 /// Lifecycle: [initialize] → use → [dispose]. After [dispose] every
-/// other method throws `UxCameraException("disposed")`.
-class UxCameraController extends ValueNotifier<UxCameraValue> {
-  UxCameraController(
-    UxCameraDescription description,
+/// other method throws `XCameraException("disposed")`.
+class XCameraController extends ValueNotifier<XCameraValue> {
+  XCameraController(
+    XCameraDescription description,
     this.resolutionPreset, {
     required bool enableAudio,
-  }) : super(UxCameraValue(
+  }) : super(XCameraValue(
           description: description,
           enableAudio: enableAudio,
         ));
 
-  final UxResolutionPreset resolutionPreset;
+  final XResolutionPreset resolutionPreset;
 
   int? _handle;
   int? _textureId;
-  StreamSubscription<UxCameraEvent>? _eventsSub;
+  StreamSubscription<XCameraEvent>? _eventsSub;
   bool _disposed = false;
 
-  UxCameraDescription get description => value.description;
+  XCameraDescription get description => value.description;
   bool get enableAudio => value.enableAudio;
 
   /// Texture id once the session has been created (during [initialize]).
-  /// Read by [UxCameraPreview]; null before init or after dispose.
+  /// Read by [XCameraPreview]; null before init or after dispose.
   int? get textureId => _textureId;
 
   /// Configure the native session and begin streaming preview frames.
@@ -206,22 +206,22 @@ class UxCameraController extends ValueNotifier<UxCameraValue> {
   Future<void> initialize() async {
     _throwIfDisposed('initialize');
     try {
-      final result = await UxCameraBackend.instance.create(
+      final result = await XCameraBackend.instance.create(
         cameraId: description.id,
         enableAudio: value.enableAudio,
         preset: resolutionPreset,
       );
       _handle = result.handle;
       _textureId = result.textureId;
-      _eventsSub = UxCameraBackend.instance.events(result.handle).listen(
+      _eventsSub = XCameraBackend.instance.events(result.handle).listen(
             _onEvent,
             onError: (Object error, StackTrace? stack) {
               value = value.copyWith(errorDescription: error.toString());
             },
           );
-      await UxCameraBackend.instance.initialize(result.handle);
+      await XCameraBackend.instance.initialize(result.handle);
       final audioGranted =
-          await UxCameraBackend.instance.audioPermissionGranted();
+          await XCameraBackend.instance.audioPermissionGranted();
       value = value.copyWith(
         isInitialized: true,
         previewSize: result.previewSize,
@@ -239,18 +239,18 @@ class UxCameraController extends ValueNotifier<UxCameraValue> {
     }
   }
 
-  void _onEvent(UxCameraEvent event) {
+  void _onEvent(XCameraEvent event) {
     switch (event) {
-      case UxCameraDeviceOrientationChanged(:final orientation):
+      case XCameraDeviceOrientationChanged(:final orientation):
         value = value.copyWith(deviceOrientation: orientation);
-      case UxCameraSessionError(:final code, :final description):
+      case XCameraSessionError(:final code, :final description):
         value = value.copyWith(errorDescription: description ?? code);
-      case UxCameraSessionInterrupted():
-      case UxCameraSessionResumed():
+      case XCameraSessionInterrupted():
+      case XCameraSessionResumed():
         break;
-      case UxCameraDiagnostic(:final message):
+      case XCameraDiagnostic(:final message):
         _log.i('recorder: $message');
-      case UxCameraPreviewSizeChanged(:final previewSize):
+      case XCameraPreviewSizeChanged(:final previewSize):
         value = value.copyWith(previewSize: previewSize);
     }
   }
@@ -264,7 +264,7 @@ class UxCameraController extends ValueNotifier<UxCameraValue> {
     final sub = _eventsSub;
     _eventsSub = null;
     if (handle != null) {
-      await UxCameraBackend.instance.disposeInstance(handle);
+      await XCameraBackend.instance.disposeInstance(handle);
     }
     await sub?.cancel();
     super.dispose();
@@ -272,9 +272,9 @@ class UxCameraController extends ValueNotifier<UxCameraValue> {
 
   /// Switch lenses without tearing down the controller. Blocked while a
   /// recording is in flight — call [stopVideoRecording] first.
-  Future<void> setDescription(UxCameraDescription description) async {
+  Future<void> setDescription(XCameraDescription description) async {
     final handle = _requireHandle('setDescription');
-    final r = await UxCameraBackend.instance.setDescription(handle, description.id);
+    final r = await XCameraBackend.instance.setDescription(handle, description.id);
     value = value.copyWith(
       description: description,
       previewSize: r.previewSize,
@@ -282,47 +282,47 @@ class UxCameraController extends ValueNotifier<UxCameraValue> {
     );
   }
 
-  Future<void> setFlashMode(UxFlashMode mode) async {
+  Future<void> setFlashMode(XFlashMode mode) async {
     final handle = _requireHandle('setFlashMode');
-    await UxCameraBackend.instance.setFlashMode(handle, mode);
+    await XCameraBackend.instance.setFlashMode(handle, mode);
   }
 
   Future<void> lockCaptureOrientation(DeviceOrientation orientation) async {
     final handle = _requireHandle('lockCaptureOrientation');
-    await UxCameraBackend.instance.lockCaptureOrientation(handle, orientation);
+    await XCameraBackend.instance.lockCaptureOrientation(handle, orientation);
   }
 
   Future<void> unlockCaptureOrientation() async {
     final handle = _requireHandle('unlockCaptureOrientation');
-    await UxCameraBackend.instance.unlockCaptureOrientation(handle);
+    await XCameraBackend.instance.unlockCaptureOrientation(handle);
   }
 
   /// Capture a still. [captureOrientation] is the orientation to embed
-  /// in the resulting JPEG; defaults to [UxSensor.orientation] read at
+  /// in the resulting JPEG; defaults to [XSensor.orientation] read at
   /// call time. Tests pass an explicit value to keep the assertion
   /// deterministic.
-  Future<UxFile> takePicture({DeviceOrientation? captureOrientation}) async {
+  Future<XFile> takePicture({DeviceOrientation? captureOrientation}) async {
     final handle = _requireHandle('takePicture');
-    final orientation = captureOrientation ?? UxSensor.orientation;
-    return UxCameraBackend.instance.takePicture(handle, orientation);
+    final orientation = captureOrientation ?? XSensor.orientation;
+    return XCameraBackend.instance.takePicture(handle, orientation);
   }
 
   /// Start recording. [captureOrientation] becomes the video file's
   /// rotation transform (iOS: AVAssetWriterInput.transform; Android:
-  /// CameraX targetRotation). Defaults to [UxSensor.orientation] —
+  /// CameraX targetRotation). Defaults to [XSensor.orientation] —
   /// pass explicitly from tests.
   Future<void> startVideoRecording({
     DeviceOrientation? captureOrientation,
   }) async {
     final handle = _requireHandle('startVideoRecording');
-    final orientation = captureOrientation ?? UxSensor.orientation;
-    await UxCameraBackend.instance.startVideoRecording(handle, orientation);
+    final orientation = captureOrientation ?? XSensor.orientation;
+    await XCameraBackend.instance.startVideoRecording(handle, orientation);
     value = value.copyWith(isRecordingVideo: true);
   }
 
-  Future<UxFile> stopVideoRecording() async {
+  Future<XFile> stopVideoRecording() async {
     final handle = _requireHandle('stopVideoRecording');
-    final file = await UxCameraBackend.instance.stopVideoRecording(handle);
+    final file = await XCameraBackend.instance.stopVideoRecording(handle);
     value = value.copyWith(isRecordingVideo: false);
     return file;
   }
@@ -332,7 +332,7 @@ class UxCameraController extends ValueNotifier<UxCameraValue> {
   /// `AppLifecycleState.resumed` to pick up grants made via Settings.
   Future<void> refreshAudioPermission() async {
     _throwIfDisposed('refreshAudioPermission');
-    final granted = await UxCameraBackend.instance.audioPermissionGranted();
+    final granted = await XCameraBackend.instance.audioPermissionGranted();
     if (granted != value.audioPermissionGranted) {
       value = value.copyWith(audioPermissionGranted: granted);
     }
@@ -343,31 +343,40 @@ class UxCameraController extends ValueNotifier<UxCameraValue> {
   /// needs the status before any controller has been created (e.g.
   /// the camera page's "Tap to enable mic" banner).
   static Future<bool> audioPermissionGranted() =>
-      UxCameraBackend.instance.audioPermissionGranted();
+      XCameraBackend.instance.audioPermissionGranted();
+
+  /// Banner-tap entry point that shows the in-app system mic prompt
+  /// when the OS still will, and deep-links to Settings on permanent
+  /// denial. Returns the post-call granted state. Prefer this over
+  /// jumping straight to [openSystemSettings] — on a fresh install
+  /// the mic entry isn't even in the Privacy pane until the first
+  /// request has been made.
+  static Future<bool> requestAudioPermission() =>
+      XCameraBackend.instance.requestAudioPermission();
 
   /// Deep-link into the system Settings page so the user can grant
   /// mic permission. Static because it doesn't depend on any active
   /// controller — useful from the banner tap before the controller
   /// has finished initialising.
   static Future<void> openSystemSettings() =>
-      UxCameraBackend.instance.openSettings();
+      XCameraBackend.instance.openSettings();
 
   /// Texture-backed widget that renders the live preview at its parent's
   /// size. Hero-flightable.
-  Widget buildPreview() => UxCameraPreview(controller: this);
+  Widget buildPreview() => XCameraPreview(controller: this);
 
   int _requireHandle(String op) {
     _throwIfDisposed(op);
     final h = _handle;
     if (h == null) {
-      throw const UxCameraException('not_initialized');
+      throw const XCameraException('not_initialized');
     }
     return h;
   }
 
   void _throwIfDisposed(String op) {
     if (_disposed) {
-      throw UxCameraException('disposed', '$op called on a disposed controller');
+      throw XCameraException('disposed', '$op called on a disposed controller');
     }
   }
 }

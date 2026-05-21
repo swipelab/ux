@@ -2,23 +2,23 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 
-import '../file.dart' show UxFile;
+import '../file.dart' show XFile;
 import '../log.dart' show Log;
 import 'camera.dart'
     show
-        UxCameraDescription,
-        UxCameraException,
-        UxCameraLens,
-        UxFlashMode,
-        UxResolutionPreset;
+        XCameraDescription,
+        XCameraException,
+        XCameraLens,
+        XFlashMode,
+        XResolutionPreset;
 import 'camera_backend.dart';
 
 final _log = Log.tag('camera');
 
-/// Production [UxCameraBackend]. Hand-rolled MethodChannel +
+/// Production [XCameraBackend]. Hand-rolled MethodChannel +
 /// EventChannel — matches the rest of `package:ux`, no pigeon.
-class MethodChannelUxCameraBackend implements UxCameraBackend {
-  MethodChannelUxCameraBackend();
+class MethodChannelXCameraBackend implements XCameraBackend {
+  MethodChannelXCameraBackend();
 
   static const _channel = MethodChannel('ux/camera');
   static const _eventsChannel = EventChannel('ux/camera/events');
@@ -43,11 +43,11 @@ class MethodChannelUxCameraBackend implements UxCameraBackend {
   }();
 
   @override
-  Future<List<UxCameraDescription>> availableCameras() async {
+  Future<List<XCameraDescription>> availableCameras() async {
     final raw = await _invoke<List<Object?>>('availableCameras');
     return raw.map((e) {
       final m = (e as Map).cast<Object?, Object?>();
-      return UxCameraDescription(
+      return XCameraDescription(
         id: m['id'] as String,
         lens: _parseLens(m['lens'] as String?),
         sensorOrientation: (m['sensorOrientation'] as num?)?.toInt() ?? 0,
@@ -56,10 +56,10 @@ class MethodChannelUxCameraBackend implements UxCameraBackend {
   }
 
   @override
-  Future<UxCameraCreateResult> create({
+  Future<XCameraCreateResult> create({
     required String cameraId,
     required bool enableAudio,
-    required UxResolutionPreset preset,
+    required XResolutionPreset preset,
   }) async {
     final m = await _invokeMap('create', {
       'cameraId': cameraId,
@@ -67,7 +67,7 @@ class MethodChannelUxCameraBackend implements UxCameraBackend {
       'preset': _presetArg(preset),
     });
     final size = (m['previewSize'] as Map).cast<Object?, Object?>();
-    return UxCameraCreateResult(
+    return XCameraCreateResult(
       handle: (m['handle'] as num).toInt(),
       textureId: (m['textureId'] as num).toInt(),
       previewSize: Size(
@@ -108,7 +108,7 @@ class MethodChannelUxCameraBackend implements UxCameraBackend {
   }
 
   @override
-  Future<void> setFlashMode(int handle, UxFlashMode mode) =>
+  Future<void> setFlashMode(int handle, XFlashMode mode) =>
       _invokeVoid('setFlashMode', {
         'handle': handle,
         'mode': _flashArg(mode),
@@ -129,7 +129,7 @@ class MethodChannelUxCameraBackend implements UxCameraBackend {
       _invokeVoid('unlockCaptureOrientation', {'handle': handle});
 
   @override
-  Future<UxFile> takePicture(
+  Future<XFile> takePicture(
     int handle,
     DeviceOrientation snapshotOrientation,
   ) async {
@@ -137,7 +137,7 @@ class MethodChannelUxCameraBackend implements UxCameraBackend {
       'handle': handle,
       'snapshotOrientation': _orientationArg(snapshotOrientation),
     });
-    return UxFile(m['path'] as String);
+    return XFile(m['path'] as String);
   }
 
   @override
@@ -151,19 +151,22 @@ class MethodChannelUxCameraBackend implements UxCameraBackend {
       });
 
   @override
-  Future<UxFile> stopVideoRecording(int handle) async {
+  Future<XFile> stopVideoRecording(int handle) async {
     final m = await _invokeMap('stopVideoRecording', {'handle': handle});
-    return UxFile(m['path'] as String);
+    return XFile(m['path'] as String);
   }
 
   @override
   Future<bool> audioPermissionGranted() => _invoke<bool>('audioPermissionStatus');
 
   @override
+  Future<bool> requestAudioPermission() => _invoke<bool>('requestAudioPermission');
+
+  @override
   Future<void> openSettings() => _invokeVoid('openSettings');
 
   @override
-  Stream<UxCameraEvent> events(int handle) {
+  Stream<XCameraEvent> events(int handle) {
     return _rawEvents
         .map((e) => (e as Map).cast<Object?, Object?>())
         .where((m) => (m['handle'] as num).toInt() == handle)
@@ -172,35 +175,35 @@ class MethodChannelUxCameraBackend implements UxCameraBackend {
 
   // ---- parsers / arg encoders -------------------------------------
 
-  static UxCameraEvent _decodeEvent(Map<Object?, Object?> m) {
+  static XCameraEvent _decodeEvent(Map<Object?, Object?> m) {
     final handle = (m['handle'] as num).toInt();
     switch (m['event'] as String?) {
       case 'deviceOrientationChanged':
-        return UxCameraDeviceOrientationChanged(
+        return XCameraDeviceOrientationChanged(
           handle,
           _parseOrientation(m['orientation'] as String?),
         );
       case 'sessionError':
-        return UxCameraSessionError(
+        return XCameraSessionError(
           handle,
           m['code'] as String? ?? 'session_runtime_error',
           m['description'] as String?,
         );
       case 'sessionInterrupted':
-        return UxCameraSessionInterrupted(
+        return XCameraSessionInterrupted(
           handle,
           m['reason'] as String? ?? '',
         );
       case 'sessionResumed':
-        return UxCameraSessionResumed(handle);
+        return XCameraSessionResumed(handle);
       case 'diagnostic':
-        return UxCameraDiagnostic(
+        return XCameraDiagnostic(
           handle,
           m['message'] as String? ?? '',
         );
       case 'previewSizeChanged':
         final s = (m['previewSize'] as Map).cast<Object?, Object?>();
-        return UxCameraPreviewSizeChanged(
+        return XCameraPreviewSizeChanged(
           handle,
           Size(
             (s['width'] as num).toDouble(),
@@ -208,13 +211,13 @@ class MethodChannelUxCameraBackend implements UxCameraBackend {
           ),
         );
       default:
-        return UxCameraSessionError(handle, 'unknown_event', null);
+        return XCameraSessionError(handle, 'unknown_event', null);
     }
   }
 
-  static UxCameraLens _parseLens(String? raw) => switch (raw) {
-        'front' => UxCameraLens.front,
-        _ => UxCameraLens.back,
+  static XCameraLens _parseLens(String? raw) => switch (raw) {
+        'front' => XCameraLens.front,
+        _ => XCameraLens.back,
       };
 
   static DeviceOrientation _parseOrientation(String? raw) => switch (raw) {
@@ -231,13 +234,13 @@ class MethodChannelUxCameraBackend implements UxCameraBackend {
         DeviceOrientation.landscapeRight => 'landscapeRight',
       };
 
-  static String _flashArg(UxFlashMode m) => switch (m) {
-        UxFlashMode.off => 'off',
-        UxFlashMode.always => 'always',
+  static String _flashArg(XFlashMode m) => switch (m) {
+        XFlashMode.off => 'off',
+        XFlashMode.always => 'always',
       };
 
-  static String _presetArg(UxResolutionPreset p) => switch (p) {
-        UxResolutionPreset.high => 'high',
+  static String _presetArg(XResolutionPreset p) => switch (p) {
+        XResolutionPreset.high => 'high',
       };
 
   // ---- channel adapter --------------------------------------------
@@ -247,7 +250,7 @@ class MethodChannelUxCameraBackend implements UxCameraBackend {
       final result = await _channel.invokeMethod<Object?>(method, args);
       return result as T;
     } on PlatformException catch (e) {
-      throw UxCameraException(e.code, e.message);
+      throw XCameraException(e.code, e.message);
     }
   }
 
@@ -263,7 +266,7 @@ class MethodChannelUxCameraBackend implements UxCameraBackend {
     try {
       await _channel.invokeMethod<void>(method, args);
     } on PlatformException catch (e) {
-      throw UxCameraException(e.code, e.message);
+      throw XCameraException(e.code, e.message);
     }
   }
 }

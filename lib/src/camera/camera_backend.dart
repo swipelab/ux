@@ -2,43 +2,43 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 
-import '../file.dart' show UxFile;
-import 'camera.dart' show UxCameraDescription, UxFlashMode, UxResolutionPreset;
-import 'camera_channel.dart' show MethodChannelUxCameraBackend;
+import '../file.dart' show XFile;
+import 'camera.dart' show XCameraDescription, XFlashMode, XResolutionPreset;
+import 'camera_channel.dart' show MethodChannelXCameraBackend;
 
-/// Backend contract that [UxCameraController] dispatches into. The default
+/// Backend contract that [XCameraController] dispatches into. The default
 /// implementation calls into native code via the `ux/camera` /
 /// `ux/camera/events` channels; tests substitute their own (see
-/// `package:ux/testing.dart`'s `FakeUxCameraBackend`).
+/// `package:ux/testing.dart`'s `FakeXCameraBackend`).
 ///
 /// Every per-instance call carries a `handle` returned by [create] so
 /// the plugin can route to the right native session. Multiple
 /// controllers can hold simultaneous handles.
-abstract class UxCameraBackend {
+abstract class XCameraBackend {
   /// Swap to inject a fake before any UI code mounts a controller.
-  static UxCameraBackend instance = MethodChannelUxCameraBackend();
+  static XCameraBackend instance = MethodChannelXCameraBackend();
 
   /// Enumerate camera devices. The result is stable for the lifetime
   /// of the process.
-  Future<List<UxCameraDescription>> availableCameras();
+  Future<List<XCameraDescription>> availableCameras();
 
   /// Allocate a native camera instance bound to [cameraId]. Returns the
   /// handle (for subsequent calls), the FlutterTexture id (for the
   /// preview widget), and the sensor-natural-orientation preview size.
   ///
-  /// Throws [UxCameraException("device_busy")] if another instance
-  /// already holds the device, or [UxCameraException("audio_busy")]
+  /// Throws [XCameraException("device_busy")] if another instance
+  /// already holds the device, or [XCameraException("audio_busy")]
   /// when [enableAudio] is true and another instance holds the
   /// app-global audio session.
-  Future<UxCameraCreateResult> create({
+  Future<XCameraCreateResult> create({
     required String cameraId,
     required bool enableAudio,
-    required UxResolutionPreset preset,
+    required XResolutionPreset preset,
   });
 
   /// Start the session. Native side resolves camera + audio permissions
   /// before the future completes. Throws
-  /// [UxCameraException("permission_denied")] on denial.
+  /// [XCameraException("permission_denied")] on denial.
   Future<void> initialize(int handle);
 
   /// Tear down the session. Cancels any in-flight recording, releases
@@ -49,7 +49,7 @@ abstract class UxCameraBackend {
   /// Swap to a different camera mid-session. Resets the lock and clears
   /// any pending recording. Returns the new preview size and rotation;
   /// the size may again be `Size.zero` initially on Android, with a
-  /// follow-up [UxCameraPreviewSizeChanged] event.
+  /// follow-up [XCameraPreviewSizeChanged] event.
   Future<({Size previewSize, int previewRotationQuarterTurns})> setDescription(
     int handle,
     String cameraId,
@@ -58,7 +58,7 @@ abstract class UxCameraBackend {
   /// Set the flash mode used for the next [takePicture]. On front cameras
   /// without a screen-flash fallback the backend silently no-ops; the
   /// caller is responsible for not offering flash UI there.
-  Future<void> setFlashMode(int handle, UxFlashMode mode);
+  Future<void> setFlashMode(int handle, XFlashMode mode);
 
   /// Pin the preview's connection orientation. Used today only to lock
   /// the preview to portrait so it never appears stretched/rotated.
@@ -72,7 +72,7 @@ abstract class UxCameraBackend {
   /// Take a still photo. [snapshotOrientation] is applied to the photo
   /// connection just before capture so the file's EXIF orientation
   /// matches how the user was holding the device.
-  Future<UxFile> takePicture(int handle, DeviceOrientation snapshotOrientation);
+  Future<XFile> takePicture(int handle, DeviceOrientation snapshotOrientation);
 
   /// Begin recording video. [snapshotOrientation] is baked into the
   /// writer track's transform — the file plays back rotated even if
@@ -83,17 +83,26 @@ abstract class UxCameraBackend {
   );
 
   /// Stop recording and return the resulting MP4 on disk.
-  Future<UxFile> stopVideoRecording(int handle);
+  Future<XFile> stopVideoRecording(int handle);
 
   /// Live event stream for [handle]: device-orientation changes,
   /// session errors, interrupted/resumed lifecycle pings. The
   /// controller subscribes during [initialize] and unsubscribes on
   /// [disposeInstance].
-  Stream<UxCameraEvent> events(int handle);
+  Stream<XCameraEvent> events(int handle);
 
   /// True iff the user has granted microphone access. Cheap; safe to
   /// re-poll on app foregrounding to detect grants made via Settings.
   Future<bool> audioPermissionGranted();
+
+  /// Attempt to grant mic access. Shows the in-app system prompt when
+  /// the OS is willing to surface one (fresh install, or a first
+  /// denial that's still retryable on Android); on permanent denial,
+  /// deep-links into Settings and resolves to `false`. Returns the
+  /// post-call granted state. Avoids the fresh-install trap where the
+  /// mic entry isn't in the Privacy pane until [requestAccess] has
+  /// fired at least once.
+  Future<bool> requestAudioPermission();
 
   /// Deep-link into the system Settings page for this app. Caller is
   /// expected to refresh [audioPermissionGranted] on
@@ -101,11 +110,11 @@ abstract class UxCameraBackend {
   Future<void> openSettings();
 }
 
-/// The tuple returned by [UxCameraBackend.create] — everything the
+/// The tuple returned by [XCameraBackend.create] — everything the
 /// controller needs to start serving the preview widget and routing
 /// subsequent calls.
-class UxCameraCreateResult {
-  const UxCameraCreateResult({
+class XCameraCreateResult {
+  const XCameraCreateResult({
     required this.handle,
     required this.textureId,
     required this.previewSize,
@@ -118,7 +127,7 @@ class UxCameraCreateResult {
   /// Initial preview size; may be `Size.zero` when the native side
   /// can't determine it synchronously (Android CameraX needs the
   /// first `SurfaceRequest` to fire before it knows). In that case
-  /// a [UxCameraPreviewSizeChanged] event follows.
+  /// a [XCameraPreviewSizeChanged] event follows.
   final Size previewSize;
 
   /// Number of 90° CW rotations the Texture widget needs. iOS: 0.
@@ -128,29 +137,29 @@ class UxCameraCreateResult {
 
 /// Events pushed by the native side over `ux/camera/events`. Sealed —
 /// new variants land here as the contract grows.
-sealed class UxCameraEvent {
-  const UxCameraEvent(this.handle);
+sealed class XCameraEvent {
+  const XCameraEvent(this.handle);
   final int handle;
 }
 
-class UxCameraDeviceOrientationChanged extends UxCameraEvent {
-  const UxCameraDeviceOrientationChanged(super.handle, this.orientation);
+class XCameraDeviceOrientationChanged extends XCameraEvent {
+  const XCameraDeviceOrientationChanged(super.handle, this.orientation);
   final DeviceOrientation orientation;
 }
 
-class UxCameraSessionError extends UxCameraEvent {
-  const UxCameraSessionError(super.handle, this.code, this.description);
+class XCameraSessionError extends XCameraEvent {
+  const XCameraSessionError(super.handle, this.code, this.description);
   final String code;
   final String? description;
 }
 
-class UxCameraSessionInterrupted extends UxCameraEvent {
-  const UxCameraSessionInterrupted(super.handle, this.reason);
+class XCameraSessionInterrupted extends XCameraEvent {
+  const XCameraSessionInterrupted(super.handle, this.reason);
   final String reason;
 }
 
-class UxCameraSessionResumed extends UxCameraEvent {
-  const UxCameraSessionResumed(super.handle);
+class XCameraSessionResumed extends XCameraEvent {
+  const XCameraSessionResumed(super.handle);
 }
 
 /// Fired when the native side learns or revises the preview's pixel
@@ -158,15 +167,15 @@ class UxCameraSessionResumed extends UxCameraEvent {
 /// `SurfaceRequest` resolves (the size isn't known at `create` time);
 /// iOS doesn't emit it (the size lands in the `create` result
 /// synchronously from `device.activeFormat`).
-class UxCameraPreviewSizeChanged extends UxCameraEvent {
-  const UxCameraPreviewSizeChanged(super.handle, this.previewSize);
+class XCameraPreviewSizeChanged extends XCameraEvent {
+  const XCameraPreviewSizeChanged(super.handle, this.previewSize);
   final Size previewSize;
 }
 
 /// Free-text diagnostic message from the native recorder. Routed by
 /// the controller to `Log.tag('camera').i(...)` so it lands in the
 /// log_server pipeline (`~/banlu/tools/log_server/data/banlu.jsonl`).
-class UxCameraDiagnostic extends UxCameraEvent {
-  const UxCameraDiagnostic(super.handle, this.message);
+class XCameraDiagnostic extends XCameraEvent {
+  const XCameraDiagnostic(super.handle, this.message);
   final String message;
 }

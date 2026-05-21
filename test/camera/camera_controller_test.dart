@@ -3,29 +3,29 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ux/testing.dart';
 import 'package:ux/ux.dart';
 
-const _front = UxCameraDescription(
+const _front = XCameraDescription(
   id: 'front',
-  lens: UxCameraLens.front,
+  lens: XCameraLens.front,
   sensorOrientation: 270,
 );
-const _back = UxCameraDescription(
+const _back = XCameraDescription(
   id: 'back',
-  lens: UxCameraLens.back,
+  lens: XCameraLens.back,
   sensorOrientation: 90,
 );
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  late FakeUxCameraBackend fake;
+  late FakeXCameraBackend fake;
 
   setUp(() {
-    fake = FakeUxCameraBackend(cameras: const [_front, _back]);
-    UxCameraBackend.instance = fake;
+    fake = FakeXCameraBackend(cameras: const [_front, _back]);
+    XCameraBackend.instance = fake;
   });
 
   tearDown(() {
-    UxCameraBackend.instance = MethodChannelUxCameraBackend();
+    XCameraBackend.instance = MethodChannelXCameraBackend();
   });
 
   test('uxAvailableCameras dispatches through the backend', () async {
@@ -36,7 +36,7 @@ void main() {
 
   test('initialize creates the native instance, subscribes to events, '
       'and reports previewSize / isInitialized', () async {
-    final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: false);
+    final ctrl = XCameraController(_front, XResolutionPreset.high, enableAudio: false);
     addTearDown(ctrl.dispose);
 
     expect(ctrl.value.isInitialized, isFalse);
@@ -45,7 +45,7 @@ void main() {
     await ctrl.initialize();
 
     expect(fake.createCalls.single,
-        (cameraId: 'front', enableAudio: false, preset: UxResolutionPreset.high));
+        (cameraId: 'front', enableAudio: false, preset: XResolutionPreset.high));
     expect(fake.initializeCalls.single, 1);
     expect(ctrl.textureId, 100);
     expect(ctrl.value.isInitialized, isTrue);
@@ -53,7 +53,7 @@ void main() {
   });
 
   test('deviceOrientationChanged events update value.deviceOrientation', () async {
-    final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: false);
+    final ctrl = XCameraController(_front, XResolutionPreset.high, enableAudio: false);
     addTearDown(ctrl.dispose);
     await ctrl.initialize();
 
@@ -79,7 +79,7 @@ void main() {
     );
     addTearDown(() => Log.configure(sink: prevSink, captureCrashes: () {}));
 
-    final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: false);
+    final ctrl = XCameraController(_front, XResolutionPreset.high, enableAudio: false);
     addTearDown(ctrl.dispose);
     await ctrl.initialize();
 
@@ -94,7 +94,7 @@ void main() {
   });
 
   test('sessionError events surface as value.errorDescription', () async {
-    final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: false);
+    final ctrl = XCameraController(_front, XResolutionPreset.high, enableAudio: false);
     addTearDown(ctrl.dispose);
     await ctrl.initialize();
 
@@ -105,7 +105,7 @@ void main() {
   });
 
   test('takePicture passes the explicit captureOrientation through', () async {
-    final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: false);
+    final ctrl = XCameraController(_front, XResolutionPreset.high, enableAudio: false);
     addTearDown(ctrl.dispose);
     await ctrl.initialize();
 
@@ -116,9 +116,9 @@ void main() {
         (handle: 1, snapshotOrientation: DeviceOrientation.landscapeRight));
   });
 
-  test('takePicture without captureOrientation falls back to UxSensor', () async {
-    // UxSensor.orientation returns portraitUp under flutter_test (no native sensor).
-    final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: false);
+  test('takePicture without captureOrientation falls back to XSensor', () async {
+    // XSensor.orientation returns portraitUp under flutter_test (no native sensor).
+    final ctrl = XCameraController(_front, XResolutionPreset.high, enableAudio: false);
     addTearDown(ctrl.dispose);
     await ctrl.initialize();
 
@@ -129,7 +129,7 @@ void main() {
   });
 
   test('startVideoRecording flips isRecordingVideo and passes orientation', () async {
-    final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: true);
+    final ctrl = XCameraController(_front, XResolutionPreset.high, enableAudio: true);
     addTearDown(ctrl.dispose);
     await ctrl.initialize();
 
@@ -141,7 +141,7 @@ void main() {
   });
 
   test('stopVideoRecording resets isRecordingVideo and returns the file', () async {
-    final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: true);
+    final ctrl = XCameraController(_front, XResolutionPreset.high, enableAudio: true);
     addTearDown(ctrl.dispose);
     await ctrl.initialize();
     await ctrl.startVideoRecording(captureOrientation: DeviceOrientation.landscapeLeft);
@@ -155,7 +155,7 @@ void main() {
 
   test('previewSizeChanged events update value.previewSize without losing rotation',
       () async {
-    final ctrl = UxCameraController(_back, UxResolutionPreset.high, enableAudio: false);
+    final ctrl = XCameraController(_back, XResolutionPreset.high, enableAudio: false);
     addTearDown(ctrl.dispose);
     await ctrl.initialize();
 
@@ -170,7 +170,7 @@ void main() {
   });
 
   test('setDescription updates value.description and previewSize', () async {
-    final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: false);
+    final ctrl = XCameraController(_front, XResolutionPreset.high, enableAudio: false);
     addTearDown(ctrl.dispose);
     await ctrl.initialize();
 
@@ -183,18 +183,18 @@ void main() {
   });
 
   test('setFlashMode forwards to the backend', () async {
-    final ctrl = UxCameraController(_back, UxResolutionPreset.high, enableAudio: false);
+    final ctrl = XCameraController(_back, XResolutionPreset.high, enableAudio: false);
     addTearDown(ctrl.dispose);
     await ctrl.initialize();
 
-    await ctrl.setFlashMode(UxFlashMode.always);
+    await ctrl.setFlashMode(XFlashMode.always);
 
-    expect(fake.setFlashModeCalls.single, (handle: 1, mode: UxFlashMode.always));
+    expect(fake.setFlashModeCalls.single, (handle: 1, mode: XFlashMode.always));
   });
 
   test('lockCaptureOrientation / unlockCaptureOrientation forward to backend',
       () async {
-    final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: false);
+    final ctrl = XCameraController(_front, XResolutionPreset.high, enableAudio: false);
     addTearDown(ctrl.dispose);
     await ctrl.initialize();
 
@@ -207,7 +207,7 @@ void main() {
   });
 
   test('dispose tears down the native instance and is idempotent', () async {
-    final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: false);
+    final ctrl = XCameraController(_front, XResolutionPreset.high, enableAudio: false);
     await ctrl.initialize();
 
     await ctrl.dispose();
@@ -218,28 +218,28 @@ void main() {
     expect(fake.disposeCalls, [1]);
   });
 
-  test('calls against a disposed controller throw UxCameraException', () async {
-    final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: false);
+  test('calls against a disposed controller throw XCameraException', () async {
+    final ctrl = XCameraController(_front, XResolutionPreset.high, enableAudio: false);
     await ctrl.initialize();
     await ctrl.dispose();
 
     expect(() => ctrl.takePicture(captureOrientation: DeviceOrientation.portraitUp),
-        throwsA(isA<UxCameraException>().having((e) => e.code, 'code', 'disposed')));
+        throwsA(isA<XCameraException>().having((e) => e.code, 'code', 'disposed')));
   });
 
-  test('calls before initialize throw UxCameraException("not_initialized")',
+  test('calls before initialize throw XCameraException("not_initialized")',
       () async {
-    final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: false);
+    final ctrl = XCameraController(_front, XResolutionPreset.high, enableAudio: false);
     addTearDown(ctrl.dispose);
 
-    expect(() => ctrl.setFlashMode(UxFlashMode.off),
-        throwsA(isA<UxCameraException>().having((e) => e.code, 'code', 'not_initialized')));
+    expect(() => ctrl.setFlashMode(XFlashMode.off),
+        throwsA(isA<XCameraException>().having((e) => e.code, 'code', 'not_initialized')));
   });
 
   test('multi-instance: two controllers get distinct handles + textures',
       () async {
-    final a = UxCameraController(_front, UxResolutionPreset.high, enableAudio: false);
-    final b = UxCameraController(_back, UxResolutionPreset.high, enableAudio: false);
+    final a = XCameraController(_front, XResolutionPreset.high, enableAudio: false);
+    final b = XCameraController(_back, XResolutionPreset.high, enableAudio: false);
     addTearDown(a.dispose);
     addTearDown(b.dispose);
 
@@ -259,7 +259,7 @@ void main() {
 
   test('initialize captures audioPermissionGranted into value', () async {
     fake.audioPermission = false;
-    final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: true);
+    final ctrl = XCameraController(_front, XResolutionPreset.high, enableAudio: true);
     addTearDown(ctrl.dispose);
 
     await ctrl.initialize();
@@ -270,7 +270,7 @@ void main() {
 
   test('refreshAudioPermission re-polls and updates value', () async {
     fake.audioPermission = false;
-    final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: true);
+    final ctrl = XCameraController(_front, XResolutionPreset.high, enableAudio: true);
     addTearDown(ctrl.dispose);
     await ctrl.initialize();
     expect(ctrl.value.audioPermissionGranted, isFalse);
@@ -283,17 +283,27 @@ void main() {
   });
 
   test('openSystemSettings dispatches to the backend', () async {
-    await UxCameraController.openSystemSettings();
+    await XCameraController.openSystemSettings();
     expect(fake.openSettingsCalls, 1);
   });
 
-  test('initialize propagates UxCameraException("permission_denied")', () async {
-    fake.createError = const UxCameraException('permission_denied', 'camera');
-    final ctrl = UxCameraController(_front, UxResolutionPreset.high, enableAudio: false);
+  test('requestAudioPermission returns the backend result', () async {
+    fake.requestAudioPermissionResult = false;
+    expect(await XCameraController.requestAudioPermission(), isFalse);
+    expect(fake.requestAudioPermissionCalls, 1);
+
+    fake.requestAudioPermissionResult = true;
+    expect(await XCameraController.requestAudioPermission(), isTrue);
+    expect(fake.requestAudioPermissionCalls, 2);
+  });
+
+  test('initialize propagates XCameraException("permission_denied")', () async {
+    fake.createError = const XCameraException('permission_denied', 'camera');
+    final ctrl = XCameraController(_front, XResolutionPreset.high, enableAudio: false);
     addTearDown(ctrl.dispose);
 
     expect(() => ctrl.initialize(),
-        throwsA(isA<UxCameraException>().having((e) => e.code, 'code', 'permission_denied')));
+        throwsA(isA<XCameraException>().having((e) => e.code, 'code', 'permission_denied')));
   });
 }
 
