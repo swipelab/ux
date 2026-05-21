@@ -90,6 +90,19 @@ abstract class Pane with Emitter {
     return child;
   }
 
+  /// Forces a synchronous layout pass on this Pane. Callers that need a
+  /// slot's real measured size *now* (e.g. scroll-to-message in a chat
+  /// that hasn't laid out far-back history yet) set up a per-subclass
+  /// "measure request" field, then invoke this — the next [performLayout]
+  /// observes the field and measures the requested slots inline. No
+  /// extra frame is scheduled.
+  void flushLayoutSync() {
+    final owner = renderer?.owner;
+    if (owner == null) return;
+    renderer!.markNeedsLayout();
+    owner.flushLayout();
+  }
+
   void invokeLayoutRemove(Object? slot) {
     if (element == null) return;
     renderer?.invokeLayoutCallback((constraints) {
