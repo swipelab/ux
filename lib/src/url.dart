@@ -32,7 +32,7 @@ class XUrl {
       out = detect(inPtr.cast<Uint16>(), text.length, sizePtr);
       final size = sizePtr.value;
       if (out == nullptr || size <= 0) return const [];
-      return _decode(out.asTypedList(size));
+      return _tightenPhoneMatches(_decode(out.asTypedList(size)), text);
     } finally {
       calloc.free(inPtr);
       calloc.free(sizePtr);
@@ -253,6 +253,76 @@ bool _hasSigil(String text) {
 // sender crafting text designed to balloon a chat bubble's recognizer
 // count. 64 is well above any real chat density.
 const int _kMaxMatchesPerMessage = 64;
+
+/// Drop phone candidates that don't look like real phones. Three checks:
+///   1. The character immediately before the match (if any) must be
+///      whitespace. Anything else — letter, digit, `-`, `:`, `/`, … —
+///      means the digits are glued to surrounding text (identifiers
+///      like `order-1778829224857`, URLs, hashes) and are not a phone.
+///   2. The slice must start with `(`, `+`, or `0`. International
+///      numbers begin with `+`, US-style begins with `(area)`, most
+///      domestic formats outside the US use a `0` trunk prefix.
+///   3. The slice must look formatted: either a leading `+` (E.164) or
+///      a digit-separator-digit transition (`555-1234`). A bare digit
+///      run with no internal separator stays unmatched.
+List<UrlMatch> _tightenPhoneMatches(List<UrlMatch> matches, String text) {
+  if (matches.isEmpty) return matches;
+  final out = <UrlMatch>[];
+  for (final m in matches) {
+    if (m.kind == UrlMatchKind.phone &&
+        (!_phoneLeftBoundaryOk(text, m.start) ||
+            !_phoneSliceIsFormatted(text, m.start, m.end))) {
+      continue;
+    }
+    out.add(m);
+  }
+  return out;
+}
+
+bool _phoneLeftBoundaryOk(String text, int start) {
+  if (start <= 0) return true;
+  final c = text.codeUnitAt(start - 1);
+  return c == 0x20 /* space */ ||
+      c == 0x09 /* tab */ ||
+      c == 0x0A /* LF */ ||
+      c == 0x0D /* CR */ ||
+      c == 0xA0 /* NBSP */ ||
+      c == 0x3000 /* ideographic space */ ||
+      c == 0x2028 /* line separator */ ||
+      c == 0x2029 /* paragraph separator */;
+}
+
+bool _phoneSliceIsFormatted(String text, int start, int end) {
+  final hi = end > text.length ? text.length : end;
+  final lo = start < 0 ? 0 : start;
+  if (lo >= hi) return false;
+  final first = text.codeUnitAt(lo);
+  if (first != 0x28 /* ( */ &&
+      first != 0x2B /* + */ &&
+      first != 0x30 /* 0 */) {
+    return false;
+  }
+  if (first == 0x2B /* + */) return true;
+  // 0 = pre-digit, 1 = digit run, 2 = separator after digit.
+  int state = 0;
+  for (int i = lo; i < hi; i++) {
+    final c = text.codeUnitAt(i);
+    final isDigit = c >= 0x30 && c <= 0x39;
+    final isSep = c == 0x20 /* space */ ||
+        c == 0x2D /* - */ ||
+        c == 0x28 /* ( */ ||
+        c == 0x29 /* ) */ ||
+        c == 0x2E /* . */;
+    if (state == 0 && isDigit) {
+      state = 1;
+    } else if (state == 1 && isSep) {
+      state = 2;
+    } else if (state == 2 && isDigit) {
+      return true;
+    }
+  }
+  return false;
+}
 
 List<UrlMatch> _decode(Uint8List buf) {
   if (buf.length < 4) return const [];
