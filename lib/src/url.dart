@@ -31,8 +31,10 @@ class XUrl {
     try {
       out = detect(inPtr.cast<Uint16>(), text.length, sizePtr);
       final size = sizePtr.value;
-      if (out == nullptr || size <= 0) return const [];
-      return _tightenPhoneMatches(_decode(out.asTypedList(size)), text);
+      final native = (out == nullptr || size <= 0)
+          ? const <UrlMatch>[]
+          : _tightenPhoneMatches(_decode(out.asTypedList(size)), text);
+      return _mergeCustomSchemeMatches(native, text);
     } finally {
       calloc.free(inPtr);
       calloc.free(sizePtr);
@@ -297,6 +299,75 @@ bool _phoneLeadingCharOk(String text, int start, int end) {
   return first == 0x28 /* ( */ ||
       first == 0x2B /* + */ ||
       first == 0x30 /* 0 */;
+}
+
+/// AOSP's `Patterns.WEB_URL` only accepts http/https/ftp/rtsp, so any
+/// other `scheme://…` (bl://, tg://, intent://, …) is invisible to the
+/// native detector on Android. NSDataDetector on iOS is permissive but
+/// not exhaustive. This pass surfaces every RFC-3986 scheme so the
+/// renderer can style and the tap router can decide; [_dedupeMatches]
+/// collapses anything overlapping with what native already found.
+final RegExp _kAnySchemeRegex = RegExp(r'\b[a-zA-Z][a-zA-Z0-9+.\-]*://\S+');
+
+List<UrlMatch> _mergeCustomSchemeMatches(List<UrlMatch> native, String text) {
+  if (!text.contains('://')) return native;
+  final extra = <UrlMatch>[];
+  for (final m in _kAnySchemeRegex.allMatches(text)) {
+    final end = _trimUrlTrailingPunctuation(text, m.start, m.end);
+    if (end - m.start < 4 /* "x://" minimum */) continue;
+    extra.add(UrlMatch(
+      start: m.start,
+      end: end,
+      url: text.substring(m.start, end),
+      kind: UrlMatchKind.web,
+    ));
+  }
+  if (extra.isEmpty) return native;
+  return _dedupeMatches([...native, ...extra]);
+}
+
+/// Drops trailing sentence-end punctuation the `\S+` regex would
+/// otherwise drag into the match (`bl://x?code=1.` → `bl://x?code=1`).
+int _trimUrlTrailingPunctuation(String text, int start, int end) {
+  while (end > start) {
+    final c = text.codeUnitAt(end - 1);
+    if (c == 0x2E /* . */ ||
+        c == 0x2C /* , */ ||
+        c == 0x3B /* ; */ ||
+        c == 0x3A /* : */ ||
+        c == 0x21 /* ! */ ||
+        c == 0x3F /* ? */ ||
+        c == 0x29 /* ) */ ||
+        c == 0x5D /* ] */ ||
+        c == 0x7D /* } */) {
+      end--;
+    } else {
+      break;
+    }
+  }
+  return end;
+}
+
+/// Greedy de-overlap: sort by start asc, longer-first on tie, then drop
+/// any match whose start falls inside the previously kept match.
+List<UrlMatch> _dedupeMatches(List<UrlMatch> matches) {
+  matches.sort((a, b) {
+    if (a.start != b.start) return a.start.compareTo(b.start);
+    final lenA = a.end - a.start;
+    final lenB = b.end - b.start;
+    if (lenA != lenB) return lenB.compareTo(lenA);
+    return b.kind.index.compareTo(a.kind.index);
+  });
+  final out = <UrlMatch>[];
+  int lastEnd = 0;
+  bool any = false;
+  for (final m in matches) {
+    if (any && m.start < lastEnd) continue;
+    out.add(m);
+    lastEnd = m.end;
+    any = true;
+  }
+  return out;
 }
 
 List<UrlMatch> _decode(Uint8List buf) {
