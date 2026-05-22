@@ -207,12 +207,26 @@ class XKeyboard with ChangeNotifier {
       final t = (elapsed / _animDuration).clamp(0.0, 1.0);
       h = _animFrom + (_animTo - _animFrom) * _lerpSamples(_samples, t);
 
+      // Cap the Dart-side prediction against the system-reported height.
+      // The native value is per-vsync fresh on Android R+ (via
+      // WindowInsetsAnimation.onProgress) and iOS (via CADisplayLink); on
+      // Android pre-R it snaps to the target up-front, making this a no-op.
+      // This trades the LUT's predictive *lead* for robustness against
+      // overshoot when the LUT hasn't adapted to this device's actual
+      // curve — especially in debug mode where Flutter's lower frame rate
+      // amplifies per-frame divergence.
+      final native = _uxKeyboardHeight!();
+      if (_animTo > _animFrom && h > native) {
+        h = native;
+      } else if (_animTo < _animFrom && h < native) {
+        h = native;
+      }
+
       // Collect observations for adaptive learning.
       if (t < 1.0 && !_converged) {
-        final ffi = _uxKeyboardHeight!();
         final range = _animTo - _animFrom;
         if (range.abs() > 1) {
-          final p = ((ffi - _animFrom) / range).clamp(0.0, 1.0);
+          final p = ((native - _animFrom) / range).clamp(0.0, 1.0);
           _obs.add((t: t, p: p));
         }
       }
@@ -229,16 +243,18 @@ class XKeyboard with ChangeNotifier {
     if ((h - _height).abs() > 0.5) {
       _height = h;
       notifyListeners();
-      // notifyListeners triggers setState in listeners, which marks elements
-      // dirty. We're inside a persistent frame callback (after the build phase
-      // has already run), so `ensureVisualUpdate` is a no-op — without an
-      // explicit scheduleFrame the dirty marks never get flushed. This matters
-      // especially on the down-edge (h transitions to 0) where the steady-state
-      // pump below stops scheduling.
-      SchedulerBinding.instance.scheduleFrame();
+      // Close-edge flush: when _height transitions to 0, the steady-state
+      // pump below (h>0 || _height>0) stops scheduling, and
+      // ensureVisualUpdate is a no-op inside a persistent frame callback —
+      // so dirty marks enqueued during notifyListeners would never get
+      // flushed. Mid-animation transitions don't need this because the
+      // pump or curveActive condition already covers them.
+      if (!Platform.isIOS && _height == 0) {
+        SchedulerBinding.instance.scheduleFrame();
+      }
     }
 
-    // Steady-state pump while the curve is still running or the keyboard is up.
+    // Schedule frames while the curve is still running.
     final curveActive = _isAnimating &&
         (ts - _animStartTime) < _animDuration;
     if (curveActive || (!Platform.isIOS && (h > 0 || _height > 0))) {
