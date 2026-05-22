@@ -80,19 +80,26 @@ class KeyboardPlugin : NativePlugin, MethodChannel.MethodCallHandler {
     }
 
     private fun setupInsetsCallback() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
         val view = activity?.window?.decorView ?: return
 
-        // Catch inset changes that don't trigger animations (e.g., emoji keyboard resize)
+        // Layout-driven changes (e.g. emoji keyboard resize on R+ where the
+        // animation callback doesn't fire).
         view.viewTreeObserver.addOnGlobalLayoutListener {
-            val insets = view.rootWindowInsets?.getInsets(WindowInsets.Type.ime()) ?: Insets.NONE
-            val density = view.resources.displayMetrics.density
-            val height = insets.bottom.toDouble() / density
+            val rootInsets = view.rootWindowInsets ?: return@addOnGlobalLayoutListener
+            publishImeHeight(view, rootInsets)
+        }
 
-            if (height != KeyboardBridge.nGetSystemHeight()) {
-                KeyboardBridge.nSetSystemHeight(height)
-                KeyboardBridge.nSetHeight(height)
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            // No WindowInsetsAnimation API on pre-R. The global-layout listener
+            // catches IME-open (activity resizes) but on some OEMs (notably
+            // EMUI 10) IME-hide dispatches new insets without a follow-up
+            // layout — leaving that listener silent. setOnApplyWindowInsetsListener
+            // fires on every inset dispatch, so it catches both ends.
+            view.setOnApplyWindowInsetsListener { v, insets ->
+                publishImeHeight(v, insets)
+                v.onApplyWindowInsets(insets)
             }
+            return
         }
 
         view.setWindowInsetsAnimationCallback(object : WindowInsetsAnimation.Callback(DISPATCH_MODE_STOP) {
@@ -139,5 +146,24 @@ class KeyboardPlugin : NativePlugin, MethodChannel.MethodCallHandler {
                 }
             }
         })
+    }
+
+    private fun publishImeHeight(view: android.view.View, insets: WindowInsets) {
+        val density = view.resources.displayMetrics.density
+        val imePx: Int = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            insets.getInsets(WindowInsets.Type.ime()).bottom
+        } else {
+            // systemWindowInsetBottom = nav bar + IME; stableInsetBottom = nav
+            // bar only (stable insets exclude things that animate in/out like
+            // the IME). The difference isolates IME height.
+            @Suppress("DEPRECATION")
+            (insets.systemWindowInsetBottom - insets.stableInsetBottom).coerceAtLeast(0)
+        }
+        val height = imePx.toDouble() / density
+
+        if (height != KeyboardBridge.nGetSystemHeight()) {
+            KeyboardBridge.nSetSystemHeight(height)
+            KeyboardBridge.nSetHeight(height)
+        }
     }
 }

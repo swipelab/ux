@@ -229,9 +229,16 @@ class XKeyboard with ChangeNotifier {
     if ((h - _height).abs() > 0.5) {
       _height = h;
       notifyListeners();
+      // notifyListeners triggers setState in listeners, which marks elements
+      // dirty. We're inside a persistent frame callback (after the build phase
+      // has already run), so `ensureVisualUpdate` is a no-op — without an
+      // explicit scheduleFrame the dirty marks never get flushed. This matters
+      // especially on the down-edge (h transitions to 0) where the steady-state
+      // pump below stops scheduling.
+      SchedulerBinding.instance.scheduleFrame();
     }
 
-    // Schedule frames while the curve is still running.
+    // Steady-state pump while the curve is still running or the keyboard is up.
     final curveActive = _isAnimating &&
         (ts - _animStartTime) < _animDuration;
     if (curveActive || (!Platform.isIOS && (h > 0 || _height > 0))) {
