@@ -14,6 +14,7 @@ public class XPlugin: NSObject, FlutterPlugin {
             GalleryPlugin(),
             CrashPlugin(),
             CameraPlugin(),
+            UxVideoPlayerPlugin(),
             UrlPlugin(),
         ]
         for plugin in plugins {

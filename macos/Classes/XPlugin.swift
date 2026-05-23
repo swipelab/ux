@@ -10,6 +10,7 @@ public class XPlugin: NSObject, FlutterPlugin {
             ClipboardPlugin(),
             GalleryPlugin(),
             CameraPlugin(),
+            UxVideoPlayerPlugin(),
             UrlPlugin(),
         ]
         for plugin in plugins {

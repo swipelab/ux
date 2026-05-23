@@ -14,17 +14,22 @@ Pod::Spec.new do |s|
   # always picked up. The two are belt-and-suspenders — pod install
   # primes the file set so CocoaPods globs it; the build phase keeps
   # contents fresh on every subsequent Swift change.
-  s.prepare_command  = 'rm -rf Classes/Camera-shared && cp -R ../darwin/Camera Classes/Camera-shared'
+  s.prepare_command  = <<-CMD
+rm -rf Classes/Camera-shared && cp -R ../darwin/Camera Classes/Camera-shared
+rm -rf Classes/Video-shared  && cp -R ../darwin/Video  Classes/Video-shared
+CMD
   s.script_phases    = [{
-    :name             => 'Mirror darwin/Camera',
+    :name             => 'Mirror darwin/{Camera,Video}',
     :execution_position => :before_compile,
     :script           => <<-CMD
 set -e
-SRC="${PODS_TARGET_SRCROOT}/../darwin/Camera"
-DEST="${PODS_TARGET_SRCROOT}/Classes/Camera-shared"
-[ -d "$SRC" ] || exit 0
-mkdir -p "$DEST"
-rsync -a --delete "$SRC/" "$DEST/"
+for MOD in Camera Video; do
+  SRC="${PODS_TARGET_SRCROOT}/../darwin/${MOD}"
+  DEST="${PODS_TARGET_SRCROOT}/Classes/${MOD}-shared"
+  [ -d "$SRC" ] || continue
+  mkdir -p "$DEST"
+  rsync -a --delete "$SRC/" "$DEST/"
+done
 CMD
   }]
   s.source_files     = 'Classes/**/*.{swift,m}'

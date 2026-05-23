@@ -1,0 +1,325 @@
+import 'dart:async';
+import 'dart:io' as io;
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show PlatformException;
+import 'package:flutter/widgets.dart';
+
+import 'x_video_player_backend.dart';
+import 'x_video_player_view.dart' show XVideoPlayerView;
+
+/// Throws when a [XVideoPlayerController] call fails on the platform
+/// side. Maps from native `PlatformException` codes.
+class XVideoPlayerException implements Exception {
+  const XVideoPlayerException(this.code, [this.description]);
+
+  final String code;
+  final String? description;
+
+  @override
+  String toString() =>
+      'XVideoPlayerException($code${description == null ? '' : ': $description'})';
+}
+
+/// One contiguous range of buffered playback time. Matches the shape
+/// `package:video_player` exposes today so call sites that read it
+/// (gallery scrub bar) port mechanically.
+class XDurationRange {
+  const XDurationRange(this.start, this.end);
+  final Duration start;
+  final Duration end;
+}
+
+/// Immutable snapshot of an [XVideoPlayerController]'s state.
+class XVideoPlayerValue {
+  const XVideoPlayerValue({
+    this.isInitialized = false,
+    this.isPlaying = false,
+    this.isBuffering = false,
+    this.isLooping = false,
+    this.rotationQuarterTurns = 0,
+    this.position = Duration.zero,
+    this.duration = Duration.zero,
+    this.size = Size.zero,
+    this.volume = 1.0,
+    this.playbackSpeed = 1.0,
+    this.buffered = const [],
+    this.errorDescription,
+  });
+
+  static const uninitialized = XVideoPlayerValue();
+
+  final bool isInitialized;
+  final bool isPlaying;
+  final bool isBuffering;
+  final bool isLooping;
+
+  /// Quarter-turns of clockwise rotation [XVideoPlayerView] applies
+  /// to the underlying `Texture`. Populated from the native side at
+  /// initialize-time — Android always 0 (codec + GLES blit handle
+  /// rotation natively), Apple non-zero when the asset's
+  /// `preferredTransform` rotates the natural pixel buffer.
+  final int rotationQuarterTurns;
+
+  /// Last known playhead position. Reported by the native side on a
+  /// fixed cadence (~10 Hz) — read this through a
+  /// [ValueListenableBuilder] / `addListener` for live scrubbing.
+  final Duration position;
+
+  /// Total duration of the media. `Duration.zero` until [isInitialized].
+  final Duration duration;
+
+  /// Natural pixel dimensions of the video frame. `Size.zero` until
+  /// the native side reports metadata.
+  final Size size;
+
+  final double volume;
+  final double playbackSpeed;
+
+  /// One range per contiguous buffered span. Empty before init; on
+  /// local-file playback this is typically a single `[0..duration]`
+  /// range that appears once the first frame is decoded.
+  final List<XDurationRange> buffered;
+
+  final String? errorDescription;
+
+  bool get hasError => errorDescription != null;
+
+  /// Aspect ratio with a graceful fall-through to 1:1 before the first
+  /// frame is decoded. Compose / gallery wrap the player in
+  /// `AspectRatio` and would otherwise divide by zero.
+  double get aspectRatio {
+    if (size.width <= 0 || size.height <= 0) return 1.0;
+    return size.width / size.height;
+  }
+
+  XVideoPlayerValue copyWith({
+    bool? isInitialized,
+    bool? isPlaying,
+    bool? isBuffering,
+    bool? isLooping,
+    int? rotationQuarterTurns,
+    Duration? position,
+    Duration? duration,
+    Size? size,
+    double? volume,
+    double? playbackSpeed,
+    List<XDurationRange>? buffered,
+    Object? errorDescription = _unset,
+  }) =>
+      XVideoPlayerValue(
+        isInitialized: isInitialized ?? this.isInitialized,
+        isPlaying: isPlaying ?? this.isPlaying,
+        isBuffering: isBuffering ?? this.isBuffering,
+        isLooping: isLooping ?? this.isLooping,
+        rotationQuarterTurns:
+            rotationQuarterTurns ?? this.rotationQuarterTurns,
+        position: position ?? this.position,
+        duration: duration ?? this.duration,
+        size: size ?? this.size,
+        volume: volume ?? this.volume,
+        playbackSpeed: playbackSpeed ?? this.playbackSpeed,
+        buffered: buffered ?? this.buffered,
+        errorDescription: identical(errorDescription, _unset)
+            ? this.errorDescription
+            : errorDescription as String?,
+      );
+
+  static const _unset = Object();
+}
+
+/// Owns one native video-player session. The surface mirrors the
+/// subset of `package:video_player`'s `VideoPlayerController` the app
+/// currently uses — only the `.file(...)` constructor, the standard
+/// playback controls, and the `value` getters compose / gallery /
+/// outgoing-media read.
+///
+/// Lifecycle: construct → [initialize] → use → [dispose]. After
+/// [dispose] every other method throws [XVideoPlayerException("disposed")].
+class XVideoPlayerController extends ChangeNotifier
+    implements ValueListenable<XVideoPlayerValue> {
+  XVideoPlayerController.file(io.File file) : _file = file;
+
+  final io.File _file;
+
+  XVideoPlayerValue _value = XVideoPlayerValue.uninitialized;
+
+  @override
+  XVideoPlayerValue get value => _value;
+
+  set _setValue(XVideoPlayerValue next) {
+    if (identical(_value, next)) return;
+    _value = next;
+    notifyListeners();
+  }
+
+  int? _handle;
+  int? _textureId;
+  StreamSubscription<XVideoPlayerEvent>? _eventsSub;
+  bool _disposed = false;
+  Completer<void>? _initCompleter;
+
+  /// Native handle once [initialize] has resolved. Null otherwise.
+  int? get handle => _handle;
+
+  /// Texture id on Apple platforms. On Android playback uses a platform
+  /// view (no texture id), and this stays null.
+  int? get textureId => _textureId;
+
+  /// Configure the native session and load the file. Resolves once the
+  /// codec is ready and `value.size` / `value.duration` are populated.
+  /// Throws if the file is missing, unreadable, or unsupported.
+  Future<void> initialize() {
+    _throwIfDisposed('initialize');
+    final existing = _initCompleter;
+    if (existing != null) return existing.future;
+    final completer = Completer<void>();
+    _initCompleter = completer;
+    _initInternal().then(
+      (_) => completer.complete(),
+      onError: completer.completeError,
+    );
+    return completer.future;
+  }
+
+  Future<void> _initInternal() async {
+    try {
+      final result = await XVideoPlayerBackend.instance.create(
+        uri: 'file://${_file.path}',
+      );
+      _handle = result.handle;
+      _textureId = result.textureId;
+      _eventsSub = XVideoPlayerBackend.instance.events(result.handle).listen(
+            _onEvent,
+            onError: (Object error, StackTrace? stack) {
+              _setValue = _value.copyWith(errorDescription: error.toString());
+            },
+          );
+      final metadata =
+          await XVideoPlayerBackend.instance.initialize(result.handle);
+      _setValue = _value.copyWith(
+        isInitialized: true,
+        size: metadata.size,
+        duration: metadata.duration,
+        rotationQuarterTurns: metadata.rotationQuarterTurns,
+      );
+    } catch (_) {
+      // Tear down anything the native side allocated mid-failure so a
+      // retry isn't blocked by leaked resources.
+      await dispose();
+      rethrow;
+    }
+  }
+
+  void _onEvent(XVideoPlayerEvent event) {
+    switch (event) {
+      case XVideoPlayerStateChanged(
+          :final isPlaying,
+          :final isBuffering,
+          :final position,
+          :final buffered
+        ):
+        _setValue = _value.copyWith(
+          isPlaying: isPlaying ?? _value.isPlaying,
+          isBuffering: isBuffering ?? _value.isBuffering,
+          position: position ?? _value.position,
+          buffered: buffered ?? _value.buffered,
+        );
+      case XVideoPlayerSizeChanged(:final size):
+        _setValue = _value.copyWith(size: size);
+      case XVideoPlayerCompleted():
+        if (!_value.isLooping) {
+          _setValue = _value.copyWith(isPlaying: false);
+        }
+      case XVideoPlayerError(:final code, :final description):
+        _setValue = _value.copyWith(errorDescription: description ?? code);
+    }
+  }
+
+  Future<void> play() async {
+    final handle = _requireHandle('play');
+    await XVideoPlayerBackend.instance.play(handle);
+    _setValue = _value.copyWith(isPlaying: true);
+  }
+
+  Future<void> pause() async {
+    final handle = _requireHandle('pause');
+    await XVideoPlayerBackend.instance.pause(handle);
+    _setValue = _value.copyWith(isPlaying: false);
+  }
+
+  Future<void> seekTo(Duration position) async {
+    final handle = _requireHandle('seekTo');
+    final clamped = position < Duration.zero
+        ? Duration.zero
+        : position > _value.duration && _value.duration > Duration.zero
+            ? _value.duration
+            : position;
+    await XVideoPlayerBackend.instance.seekTo(handle, clamped);
+    _setValue = _value.copyWith(position: clamped);
+  }
+
+  Future<void> setLooping(bool loop) async {
+    final handle = _requireHandle('setLooping');
+    await XVideoPlayerBackend.instance.setLooping(handle, loop);
+    _setValue = _value.copyWith(isLooping: loop);
+  }
+
+  Future<void> setVolume(double volume) async {
+    final handle = _requireHandle('setVolume');
+    final clamped = volume.clamp(0.0, 1.0).toDouble();
+    await XVideoPlayerBackend.instance.setVolume(handle, clamped);
+    _setValue = _value.copyWith(volume: clamped);
+  }
+
+  Future<void> setPlaybackSpeed(double rate) async {
+    final handle = _requireHandle('setPlaybackSpeed');
+    final clamped = rate.clamp(0.25, 4.0).toDouble();
+    await XVideoPlayerBackend.instance.setPlaybackSpeed(handle, clamped);
+    _setValue = _value.copyWith(playbackSpeed: clamped);
+  }
+
+  @override
+  Future<void> dispose() async {
+    if (_disposed) return;
+    _disposed = true;
+    final handle = _handle;
+    _handle = null;
+    final sub = _eventsSub;
+    _eventsSub = null;
+    if (handle != null) {
+      try {
+        await XVideoPlayerBackend.instance.disposeInstance(handle);
+      } on PlatformException catch (_) {
+        // Native side may have already torn down (e.g. engine
+        // detaching). Don't propagate — dispose() must be safe to
+        // call repeatedly.
+      }
+    }
+    await sub?.cancel();
+    super.dispose();
+  }
+
+  /// Texture-backed (Apple) or platform-view-backed (Android) render
+  /// widget. Equivalent to `VideoPlayer(controller)` — wrap in
+  /// `AspectRatio` to control framing.
+  Widget buildPlayer() => XVideoPlayerView(controller: this);
+
+  int _requireHandle(String op) {
+    _throwIfDisposed(op);
+    final h = _handle;
+    if (h == null) {
+      throw const XVideoPlayerException('not_initialized');
+    }
+    return h;
+  }
+
+  void _throwIfDisposed(String op) {
+    if (_disposed) {
+      throw XVideoPlayerException(
+        'disposed',
+        '$op called on a disposed controller',
+      );
+    }
+  }
+}

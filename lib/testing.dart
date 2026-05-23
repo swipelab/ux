@@ -7,4 +7,5 @@ library;
 
 export 'src/testing/fake_camera.dart';
 export 'src/testing/fake_gallery.dart';
+export 'src/testing/fake_video_player.dart';
 export 'src/testing/text_golden.dart';
