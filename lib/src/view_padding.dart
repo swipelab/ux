@@ -1,6 +1,7 @@
 import 'dart:ui' show FlutterView;
 
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 /// Smoothly-animated view padding (safe-area insets).
@@ -34,13 +35,25 @@ class XInsets with ChangeNotifier, WidgetsBindingObserver {
   EdgeInsets _from = EdgeInsets.zero;
   Duration _start = Duration.zero;
   bool _ticking = false;
-
-  /// Lerp duration. Set to [Duration.zero] in tests for deterministic
-  /// frame-by-frame goldens.
-  Duration duration = const Duration(milliseconds: 220);
+  Duration? _nextAnimationDuration;
 
   /// Lerp curve.
   Curve curve = Curves.easeOut;
+
+  /// Wraps [SystemChrome.setEnabledSystemUIMode]. The resulting metric
+  /// change (Android relaying out the activity for / against immersive)
+  /// animates `viewPadding` from the current value to the new system value
+  /// over [animate]. Pass `null` (or omit) to snap. Use this rather than
+  /// calling `SystemChrome.setEnabledSystemUIMode` directly when entering
+  /// or exiting immersive — otherwise the underlying chrome (NavBar /
+  /// BottomBar / composer) snaps into place by ~status-bar height.
+  Future<void> setSystemUiMode(
+    SystemUiMode mode, {
+    Duration? animate,
+  }) async {
+    _nextAnimationDuration = animate;
+    await SystemChrome.setEnabledSystemUIMode(mode);
+  }
 
   /// Smoothed view-padding in logical pixels.
   EdgeInsets get viewPadding => _current;
@@ -54,13 +67,16 @@ class XInsets with ChangeNotifier, WidgetsBindingObserver {
     final next = _read(WidgetsBinding.instance.platformDispatcher.implicitView);
     if (next == _system) return;
     _system = next;
-    if (duration == Duration.zero) {
+    final animDuration = _nextAnimationDuration;
+    _nextAnimationDuration = null;
+    if (animDuration == null || animDuration == Duration.zero) {
       _current = next;
       _ticking = false;
       notifyListeners();
       return;
     }
     _from = _current;
+    _animDuration = animDuration;
     _start = SchedulerBinding.instance.currentSystemFrameTimeStamp;
     if (!_ticking) {
       _ticking = true;
@@ -69,9 +85,11 @@ class XInsets with ChangeNotifier, WidgetsBindingObserver {
     }
   }
 
+  Duration _animDuration = Duration.zero;
+
   void _tick(Duration ts) {
     if (!_ticking) return;
-    final dt = (ts - _start).inMicroseconds / duration.inMicroseconds;
+    final dt = (ts - _start).inMicroseconds / _animDuration.inMicroseconds;
     final t = curve.transform(dt.clamp(0.0, 1.0));
     _current = EdgeInsets.lerp(_from, _system, t)!;
     notifyListeners();
