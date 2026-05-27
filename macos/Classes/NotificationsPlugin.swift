@@ -199,7 +199,15 @@ public class NotificationsPlugin: NSObject, NativePlugin, FlutterStreamHandler,
         withCompletionHandler completionHandler:
             @escaping (UNNotificationPresentationOptions) -> Void,
     ) {
-        completionHandler([.alert, .sound])
+        // `.alert` is deprecated since macOS 11 and the system only honours
+        // it as a banner — entries never reach Notification Center. The
+        // 11+ split is `.banner` + `.list`; we need both so the toast
+        // shows AND persists in the tray.
+        if #available(macOS 11.0, *) {
+            completionHandler([.banner, .list, .sound])
+        } else {
+            completionHandler([.alert, .sound])
+        }
     }
 
     public func userNotificationCenter(
