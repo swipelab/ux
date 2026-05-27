@@ -148,8 +148,6 @@ public class NotificationsPlugin: NSObject, NativePlugin, FlutterStreamHandler,
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
                 NSLog("ux notifications: add failed: \(error)")
-            } else {
-                NSLog("ux notifications: posted id=\(id) thread=\(threadId ?? "-")")
             }
         }
     }
@@ -211,12 +209,9 @@ public class NotificationsPlugin: NSObject, NativePlugin, FlutterStreamHandler,
         // it as a banner — entries never reach Notification Center. The
         // 11+ split is `.banner` + `.list`; we need both so the toast
         // shows AND persists in the tray.
-        let id = notification.request.identifier
         if #available(macOS 11.0, *) {
-            NSLog("ux notifications: willPresent id=\(id) → [.banner, .list, .sound]")
             completionHandler([.banner, .list, .sound])
         } else {
-            NSLog("ux notifications: willPresent id=\(id) → [.alert, .sound]")
             completionHandler([.alert, .sound])
         }
     }
