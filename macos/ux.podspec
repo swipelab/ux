@@ -21,6 +21,11 @@ CMD
   s.script_phases    = [{
     :name             => 'Mirror darwin/{Camera,Video}',
     :execution_position => :before_compile,
+    # We want this to run every build (the comment above explains why),
+    # so opt out of Xcode's dependency analysis instead of trying to
+    # enumerate inputs/outputs. Silences the "will be run during every
+    # build" warning without changing semantics.
+    :always_out_of_date => '1',
     :script           => <<-CMD
 set -e
 for MOD in Camera Video; do
