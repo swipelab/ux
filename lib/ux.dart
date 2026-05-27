@@ -19,6 +19,7 @@ export 'src/video/x_video_player_backend.dart' show XVideoPlayerBackend, XVideoP
 export 'src/video/x_video_player_channel.dart' show MethodChannelXVideoPlayerBackend;
 export 'src/video/x_video_player_view.dart' show XVideoPlayerView;
 export 'src/clipboard.dart';
+export 'src/notifications/x_notifications.dart';
 export 'src/file.dart';
 export 'src/gallery.dart';
 export 'src/keyboard.dart';
