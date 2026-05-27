@@ -13,6 +13,7 @@ public class XPlugin: NSObject, FlutterPlugin {
             UxVideoPlayerPlugin(),
             UrlPlugin(),
             NotificationsPlugin(),
+            WindowPlugin(),
         ]
         for plugin in plugins {
             plugin.register(with: registrar)

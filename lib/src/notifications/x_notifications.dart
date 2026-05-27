@@ -8,19 +8,15 @@ import '../log.dart' show Log;
 
 final _log = Log.tag('notifications');
 
-/// Generic OS-notification + window-focus surface. Domain-agnostic — the
-/// caller decides when to emit and how to format the payload. Implemented
-/// on macOS via `UNUserNotificationCenter` and NSWindow key-focus
-/// observers (see `macos/Classes/NotificationsPlugin.swift`).
+/// OS-notification primitive. Domain-agnostic — the caller decides when
+/// to emit and how to format the payload. Implemented on macOS via
+/// `UNUserNotificationCenter` (see `macos/Classes/NotificationsPlugin.swift`).
+/// Window-focus state lives in [XWindow], not here.
 abstract interface class XNotifications {
   /// Production singleton — talks to the native plugin via MethodChannel
   /// + EventChannel. Tests inject a fake `XNotifications` directly into
   /// their service-under-test rather than swap this field.
   static final XNotifications instance = MethodChannelXNotifications();
-
-  /// True when the host window currently holds key focus. Defaults to
-  /// `true` until the native side emits an initial focus event.
-  ValueListenable<bool> get windowFocused;
 
   /// `null` = OS hasn't been asked; `true`/`false` after the user has
   /// answered an authorization prompt.
@@ -49,9 +45,6 @@ class MethodChannelXNotifications implements XNotifications {
 
   static const _channel = MethodChannel('ux/notifications');
   static const _eventsChannel = EventChannel('ux/notifications/events');
-
-  @override
-  final ValueEmitter<bool> windowFocused = ValueEmitter(true);
 
   @override
   final ValueEmitter<bool?> authorized = ValueEmitter(null);
@@ -121,9 +114,6 @@ class MethodChannelXNotifications implements XNotifications {
     if (event is! Map) return;
     final m = event.cast<Object?, Object?>();
     switch (m['type']) {
-      case 'focus':
-        final f = m['focused'];
-        if (f is bool) windowFocused.value = f;
       case 'authorization':
         final g = m['granted'];
         if (g is bool) authorized.value = g;

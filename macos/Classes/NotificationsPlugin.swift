@@ -2,10 +2,10 @@ import AppKit
 import FlutterMacOS
 import UserNotifications
 
-/// `ux/notifications` + `ux/notifications/events`. Generic OS-notification
-/// + app-focus surface used by hosts that want native Notification Center
-/// entries on macOS. Domain-agnostic — the Dart caller decides when to
-/// emit and how to format the payload.
+/// `ux/notifications` + `ux/notifications/events`. Domain-agnostic native
+/// OS-notification surface: show / cancel via the method channel, tap +
+/// authorization changes via the event channel. Window-focus state lives
+/// in `WindowPlugin` (see `XWindow` on the Dart side).
 public class NotificationsPlugin: NSObject, NativePlugin, FlutterStreamHandler,
     UNUserNotificationCenterDelegate
 {
@@ -31,7 +31,6 @@ public class NotificationsPlugin: NSObject, NativePlugin, FlutterStreamHandler,
         eventChannel = events
 
         UNUserNotificationCenter.current().delegate = self
-        observeAppActivation()
     }
 
     // MARK: - FlutterStreamHandler
@@ -41,9 +40,6 @@ public class NotificationsPlugin: NSObject, NativePlugin, FlutterStreamHandler,
         eventSink events: @escaping FlutterEventSink
     ) -> FlutterError? {
         eventSink = events
-        // Seed the initial focus state so Dart-side starts in a deterministic
-        // value rather than the constructor default.
-        emit(["type": "focus", "focused": NSApp.isActive])
         return nil
     }
 
@@ -169,32 +165,6 @@ public class NotificationsPlugin: NSObject, NativePlugin, FlutterStreamHandler,
             }
             DispatchQueue.main.async { result(nil) }
         }
-    }
-
-    // MARK: - App-activation observers
-
-    private func observeAppActivation() {
-        let nc = NotificationCenter.default
-        nc.addObserver(
-            self,
-            selector: #selector(onDidBecomeActive),
-            name: NSApplication.didBecomeActiveNotification,
-            object: nil,
-        )
-        nc.addObserver(
-            self,
-            selector: #selector(onDidResignActive),
-            name: NSApplication.didResignActiveNotification,
-            object: nil,
-        )
-    }
-
-    @objc private func onDidBecomeActive() {
-        emit(["type": "focus", "focused": true])
-    }
-
-    @objc private func onDidResignActive() {
-        emit(["type": "focus", "focused": false])
     }
 
     // MARK: - UNUserNotificationCenterDelegate
