@@ -51,6 +51,53 @@ android {
     kotlinOptions {
         jvmTarget = '1.8'
     }
+
+    sourceSets {
+        main {
+            // libffmpegJNI.so is built by the buildFfmpegJni task into
+            // build/jniLibs/<abi>/ on first build (and any time the
+            // vendored ffmpeg_jni.cc / CMakeLists.txt change). Adding
+            // the directory here lets AGP package the .so into the
+            // AAR without committing native binaries to the repo.
+            jniLibs.srcDirs += "$buildDir/jniLibs"
+        }
+    }
+}
+
+// FFmpeg video decoder build — runs as part of the normal Android
+// build. On first build for a given checkout it clones Media3 + FFmpeg
+// into build/ffmpeg-work/ and produces libffmpegJNI.so per ABI (~30 min
+// for the FFmpeg static-lib step the first time, fast after). Gradle
+// UP-TO-DATE checking skips the task whenever the vendored JNI source
+// + CMakeLists are unchanged. See android/ffmpeg/README.md.
+def ffmpegSrcDir = file("$projectDir/ffmpeg")
+def ffmpegWorkDir = file("$buildDir/ffmpeg-work")
+def ffmpegOutDir = file("$buildDir/jniLibs")
+def ndkCmakeBin = "${android.sdkDirectory}/cmake/3.22.1/bin"
+def supportedAbis = ['armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64']
+
+task buildFfmpegJni(type: Exec) {
+    group = 'build'
+    description = 'Clones Media3 + FFmpeg if needed, builds libffmpegJNI.so per Android ABI'
+
+    inputs.file "$ffmpegSrcDir/ffmpeg_jni.cc"
+    inputs.file "$ffmpegSrcDir/CMakeLists.txt"
+    inputs.file "$ffmpegSrcDir/build_ffmpeg.sh"
+    supportedAbis.each { abi ->
+        outputs.file "$ffmpegOutDir/$abi/libffmpegJNI.so"
+    }
+
+    workingDir ffmpegSrcDir
+    commandLine 'bash', "$ffmpegSrcDir/build_ffmpeg.sh"
+    environment 'JNI_SRC', ffmpegSrcDir.absolutePath
+    environment 'NDK_PATH', android.ndkDirectory.absolutePath
+    environment 'CMAKE_PATH', ndkCmakeBin
+    environment 'OUTPUT_DIR', ffmpegOutDir.absolutePath
+    environment 'WORK_DIR', ffmpegWorkDir.absolutePath
+}
+
+afterEvaluate {
+    preBuild.dependsOn buildFfmpegJni
 }
 
 dependencies {

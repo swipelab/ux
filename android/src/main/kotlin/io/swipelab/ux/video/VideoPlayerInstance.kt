@@ -35,7 +35,6 @@ internal class VideoPlayerInstance(
   val textureId: Long get() = textureEntry.id()
 
   private val mainHandler = Handler(Looper.getMainLooper())
-  private val player: ExoPlayer = ExoPlayer.Builder(context, Renderers.build(context)).build()
 
   /// Wrapped around the Flutter `SurfaceTextureEntry`'s `SurfaceTexture`.
   /// We deliberately do NOT call `setDefaultBufferSize` here — that
@@ -76,6 +75,15 @@ internal class VideoPlayerInstance(
       textureEntry.surfaceTexture().setDefaultBufferSize(width, height)
     },
   )
+
+  private val player: ExoPlayer = ExoPlayer.Builder(
+    context,
+    // FFmpeg renderer calls this on its own thread before it builds
+    // an EGL window surface against the codec-input Surface. Sizes
+    // the compositor's INPUT SurfaceTexture so the EGL surface
+    // inherits matching buffer dimensions on creation.
+    Renderers.build(context) { w, h -> compositor.setInputSurfaceSize(w, h) },
+  ).build()
 
   private var disposed = false
   private var firstFrameRendered = false

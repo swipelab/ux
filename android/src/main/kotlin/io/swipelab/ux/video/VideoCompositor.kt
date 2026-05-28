@@ -77,7 +77,7 @@ internal class VideoCompositor(
   private var eglPbufferSurface: EGLSurface = EGL14.EGL_NO_SURFACE
   private var eglWindowSurface: EGLSurface = EGL14.EGL_NO_SURFACE
   private var inputTextureId: Int = 0
-  private var inputSurfaceTexture: SurfaceTexture? = null
+  @Volatile private var inputSurfaceTexture: SurfaceTexture? = null
   private var inputSurface: Surface? = null
 
   private var program: Int = 0
@@ -126,6 +126,23 @@ internal class VideoCompositor(
         teardown()
       }
     }
+  }
+
+  /// Sizes the codec-input SurfaceTexture's buffer dimensions. For
+  /// MediaCodec this is unnecessary — the codec writes via native
+  /// surface APIs that auto-size the SurfaceTexture buffer to the
+  /// encoded frame. For our FFmpeg path the codec writes via an EGL
+  /// window surface (created from this Surface), and eglCreateWindow
+  /// Surface inherits the SurfaceTexture's defaultBufferSize at
+  /// creation time and never re-queries. Without this hook the EGL
+  /// surface is created at whatever default the SurfaceTexture is in
+  /// (1×1 in practice) and the rendered quad is squashed to one pixel
+  /// that the downstream blit then stretches across the whole Flutter
+  /// texture — looks like a solid fill. Safe to call from any thread.
+  fun setInputSurfaceSize(width: Int, height: Int) {
+    if (disposed) return
+    if (width <= 0 || height <= 0) return
+    inputSurfaceTexture?.setDefaultBufferSize(width, height)
   }
 
   fun setDisplaySize(width: Int, height: Int) {
