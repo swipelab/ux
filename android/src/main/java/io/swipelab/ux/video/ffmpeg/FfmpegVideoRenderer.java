@@ -63,6 +63,7 @@ public final class FfmpegVideoRenderer extends DecoderVideoRenderer {
   private int surfaceWidth = -1;
   private int surfaceHeight = -1;
   private int surfaceRotation = 0;
+  private @C.VideoOutputMode int currentOutputMode = C.VIDEO_OUTPUT_MODE_NONE;
 
   public FfmpegVideoRenderer(
       long allowedJoiningTimeMs,
@@ -111,11 +112,41 @@ public final class FfmpegVideoRenderer extends DecoderVideoRenderer {
     if (!FfmpegLibrary.supportsFormat(mime)) {
       return RendererCapabilities.create(C.FORMAT_UNSUPPORTED_SUBTYPE);
     }
+    if (!supports8BitH264Profile(format.codecs)) {
+      // The YUV path only handles planar 4:2:0 8-bit (yuv420p /
+      // yuvj420p). High 10 / High 4:2:2 / High 4:4:4 / Main 10
+      // streams initialise libavcodec cleanly and only fail at the
+      // first receive — by then ExoPlayer has committed to this
+      // renderer and can't fall back. Reject upfront so the platform
+      // MediaCodec path (which often handles these via hardware) gets
+      // selected instead.
+      return RendererCapabilities.create(C.FORMAT_UNSUPPORTED_SUBTYPE);
+    }
     if (format.cryptoType != C.CRYPTO_TYPE_NONE) {
       return RendererCapabilities.create(C.FORMAT_UNSUPPORTED_DRM);
     }
     return RendererCapabilities.create(
         C.FORMAT_HANDLED, ADAPTIVE_SEAMLESS, TUNNELING_NOT_SUPPORTED);
+  }
+
+  /**
+   * Parses the H.264 profile from an avc1 codec string (e.g.
+   * {@code avc1.640028}). Accepts the 8-bit YUV 4:2:0 profiles —
+   * Baseline (0x42), Main (0x4D), Extended (0x58), High (0x64) —
+   * and rejects everything else. When the codec string is missing or
+   * malformed we permit it: the worst case is a hard fail at decode
+   * time, which is no worse than today's behaviour.
+   */
+  private static boolean supports8BitH264Profile(@Nullable String codecs) {
+    if (codecs == null) return true;
+    String lower = codecs.toLowerCase();
+    if (!lower.startsWith("avc1.") || lower.length() < 11) return true;
+    try {
+      int profile = Integer.parseInt(lower.substring(5, 7), 16);
+      return profile == 0x42 || profile == 0x4D || profile == 0x58 || profile == 0x64;
+    } catch (NumberFormatException e) {
+      return true;
+    }
   }
 
   @Override
@@ -134,16 +165,22 @@ public final class FfmpegVideoRenderer extends DecoderVideoRenderer {
 
   /// Pre-swap buffer dims for 90°/270° rotated streams so the
   /// {@code maybeNotifyVideoSizeChanged} call inside the base
-  /// renderOutputBuffer reports DISPLAY-orientation dimensions (matching
-  /// what MediaCodecVideoRenderer does for the hardware path). Without
-  /// this swap, portrait iOS videos report their coded landscape size
-  /// and the downstream compositor lays out the Flutter texture
-  /// rotated.
+  /// renderOutputBuffer reports DISPLAY-orientation dimensions
+  /// (matching what MediaCodecVideoRenderer does for the hardware
+  /// path). Without this swap, portrait iOS videos report their
+  /// coded landscape size and the downstream compositor lays out the
+  /// Flutter texture rotated. The swap is bounded to SURFACE_YUV
+  /// output mode because YUV-mode consumers
+  /// ({@code VideoDecoderOutputBufferRenderer.setOutputBuffer}) read
+  /// {@code buffer.width}/{@code height} expecting CODED dimensions
+  /// that match {@code yuvStrides[0]} — swapping there would walk
+  /// the chroma planes off the end of the allocation.
   @Override
   protected void renderOutputBuffer(
       VideoDecoderOutputBuffer outputBuffer, long presentationTimeUs, Format outputFormat)
       throws DecoderException {
-    if (outputFormat != null
+    if (currentOutputMode == C.VIDEO_OUTPUT_MODE_SURFACE_YUV
+        && outputFormat != null
         && (outputFormat.rotationDegrees == 90 || outputFormat.rotationDegrees == 270)
         && outputBuffer.width != outputBuffer.height) {
       int tmp = outputBuffer.width;
@@ -183,6 +220,7 @@ public final class FfmpegVideoRenderer extends DecoderVideoRenderer {
 
   @Override
   protected void setDecoderOutputMode(@C.VideoOutputMode int outputMode) {
+    currentOutputMode = outputMode;
     if (decoder != null) {
       decoder.setOutputMode(outputMode);
     }
@@ -204,6 +242,7 @@ public final class FfmpegVideoRenderer extends DecoderVideoRenderer {
   protected void onDisabled() {
     releaseOutputSurface();
     decoder = null;
+    currentOutputMode = C.VIDEO_OUTPUT_MODE_NONE;
     super.onDisabled();
   }
 

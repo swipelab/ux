@@ -98,8 +98,13 @@ final class FfmpegOutputSurface {
   // yuvj420p) and limited-range conversion. uSampleScale rescales the
   // horizontal texture coordinate to skip the right-side padding that
   // FFmpeg's SIMD-aligned linesize introduces (yStride >= width).
+  // highp on the fragment so the limited-range pre-scale
+  // `(y - 16/255) * (255/219)` doesn't quantize through 10-bit-ish
+  // mediump precision and band dark gradients on older Mali / Adreno
+  // parts. highp on a fragment shader is universally supported on
+  // GLES2 implementations Android ships post-2014.
   private static final String FRAGMENT_SHADER =
-      "precision mediump float;\n"
+      "precision highp float;\n"
       + "varying vec2 vTex;\n"
       + "uniform sampler2D uY;\n"
       + "uniform sampler2D uU;\n"
@@ -409,7 +414,11 @@ final class FfmpegOutputSurface {
         eglContext = EGL14.EGL_NO_CONTEXT;
       }
       EGL14.eglReleaseThread();
-      EGL14.eglTerminate(eglDisplay);
+      // NB: do NOT eglTerminate(EGL_DEFAULT_DISPLAY) here — the
+      // display is shared with VideoCompositor's EGL context, and
+      // tearing it down would silently kill the other consumer's
+      // surface. eglDestroyContext + eglReleaseThread is sufficient
+      // to clean up our share.
       eglDisplay = EGL14.EGL_NO_DISPLAY;
     }
     quadBuffer = null;

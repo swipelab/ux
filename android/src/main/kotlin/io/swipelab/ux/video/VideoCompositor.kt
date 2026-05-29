@@ -387,7 +387,11 @@ internal class VideoCompositor(
         EGL14.eglDestroyContext(eglDisplay, eglContext)
         eglContext = EGL14.EGL_NO_CONTEXT
       }
-      EGL14.eglTerminate(eglDisplay)
+      EGL14.eglReleaseThread()
+      // NB: do NOT eglTerminate(EGL_DEFAULT_DISPLAY) here — the
+      // display is shared with FfmpegOutputSurface's EGL context,
+      // and tearing it down would silently kill the other consumer's
+      // window surface. Per-context cleanup above is enough.
       eglDisplay = EGL14.EGL_NO_DISPLAY
     }
   }

@@ -26,6 +26,27 @@ import java.util.List;
  * directly onto libavcodec's avcodec_send_packet / avcodec_receive_frame
  * lifecycle so we can drain multiple reordered frames out of a single
  * input packet.
+ *
+ * <h3>Known limits</h3>
+ * <ul>
+ *   <li><b>EOS trailing frames.</b> Media3's {@code SimpleDecoder}
+ *   base class special-cases the end-of-stream input buffer and
+ *   never invokes our {@code decode()} for it, so libavcodec's
+ *   reorder buffer (~16 frames for iOS H.264 High@3.1) is never
+ *   drained with {@code avcodec_send_packet(NULL)}. The last ~500 ms
+ *   of a clip can be truncated on first play-through. Replay via
+ *   {@code REPEAT_MODE_ONE} or {@code seekTo(0)} hits
+ *   {@code avcodec_flush_buffers} which clears the queue, so the
+ *   second play and onwards are full-length.</li>
+ *   <li><b>Colorspace heuristic.</b> When the bitstream's
+ *   {@code colorspace}/{@code primaries}/{@code transfer} are all
+ *   unspecified we fall back to a size-based guess (BT.709 for >=
+ *   720p, BT.601 below). iPhone 6/7-era 1080p clips that recorded
+ *   BT.601 with unspecified metadata get mislabelled — skin tones
+ *   are slightly oversaturated. Modern iOS sets {@code bt709}
+ *   explicitly so trusting the bitstream is correct for almost
+ *   everything in circulation today.</li>
+ * </ul>
  */
 @UnstableApi
 public final class FfmpegVideoDecoder

@@ -116,16 +116,23 @@ static int transformError(int err) {
 // Decoder state held across JNI calls; the long handle returned by
 // videoInitialize is a pointer to one of these. AVCodecContext alone
 // isn't enough because we want a reusable AVFrame to avoid per-decode
-// allocation churn.
+// allocation churn, plus a pending_frame slot to cache frames pulled
+// during a send-side EAGAIN drain so the next receiveFrame call emits
+// them in order instead of losing them.
 struct UxFfmpegVideoContext {
   AVCodecContext* codec_ctx = nullptr;
   AVFrame* frame = nullptr;
+  AVFrame* pending_frame = nullptr;
+  bool has_pending = false;
 };
 
 static void releaseContext(UxFfmpegVideoContext* ctx) {
   if (!ctx) return;
   if (ctx->frame) {
     av_frame_free(&ctx->frame);
+  }
+  if (ctx->pending_frame) {
+    av_frame_free(&ctx->pending_frame);
   }
   if (ctx->codec_ctx) {
     avcodec_free_context(&ctx->codec_ctx);
@@ -223,11 +230,15 @@ VIDEO_DECODER_FUNC(jlong, ffmpegVideoInitialize, jstring codecName,
   }
 
   ctx->codec_ctx->thread_count = threads > 0 ? threads : 0;
-  // Slice threading only. FRAME threading buffers thread_count
-  // input frames before producing output; that extra latency
-  // pushes frames past their PTS deadline and ExoPlayer drops
-  // them, leaving render rate well below source rate. Slice
-  // threading gives parallelism without the input-side delay.
+  // FF_THREAD_SLICE only. FRAME threading buffers thread_count
+  // input frames before producing output, pushing decoded frames
+  // past their PTS deadline and causing ExoPlayer to drop them.
+  // Most iOS-captured H.264 emits one slice per frame, so slice
+  // threading degenerates to single-threaded; libavcodec's H.264
+  // decoder does not auto-promote SLICE-only to FRAME, so we
+  // accept modest throughput in exchange for low latency. 480p
+  // decode is ~2 ms per frame single-threaded on any modern ARM
+  // core anyway.
   ctx->codec_ctx->thread_type = FF_THREAD_SLICE;
   ctx->codec_ctx->err_recognition = AV_EF_IGNORE_ERR;
   // PTS values are passed in microseconds (Media3's native unit),
@@ -245,11 +256,13 @@ VIDEO_DECODER_FUNC(jlong, ffmpegVideoInitialize, jstring codecName,
   }
 
   ctx->frame = av_frame_alloc();
-  if (!ctx->frame) {
+  ctx->pending_frame = av_frame_alloc();
+  if (!ctx->frame || !ctx->pending_frame) {
     LOGE("ffmpegVideoInitialize: av_frame_alloc failed");
     releaseContext(ctx);
     return 0L;
   }
+  ctx->has_pending = false;
   return (jlong)ctx;
 }
 
@@ -265,6 +278,10 @@ VIDEO_DECODER_FUNC(jint, ffmpegVideoSendPacket, jlong handle, jobject inputData,
   }
   UxFfmpegVideoContext* ctx = (UxFfmpegVideoContext*)handle;
   uint8_t* buf = (uint8_t*)env->GetDirectBufferAddress(inputData);
+  if (!buf) {
+    LOGE("ffmpegVideoSendPacket: GetDirectBufferAddress null");
+    return VIDEO_DECODER_ERROR_OTHER;
+  }
   AVPacket* pkt = av_packet_alloc();
   if (!pkt) {
     LOGE("ffmpegVideoSendPacket: av_packet_alloc failed");
@@ -272,11 +289,34 @@ VIDEO_DECODER_FUNC(jint, ffmpegVideoSendPacket, jlong handle, jobject inputData,
   }
   pkt->data = buf;
   pkt->size = inputSize;
-  pkt->pts = (int64_t)ptsUs;
+  // Media3's C.TIME_UNSET is Long.MIN_VALUE which by happy coincidence
+  // equals libavcodec's AV_NOPTS_VALUE; gate it explicitly so a future
+  // Media3 sentinel change doesn't silently scramble PTS recovery.
+  pkt->pts = (ptsUs == INT64_MIN) ? AV_NOPTS_VALUE : (int64_t)ptsUs;
   pkt->dts = AV_NOPTS_VALUE;
+
+  // Per libavcodec contract, EAGAIN on send means the packet was NOT
+  // consumed and the caller must drain output before re-sending. We
+  // can't return EAGAIN to SimpleDecoder (its 1-in / 1-out model
+  // would consume the input buffer and lose the packet), so when the
+  // queue is full we drain one frame into pending_frame and retry.
+  // pending_frame is then emitted by the next ffmpegVideoReceiveFrame
+  // call before pulling a new one from libavcodec.
   int result = avcodec_send_packet(ctx->codec_ctx, pkt);
+  if (result == AVERROR(EAGAIN) && !ctx->has_pending) {
+    int recv = avcodec_receive_frame(ctx->codec_ctx, ctx->pending_frame);
+    if (recv == 0) {
+      ctx->has_pending = true;
+      result = avcodec_send_packet(ctx->codec_ctx, pkt);
+    } else {
+      logError("send-EAGAIN drain receive", recv);
+    }
+  }
   av_packet_free(&pkt);
   if (result == AVERROR(EAGAIN)) {
+    // Pending slot already full; drop this packet rather than block.
+    // Should never happen at steady state given numOutputBuffers=16.
+    LOGE("ffmpegVideoSendPacket: queue full and pending slot occupied");
     return VIDEO_DECODER_READ_AGAIN;
   }
   if (result < 0) {
@@ -298,16 +338,25 @@ VIDEO_DECODER_FUNC(jint, ffmpegVideoReceiveFrame, jlong handle,
     return VIDEO_DECODER_ERROR_OTHER;
   }
   UxFfmpegVideoContext* ctx = (UxFfmpegVideoContext*)handle;
-  int result = avcodec_receive_frame(ctx->codec_ctx, ctx->frame);
-  if (result == AVERROR(EAGAIN) || result == AVERROR_EOF) {
-    return VIDEO_DECODER_READ_AGAIN;
-  }
-  if (result < 0) {
-    logError("avcodec_receive_frame", result);
-    return transformError(result);
-  }
-
   AVFrame* f = ctx->frame;
+  // If a frame was drained into pending_frame to recover from a
+  // send-side EAGAIN, emit it before pulling the next one — keeps
+  // display-order continuity even when libavcodec backpressures the
+  // input queue.
+  if (ctx->has_pending) {
+    av_frame_unref(f);
+    av_frame_move_ref(f, ctx->pending_frame);
+    ctx->has_pending = false;
+  } else {
+    int result = avcodec_receive_frame(ctx->codec_ctx, f);
+    if (result == AVERROR(EAGAIN) || result == AVERROR_EOF) {
+      return VIDEO_DECODER_READ_AGAIN;
+    }
+    if (result < 0) {
+      logError("avcodec_receive_frame", result);
+      return transformError(result);
+    }
+  }
   // Only planar 4:2:0 YUV is supported by VideoDecoderOutputBuffer's
   // 3-plane layout. iOS H.264 produces YUV420P (limited range) or
   // YUVJ420P (full range); identical memory layout, only range
@@ -398,6 +447,10 @@ VIDEO_DECODER_FUNC(jint, ffmpegVideoReceiveFrame, jlong handle,
 VIDEO_DECODER_FUNC(void, ffmpegVideoFlush, jlong handle) {
   if (!handle) return;
   UxFfmpegVideoContext* ctx = (UxFfmpegVideoContext*)handle;
+  if (ctx->has_pending) {
+    av_frame_unref(ctx->pending_frame);
+    ctx->has_pending = false;
+  }
   avcodec_flush_buffers(ctx->codec_ctx);
 }
 
