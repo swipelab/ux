@@ -33,7 +33,10 @@ class XInsets with ChangeNotifier, WidgetsBindingObserver {
   EdgeInsets _system = EdgeInsets.zero;
   EdgeInsets _current = EdgeInsets.zero;
   EdgeInsets _from = EdgeInsets.zero;
-  Duration _start = Duration.zero;
+  // Lazy: captured on the first _tick of an animation so the value lives in
+  // the same time domain as the frame-callback `ts` parameter (epoch-adjusted),
+  // not the raw `currentSystemFrameTimeStamp` which is since-boot.
+  Duration? _start;
   bool _ticking = false;
   Duration? _nextAnimationDuration;
 
@@ -77,19 +80,18 @@ class XInsets with ChangeNotifier, WidgetsBindingObserver {
     }
     _from = _current;
     _animDuration = animDuration;
-    _start = SchedulerBinding.instance.currentSystemFrameTimeStamp;
-    if (!_ticking) {
-      _ticking = true;
-      SchedulerBinding.instance.scheduleFrameCallback(_tick);
-      SchedulerBinding.instance.scheduleFrame();
-    }
+    _start = null;
+    _ticking = true;
+    SchedulerBinding.instance.scheduleFrameCallback(_tick);
+    SchedulerBinding.instance.scheduleFrame();
   }
 
   Duration _animDuration = Duration.zero;
 
   void _tick(Duration ts) {
     if (!_ticking) return;
-    final dt = (ts - _start).inMicroseconds / _animDuration.inMicroseconds;
+    _start ??= ts;
+    final dt = (ts - _start!).inMicroseconds / _animDuration.inMicroseconds;
     final t = curve.transform(dt.clamp(0.0, 1.0));
     _current = EdgeInsets.lerp(_from, _system, t)!;
     notifyListeners();
@@ -98,6 +100,7 @@ class XInsets with ChangeNotifier, WidgetsBindingObserver {
       SchedulerBinding.instance.scheduleFrame();
     } else {
       _ticking = false;
+      _start = null;
     }
   }
 
