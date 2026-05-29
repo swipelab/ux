@@ -75,7 +75,7 @@ class ScreenStackState extends State<ScreenStack> with TickerProviderStateMixin 
   }
 
   void _updateCanPop() {
-    final canPop = _entries.any((e) => !e.removing);
+    final canPop = _entries.any((e) => !e.removing && e.page.canPop);
     if (canPop == _canPop) return;
     _canPop = canPop;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -258,7 +258,7 @@ class ScreenStackState extends State<ScreenStack> with TickerProviderStateMixin 
               ScreenBackHandler(
                 key: entry.key,
                 entry: entry,
-                enabled: entry == top && _canPop,
+                enabled: entry == top && _canPop && entry.page.canPop,
                 onPop: () => entry.page.pop(),
               ),
           ],

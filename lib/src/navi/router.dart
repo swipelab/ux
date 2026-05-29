@@ -77,7 +77,8 @@ class XRouter extends BackButtonDispatcher
   late final _overlayEntry = OverlayEntry(builder: _buildContent);
 
   bool get canPop {
-    if (stack.isNotEmpty) return true;
+    final top = stack.lastOrNull;
+    if (top != null) return top.canPop;
     if (home is ScreenShell) {
       for (final screen in (home as ScreenShell).pages) {
         if (!screen.popped) return true;
@@ -225,7 +226,7 @@ class XRouterBack extends RootBackButtonDispatcher {
     }
     if (router.home.handleBack()) return true;
     final page = router.stack.lastOrNull;
-    if (page != null) {
+    if (page != null && page.canPop) {
       page.pop();
       return true;
     }
