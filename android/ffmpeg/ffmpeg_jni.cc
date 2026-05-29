@@ -444,6 +444,26 @@ VIDEO_DECODER_FUNC(jint, ffmpegVideoReceiveFrame, jlong handle,
   return VIDEO_DECODER_SUCCESS;
 }
 
+// Signals libavcodec to flush its reorder buffer so the Java side can
+// pull the remaining frames out via successive ffmpegVideoReceiveFrame
+// calls. Used during end-of-stream drain: SimpleDecoder's EOS short-
+// circuit hides the EOS input from our decode() override, so without
+// this hook libavcodec's buffered tail (~16 frames for iOS H.264
+// High@3.1) would be lost on first play-through.
+VIDEO_DECODER_FUNC(jint, ffmpegVideoSignalEos, jlong handle) {
+  if (!handle) {
+    LOGE("ffmpegVideoSignalEos: null handle");
+    return VIDEO_DECODER_ERROR_OTHER;
+  }
+  UxFfmpegVideoContext* ctx = (UxFfmpegVideoContext*)handle;
+  int result = avcodec_send_packet(ctx->codec_ctx, nullptr);
+  if (result < 0 && result != AVERROR_EOF) {
+    logError("avcodec_send_packet(NULL)", result);
+    return transformError(result);
+  }
+  return VIDEO_DECODER_SUCCESS;
+}
+
 VIDEO_DECODER_FUNC(void, ffmpegVideoFlush, jlong handle) {
   if (!handle) return;
   UxFfmpegVideoContext* ctx = (UxFfmpegVideoContext*)handle;

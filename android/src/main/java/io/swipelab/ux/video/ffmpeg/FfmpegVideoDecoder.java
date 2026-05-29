@@ -15,7 +15,6 @@ import androidx.media3.common.Format;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.common.util.Util;
 import androidx.media3.decoder.DecoderInputBuffer;
-import androidx.media3.decoder.SimpleDecoder;
 import androidx.media3.decoder.VideoDecoderOutputBuffer;
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -29,15 +28,6 @@ import java.util.List;
  *
  * <h3>Known limits</h3>
  * <ul>
- *   <li><b>EOS trailing frames.</b> Media3's {@code SimpleDecoder}
- *   base class special-cases the end-of-stream input buffer and
- *   never invokes our {@code decode()} for it, so libavcodec's
- *   reorder buffer (~16 frames for iOS H.264 High@3.1) is never
- *   drained with {@code avcodec_send_packet(NULL)}. The last ~500 ms
- *   of a clip can be truncated on first play-through. Replay via
- *   {@code REPEAT_MODE_ONE} or {@code seekTo(0)} hits
- *   {@code avcodec_flush_buffers} which clears the queue, so the
- *   second play and onwards are full-length.</li>
  *   <li><b>Colorspace heuristic.</b> When the bitstream's
  *   {@code colorspace}/{@code primaries}/{@code transfer} are all
  *   unspecified we fall back to a size-based guess (BT.709 for >=
@@ -50,7 +40,7 @@ import java.util.List;
  */
 @UnstableApi
 public final class FfmpegVideoDecoder
-    extends SimpleDecoder<
+    extends FfmpegSimpleDecoder<
         DecoderInputBuffer, VideoDecoderOutputBuffer, FfmpegDecoderException> {
 
   // Mirrored from ffmpeg_jni.cc.
@@ -165,6 +155,29 @@ public final class FfmpegVideoDecoder
     ffmpegVideoRelease(nativeContext);
   }
 
+  @Override
+  protected void signalEndOfInput() {
+    int result = ffmpegVideoSignalEos(nativeContext);
+    if (result != VIDEO_DECODER_SUCCESS) {
+      throw new RuntimeException("ffmpegVideoSignalEos failed: " + result);
+    }
+  }
+
+  @Override
+  protected int drainAtEndOfStream(VideoDecoderOutputBuffer outputBuffer) {
+    outputBuffer.init(0, outputMode, /* supplementalData= */ null);
+    int result = ffmpegVideoReceiveFrame(nativeContext, outputBuffer);
+    if (result == VIDEO_DECODER_SUCCESS) {
+      return DRAIN_PRODUCED_FRAME;
+    }
+    if (result == VIDEO_DECODER_READ_AGAIN) {
+      // libavcodec returned EAGAIN or EOF after the NULL packet —
+      // reorder buffer is empty, drain is complete.
+      return DRAIN_DONE;
+    }
+    return DRAIN_ERROR;
+  }
+
   public void setOutputMode(@C.VideoOutputMode int outputMode) {
     this.outputMode = outputMode;
   }
@@ -202,6 +215,8 @@ public final class FfmpegVideoDecoder
       long context, ByteBuffer inputData, int inputSize, long ptsUs);
 
   private native int ffmpegVideoReceiveFrame(long context, VideoDecoderOutputBuffer outputBuffer);
+
+  private native int ffmpegVideoSignalEos(long context);
 
   private native void ffmpegVideoFlush(long context);
 
