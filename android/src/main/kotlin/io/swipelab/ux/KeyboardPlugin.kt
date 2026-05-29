@@ -151,13 +151,25 @@ class KeyboardPlugin : NativePlugin, MethodChannel.MethodCallHandler {
     private fun publishImeHeight(view: android.view.View, insets: WindowInsets) {
         val density = view.resources.displayMetrics.density
         val imePx: Int = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // TODO: on devices where a fixed nav bar stacks below the IME
+            // (e.g. HarmonyOS R+ with 3-button nav), Type.ime().bottom may
+            // exclude the nav-bar strip — same shape as the pre-R bug below.
+            // Verify when an R+ Huawei device is available; if confirmed,
+            // add Type.navigationBars() when the IME is visible.
             insets.getInsets(WindowInsets.Type.ime()).bottom
         } else {
-            // systemWindowInsetBottom = nav bar + IME; stableInsetBottom = nav
-            // bar only (stable insets exclude things that animate in/out like
-            // the IME). The difference isolates IME height.
+            // Report the total bottom-occluded area when the IME is open, so
+            // callers can max(keyboard.height, viewPadding.bottom) without
+            // adding the safe-area inset separately — matching iOS, where the
+            // reported keyboard frame already covers the home-indicator strip.
+            //
+            // systemWindowInsetBottom = nav bar + IME (when open) or just nav bar
+            // stableInsetBottom       = nav bar (stable, doesn't animate in/out)
             @Suppress("DEPRECATION")
-            (insets.systemWindowInsetBottom - insets.stableInsetBottom).coerceAtLeast(0)
+            val systemBottom = insets.systemWindowInsetBottom
+            @Suppress("DEPRECATION")
+            val stableBottom = insets.stableInsetBottom
+            if (systemBottom > stableBottom) systemBottom else 0
         }
         val height = imePx.toDouble() / density
 
