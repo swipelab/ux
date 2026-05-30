@@ -1,6 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
   package="io.swipelab.ux">
 
+  <!-- NotificationsPlugin posts notifications on Android 13+. -->
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
   <application>
     <provider
       android:name="androidx.core.content.FileProvider"

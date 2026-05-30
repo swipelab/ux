@@ -19,6 +19,8 @@ class XPlugin : FlutterPlugin, ActivityAware {
         VideoPlayerPlugin(),
         CrashPlugin(),
         UrlPlugin(),
+        NotificationsPlugin(),
+        WindowPlugin(),
     )
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) =

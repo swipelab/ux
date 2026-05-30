@@ -1,6 +1,5 @@
-import 'dart:async';
-
-import 'package:flutter/foundation.dart' show ValueListenable;
+import 'package:flutter/foundation.dart'
+    show ValueListenable, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/services.dart';
 
 import '../core/emitter.dart';
@@ -17,21 +16,27 @@ abstract interface class XWindow {
 
   /// `true` when this app currently has user focus.
   ///
-  /// - macOS: tracks `NSApplication.didBecomeActiveNotification` /
-  ///   `didResignActiveNotification` via the native plugin.
-  /// - iOS / Android: no native plugin registers, so the emitter stays
-  ///   at its `true` default. That's correct because socket frames only
-  ///   reach the Dart isolate while the process is alive — by the time
-  ///   the OS suspends the app, deliveries have stopped.
+  /// - macOS: tracks `NSApplication` active / resign via the native plugin.
+  /// - Android: tracks app foreground / background via `ProcessLifecycleOwner`,
+  ///   so a backgrounded-but-alive process reports `false`.
+  /// - iOS: no native plugin registers, so the emitter stays at its `true`
+  ///   default.
   ValueListenable<bool> get focused;
 }
 
 class MethodChannelXWindow implements XWindow {
   MethodChannelXWindow() {
+    if (!_hasNativeHandler) return;
     _events.receiveBroadcastStream().listen(_onEvent, onError: (e, st) {
       _log.w('event channel error', error: e, stackTrace: st);
     });
   }
+
+  /// Only macOS and Android register a native stream handler for the events
+  /// channel; activating it elsewhere throws `MissingPluginException`.
+  static bool get _hasNativeHandler =>
+      defaultTargetPlatform == TargetPlatform.macOS ||
+      defaultTargetPlatform == TargetPlatform.android;
 
   static const _events = EventChannel('ux/window/events');
 

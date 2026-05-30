@@ -1,6 +1,7 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show ValueListenable;
+import 'package:flutter/foundation.dart'
+    show ValueListenable, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/services.dart';
 
 import '../core/emitter.dart';
@@ -9,9 +10,10 @@ import '../log.dart' show Log;
 final _log = Log.tag('notifications');
 
 /// OS-notification primitive. Domain-agnostic — the caller decides when
-/// to emit and how to format the payload. Implemented on macOS via
-/// `UNUserNotificationCenter` (see `macos/Classes/NotificationsPlugin.swift`).
-/// Window-focus state lives in [XWindow], not here.
+/// to emit and how to format the payload. Backed natively on macOS
+/// (`UNUserNotificationCenter`) and Android (`NotificationManagerCompat`);
+/// see the platform `NotificationsPlugin`. No handler on iOS, where calls
+/// no-op. Window-focus state lives in [XWindow], not here.
 abstract interface class XNotifications {
   /// Production singleton — talks to the native plugin via MethodChannel
   /// + EventChannel. Tests inject a fake `XNotifications` directly into
@@ -38,10 +40,17 @@ abstract interface class XNotifications {
 
 class MethodChannelXNotifications implements XNotifications {
   MethodChannelXNotifications() {
+    if (!_hasNativeHandler) return;
     _eventsChannel.receiveBroadcastStream().listen(_onEvent, onError: (e, st) {
       _log.w('event channel error', error: e, stackTrace: st);
     });
   }
+
+  /// Only macOS and Android register a native handler; activating the events
+  /// channel elsewhere throws `MissingPluginException`.
+  static bool get _hasNativeHandler =>
+      defaultTargetPlatform == TargetPlatform.macOS ||
+      defaultTargetPlatform == TargetPlatform.android;
 
   static const _channel = MethodChannel('ux/notifications');
   static const _eventsChannel = EventChannel('ux/notifications/events');
@@ -90,8 +99,7 @@ class MethodChannelXNotifications implements XNotifications {
   @override
   Future<void> cancelByThread(String threadId) async {
     try {
-      await _channel
-          .invokeMethod('cancelByThread', {'threadId': threadId});
+      await _channel.invokeMethod('cancelByThread', {'threadId': threadId});
     } on PlatformException catch (e) {
       _log.w('cancelByThread failed: ${e.message}');
     } on MissingPluginException {

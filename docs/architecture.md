@@ -24,7 +24,9 @@ Conventions:
 | `XCamera` — CameraX (Android) / AVCaptureSession (Apple) | [lib/src/camera/](../lib/src/camera/) | [android/src/main/kotlin/io/swipelab/ux/camera/](../android/src/main/kotlin/io/swipelab/ux/camera/) | [darwin/Camera/](../darwin/Camera/) |
 | `XScanner` — ZXing QR scanner (Android) / VNDetect (Apple) | [lib/src/scanner/](../lib/src/scanner/) | [android/src/main/kotlin/io/swipelab/ux/scanner/](../android/src/main/kotlin/io/swipelab/ux/scanner/) | [darwin/Scanner/](../darwin/Scanner/) |
 | `XVideoPlayer` — ExoPlayer (Android) / AVPlayer (Apple) | [lib/src/video/](../lib/src/video/) | [android/src/main/kotlin/io/swipelab/ux/video/](../android/src/main/kotlin/io/swipelab/ux/video/) | [darwin/Video/](../darwin/Video/) |
-| `XFile`, `XNotifications`, `XWindow`, navi — see source | [lib/src/](../lib/src/) | mixed | mixed |
+| `XNotifications` — OS notifications: show / cancel / tap / authorization | [lib/src/notifications/](../lib/src/notifications/) | [android/.../NotificationsPlugin.kt](../android/src/main/kotlin/io/swipelab/ux/NotificationsPlugin.kt) | [macos/Classes/NotificationsPlugin.swift](../macos/Classes/NotificationsPlugin.swift) (macOS only) |
+| `XWindow` — host focus state (`focused`) | [lib/src/window/](../lib/src/window/) | [android/.../WindowPlugin.kt](../android/src/main/kotlin/io/swipelab/ux/WindowPlugin.kt) | [macos/Classes/WindowPlugin.swift](../macos/Classes/WindowPlugin.swift) (macOS only) |
+| `XFile`, navi — see source | [lib/src/](../lib/src/) | mixed | mixed |
 
 ---
 
@@ -165,3 +167,29 @@ fallback needed — `AVFoundation` handles iOS-produced H.264 (and HEVC)
 directly without the DPB-cap / full-range quirks the Android platform
 decoders trip over. See
 [darwin/Video/VideoPlayerInstance.swift](../darwin/Video/VideoPlayerInstance.swift).
+
+## Notifications + window focus
+
+`XNotifications` and `XWindow` share a two-channel shape: a `MethodChannel`
+for commands and an `EventChannel` for native-pushed events. Each Dart
+constructor only subscribes to its `EventChannel` on platforms that
+register a native handler (`defaultTargetPlatform` gate) — otherwise
+activating the stream throws `MissingPluginException`, which Flutter
+reports straight to `FlutterError.onError`.
+
+Handler coverage:
+
+| | macOS | Android | iOS |
+|---|---|---|---|
+| `XWindow` (`ux/window/events`) | `NSApplication` active/resign | `ProcessLifecycleOwner` `ON_START`/`ON_STOP` | none — `focused` stays `true` |
+| `XNotifications` (`ux/notifications` + `…/events`) | `UNUserNotificationCenter` | `NotificationManagerCompat` + `POST_NOTIFICATIONS` | none |
+
+On Android the two are coupled: `XWindow.focused` flipping to `false`
+when the app backgrounds is what lets a consumer (Banlu's
+`MessageNotifier`) post a local notification for a live socket message
+while the process is alive but unfocused — the gap FCM intentionally
+skips for socket-connected devices. The notification's tap `PendingIntent`
+relaunches the app's launcher activity (resolved generically via
+`getLaunchIntentForPackage`, no app class hard-coded) carrying the `data`
+payload, which the plugin re-emits as a `tap` event; a tap that cold-starts
+the process is buffered until Dart subscribes.
