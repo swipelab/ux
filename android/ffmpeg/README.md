@@ -7,13 +7,34 @@ slotted ahead of `MediaCodecVideoRenderer` so iOS H.264 streams with
 deep DPB (`has_b_frames > 8`) and full-range YUV play on devices where
 the platform decoder fails (notably Huawei Mate 20 on EMUI 11).
 
+## Opt-in
+
+FFmpeg is **disabled by default** (it carries LGPL + H.264 patent
+obligations). A consuming app enables it with a flag in its `pubspec.yaml`:
+
+```yaml
+ux:
+  enable_ffmpeg: true
+```
+
+(or `-Pux.enable_ffmpeg=true` on the Gradle command line as a CI override).
+When disabled, no `libffmpegJNI.so` is built or packaged, `FfmpegLibrary
+.isAvailable()` returns false, the renderer is never added, and playback
+uses the platform MediaCodec decoders only.
+
+The pubspec flag is the **only** switch. The in-app LGPL license notice
+follows automatically: ux's build_runner builder ([lib/builder.dart](../../lib/builder.dart))
+reads `ux: enable_ffmpeg` from the app's pubspec and generates
+`kUxEnableFfmpeg` into the app's `app_info.g.dart`; the app gates
+`registerFfmpegLicense()` on that constant at startup. No `--dart-define`, no
+duplication — and the notice shows without needing to play a video.
+
 ## How it builds
 
-The native library is produced by the `:ux:buildFfmpegJni` Gradle task,
-wired as a dependency of `preBuild`. On any consumer build
-(`flutter build apk`, `./gradlew assembleRelease`, IDE sync) the task
-runs automatically; Gradle's UP-TO-DATE checking skips it when nothing
-relevant changed.
+When enabled, the native library is produced by the `:ux:buildFfmpegJni`
+Gradle task, wired as a dependency of `preBuild`. The task runs on a
+consumer build (`flutter build apk`, `./gradlew assembleRelease`, IDE
+sync); Gradle's UP-TO-DATE checking skips it when nothing relevant changed.
 
 What the task does:
 

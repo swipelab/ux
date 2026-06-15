@@ -20,7 +20,7 @@ dependencies:
   flutter:
     sdk: flutter
   matcher: ^0.12.16
-  build: ^2.4.0
+  build: '>=2.4.0 <5.0.0'
   clock: ^1.1.1
   ffi: ^2.1.0
 
@@ -39,3 +39,7 @@ flutter:
         pluginClass: XPlugin
       macos:
         pluginClass: XPlugin
+  assets:
+    # LGPL-2.1 text for the bundled FFmpeg software H.264 decoder
+    # (libffmpegJNI.so, Android only). Surfaced via registerFfmpegLicense().
+    - assets/licenses/ffmpeg_LGPL-2.1.txt

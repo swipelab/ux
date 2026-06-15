@@ -24,9 +24,59 @@ rootProject.allprojects {
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
 
+// FFmpeg software H.264 decoder — OPT-IN, disabled by default.
+//
+// The decoder (a fallback for devices whose hardware decoder fails) carries
+// LGPL + H.264 patent obligations, so it is only bundled when the consuming
+// app asks for it, via a flag in its pubspec.yaml:
+//
+//     ux:
+//       enable_ffmpeg: true
+//
+// (or -Pux.enable_ffmpeg=true on the Gradle command line as a CI override).
+// When off: buildFfmpegJni is skipped, no libffmpegJNI.so is packaged,
+// FfmpegLibrary.isAvailable() returns false, the renderer is never added, and
+// playback uses the platform MediaCodec decoders only. See android/ffmpeg/README.md.
+//
+// This pubspec flag is the only switch: ux's build_runner builder also reads
+// `ux: enable_ffmpeg` and generates a `kUxEnableFfmpeg` constant the app uses
+// to register the LGPL license notice — no --dart-define needed.
+def ffmpegEnabled = {
+    // CI / command-line override takes precedence over the pubspec flag.
+    def prop = project.findProperty('ux.enable_ffmpeg')
+    if (prop != null) return prop.toString().trim().equalsIgnoreCase('true')
+
+    // rootProject is the consuming app's android/ project; its pubspec.yaml
+    // sits one directory up. Match a top-level `ux:` block (not the indented
+    // `ux:` dependency entry) and its nested `enable_ffmpeg:` value.
+    def pubspec = new File(rootProject.projectDir.parentFile, 'pubspec.yaml')
+    if (!pubspec.exists()) return false
+    boolean inUxBlock = false
+    boolean enabled = false
+    pubspec.eachLine { raw ->
+        def hash = raw.indexOf('#')
+        def line = hash >= 0 ? raw.substring(0, hash) : raw
+        if (line.trim().isEmpty()) return
+        if (!Character.isWhitespace(line.charAt(0))) {
+            // A new top-level key: we're in the config block only if it's `ux:`.
+            inUxBlock = line.trim().startsWith('ux:')
+        } else if (inUxBlock) {
+            def t = line.trim()
+            if (t.startsWith('enable_ffmpeg:')) {
+                enabled = t.substring('enable_ffmpeg:'.length()).trim().equalsIgnoreCase('true')
+            }
+        }
+    }
+    return enabled
+}()
+
 android {
     namespace 'io.swipelab.ux'
-    compileSdk 34
+    // media3 1.9.2 requires compileSdk >= 35; match the app/Flutter default (36).
+    compileSdk 36
+    // Match Flutter's pinned NDK (flutter_tools gradle_utils.dart) and the
+    // app; AGP 8.1's default NDK (25.x) isn't installed on dev machines.
+    ndkVersion '28.2.13676358'
 
     defaultConfig {
         minSdk 21
@@ -55,21 +105,23 @@ android {
     sourceSets {
         main {
             // libffmpegJNI.so is built by the buildFfmpegJni task into
-            // build/jniLibs/<abi>/ on first build (and any time the
-            // vendored ffmpeg_jni.cc / CMakeLists.txt change). Adding
-            // the directory here lets AGP package the .so into the
+            // build/jniLibs/<abi>/. Only reference it when FFmpeg is enabled,
+            // so a stale .so from a previous enabled build is not packaged
+            // into a now-disabled build. Lets AGP package the .so into the
             // AAR without committing native binaries to the repo.
-            jniLibs.srcDirs += "$buildDir/jniLibs"
+            if (ffmpegEnabled) {
+                jniLibs.srcDirs += "$buildDir/jniLibs"
+            }
         }
     }
 }
 
-// FFmpeg video decoder build — runs as part of the normal Android
-// build. On first build for a given checkout it clones Media3 + FFmpeg
-// into build/ffmpeg-work/ and produces libffmpegJNI.so per ABI (~30 min
-// for the FFmpeg static-lib step the first time, fast after). Gradle
-// UP-TO-DATE checking skips the task whenever the vendored JNI source
-// + CMakeLists are unchanged. See android/ffmpeg/README.md.
+// FFmpeg video decoder build (opt-in — see the `ffmpegEnabled` flag near the
+// top of this file and android/ffmpeg/README.md). When enabled, the first
+// build for a checkout clones Media3 + FFmpeg into build/ffmpeg-work/ and
+// produces libffmpegJNI.so per ABI (~30 min for the FFmpeg static-lib step the
+// first time, fast after); Gradle UP-TO-DATE checking skips it when the
+// vendored JNI source + CMakeLists are unchanged.
 def ffmpegSrcDir = file("$projectDir/ffmpeg")
 def ffmpegWorkDir = file("$buildDir/ffmpeg-work")
 def ffmpegOutDir = file("$buildDir/jniLibs")
@@ -97,7 +149,13 @@ task buildFfmpegJni(type: Exec) {
 }
 
 afterEvaluate {
-    preBuild.dependsOn buildFfmpegJni
+    if (ffmpegEnabled) {
+        preBuild.dependsOn buildFfmpegJni
+        logger.lifecycle("ux: FFmpeg software H.264 decoder ENABLED (ux: enable_ffmpeg: true).")
+    } else {
+        logger.lifecycle("ux: FFmpeg software H.264 decoder disabled (default). " +
+            "Add 'ux:\\n  enable_ffmpeg: true' to the app pubspec.yaml to bundle it.")
+    }
 }
 
 dependencies {

@@ -22,6 +22,8 @@ class _AppInfoBuilder implements Builder {
     final buildNumber =
         plus < 0 ? 0 : int.tryParse(combined.substring(plus + 1)) ?? 0;
 
+    final enableFfmpeg = _readUxFlag(raw, 'enable_ffmpeg');
+
     await buildStep.writeAsString(
       AssetId(pkg, 'lib/app_info.g.dart'),
       '''
@@ -29,7 +31,35 @@ class _AppInfoBuilder implements Builder {
 import 'package:ux/ux.dart';
 
 const kAppInfo = AppInfo(version: '$version', buildNumber: $buildNumber);
+
+/// Mirrors the app's `ux: enable_ffmpeg` pubspec setting as a compile-time
+/// constant. Gate FFmpeg-dependent code (e.g. registerFfmpegLicense()) on
+/// this — pubspec stays the single source of truth.
+const kUxEnableFfmpeg = $enableFfmpeg;
 ''',
     );
+  }
+
+  /// Reads a boolean under the top-level `ux:` mapping, e.g. `ux: { $key: ... }`.
+  /// Scans manually (no YAML dep) and ignores the indented `ux:` dependency
+  /// entry by only entering the block on a non-indented `ux:` line.
+  static bool _readUxFlag(String pubspec, String key) {
+    var inUxBlock = false;
+    var enabled = false;
+    for (final rawLine in pubspec.split('\n')) {
+      final hash = rawLine.indexOf('#');
+      final line = hash >= 0 ? rawLine.substring(0, hash) : rawLine;
+      if (line.trim().isEmpty) continue;
+      final indented = line.startsWith(' ') || line.startsWith('\t');
+      if (!indented) {
+        inUxBlock = line.trimRight() == 'ux:' || line.startsWith('ux:');
+      } else if (inUxBlock) {
+        final t = line.trim();
+        if (t.startsWith('$key:')) {
+          enabled = t.substring(key.length + 1).trim().toLowerCase() == 'true';
+        }
+      }
+    }
+    return enabled;
   }
 }

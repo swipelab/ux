@@ -130,17 +130,26 @@ class XVideoPlayerValue {
 
 /// Owns one native video-player session. The surface mirrors the
 /// subset of `package:video_player`'s `VideoPlayerController` the app
-/// currently uses — only the `.file(...)` constructor, the standard
-/// playback controls, and the `value` getters compose / gallery /
-/// outgoing-media read.
+/// currently uses — the `.file(...)` / `.network(...)` constructors, the
+/// standard playback controls, and the `value` getters compose /
+/// gallery / outgoing-media read.
 ///
 /// Lifecycle: construct → [initialize] → use → [dispose]. After
 /// [dispose] every other method throws [XVideoPlayerException("disposed")].
 class XVideoPlayerController extends ChangeNotifier
     implements ValueListenable<XVideoPlayerValue> {
-  XVideoPlayerController.file(io.File file) : _file = file;
+  /// Play a local file.
+  XVideoPlayerController.file(io.File file) : _uri = 'file://${file.path}';
 
-  final io.File _file;
+  /// Stream from a network URL. The native side hands the URI straight
+  /// to Media3 (Android, `MediaItem.fromUri`) / `AVURLAsset` (Apple),
+  /// both of which stream http(s) natively — no extra setup.
+  XVideoPlayerController.network(Uri uri) : _uri = uri.toString();
+
+  /// Fully-qualified source URI handed to the native side at
+  /// [initialize]. `file://...` for [XVideoPlayerController.file], the
+  /// raw URL for [XVideoPlayerController.network].
+  final String _uri;
 
   XVideoPlayerValue _value = XVideoPlayerValue.uninitialized;
 
@@ -185,7 +194,7 @@ class XVideoPlayerController extends ChangeNotifier
   Future<void> _initInternal() async {
     try {
       final result = await XVideoPlayerBackend.instance.create(
-        uri: 'file://${_file.path}',
+        uri: _uri,
       );
       _handle = result.handle;
       _textureId = result.textureId;

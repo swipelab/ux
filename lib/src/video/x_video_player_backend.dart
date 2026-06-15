@@ -16,8 +16,9 @@ abstract class XVideoPlayerBackend {
   /// Swap to inject a fake before any UI code mounts a controller.
   static XVideoPlayerBackend instance = MethodChannelXVideoPlayerBackend();
 
-  /// Allocate a native player instance bound to [uri] (currently always
-  /// `file://...`). Returns the handle and, on Apple platforms, the
+  /// Allocate a native player instance bound to [uri] (`file://...` for
+  /// local playback, or an http(s) URL for network streaming). Returns
+  /// the handle and, on Apple platforms, the
   /// Flutter texture id; Android returns `textureId: null` because the
   /// render path is a platform view that takes the handle as creation
   /// params.
