@@ -1,4 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  FileProvider roots for XFiles.open / share. `getUriForFile` only succeeds for
+  a path under one of these entries.
+
+  COUPLING: the `files/` entries mirror the consumer app's cache-dir layout. In
+  banlu that is `FileService._appCacheSubdir` ('files') under
+  `getApplicationCacheDirectory()` — cached files live at
+  `<appCache>/files/<fileId>/<name>`. If that subdir name changes here OR there,
+  every Android open/share of a cached file throws IllegalArgumentException
+  ("file outside FileProvider paths"). Keep the two in sync.
+-->
 <paths>
   <cache-path name="ux_share" path="ux_share/" />
   <external-cache-path name="ux_share_ext" path="ux_share/" />

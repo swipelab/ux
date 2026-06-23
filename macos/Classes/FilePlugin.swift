@@ -311,23 +311,56 @@ public class FilePlugin: NSObject, NativePlugin {
         }
         let bookmarkData = (args["bookmark"] as? FlutterStandardTypedData)?.data
 
-        withScope(path: path, bookmark: bookmarkData) { url in
-            // Prefer in-app Quick Look (keeps the host app in the foreground).
-            // Fall back to NSWorkspace.open if there's no window to host the panel.
-            if let flutterView = XWindow.flutterView,
-               let window = flutterView.window,
-               let panel = QLPreviewPanel.shared() {
-                let responder = XQLPreviewResponder(url: url, window: window)
-                flutterView.addSubview(responder)
-                window.makeFirstResponder(responder)
-                panel.updateController()
-                panel.makeKeyAndOrderFront(nil)
-                result(true)
-                return
-            }
+        // Quick Look reads the file lazily — after this method returns — so the
+        // security scope must be held for the panel's lifetime, NOT just a
+        // synchronous `withScope` span (whose `defer` would release it before
+        // the panel ever reads, leaving a sandboxed file blank). Resolve and
+        // start scope here, then hand ownership to the responder which releases
+        // on deinit (matching the iOS QL handler).
+        let (url, scoped) = resolveScoped(path: path, bookmark: bookmarkData)
 
-            result(NSWorkspace.shared.open(url))
+        // Prefer in-app Quick Look (keeps the host app in the foreground).
+        // Fall back to NSWorkspace.open if there's no window to host the panel.
+        if let flutterView = XWindow.flutterView,
+           let window = flutterView.window,
+           let panel = QLPreviewPanel.shared() {
+            let responder = XQLPreviewResponder(url: url, window: window, scoped: scoped)
+            flutterView.addSubview(responder)
+            window.makeFirstResponder(responder)
+            panel.updateController()
+            panel.makeKeyAndOrderFront(nil)
+            result(true)
+            return
         }
+
+        // No host window → hand off to the default app. A user-initiated open
+        // grants the launched app its own access, so release our scope once the
+        // open call returns.
+        let opened = NSWorkspace.shared.open(url)
+        if scoped { url.stopAccessingSecurityScopedResource() }
+        result(opened)
+    }
+
+    /// Resolves [path]/[bookmark] to a URL and, for a security-scoped bookmark,
+    /// starts access. Returns the URL and whether scope was started — the
+    /// caller owns the matching `stopAccessingSecurityScopedResource()`. Unlike
+    /// `withScope`, it does NOT auto-release, so the scope can outlive this call
+    /// for a lazily-read consumer (the Quick Look panel).
+    private func resolveScoped(path: String, bookmark: Data?) -> (URL, Bool) {
+        guard let bookmark = bookmark else {
+            return (URL(fileURLWithPath: path), false)
+        }
+        var stale = false
+        guard let url = try? URL(
+            resolvingBookmarkData: bookmark,
+            options: .withSecurityScope,
+            relativeTo: nil,
+            bookmarkDataIsStale: &stale,
+        ) else {
+            return (URL(fileURLWithPath: path), false)
+        }
+        let started = url.startAccessingSecurityScopedResource()
+        return (url, started)
     }
 }
 
@@ -346,17 +379,26 @@ fileprivate func mimeFromExtension(_ ext: String) -> String? {
 
 private final class XQLPreviewResponder: NSView, QLPreviewPanelDataSource {
     let url: URL
+    private let scoped: Bool
     private weak var previousFirstResponder: NSResponder?
     private weak var previousWindow: NSWindow?
 
-    init(url: URL, window: NSWindow) {
+    init(url: URL, window: NSWindow, scoped: Bool) {
         self.url = url
+        self.scoped = scoped
         self.previousWindow = window
         self.previousFirstResponder = window.firstResponder
         super.init(frame: .zero)
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    deinit {
+        // Security scope was started in `handleOpen` and held for the panel's
+        // lifetime; release it once the responder (and thus the preview
+        // session) is torn down.
+        if scoped { url.stopAccessingSecurityScopedResource() }
+    }
 
     override var acceptsFirstResponder: Bool { true }
 

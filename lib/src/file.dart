@@ -49,6 +49,7 @@ class XPickedFile {
     this.mimeType,
     this.size,
     this.bookmark,
+    this.isTemporaryCopy = false,
   });
 
   final String path;
@@ -60,6 +61,16 @@ class XPickedFile {
   /// [path] so future opens can re-acquire access. Null on platforms that
   /// don't need it (or when the platform supplied no bookmark).
   final Uint8List? bookmark;
+
+  /// True when [path] is an app-owned temp copy the platform made for us
+  /// rather than a durable user-chosen location: the Android SAF picker
+  /// stream-copies a `content://` source into the app cache (since `dart:io`
+  /// can't open content URIs). Callers should treat such a source as
+  /// ephemeral — e.g. promote its bytes into a managed cache after upload
+  /// instead of referencing the temp in place (it is cleared by the OS and
+  /// isn't externally openable on Android). False for macOS/iOS/desktop picks,
+  /// which return the user's real file.
+  final bool isTemporaryCopy;
 }
 
 class XFiles {
@@ -186,6 +197,7 @@ class XFiles {
       mimeType: result['mimeType'] as String?,
       size: (result['size'] as num?)?.toInt(),
       bookmark: result['bookmark'] as Uint8List?,
+      isTemporaryCopy: result['isTemporaryCopy'] as bool? ?? false,
     );
   }
 

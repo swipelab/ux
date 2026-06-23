@@ -245,6 +245,12 @@ class FilePlugin : NativePlugin, MethodChannel.MethodCallHandler,
             "name" to displayName,
             "mimeType" to mimeType,
             "size" to (size ?: copied),
+            // This `path` is an app-owned temp copy under cacheDir/ux_pick (an
+            // SAF content:// source can't be opened by dart:io directly). The
+            // Dart side treats such a source as ephemeral — promoting its bytes
+            // into a managed cache after upload rather than referencing the
+            // soon-cleared, non-externally-openable temp in place.
+            "isTemporaryCopy" to true,
             // The "bookmark" on Android is the original SAF URI as UTF-8
             // bytes — kept for symmetry with macOS/iOS scoped bookmarks
             // and so callers can re-resolve the source if a future code
