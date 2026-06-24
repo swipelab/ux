@@ -14,6 +14,7 @@ public class XPlugin: NSObject, FlutterPlugin {
             UrlPlugin(),
             NotificationsPlugin(),
             WindowPlugin(),
+            DropPlugin(),
         ]
         for plugin in plugins {
             plugin.register(with: registrar)

@@ -40,6 +40,10 @@ CMD
   s.source_files     = 'Classes/**/*.{swift,m}'
   s.frameworks       = ['AVFoundation', 'CoreMedia', 'CoreVideo']
   s.dependency 'FlutterMacOS'
+  # Folder drag-drop zips a dropped directory for upload with progress +
+  # cancellation (DropPlugin.zipForUpload); ZIPFoundation's
+  # `FileManager.zipItem(progress:)` is the only piece needing a third-party pod.
+  s.dependency 'ZIPFoundation'
   s.osx.deployment_target = '10.15'
   s.swift_version = '5.0'
 end
