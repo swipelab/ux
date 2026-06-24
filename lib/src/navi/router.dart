@@ -366,10 +366,12 @@ class XApp extends StatelessWidget {
                       child: Actions(
                         actions: WidgetsApp.defaultActions,
                         child: DefaultTextEditingShortcuts(
-                          child: Router(
-                            routeInformationParser: router.routeParser,
-                            routerDelegate: router.delegate,
-                            backButtonDispatcher: router.backDispatcher,
+                          child: _InspectorScope(
+                            child: Router(
+                              routeInformationParser: router.routeParser,
+                              routerDelegate: router.delegate,
+                              backButtonDispatcher: router.backDispatcher,
+                            ),
                           ),
                         ),
                       ),
@@ -381,6 +383,59 @@ class XApp extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Inserts a [WidgetInspector] when DevTools' "select widget" mode is active.
+///
+/// [XApp] has no [WidgetsApp]/[MaterialApp], so nothing in the tree responds to
+/// the inspector override flag — on-device tap-to-select (and the constraint
+/// readout it drives) silently does nothing. This mirrors what `WidgetsApp`
+/// does: listen to [WidgetsBinding.debugShowWidgetInspectorOverrideNotifier]
+/// and wrap the content in a [WidgetInspector] only while select mode is on
+/// (the inspector's [GestureDetector] joins every gesture arena, so it must
+/// not stay mounted when idle).
+///
+/// The child is kept under a stable [GlobalKey] so that inserting/removing the
+/// inspector *reparents* the subtree rather than rebuilding it. Without this,
+/// the toggle tears down and recreates the screen-stack [Overlay] below while
+/// the router still owns its [OverlayEntry]s — "entry already present in a
+/// different Overlay". `WidgetsApp` survives the same toggle for free because
+/// its `Navigator` carries an intrinsic [GlobalKey]; the screen-stack [Overlay]
+/// here has none, so we add the wrapper key explicitly.
+///
+/// Debug-only and inert until toggled. The on-device exit/move/tap-behavior
+/// buttons are left unbuilt (null) — Material's defaults rely on a private
+/// button widget we can't reuse — so select mode is toggled from DevTools.
+class _InspectorScope extends StatefulWidget {
+  const _InspectorScope({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_InspectorScope> createState() => _InspectorScopeState();
+}
+
+class _InspectorScopeState extends State<_InspectorScope> {
+  final GlobalKey _childKey = GlobalKey();
+
+  @override
+  Widget build(BuildContext context) {
+    if (!kDebugMode) return widget.child;
+    return ValueListenableBuilder<bool>(
+      valueListenable:
+          WidgetsBinding.instance.debugShowWidgetInspectorOverrideNotifier,
+      child: KeyedSubtree(key: _childKey, child: widget.child),
+      builder: (context, selecting, child) {
+        if (!selecting) return child!;
+        return WidgetInspector(
+          exitWidgetSelectionButtonBuilder: null,
+          moveExitWidgetSelectionButtonBuilder: null,
+          tapBehaviorButtonBuilder: null,
+          child: child!,
+        );
+      },
     );
   }
 }
