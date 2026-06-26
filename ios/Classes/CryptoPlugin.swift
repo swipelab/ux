@@ -87,21 +87,29 @@ public class CryptoPlugin: NSObject, NativePlugin {
     private static func readRange(path: String, pos: Int64, size: Int) throws -> [UInt8] {
         guard let fh = FileHandle(forReadingAtPath: path) else { throw CryptoError.shortRead }
         defer { try? fh.close() }
-        try fh.seek(toOffset: UInt64(pos))
+        // Throwing seek(toOffset:) needs macOS 10.15.4 / iOS 13.4; the pod
+        // targets 10.15, so fall back to the always-available legacy seek. The
+        // else branch's availability context is < 10.15.4, so the non-throwing
+        // seek(toFileOffset:) emits no deprecation warning.
+        if #available(macOS 10.15.4, iOS 13.4, *) {
+            try fh.seek(toOffset: UInt64(pos))
+        } else {
+            fh.seek(toFileOffset: UInt64(pos))
+        }
         let data = fh.readData(ofLength: size)
         guard data.count == size else { throw CryptoError.shortRead }
         return [UInt8](data)
     }
 
     /// AES-256-CTR over `plain`, aligned to byte `pos` of a continuous stream
-    /// from offset 0. The counter is seeded to block `pos>>4`; the `pos&15`
-    /// sub-block offset is handled by prepending that many zero bytes in a
-    /// single one-shot encrypt and dropping them (no cross-call cipher state).
+    /// from offset 0. The counter is seeded to block `pos>>4`; when `pos&15` is
+    /// non-zero the sub-block offset is handled by prepending that many zero
+    /// bytes in a single one-shot encrypt and dropping them (no cross-call
+    /// cipher state). The block-aligned case (`pos&15 == 0`) skips that buffer
+    /// and encrypts `plain` directly.
     private static func encrypt(key: [UInt8], iv: [UInt8], pos: Int64, plain: [UInt8]) throws -> [UInt8] {
         let counter = counterFor(iv, blocks: UInt64(pos >> 4))
         let byteOffset = Int(pos & 15)
-        var input = [UInt8](repeating: 0, count: byteOffset + plain.count)
-        if !plain.isEmpty { input.replaceSubrange(byteOffset..<input.count, with: plain) }
 
         var cryptor: CCCryptorRef?
         let status = counter.withUnsafeBytes { ivPtr in
@@ -124,15 +132,24 @@ public class CryptoPlugin: NSObject, NativePlugin {
         }
         defer { CCCryptorRelease(cryptor) }
 
-        var out = [UInt8](repeating: 0, count: input.count)
+        let src: [UInt8]
+        if byteOffset == 0 {
+            src = plain
+        } else {
+            var buf = [UInt8](repeating: 0, count: byteOffset + plain.count)
+            if !plain.isEmpty { buf.replaceSubrange(byteOffset..<buf.count, with: plain) }
+            src = buf
+        }
+
+        var out = [UInt8](repeating: 0, count: src.count)
         var moved = 0
-        let s2 = input.withUnsafeBytes { inPtr in
+        let s2 = src.withUnsafeBytes { inPtr in
             out.withUnsafeMutableBytes { outPtr in
-                CCCryptorUpdate(cryptor, inPtr.baseAddress, input.count,
+                CCCryptorUpdate(cryptor, inPtr.baseAddress, src.count,
                                 outPtr.baseAddress, outPtr.count, &moved)
             }
         }
-        guard s2 == CCCryptorStatus(kCCSuccess), moved == input.count else {
+        guard s2 == CCCryptorStatus(kCCSuccess), moved == src.count else {
             throw CryptoError.cryptorFailed
         }
         return byteOffset == 0 ? out : Array(out[byteOffset...])

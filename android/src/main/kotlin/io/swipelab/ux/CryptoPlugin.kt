@@ -9,6 +9,7 @@ import io.flutter.plugin.common.MethodChannel
 import java.io.RandomAccessFile
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
@@ -49,6 +50,9 @@ class CryptoPlugin : NativePlugin, MethodChannel.MethodCallHandler {
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         methodChannel?.setMethodCallHandler(null)
         methodChannel = null
+        // Stop accepting work; any in-flight call already running finishes. Safe
+        // because handleRange/handleBytes catch the post-shutdown rejection.
+        worker.shutdown()
     }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
@@ -73,13 +77,20 @@ class CryptoPlugin : NativePlugin, MethodChannel.MethodCallHandler {
         if (key.size != 32 || iv.size != 16) {
             return result.error("bad_args", "key must be 32 bytes, iv 16", null)
         }
-        worker.execute {
-            try {
-                val plain = readRange(path, pos, size)
-                reply(result, encrypt(key, iv, pos, plain))
-            } catch (e: Throwable) {
-                replyError(result, e)
+        // A rejected task (e.g. pool shut down on detach) would otherwise escape
+        // and leave `result` unsettled, hanging the Dart caller forever; reply
+        // with an error so it falls back to its isolate path.
+        try {
+            worker.execute {
+                try {
+                    val plain = readRange(path, pos, size)
+                    reply(result, encrypt(key, iv, pos, plain))
+                } catch (e: Throwable) {
+                    replyError(result, e)
+                }
             }
+        } catch (e: RejectedExecutionException) {
+            replyError(result, e)
         }
     }
 
@@ -94,18 +105,25 @@ class CryptoPlugin : NativePlugin, MethodChannel.MethodCallHandler {
         if (key.size != 32 || iv.size != 16) {
             return result.error("bad_args", "key must be 32 bytes, iv 16", null)
         }
-        worker.execute {
-            try {
-                reply(result, encrypt(key, iv, pos, data))
-            } catch (e: Throwable) {
-                replyError(result, e)
+        // See handleRange: guard against a rejected task to avoid hanging Dart.
+        try {
+            worker.execute {
+                try {
+                    reply(result, encrypt(key, iv, pos, data))
+                } catch (e: Throwable) {
+                    replyError(result, e)
+                }
             }
+        } catch (e: RejectedExecutionException) {
+            replyError(result, e)
         }
     }
 
     /// Reads `size` bytes from `path` starting at `pos` into one buffer. The
     /// part size is bounded by the BE's partitioning (tens of MB at most).
     private fun readRange(path: String, pos: Long, size: Long): ByteArray {
+        // One buffer ⇒ one Int index; fail loudly rather than silently truncate.
+        require(size in 0..Int.MAX_VALUE.toLong()) { "part too large to read in one buffer: $size" }
         val n = size.toInt()
         val buf = ByteArray(n)
         RandomAccessFile(path, "r").use { raf ->
@@ -122,11 +140,12 @@ class CryptoPlugin : NativePlugin, MethodChannel.MethodCallHandler {
     }
 
     /// AES-256-CTR over `plain`, aligned to byte `pos` of a continuous stream
-    /// from offset 0. The counter is seeded to block `pos>>4`; the `pos&15`
-    /// sub-block offset is handled by prepending that many zero bytes to the
-    /// plaintext in a single one-shot encrypt and dropping them. One-shot (no
-    /// cross-call cipher state) means a provider that buffers partial blocks
-    /// can't desync the keystream — the offset trick is correct on any provider.
+    /// from offset 0. The counter is seeded to block `pos>>4`; when `pos&15` is
+    /// non-zero the sub-block offset is handled by prepending that many zero
+    /// bytes to the plaintext in a single one-shot encrypt and dropping them
+    /// (block-aligned `pos` skips that buffer and encrypts `plain` directly).
+    /// One-shot (no cross-call cipher state) means a provider that buffers
+    /// partial blocks can't desync the keystream — correct on any provider.
     private fun encrypt(key: ByteArray, iv: ByteArray, pos: Long, plain: ByteArray): ByteArray {
         val counter = counterFor(iv, pos shr 4)
         val byteOffset = (pos and 15L).toInt()
@@ -136,10 +155,12 @@ class CryptoPlugin : NativePlugin, MethodChannel.MethodCallHandler {
             providerLogged = true
             Log.i("UxCrypto", "AES/CTR provider=${cipher.provider?.name}")
         }
+        // Block-aligned (the common case): no prepend buffer, encrypt whole.
+        if (byteOffset == 0) return cipher.doFinal(plain)
         val input = ByteArray(byteOffset + plain.size)
         System.arraycopy(plain, 0, input, byteOffset, plain.size)
         val out = cipher.doFinal(input)
-        return if (byteOffset == 0) out else out.copyOfRange(byteOffset, out.size)
+        return out.copyOfRange(byteOffset, out.size)
     }
 
     /// `iv` (a 16-byte big-endian counter block) + `blocks`, carrying across all

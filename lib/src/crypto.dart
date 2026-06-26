@@ -20,7 +20,10 @@ class XCrypto {
 
   /// Whether a native handler ships on this platform. Web-safe (uses
   /// [defaultTargetPlatform], never `dart:io`) and cheap — it does not touch
-  /// the channel.
+  /// the channel. Note this returns true under `flutter test` on a macOS/iOS
+  /// host even though no plugin is registered there, so a call throws
+  /// [MissingPluginException] — callers must treat that as a fallback signal,
+  /// the same as any native error.
   static bool get isSupported {
     if (kIsWeb) return false;
     switch (defaultTargetPlatform) {
@@ -51,6 +54,9 @@ class XCrypto {
     required Uint8List key,
     required Uint8List iv,
   }) {
+    assert(key.length == 32, 'AES-256 key must be 32 bytes, got ${key.length}');
+    assert(iv.length == 16, 'CTR IV must be 16 bytes, got ${iv.length}');
+    assert(pos >= 0 && size >= 0, 'pos/size must be non-negative');
     if (!isSupported) return Future.value(null);
     return _channel.invokeMethod<Uint8List>('aesCtrRange', <String, Object?>{
       'path': path,
@@ -63,14 +69,17 @@ class XCrypto {
 
   /// Bytes-in / bytes-out variant of [aesCtrEncryptRange] — encrypts [data]
   /// directly instead of reading from disk. Used by the cross-engine parity
-  /// test and a startup self-check; production uploads use the range form so
-  /// the plaintext stays off the Dart heap.
+  /// test; production uploads use the range form so the plaintext stays off
+  /// the Dart heap.
   static Future<Uint8List?> aesCtrBytes({
     required Uint8List key,
     required Uint8List iv,
     required int pos,
     required Uint8List data,
   }) {
+    assert(key.length == 32, 'AES-256 key must be 32 bytes, got ${key.length}');
+    assert(iv.length == 16, 'CTR IV must be 16 bytes, got ${iv.length}');
+    assert(pos >= 0, 'pos must be non-negative');
     if (!isSupported) return Future.value(null);
     return _channel.invokeMethod<Uint8List>('aesCtrBytes', <String, Object?>{
       'key': key,
