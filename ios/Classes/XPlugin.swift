@@ -9,6 +9,7 @@ public class XPlugin: NSObject, FlutterPlugin {
             KeyboardPlugin(),
             SensorPlugin(),
             FilePlugin(),
+            CryptoPlugin(),
             ScannerPlugin(),
             ClipboardPlugin(),
             GalleryPlugin(),

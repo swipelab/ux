@@ -7,6 +7,7 @@ public class XPlugin: NSObject, FlutterPlugin {
     public static func register(with registrar: FlutterPluginRegistrar) {
         plugins = [
             FilePlugin(),
+            CryptoPlugin(),
             ClipboardPlugin(),
             GalleryPlugin(),
             CameraPlugin(),

@@ -12,6 +12,7 @@ class XPlugin : FlutterPlugin, ActivityAware {
         KeyboardPlugin(),
         SensorPlugin(),
         FilePlugin(),
+        CryptoPlugin(),
         ScannerPlugin(),
         ClipboardPlugin(),
         GalleryPlugin(),
