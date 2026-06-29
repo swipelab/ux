@@ -24,10 +24,15 @@
 **/doc/api/
 .dart_tool/
 .flutter-plugins
+.flutter-plugins-dependencies
 .packages
 .pub-cache/
 .pub/
 /build/
+# Example app: machine-generated, not version-controlled.
+pubspec.lock
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/Flutter/ephemeral/
 
 # Android related
 **/android/**/gradle-wrapper.jar
