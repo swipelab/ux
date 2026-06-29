@@ -80,6 +80,11 @@ android {
 
     defaultConfig {
         minSdk 21
+        // Ship keep-rules to the consuming app's R8 run. Without this, R8
+        // strips the native-only Media3 members the FFmpeg JNI resolves at
+        // JNI_OnLoad, disabling the software decoder in release builds. See
+        // consumer-rules.pro.
+        consumerProguardFiles 'consumer-rules.pro'
         externalNativeBuild {
             cmake {
                 cppFlags ""
