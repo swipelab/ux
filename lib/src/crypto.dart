@@ -1,18 +1,29 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+// The software fallback reads the file (dart:io) and runs the cipher on an
+// isolate; behind a conditional import so `crypto.dart` stays web-compilable
+// (web gets the stub, which throws — web has no native handler and no file-path
+// upload, so it never reaches the fallback).
+import 'crypto_range_stub.dart'
+    if (dart.library.io) 'crypto_range_io.dart' as range_fallback;
+
+// Re-export the pure-Dart primitive so consumers (and the cross-engine parity
+// tests) get the whole AES-CTR contract — hardware-or-fallback — from one place.
+export 'aes_ctr_dart.dart' show encryptChunk;
+
 /// AES-256-CTR backed by the platform's hardware-accelerated crypto — Android
 /// `javax.crypto` (Conscrypt/BoringSSL → ARMv8 AES instructions), Apple
-/// CommonCrypto. It mirrors, byte-for-byte, the app's pure-Dart `encryptChunk`:
-/// the bytes are encrypted as if a single continuous CTR stream whose initial
-/// counter block is [iv] had already processed [pos] plaintext bytes. CTR is
-/// symmetric, so the same call also decrypts.
+/// CommonCrypto — with a transparent pure-Dart fallback ([encryptChunk]) where
+/// no native handler ships (web / linux / windows / unit tests). The bytes are
+/// encrypted as if a single continuous CTR stream whose initial counter block
+/// is [iv] had already processed [pos] plaintext bytes; CTR is symmetric, so the
+/// same call also decrypts. Native and fallback are byte-for-byte identical —
+/// the cross-engine parity tests are the guard.
 ///
 /// The point is to keep a large attachment's encryption (100MB+ video) off the
-/// UI isolate *and* fast: the heavy AES runs on a native background thread and
-/// the Dart caller only awaits a [Future]. Where no native handler exists
-/// (web / linux / windows / unit tests) the methods return null and callers
-/// fall back to the Dart path.
+/// UI isolate *and* fast: hardware AES runs on a native background thread, the
+/// fallback on a spawned isolate, and the Dart caller only awaits a [Future].
 class XCrypto {
   XCrypto._();
 
@@ -43,28 +54,44 @@ class XCrypto {
   ///
   /// [key] must be 32 bytes (AES-256), [iv] 16 (the initial counter block).
   /// [pos] may be non-16-aligned (the backend partitions parts on arbitrary
-  /// offsets); the native side advances the counter by `pos >> 4` blocks and
-  /// discards `pos & 15` keystream bytes so the slice stays aligned with a
-  /// continuous stream from offset 0. Returns null when [isSupported] is false;
-  /// throws [PlatformException] on a native error (callers fall back to Dart).
-  static Future<Uint8List?> aesCtrEncryptRange({
+  /// offsets); the counter is advanced by `pos >> 4` blocks and `pos & 15`
+  /// keystream bytes discarded so the slice stays aligned with a continuous
+  /// stream from offset 0.
+  ///
+  /// Never returns null: when native hardware AES is unavailable or fails, it
+  /// falls back to reading the range and encrypting on a background isolate
+  /// ([range_fallback.encryptRangeFallback] → [encryptChunk]). The fallback
+  /// guards a short read (a truncated source fails loud, like the native side).
+  static Future<Uint8List> aesCtrEncryptRange({
     required String path,
     required int pos,
     required int size,
     required Uint8List key,
     required Uint8List iv,
-  }) {
+  }) async {
     assert(key.length == 32, 'AES-256 key must be 32 bytes, got ${key.length}');
     assert(iv.length == 16, 'CTR IV must be 16 bytes, got ${iv.length}');
     assert(pos >= 0 && size >= 0, 'pos/size must be non-negative');
-    if (!isSupported) return Future.value(null);
-    return _channel.invokeMethod<Uint8List>('aesCtrRange', <String, Object?>{
-      'path': path,
-      'pos': pos,
-      'size': size,
-      'key': key,
-      'iv': iv,
-    });
+    if (isSupported) {
+      try {
+        final native = await _channel
+            .invokeMethod<Uint8List>('aesCtrRange', <String, Object?>{
+          'path': path,
+          'pos': pos,
+          'size': size,
+          'key': key,
+          'iv': iv,
+        });
+        if (native != null) return native;
+      } catch (e) {
+        // A native error (PlatformException) or a host with no registered
+        // plugin (MissingPluginException under flutter test) — both fall back
+        // to the Dart path. Log it: a fallback on a device that SHOULD have
+        // hardware AES is the anomaly worth seeing.
+        debugPrint('ux/crypto: native aesCtrRange unavailable ($e); Dart fallback');
+      }
+    }
+    return range_fallback.encryptRangeFallback(path, pos, size, key, iv);
   }
 
   /// Bytes-in / bytes-out variant of [aesCtrEncryptRange] — encrypts [data]
