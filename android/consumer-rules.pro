@@ -19,3 +19,14 @@
 -keepclassmembers class androidx.media3.decoder.DecoderOutputBuffer {
     long timeUs;
 }
+
+# Media3 touches API-31-only framework types (android.media.metrics.*)
+# strictly behind `Util.SDK_INT >= 31` guards hosted in `...$Api31`-style
+# inner classes. R8's horizontal class merging can fold those guard
+# classes into always-loaded ones, making class-load-time resolution of
+# android.media.metrics.LogSessionId fatal on API < 31
+# (NoClassDefFoundError on Huawei/EMUI Android 10 the moment a codec
+# spins up). Keeping the guard classes as distinct entities disables the
+# merge; the SDK check then works as designed.
+-keep class androidx.media3.**$Api* { *; }
+-dontwarn android.media.metrics.LogSessionId
