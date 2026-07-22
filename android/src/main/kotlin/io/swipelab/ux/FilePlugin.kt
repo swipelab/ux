@@ -7,6 +7,8 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
@@ -74,6 +76,7 @@ class FilePlugin : NativePlugin, MethodChannel.MethodCallHandler,
             }
             "endScopedAccess" -> result.success(null)
             "videoThumbnail" -> handleVideoThumbnail(call, result)
+            "videoThumbnails" -> handleVideoThumbnails(call, result)
             else -> result.notImplemented()
         }
     }
@@ -299,6 +302,60 @@ class FilePlugin : NativePlugin, MethodChannel.MethodCallHandler,
         } finally {
             try { retriever.release() } catch (_: Throwable) {}
         }
+    }
+
+    /// Batch variant for the video trim scrubber: one native
+    /// round-trip for the whole thumbnail strip, decoded off the main
+    /// thread. Per-frame failures come back as null entries, in
+    /// `timestampsMs` order.
+    private fun handleVideoThumbnails(call: MethodCall, result: MethodChannel.Result) {
+        val path = call.argument<String>("path")
+            ?: return result.error("bad_args", "path is required", null)
+        val timestampsMs = call.argument<List<Number>>("timestampsMs")
+            ?: return result.error("bad_args", "timestampsMs is required", null)
+        val maxWidth = (call.argument<Number>("maxWidth") ?: 128).toInt()
+        val main = Handler(Looper.getMainLooper())
+
+        Thread {
+            val reply = ArrayList<Any?>(timestampsMs.size)
+            val retriever = MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(path)
+                for (ms in timestampsMs) {
+                    val entry: Map<String, Any?>? = try {
+                        val frame = retriever.getFrameAtTime(
+                            ms.toLong() * 1000L,
+                            MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
+                        )
+                        if (frame == null) {
+                            null
+                        } else {
+                            val scaled = scaleBitmap(frame, maxWidth)
+                            try {
+                                val baos = ByteArrayOutputStream()
+                                scaled.compress(Bitmap.CompressFormat.PNG, 100, baos)
+                                mapOf<String, Any?>(
+                                    "png" to baos.toByteArray(),
+                                    "width" to scaled.width,
+                                    "height" to scaled.height,
+                                )
+                            } finally {
+                                if (scaled !== frame) scaled.recycle()
+                                frame.recycle()
+                            }
+                        }
+                    } catch (_: Throwable) {
+                        null
+                    }
+                    reply.add(entry)
+                }
+                main.post { result.success(reply) }
+            } catch (e: Throwable) {
+                main.post { result.error("decode_failed", "could not open video: ${e.message}", null) }
+            } finally {
+                try { retriever.release() } catch (_: Throwable) {}
+            }
+        }.start()
     }
 
     /// Scales [bitmap] so its longer edge equals [maxWidth] while

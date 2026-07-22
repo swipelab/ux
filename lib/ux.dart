@@ -15,6 +15,7 @@ export 'src/camera/camera_backend.dart' show XCameraBackend, XCameraCreateResult
 export 'src/camera/camera_channel.dart' show MethodChannelXCameraBackend;
 export 'src/camera/camera_preview.dart';
 export 'src/video/ffmpeg_license.dart' show registerFfmpegLicense;
+export 'src/video/x_video_exporter.dart';
 export 'src/video/x_video_player.dart';
 export 'src/video/x_video_player_backend.dart' show XVideoPlayerBackend, XVideoPlayerCreateResult, XVideoPlayerMetadata, XVideoPlayerEvent, XVideoPlayerStateChanged, XVideoPlayerSizeChanged, XVideoPlayerCompleted, XVideoPlayerError;
 export 'src/video/x_video_player_channel.dart' show MethodChannelXVideoPlayerBackend;

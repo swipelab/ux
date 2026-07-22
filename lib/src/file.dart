@@ -118,7 +118,8 @@ class XFiles {
     try {
       return await body(resolvedPath);
     } finally {
-      await _channel.invokeMethod<void>('endScopedAccess', {'path': resolvedPath});
+      await _channel
+          .invokeMethod<void>('endScopedAccess', {'path': resolvedPath});
     }
   }
 
@@ -251,5 +252,37 @@ class XFiles {
     final height = (result['height'] as num?)?.toInt();
     if (bytes == null || width == null || height == null) return null;
     return XVideoThumbnail(pngBytes: bytes, width: width, height: height);
+  }
+
+  /// Extract several frames in one native round-trip — the strip of
+  /// thumbnails behind a video trim scrubber. Frames come back in
+  /// [timestampsMs] order; entries whose decode failed are null.
+  /// Timestamps land on the nearest keyframe (fast path on both
+  /// platforms), so neighbouring entries may repeat on sparse-keyframe
+  /// sources.
+  static Future<List<XVideoThumbnail?>> videoThumbnails({
+    required String path,
+    required List<int> timestampsMs,
+    int maxWidth = 128,
+  }) async {
+    final result = await _channel.invokeListMethod<Object?>(
+      'videoThumbnails',
+      <String, Object?>{
+        'path': path,
+        'timestampsMs': timestampsMs,
+        'maxWidth': maxWidth,
+      },
+    );
+    if (result == null) {
+      return List<XVideoThumbnail?>.filled(timestampsMs.length, null);
+    }
+    return result.map((entry) {
+      if (entry is! Map) return null;
+      final bytes = entry['png'] as Uint8List?;
+      final width = (entry['width'] as num?)?.toInt();
+      final height = (entry['height'] as num?)?.toInt();
+      if (bytes == null || width == null || height == null) return null;
+      return XVideoThumbnail(pngBytes: bytes, width: width, height: height);
+    }).toList();
   }
 }

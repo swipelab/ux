@@ -33,6 +33,7 @@ public class FilePlugin: NSObject, NativePlugin {
         case "beginScopedAccess":  handleBeginScopedAccess(call, result: result)
         case "endScopedAccess":    handleEndScopedAccess(call, result: result)
         case "videoThumbnail":     handleVideoThumbnail(call, result: result)
+        case "videoThumbnails":    handleVideoThumbnails(call, result: result)
         default:                   result(FlutterMethodNotImplemented)
         }
     }
@@ -83,6 +84,51 @@ public class FilePlugin: NSObject, NativePlugin {
                     ))
                 }
             }
+        }
+    }
+
+    /// Batch variant for the video trim scrubber: one native
+    /// round-trip for the whole thumbnail strip. Per-frame failures
+    /// come back as null entries, in `timestampsMs` order.
+    private func handleVideoThumbnails(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+        guard let args = call.arguments as? [String: Any],
+              let path = args["path"] as? String,
+              let timestampsMs = args["timestampsMs"] as? [NSNumber] else {
+            return result(FlutterError(code: "bad_args", message: "path and timestampsMs required", details: nil))
+        }
+        let maxWidth = (args["maxWidth"] as? NSNumber)?.intValue ?? 128
+
+        let url = URL(fileURLWithPath: path)
+        let asset = AVURLAsset(url: url)
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.appliesPreferredTrackTransform = true
+        generator.maximumSize = CGSize(width: CGFloat(maxWidth), height: 0)
+        generator.requestedTimeToleranceBefore = CMTime(value: 500, timescale: 1000)
+        generator.requestedTimeToleranceAfter  = CMTime(value: 500, timescale: 1000)
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            var reply: [Any] = []
+            for ms in timestampsMs {
+                do {
+                    let cgImage = try generator.copyCGImage(
+                        at: CMTime(value: ms.int64Value * 1000, timescale: 1_000_000),
+                        actualTime: nil,
+                    )
+                    let uiImage = UIImage(cgImage: cgImage)
+                    if let png = uiImage.pngData() {
+                        reply.append([
+                            "png": FlutterStandardTypedData(bytes: png),
+                            "width": Int(uiImage.size.width * uiImage.scale),
+                            "height": Int(uiImage.size.height * uiImage.scale),
+                        ] as [String: Any])
+                    } else {
+                        reply.append(NSNull())
+                    }
+                } catch {
+                    reply.append(NSNull())
+                }
+            }
+            DispatchQueue.main.async { result(reply) }
         }
     }
 

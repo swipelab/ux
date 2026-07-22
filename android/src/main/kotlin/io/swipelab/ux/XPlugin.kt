@@ -4,6 +4,7 @@ import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.swipelab.ux.camera.CameraPlugin
+import io.swipelab.ux.video.VideoExporterPlugin
 import io.swipelab.ux.video.VideoPlayerPlugin
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
@@ -18,6 +19,7 @@ class XPlugin : FlutterPlugin, ActivityAware {
         GalleryPlugin(),
         CameraPlugin(),
         VideoPlayerPlugin(),
+        VideoExporterPlugin(),
         CrashPlugin(),
         UrlPlugin(),
         NotificationsPlugin(),
