@@ -30,3 +30,13 @@
 # merge; the SDK check then works as designed.
 -keep class androidx.media3.**$Api* { *; }
 -dontwarn android.media.metrics.LogSessionId
+
+# The transformer module additionally threads LogSessionId through the
+# method signatures of ~20 top-level classes (Codec factories, asset
+# loaders, sample exporters — the editing-metrics plumbing), not just
+# `$Api*` guard classes. R8 merging/inlining across those classes makes
+# eagerly-loaded ones (e.g. SequenceAssetLoader) hard-fail verification
+# on API < 31 with NoClassDefFoundError for LogSessionId the moment an
+# export starts. Keep the package as shipped; it is small and only
+# reachable from XVideoExporter.
+-keep class androidx.media3.transformer.** { *; }
