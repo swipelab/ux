@@ -88,6 +88,7 @@ public class UxVideoExporterPlugin: NSObject, NativePlugin, FlutterStreamHandler
         let outWidth = (args["outWidth"] as? NSNumber)?.intValue
         let outHeight = (args["outHeight"] as? NSNumber)?.intValue
         let videoBitrate = (args["videoBitrate"] as? NSNumber)?.intValue
+        let overlayPath = args["overlayPath"] as? String
 
         result(nil)
 
@@ -131,6 +132,7 @@ public class UxVideoExporterPlugin: NSObject, NativePlugin, FlutterStreamHandler
                     compVideo: compVideo, sourceTransform: videoTrack.preferredTransform,
                     affine: transform, outWidth: outWidth, outHeight: outHeight,
                     videoBitrate: videoBitrate ?? 3_000_000, hasAudio: !removeAudio,
+                    overlayPath: overlayPath,
                     outPath: outPath, durationMs: durationMs)
             } else {
                 compVideo?.preferredTransform = videoTrack.preferredTransform
@@ -202,7 +204,7 @@ public class UxVideoExporterPlugin: NSObject, NativePlugin, FlutterStreamHandler
         sessionId: Int, composition: AVMutableComposition,
         compVideo: AVMutableCompositionTrack, sourceTransform: CGAffineTransform,
         affine: [Double], outWidth: Int, outHeight: Int, videoBitrate: Int,
-        hasAudio: Bool, outPath: String, durationMs: Int
+        hasAudio: Bool, overlayPath: String?, outPath: String, durationMs: Int
     ) {
         let outUrl = URL(fileURLWithPath: outPath)
         try? FileManager.default.removeItem(at: outUrl)
@@ -214,6 +216,15 @@ public class UxVideoExporterPlugin: NSObject, NativePlugin, FlutterStreamHandler
         let flutter = CGAffineTransform(
             a: affine[0], b: affine[3], c: affine[1], d: affine[4], tx: affine[2], ty: affine[5])
         let full = sourceTransform.concatenating(flutter)
+
+        // Paint-strokes overlay: a transparent PNG in upright source px.
+        // Pre-render it ONCE through the (upright-space) Flutter affine
+        // into the output canvas; the reading loop then just alpha-blends
+        // it over each already-transformed frame.
+        let overlayOut: CGImage? = overlayPath.flatMap { path in
+            Self.renderOverlay(path: path, affine: flutter,
+                               outWidth: outWidth, outHeight: outHeight)
+        }
 
         let videoComposition = AVMutableVideoComposition()
         videoComposition.renderSize = CGSize(width: outWidth, height: outHeight)
@@ -306,6 +317,10 @@ public class UxVideoExporterPlugin: NSObject, NativePlugin, FlutterStreamHandler
             while videoIn.isReadyForMoreMediaData {
                 if cancelled.value { videoIn.markAsFinished(); group.leave(); return }
                 if let buffer = videoOut.copyNextSampleBuffer() {
+                    if let overlayOut,
+                       let pixelBuffer = CMSampleBufferGetImageBuffer(buffer) {
+                        Self.blend(overlayOut, onto: pixelBuffer)
+                    }
                     let pts = CMSampleBufferGetPresentationTimeStamp(buffer).seconds
                     self.emit(["sessionId": sessionId, "type": "progress",
                                "value": min(pts / totalSeconds, 1.0)])
@@ -366,6 +381,51 @@ public class UxVideoExporterPlugin: NSObject, NativePlugin, FlutterStreamHandler
         }
         sessions[sessionId]?.cancel()
         result(nil)
+    }
+
+    /// Rasterise the source-space overlay PNG through the upright→output
+    /// [affine] into an output-sized RGBA image. The CG flips convert
+    /// between the affine's top-left y-down space and CG's bottom-left
+    /// y-up drawing space (outer flip), then keep the image itself
+    /// upright within that space (inner flip).
+    private static func renderOverlay(
+        path: String, affine: CGAffineTransform, outWidth: Int, outHeight: Int
+    ) -> CGImage? {
+        guard let provider = CGDataProvider(url: URL(fileURLWithPath: path) as CFURL),
+              let src = CGImage(
+                pngDataProviderSource: provider, decode: nil,
+                shouldInterpolate: true, intent: .defaultIntent),
+              let ctx = CGContext(
+                data: nil, width: outWidth, height: outHeight,
+                bitsPerComponent: 8, bytesPerRow: 0,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        ctx.interpolationQuality = .high
+        ctx.concatenate(CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: 0, ty: CGFloat(outHeight)))
+        ctx.concatenate(affine)
+        ctx.concatenate(CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: 0, ty: CGFloat(src.height)))
+        ctx.draw(src, in: CGRect(x: 0, y: 0, width: src.width, height: src.height))
+        return ctx.makeImage()
+    }
+
+    /// Alpha-blend the pre-rendered output-space [overlay] over a 32BGRA
+    /// frame buffer in place.
+    private static func blend(_ overlay: CGImage, onto pixelBuffer: CVPixelBuffer) {
+        CVPixelBufferLockBaseAddress(pixelBuffer, [])
+        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, []) }
+        guard let base = CVPixelBufferGetBaseAddress(pixelBuffer) else { return }
+        let width = CVPixelBufferGetWidth(pixelBuffer)
+        let height = CVPixelBufferGetHeight(pixelBuffer)
+        guard let ctx = CGContext(
+            data: base, width: width, height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: CVPixelBufferGetBytesPerRow(pixelBuffer),
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue
+                | CGBitmapInfo.byteOrder32Little.rawValue)
+        else { return }
+        ctx.draw(overlay, in: CGRect(x: 0, y: 0, width: width, height: height))
     }
 }
 

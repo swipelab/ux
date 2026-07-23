@@ -1,6 +1,7 @@
 package io.swipelab.ux.video
 
 import android.content.Context
+import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.media.MediaMetadataRetriever
 import android.os.Handler
@@ -10,7 +11,10 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.Size
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.effect.BitmapOverlay
 import androidx.media3.effect.MatrixTransformation
+import androidx.media3.effect.OverlayEffect
+import androidx.media3.effect.TextureOverlay
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.DefaultEncoderFactory
 import androidx.media3.transformer.EditedMediaItem
@@ -102,6 +106,7 @@ class VideoExporterPlugin :
     val outWidth = call.argument<Number>("outWidth")?.toInt()
     val outHeight = call.argument<Number>("outHeight")?.toInt()
     val videoBitrate = call.argument<Number>("videoBitrate")?.toInt()
+    val overlayPath = call.argument<String>("overlayPath")
     result.success(null)
 
     File(outPath).delete()
@@ -133,7 +138,25 @@ class VideoExporterPlugin :
 
         override fun getMatrix(presentationTimeUs: Long): Matrix = ndc
       }
-      editedBuilder.setEffects(Effects(emptyList(), listOf<Effect>(crop)))
+      val effects = mutableListOf<Effect>()
+      // Paint strokes composite over the upright source frame BEFORE the
+      // crop affine, so they ride the crop. The overlay bitmap shares
+      // the frame's dimensions; the default static overlay settings
+      // (unscaled, center-anchored) make it an exact cover.
+      if (overlayPath != null) {
+        val bitmap = BitmapFactory.decodeFile(overlayPath)
+        if (bitmap != null) {
+          effects.add(
+            OverlayEffect(
+              listOf<TextureOverlay>(
+                BitmapOverlay.createStaticBitmapOverlay(bitmap)
+              )
+            )
+          )
+        }
+      }
+      effects.add(crop)
+      editedBuilder.setEffects(Effects(emptyList(), effects))
     }
     val edited = editedBuilder.build()
 

@@ -70,6 +70,7 @@ class XVideoExporter {
       if (request.outWidth != null) 'outWidth': request.outWidth,
       if (request.outHeight != null) 'outHeight': request.outHeight,
       if (request.videoBitrate != null) 'videoBitrate': request.videoBitrate,
+      if (request.overlayPath != null) 'overlayPath': request.overlayPath,
     }).catchError((Object e) {
       if (!done.isCompleted) {
         done.completeError(
@@ -104,10 +105,14 @@ class XVideoExportRequest {
     this.outWidth,
     this.outHeight,
     this.videoBitrate,
+    this.overlayPath,
   })  : assert((transform == null) == (outWidth == null),
             'transform and outWidth/outHeight go together'),
         assert((outWidth == null) == (outHeight == null),
-            'outWidth and outHeight go together');
+            'outWidth and outHeight go together'),
+        assert(overlayPath == null || transform != null,
+            'overlayPath requires the transform re-encode path — send the '
+            'identity affine at source dims for an overlay-only export');
 
   /// Absolute path of the source video.
   final String path;
@@ -139,6 +144,12 @@ class XVideoExportRequest {
   /// Target video bitrate (bits/s) for the re-encode path. Null lets
   /// the platform choose (trim/mute passthrough never encodes video).
   final int? videoBitrate;
+
+  /// Absolute path of a transparent PNG at the upright source's pixel
+  /// dimensions, composited over every frame BEFORE [transform] is
+  /// applied — caller-drawn paint strokes that must ride the crop.
+  /// Requires [transform] (overlays only exist on the re-encode path).
+  final String? overlayPath;
 }
 
 /// A running export. [progress] is best-effort (platform reporting
