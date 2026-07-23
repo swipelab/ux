@@ -66,6 +66,10 @@ class XVideoExporter {
       if (request.trimStartMs != null) 'trimStartMs': request.trimStartMs,
       if (request.trimEndMs != null) 'trimEndMs': request.trimEndMs,
       'removeAudio': request.removeAudio,
+      if (request.transform != null) 'transform': request.transform,
+      if (request.outWidth != null) 'outWidth': request.outWidth,
+      if (request.outHeight != null) 'outHeight': request.outHeight,
+      if (request.videoBitrate != null) 'videoBitrate': request.videoBitrate,
     }).catchError((Object e) {
       if (!done.isCompleted) {
         done.completeError(
@@ -82,6 +86,12 @@ class XVideoExporter {
 
 /// Parameters for one export. Null trim bounds keep the source's
 /// start/end; [removeAudio] drops the audio track entirely (mute).
+///
+/// A pure trim/mute request (no [transform]) stays a passthrough remux
+/// where the platform allows. Supplying [transform] switches to the
+/// re-encode path: every frame is mapped through the affine into an
+/// [outWidth]×[outHeight] canvas at [videoBitrate], so the output is a
+/// verbatim bake of the caller's on-screen crop/rotate/flip preview.
 class XVideoExportRequest {
   /// Creates a request; see the class docs for field semantics.
   const XVideoExportRequest({
@@ -90,7 +100,14 @@ class XVideoExportRequest {
     this.trimStartMs,
     this.trimEndMs,
     this.removeAudio = false,
-  });
+    this.transform,
+    this.outWidth,
+    this.outHeight,
+    this.videoBitrate,
+  })  : assert((transform == null) == (outWidth == null),
+            'transform and outWidth/outHeight go together'),
+        assert((outWidth == null) == (outHeight == null),
+            'outWidth and outHeight go together');
 
   /// Absolute path of the source video.
   final String path;
@@ -106,6 +123,22 @@ class XVideoExportRequest {
 
   /// Drop the audio track entirely (mute).
   final bool removeAudio;
+
+  /// Row-major 3×3 affine mapping **source pixel** coordinates to
+  /// **output pixel** coordinates (`[a,b,c, d,e,f, 0,0,1]`, 9 values;
+  /// the last row is implied but sent whole for the native decoders).
+  /// Null keeps the source geometry (trim/mute-only, passthrough).
+  final List<double>? transform;
+
+  /// Output width in pixels — required with [transform], else null.
+  final int? outWidth;
+
+  /// Output height in pixels — required with [transform], else null.
+  final int? outHeight;
+
+  /// Target video bitrate (bits/s) for the re-encode path. Null lets
+  /// the platform choose (trim/mute passthrough never encodes video).
+  final int? videoBitrate;
 }
 
 /// A running export. [progress] is best-effort (platform reporting

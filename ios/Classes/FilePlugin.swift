@@ -44,14 +44,15 @@ public class FilePlugin: NSObject, NativePlugin {
             return result(FlutterError(code: "bad_args", message: "path is required", details: nil))
         }
         let atMs = (args["atMs"] as? NSNumber)?.intValue ?? 0
-        let maxWidth = (args["maxWidth"] as? NSNumber)?.intValue ?? 320
+        // nil = native resolution (the frame is a crop-geometry space).
+        let maxWidth = (args["maxWidth"] as? NSNumber)?.intValue
 
         let url = URL(fileURLWithPath: path)
         let asset = AVURLAsset(url: url)
         let generator = AVAssetImageGenerator(asset: asset)
         generator.appliesPreferredTrackTransform = true
-        // 0 on either axis = preserve aspect ratio at the bound.
-        generator.maximumSize = CGSize(width: CGFloat(maxWidth), height: 0)
+        // 0 on either axis = preserve aspect ratio at the bound; .zero = no cap.
+        generator.maximumSize = maxWidth.map { CGSize(width: CGFloat($0), height: 0) } ?? .zero
         // Tolerate a few hundred ms of slop so we can land on a keyframe.
         generator.requestedTimeToleranceBefore = CMTime(value: 500, timescale: 1000)
         generator.requestedTimeToleranceAfter  = CMTime(value: 500, timescale: 1000)

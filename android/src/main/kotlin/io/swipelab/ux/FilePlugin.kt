@@ -266,7 +266,8 @@ class FilePlugin : NativePlugin, MethodChannel.MethodCallHandler,
         val path = call.argument<String>("path")
             ?: return result.error("bad_args", "path is required", null)
         val atMs = (call.argument<Number>("atMs") ?: 0).toLong()
-        val maxWidth = (call.argument<Number>("maxWidth") ?: 320).toInt()
+        // null = native resolution (the frame is a crop-geometry space).
+        val maxWidth = call.argument<Number>("maxWidth")?.toInt()
 
         val retriever = MediaMetadataRetriever()
         try {
@@ -282,7 +283,7 @@ class FilePlugin : NativePlugin, MethodChannel.MethodCallHandler,
                 result.success(null)
                 return
             }
-            val scaled = scaleBitmap(frame, maxWidth)
+            val scaled = if (maxWidth != null) scaleBitmap(frame, maxWidth) else frame
             try {
                 val baos = ByteArrayOutputStream()
                 scaled.compress(Bitmap.CompressFormat.PNG, 100, baos)

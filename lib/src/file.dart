@@ -232,11 +232,13 @@ class XFiles {
   ///
   /// [atMs] picks the frame timestamp in milliseconds (default 0 = first
   /// available keyframe). [maxWidth] caps the output's longer edge while
-  /// preserving aspect ratio.
+  /// preserving aspect ratio; null returns the frame at its native
+  /// resolution (the video-crop poster path, where the frame is the
+  /// coordinate space of an export geometry and must not be rescaled).
   static Future<XVideoThumbnail?> videoThumbnail({
     required String path,
     int atMs = 0,
-    int maxWidth = 320,
+    int? maxWidth = 320,
   }) async {
     final result = await _channel.invokeMapMethod<String, Object?>(
       'videoThumbnail',
