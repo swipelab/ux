@@ -160,10 +160,8 @@ void main() {
       );
       XGallery.backend = fake;
 
-      expect(await XGallery.permission(),
-          XGalleryPermission.notDetermined);
-      expect(await XGallery.requestPermission(),
-          XGalleryPermission.granted);
+      expect(await XGallery.permission(), XGalleryPermission.notDetermined);
+      expect(await XGallery.requestPermission(), XGalleryPermission.granted);
       expect(await XGallery.permission(), XGalleryPermission.granted);
     });
 

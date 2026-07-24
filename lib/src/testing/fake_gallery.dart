@@ -79,16 +79,14 @@ class FakeXGalleryBackend implements XGalleryBackend {
         height: sizePx,
       );
 
-  static io.File _defaultFile(String assetId) =>
-      io.File('/dev/null/$assetId');
+  static io.File _defaultFile(String assetId) => io.File('/dev/null/$assetId');
 
   @override
   Future<XGalleryPermission> permission() async => permissionState;
 
   @override
   Future<XGalleryPermission> requestPermission() async {
-    permissionState =
-        onRequestPermission?.call() ?? XGalleryPermission.granted;
+    permissionState = onRequestPermission?.call() ?? XGalleryPermission.granted;
     return permissionState;
   }
 
@@ -123,7 +121,10 @@ class FakeXGalleryBackend implements XGalleryBackend {
         : _assetsByAlbum[albumId] ?? const <XAsset>[];
     final filtered = filter == null
         ? source
-        : [for (final a in source) if (a.kind == filter) a];
+        : [
+            for (final a in source)
+              if (a.kind == filter) a
+          ];
     if (start >= filtered.length) return const [];
     return filtered.sublist(start, end.clamp(start, filtered.length));
   }

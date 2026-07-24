@@ -217,8 +217,7 @@ class MethodChannelGalleryBackend implements XGalleryBackend {
         XAssetKind.video => 'video',
       };
 
-  static XGalleryPermission _parsePermission(String? name) =>
-      switch (name) {
+  static XGalleryPermission _parsePermission(String? name) => switch (name) {
         'notDetermined' => XGalleryPermission.notDetermined,
         'denied' => XGalleryPermission.denied,
         'restricted' => XGalleryPermission.restricted,
