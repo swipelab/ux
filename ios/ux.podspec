@@ -19,13 +19,14 @@ Pod::Spec.new do |s|
   s.prepare_command  = <<-CMD
 rm -rf Classes/Camera-shared && cp -R ../darwin/Camera Classes/Camera-shared
 rm -rf Classes/Video-shared  && cp -R ../darwin/Video  Classes/Video-shared
+rm -rf Classes/File-shared   && cp -R ../darwin/File   Classes/File-shared
 CMD
   s.script_phases    = [{
-    :name             => 'Mirror darwin/{Camera,Video}',
+    :name             => 'Mirror darwin/{Camera,Video,File}',
     :execution_position => :before_compile,
     :script           => <<-CMD
 set -e
-for MOD in Camera Video; do
+for MOD in Camera Video File; do
   SRC="${PODS_TARGET_SRCROOT}/../darwin/${MOD}"
   DEST="${PODS_TARGET_SRCROOT}/Classes/${MOD}-shared"
   [ -d "$SRC" ] || continue

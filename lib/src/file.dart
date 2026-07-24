@@ -280,17 +280,43 @@ class XFiles {
   /// preserving aspect ratio; null returns the frame at its native
   /// resolution (the video-crop poster path, where the frame is the
   /// coordinate space of an export geometry and must not be rescaled).
+  ///
+  /// **Baked variant.** With [transform] (`XVideoExportRequest`'s
+  /// row-major 3×3 upright-source-px → output-px affine, with
+  /// [outWidth]/[outHeight] as the output canvas) the native side bakes
+  /// the frame into the caller's export geometry: the optional
+  /// [overlayPath] (transparent PNG at upright source dims) is
+  /// composited BEFORE the affine, the affine output is scaled so its
+  /// longest edge fits [maxLongest], and the finished PNG comes back —
+  /// pixel-matched to `XVideoExporter`'s frames. The whole bake runs in
+  /// the native software rasteriser; callers must not re-rasterise the
+  /// frame through `Picture.toImage`, which silently produces
+  /// blank/black frames in some device states. [maxWidth] is ignored on
+  /// the baked path.
   static Future<XVideoThumbnail?> videoThumbnail({
     required String path,
     int atMs = 0,
     int? maxWidth = 320,
+    List<double>? transform,
+    int? outWidth,
+    int? outHeight,
+    String? overlayPath,
+    int? maxLongest,
   }) async {
+    assert((transform == null) == (outWidth == null) &&
+        (outWidth == null) == (outHeight == null));
+    assert(overlayPath == null || transform != null);
     final result = await _channel.invokeMapMethod<String, Object?>(
       'videoThumbnail',
       <String, Object?>{
         'path': path,
         'atMs': atMs,
         'maxWidth': maxWidth,
+        if (transform != null) 'transform': transform,
+        if (outWidth != null) 'outWidth': outWidth,
+        if (outHeight != null) 'outHeight': outHeight,
+        if (overlayPath != null) 'overlayPath': overlayPath,
+        if (maxLongest != null) 'maxLongest': maxLongest,
       },
     );
     if (result == null) return null;

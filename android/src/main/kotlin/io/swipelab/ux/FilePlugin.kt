@@ -8,6 +8,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Matrix
+import android.graphics.Paint
 import android.media.MediaMetadataRetriever
 import android.media.MediaScannerConnection
 import android.net.Uri
@@ -289,6 +293,11 @@ class FilePlugin : NativePlugin, MethodChannel.MethodCallHandler,
         val atMs = (call.argument<Number>("atMs") ?: 0).toLong()
         // null = native resolution (the frame is a crop-geometry space).
         val maxWidth = call.argument<Number>("maxWidth")?.toInt()
+        val transform = call.argument<List<Number>>("transform")?.map { it.toDouble() }
+        val outWidth = call.argument<Number>("outWidth")?.toInt()
+        val outHeight = call.argument<Number>("outHeight")?.toInt()
+        val overlayPath = call.argument<String>("overlayPath")
+        val maxLongest = call.argument<Number>("maxLongest")?.toInt()
 
         val retriever = MediaMetadataRetriever()
         try {
@@ -304,19 +313,27 @@ class FilePlugin : NativePlugin, MethodChannel.MethodCallHandler,
                 result.success(null)
                 return
             }
-            val scaled = if (maxWidth != null) scaleBitmap(frame, maxWidth) else frame
+            val baked = if (transform != null && transform.size == 9 &&
+                outWidth != null && outHeight != null
+            ) {
+                bakeThumb(frame, transform, outWidth, outHeight, overlayPath, maxLongest)
+            } else if (maxWidth != null) {
+                scaleBitmap(frame, maxWidth)
+            } else {
+                frame
+            }
             try {
                 val baos = ByteArrayOutputStream()
-                scaled.compress(Bitmap.CompressFormat.PNG, 100, baos)
+                baked.compress(Bitmap.CompressFormat.PNG, 100, baos)
                 result.success(
                     mapOf<String, Any?>(
                         "png" to baos.toByteArray(),
-                        "width" to scaled.width,
-                        "height" to scaled.height,
+                        "width" to baked.width,
+                        "height" to baked.height,
                     ),
                 )
             } finally {
-                if (scaled !== frame) scaled.recycle()
+                if (baked !== frame) baked.recycle()
                 frame.recycle()
             }
         } catch (e: Throwable) {
@@ -324,6 +341,50 @@ class FilePlugin : NativePlugin, MethodChannel.MethodCallHandler,
         } finally {
             try { retriever.release() } catch (_: Throwable) {}
         }
+    }
+
+    /// Bake [frame] through the exporter's affine contract on the software
+    /// rasteriser: [overlayPath] (strokes PNG at upright source dims)
+    /// composites BEFORE the row-major 3×3 [transform] (upright source px →
+    /// output px, applied via android.graphics.Matrix which shares the
+    /// row-major convention); the [outWidth]×[outHeight] result is scaled so
+    /// its longest edge fits [maxLongest].
+    private fun bakeThumb(
+        frame: Bitmap,
+        transform: List<Double>,
+        outWidth: Int,
+        outHeight: Int,
+        overlayPath: String?,
+        maxLongest: Int?,
+    ): Bitmap {
+        val longest = maxOf(outWidth, outHeight)
+        val scale = if (maxLongest != null && longest > maxLongest) {
+            maxLongest.toFloat() / longest
+        } else {
+            1f
+        }
+        val thumbW = (outWidth * scale).toInt().coerceAtLeast(1)
+        val thumbH = (outHeight * scale).toInt().coerceAtLeast(1)
+
+        val out = Bitmap.createBitmap(thumbW, thumbH, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(out)
+        canvas.scale(thumbW.toFloat() / outWidth, thumbH.toFloat() / outHeight)
+        val m = Matrix()
+        m.setValues(transform.map { it.toFloat() }.toFloatArray())
+        canvas.concat(m)
+        val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
+        canvas.drawBitmap(frame, 0f, 0f, paint)
+        if (overlayPath != null) {
+            val overlay = BitmapFactory.decodeFile(overlayPath)
+            if (overlay != null) {
+                try {
+                    canvas.drawBitmap(overlay, 0f, 0f, paint)
+                } finally {
+                    overlay.recycle()
+                }
+            }
+        }
+        return out
     }
 
     /// Batch variant for the video trim scrubber: one native

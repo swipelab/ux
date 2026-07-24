@@ -48,13 +48,23 @@ public class FilePlugin: NSObject, NativePlugin {
         let atMs = (args["atMs"] as? NSNumber)?.intValue ?? 0
         // nil = native resolution (the frame is a crop-geometry space).
         let maxWidth = (args["maxWidth"] as? NSNumber)?.intValue
+        let transform = (args["transform"] as? [NSNumber])?.map { $0.doubleValue }
+        let outWidth = (args["outWidth"] as? NSNumber)?.intValue
+        let outHeight = (args["outHeight"] as? NSNumber)?.intValue
+        let overlayPath = args["overlayPath"] as? String
+        let maxLongest = (args["maxLongest"] as? NSNumber)?.intValue
+        let bakes = transform?.count == 9 && outWidth != nil && outHeight != nil
 
         let url = URL(fileURLWithPath: path)
         let asset = AVURLAsset(url: url)
         let generator = AVAssetImageGenerator(asset: asset)
         generator.appliesPreferredTrackTransform = true
-        // 0 on either axis = preserve aspect ratio at the bound; .zero = no cap.
-        generator.maximumSize = maxWidth.map { CGSize(width: CGFloat($0), height: 0) } ?? .zero
+        // 0 on either axis = preserve aspect ratio at the bound; .zero = no
+        // cap. A bake always needs the native-res frame (the affine's
+        // coordinate space).
+        generator.maximumSize = bakes
+            ? .zero
+            : maxWidth.map { CGSize(width: CGFloat($0), height: 0) } ?? .zero
         // Tolerate a few hundred ms of slop so we can land on a keyframe.
         generator.requestedTimeToleranceBefore = CMTime(value: 500, timescale: 1000)
         generator.requestedTimeToleranceAfter  = CMTime(value: 500, timescale: 1000)
@@ -67,6 +77,23 @@ public class FilePlugin: NSObject, NativePlugin {
                     at: CMTime(value: Int64(atMs) * 1000, timescale: 1_000_000),
                     actualTime: nil,
                 )
+                if bakes {
+                    guard let baked = FilePluginBake.bakeThumb(
+                        frame: cgImage, transform: transform!,
+                        outWidth: outWidth!, outHeight: outHeight!,
+                        overlayPath: overlayPath, maxLongest: maxLongest)
+                    else {
+                        DispatchQueue.main.async { result(nil) }
+                        return
+                    }
+                    let reply: [String: Any] = [
+                        "png": FlutterStandardTypedData(bytes: baked.png),
+                        "width": baked.width,
+                        "height": baked.height,
+                    ]
+                    DispatchQueue.main.async { result(reply) }
+                    return
+                }
                 let uiImage = UIImage(cgImage: cgImage)
                 guard let png = uiImage.pngData() else {
                     DispatchQueue.main.async { result(nil) }
