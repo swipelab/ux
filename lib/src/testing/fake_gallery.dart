@@ -25,6 +25,7 @@ class FakeXGalleryBackend implements XGalleryBackend {
     this.onRequestPermission,
     this.onOpenSettings,
     this.onPresentLimitedLibraryPicker,
+    this.onSaveToLibrary,
     XAssetThumbnail Function(String assetId, int sizePx)? thumbnailFor,
     io.File Function(String assetId)? fileFor,
   })  : _albums = List.unmodifiable(albums),
@@ -62,6 +63,14 @@ class FakeXGalleryBackend implements XGalleryBackend {
   final XGalleryPermission Function()? onRequestPermission;
   final void Function()? onOpenSettings;
   final void Function()? onPresentLimitedLibraryPicker;
+
+  /// Optional hook deciding [saveToLibrary]'s outcome; defaults to
+  /// [XGallerySaveStatus.saved].
+  final XGallerySaveStatus Function(String path, XAssetKind kind)?
+      onSaveToLibrary;
+
+  /// Paths handed to [saveToLibrary], in call order.
+  final List<String> savedToLibrary = [];
 
   static XAssetThumbnail _defaultThumbnail(String _, int sizePx) =>
       XAssetThumbnail(
@@ -128,4 +137,14 @@ class FakeXGalleryBackend implements XGalleryBackend {
 
   @override
   Future<io.File> resolveFile(String assetId) async => _fileFor(assetId);
+
+  @override
+  Future<XGallerySaveStatus> saveToLibrary(
+    String path, {
+    required XAssetKind kind,
+    String? mimeType,
+  }) async {
+    savedToLibrary.add(path);
+    return onSaveToLibrary?.call(path, kind) ?? XGallerySaveStatus.saved;
+  }
 }

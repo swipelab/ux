@@ -1,3 +1,23 @@
+### 0.10.0
+- `XGallery.saveToLibrary(path, kind, mimeType?)`: add a file on disk to the
+  system photo library. iOS requests add-only authorization (`.addOnly`
+  "Allow Adding Photos?" prompt) then `performChanges`; Android inserts via
+  `MediaStore` under `Pictures/<app>` / `Movies/<app>` (`IS_PENDING` flow on
+  API 29+, `WRITE_EXTERNAL_STORAGE` + public-dir copy + media-scan below).
+  Returns `XGallerySaveStatus {saved, denied}`; hard failures throw.
+  `XGallery.supportsSaveToLibrary` gates UI (iOS / Android).
+- `XFiles.saveCopy(path, mimeType?)`: save a user-visible copy of any file.
+  iOS presents the system export picker ("Save to Files"); Android inserts
+  into the Downloads collection (API 29+) or copies into public Downloads
+  behind a `WRITE_EXTERNAL_STORAGE` grant (<29); macOS presents an
+  `NSSavePanel` and copies to the chosen destination. Returns
+  `XFileSaveStatus {saved, cancelled, denied}`. Gated by
+  `XFiles.supportsSaveCopy` (iOS / Android / macOS).
+- `XFiles.supportsShare`: capability gate for the existing `share` sheet
+  (iOS / Android / macOS).
+- `FakeXGalleryBackend`: implements `saveToLibrary`, records calls in
+  `savedToLibrary`, outcome overridable via `onSaveToLibrary`.
+
 ### 0.9.0
 - `XScanner`: new platform-view widget for QR-code (and forward-compat
   barcode) scanning. iOS uses `AVCaptureMetadataOutput` (no extra pod);

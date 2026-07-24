@@ -116,6 +116,41 @@ void main() {
       expect(thumb.width, 381);
       expect(thumb.height, 254);
     });
+
+    test('saveToLibrary() encodes args and parses saved', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+        expect(call.method, 'saveToLibrary');
+        final args = call.arguments as Map;
+        expect(args['path'], '/tmp/clip.mp4');
+        expect(args['kind'], 'video');
+        expect(args['mime'], 'video/mp4');
+        return 'saved';
+      });
+
+      final status = await XGallery.saveToLibrary(
+        '/tmp/clip.mp4',
+        kind: XAssetKind.video,
+        mimeType: 'video/mp4',
+      );
+      expect(status, XGallerySaveStatus.saved);
+    });
+
+    test('saveToLibrary() omits mime when unset and parses denied', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+        final args = call.arguments as Map;
+        expect(args['kind'], 'image');
+        expect(args.containsKey('mime'), isFalse);
+        return 'denied';
+      });
+
+      final status = await XGallery.saveToLibrary(
+        '/tmp/pic.jpg',
+        kind: XAssetKind.image,
+      );
+      expect(status, XGallerySaveStatus.denied);
+    });
   });
 
   group('FakeXGalleryBackend', () {
@@ -185,6 +220,30 @@ void main() {
         end: 10,
       );
       expect(justVideos.map((a) => a.id), ['v']);
+    });
+
+    test('saveToLibrary records paths and defaults to saved', () async {
+      final fake = FakeXGalleryBackend();
+      XGallery.backend = fake;
+
+      final status = await XGallery.saveToLibrary(
+        '/tmp/pic.jpg',
+        kind: XAssetKind.image,
+      );
+      expect(status, XGallerySaveStatus.saved);
+      expect(fake.savedToLibrary, ['/tmp/pic.jpg']);
+    });
+
+    test('saveToLibrary outcome is overridable via onSaveToLibrary', () async {
+      XGallery.backend = FakeXGalleryBackend(
+        onSaveToLibrary: (_, __) => XGallerySaveStatus.denied,
+      );
+
+      final status = await XGallery.saveToLibrary(
+        '/tmp/pic.jpg',
+        kind: XAssetKind.image,
+      );
+      expect(status, XGallerySaveStatus.denied);
     });
   });
 }

@@ -1,16 +1,25 @@
 package io.swipelab.ux
 
+import android.Manifest
 import android.app.Activity
 import android.content.ActivityNotFoundException
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
+import android.media.MediaScannerConnection
 import android.net.Uri
+import android.os.Build
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
+import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
+import androidx.annotation.RequiresApi
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
@@ -22,7 +31,8 @@ import java.io.File
 import java.io.FileOutputStream
 
 class FilePlugin : NativePlugin, MethodChannel.MethodCallHandler,
-    PluginRegistry.ActivityResultListener {
+    PluginRegistry.ActivityResultListener,
+    PluginRegistry.RequestPermissionsResultListener {
     private var methodChannel: MethodChannel? = null
     private var context: Context? = null
     private var activity: Activity? = null
@@ -31,6 +41,11 @@ class FilePlugin : NativePlugin, MethodChannel.MethodCallHandler,
     /// Active pick request — set when [handlePick] launches the picker,
     /// cleared in [onActivityResult]. Reentrancy is rejected.
     private var pendingPickResult: MethodChannel.Result? = null
+
+    /// In-flight WRITE_EXTERNAL_STORAGE request for the API <29
+    /// [handleSaveCopy] path. Cleared in [onRequestPermissionsResult].
+    private var pendingWriteResult: MethodChannel.Result? = null
+    private var pendingWriteAction: (() -> Unit)? = null
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         context = binding.applicationContext
@@ -49,16 +64,21 @@ class FilePlugin : NativePlugin, MethodChannel.MethodCallHandler,
         activity = binding.activity
         activityBinding = binding
         binding.addActivityResultListener(this)
+        binding.addRequestPermissionsResultListener(this)
     }
 
     override fun onDetachedFromActivity() {
         activityBinding?.removeActivityResultListener(this)
+        activityBinding?.removeRequestPermissionsResultListener(this)
         activityBinding = null
         activity = null
         // If the activity tears down with a request still in flight, settle
         // it cleanly rather than leaking the Result.
         pendingPickResult?.success(null)
         pendingPickResult = null
+        pendingWriteResult?.success("denied")
+        pendingWriteResult = null
+        pendingWriteAction = null
     }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
@@ -66,6 +86,7 @@ class FilePlugin : NativePlugin, MethodChannel.MethodCallHandler,
             "share" -> handleShare(call, result)
             "open" -> handleOpen(call, result)
             "pick" -> handlePick(call, result)
+            "saveCopy" -> handleSaveCopy(call, result)
             // No file-manager equivalent that's reliable across OEMs.
             "showInFolder" -> result.success(false)
             // Android URI permissions, once persisted, don't need a per-read
@@ -372,6 +393,153 @@ class FilePlugin : NativePlugin, MethodChannel.MethodCallHandler,
         return Bitmap.createScaledBitmap(bitmap, outW, outH, true)
     }
 
+    // ─── Save copy ──────────────────────────────────────────────────────
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ): Boolean {
+        if (requestCode != REQUEST_CODE_WRITE) return false
+        val r = pendingWriteResult ?: return true
+        val action = pendingWriteAction
+        pendingWriteResult = null
+        pendingWriteAction = null
+        val granted = grantResults.isNotEmpty() &&
+            grantResults[0] == PackageManager.PERMISSION_GRANTED
+        if (granted && action != null) {
+            action()
+        } else {
+            r.success("denied")
+        }
+        return true
+    }
+
+    /// Saves a user-visible copy of a file into the Downloads collection
+    /// (API 29+) or the public Downloads folder (<29, behind a
+    /// WRITE_EXTERNAL_STORAGE grant).
+    private fun handleSaveCopy(call: MethodCall, result: MethodChannel.Result) {
+        val ctx = context ?: run {
+            result.error("no_context", "no application context", null)
+            return
+        }
+        val path = call.argument<String>("path") ?: run {
+            result.error("bad_args", "missing path", null)
+            return
+        }
+        val src = File(path)
+        if (!src.isFile) {
+            result.error("not_found", "no file at path", null)
+            return
+        }
+        val mime = inferMime(call.argument<String>("mimeType"), path)
+            .let { if (it == "*/*") "application/octet-stream" else it }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            saveToDownloadsStore(ctx, src, mime, result)
+            return
+        }
+        // API <29: writing the public Downloads folder needs the legacy
+        // WRITE permission.
+        val writeGranted = ContextCompat.checkSelfPermission(
+            ctx, Manifest.permission.WRITE_EXTERNAL_STORAGE,
+        ) == PackageManager.PERMISSION_GRANTED
+        if (writeGranted) {
+            saveToPublicDownloads(ctx, src, mime, result)
+            return
+        }
+        val act = activity ?: run {
+            result.success("denied")
+            return
+        }
+        if (pendingWriteResult != null) {
+            result.error(
+                "in_progress", "a save permission request is already in progress", null,
+            )
+            return
+        }
+        pendingWriteResult = result
+        pendingWriteAction = { saveToPublicDownloads(ctx, src, mime, result) }
+        act.requestPermissions(
+            arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
+            REQUEST_CODE_WRITE,
+        )
+    }
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun saveToDownloadsStore(
+        ctx: Context,
+        src: File,
+        mime: String,
+        result: MethodChannel.Result,
+    ) {
+        val main = Handler(Looper.getMainLooper())
+        Thread {
+            try {
+                val values = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, src.name)
+                    put(MediaStore.MediaColumns.MIME_TYPE, mime)
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+                    put(MediaStore.MediaColumns.IS_PENDING, 1)
+                }
+                val resolver = ctx.contentResolver
+                val uri = resolver.insert(
+                    MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY),
+                    values,
+                ) ?: throw IllegalStateException("MediaStore insert returned null")
+                try {
+                    resolver.openOutputStream(uri).use { output ->
+                        requireNotNull(output) { "openOutputStream returned null for $uri" }
+                        src.inputStream().use { it.copyTo(output, 16 * 1024) }
+                    }
+                    values.clear()
+                    values.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                    resolver.update(uri, values, null, null)
+                } catch (e: Throwable) {
+                    resolver.delete(uri, null, null)
+                    throw e
+                }
+                main.post { result.success("saved") }
+            } catch (e: Throwable) {
+                main.post { result.error("save_failed", e.message, null) }
+            }
+        }.start()
+    }
+
+    private fun saveToPublicDownloads(
+        ctx: Context,
+        src: File,
+        mime: String,
+        result: MethodChannel.Result,
+    ) {
+        val main = Handler(Looper.getMainLooper())
+        Thread {
+            try {
+                val dir = Environment.getExternalStoragePublicDirectory(
+                    Environment.DIRECTORY_DOWNLOADS,
+                ).apply { mkdirs() }
+                val dot = src.name.lastIndexOf('.')
+                val stem = if (dot > 0) src.name.substring(0, dot) else src.name
+                val ext = if (dot > 0) src.name.substring(dot) else ""
+                var dest = File(dir, src.name)
+                var i = 1
+                while (dest.exists()) {
+                    dest = File(dir, "$stem ($i)$ext")
+                    i++
+                }
+                src.inputStream().use { input ->
+                    FileOutputStream(dest).use { input.copyTo(it, 16 * 1024) }
+                }
+                MediaScannerConnection.scanFile(
+                    ctx, arrayOf(dest.absolutePath), arrayOf(mime), null,
+                )
+                main.post { result.success("saved") }
+            } catch (e: Throwable) {
+                main.post { result.error("save_failed", e.message, null) }
+            }
+        }.start()
+    }
+
     private fun inferMime(supplied: String?, path: String): String {
         if (!supplied.isNullOrBlank() && supplied != "application/octet-stream") {
             return supplied
@@ -388,6 +556,7 @@ class FilePlugin : NativePlugin, MethodChannel.MethodCallHandler,
 
     companion object {
         private const val REQUEST_CODE_PICK = 0xC51 // arbitrary, namespaced
+        private const val REQUEST_CODE_WRITE = 0xC55
 
         private val textExtensions = setOf(
             "dart", "swift", "kt", "kts", "java", "scala", "groovy",

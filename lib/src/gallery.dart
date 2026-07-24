@@ -19,6 +19,12 @@ enum XGalleryPermission { notDetermined, denied, restricted, limited, granted }
 
 enum XAssetKind { image, video }
 
+/// Outcome of [XGallery.saveToLibrary]. [denied] means the user refused
+/// (or previously refused) the add-to-library permission — route them to
+/// [XGallery.openSettings]. Hard failures (unreadable source file, library
+/// write error) throw a `PlatformException` instead.
+enum XGallerySaveStatus { saved, denied }
+
 /// A user-visible album / collection in the system photo library
 /// (`PHAssetCollection` on Apple, `MediaStore.Bucket` on Android).
 class XAlbum {
@@ -91,6 +97,11 @@ abstract class XGalleryBackend {
   });
   Future<XAssetThumbnail> thumbnail(String assetId, {required int sizePx});
   Future<io.File> resolveFile(String assetId);
+  Future<XGallerySaveStatus> saveToLibrary(
+    String path, {
+    required XAssetKind kind,
+    String? mimeType,
+  });
 
   /// Emits whenever the underlying photo library reports a change —
   /// limited-subset edits via `presentLimitedLibraryPicker`, external
@@ -157,6 +168,28 @@ class XGallery {
   /// app cache (since `dart:io` can't read content URIs directly).
   static Future<io.File> resolveFile(String assetId) =>
       backend.resolveFile(assetId);
+
+  /// Whether [saveToLibrary] has a native implementation on this
+  /// platform. iOS / Android only — desktop builds keep downloaded media
+  /// in user-visible folders rather than a photo library.
+  static bool get supportsSaveToLibrary =>
+      io.Platform.isIOS || io.Platform.isAndroid;
+
+  /// Add the file at [path] to the system photo library.
+  ///
+  /// iOS requests add-only authorization (`PHPhotoLibrary` `.addOnly`)
+  /// on first use; Android API 29+ needs no permission (`MediaStore`
+  /// insert under `Pictures/<app>` / `Movies/<app>`), while API <29
+  /// requests `WRITE_EXTERNAL_STORAGE` and copies into the public
+  /// media directory. [kind] selects the image vs video collection;
+  /// [mimeType] hints the `MediaStore` row on Android and is ignored
+  /// on iOS (Photos infers from the file).
+  static Future<XGallerySaveStatus> saveToLibrary(
+    String path, {
+    required XAssetKind kind,
+    String? mimeType,
+  }) =>
+      backend.saveToLibrary(path, kind: kind, mimeType: mimeType);
 
   /// Emits whenever the system photo library changes — limited-subset
   /// edits, external edits, permission changes. Picker UIs subscribe
@@ -296,5 +329,19 @@ class MethodChannelGalleryBackend implements XGalleryBackend {
       {'assetId': assetId},
     );
     return io.File(path!);
+  }
+
+  @override
+  Future<XGallerySaveStatus> saveToLibrary(
+    String path, {
+    required XAssetKind kind,
+    String? mimeType,
+  }) async {
+    final s = await _channel.invokeMethod<String>('saveToLibrary', {
+      'path': path,
+      'kind': _kindArg(kind),
+      if (mimeType != null) 'mime': mimeType,
+    });
+    return s == 'saved' ? XGallerySaveStatus.saved : XGallerySaveStatus.denied;
   }
 }

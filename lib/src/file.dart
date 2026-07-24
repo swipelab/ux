@@ -73,6 +73,12 @@ class XPickedFile {
   final bool isTemporaryCopy;
 }
 
+/// Outcome of [XFiles.saveCopy]. [denied] means the user refused the
+/// storage permission (Android API <29 only) — the save can't proceed.
+/// [cancelled] means the user dismissed the export picker (iOS). Hard
+/// failures (unreadable source, write error) throw a `PlatformException`.
+enum XFileSaveStatus { saved, cancelled, denied }
+
 class XFiles {
   XFiles._();
 
@@ -123,6 +129,12 @@ class XFiles {
     }
   }
 
+  /// Whether [share] has a native sheet on this platform — iOS /
+  /// Android / macOS. Gate share affordances so they don't appear
+  /// where the channel has no handler.
+  static bool get supportsShare =>
+      Platform.isIOS || Platform.isAndroid || Platform.isMacOS;
+
   static Future<bool> share({
     required String path,
     String? title,
@@ -142,6 +154,39 @@ class XFiles {
         },
     });
     return result ?? false;
+  }
+
+  /// Whether [saveCopy] has a native implementation — iOS / Android /
+  /// macOS.
+  static bool get supportsSaveCopy =>
+      Platform.isIOS || Platform.isAndroid || Platform.isMacOS;
+
+  /// Save a user-visible copy of the file at [path].
+  ///
+  /// - iOS: presents the system export picker ("Save to Files"); the
+  ///   user chooses the destination. Dismissal returns [XFileSaveStatus.cancelled].
+  /// - Android: inserts into the Downloads collection (API 29+, no
+  ///   permission needed) or copies into the public Downloads folder
+  ///   after a `WRITE_EXTERNAL_STORAGE` grant (API <29 —
+  ///   [XFileSaveStatus.denied] when refused).
+  /// - macOS: presents an `NSSavePanel` and copies to the chosen
+  ///   destination. Dismissal returns [XFileSaveStatus.cancelled].
+  ///
+  /// [mimeType] hints the `MediaStore` row on Android; ignored on Apple
+  /// platforms.
+  static Future<XFileSaveStatus> saveCopy({
+    required String path,
+    String? mimeType,
+  }) async {
+    final s = await _channel.invokeMethod<String>('saveCopy', {
+      'path': path,
+      if (mimeType != null) 'mimeType': mimeType,
+    });
+    return switch (s) {
+      'saved' => XFileSaveStatus.saved,
+      'denied' => XFileSaveStatus.denied,
+      _ => XFileSaveStatus.cancelled,
+    };
   }
 
   /// Open a file on disk with the system's default viewer.

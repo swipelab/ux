@@ -124,6 +124,8 @@ public class GalleryPlugin: NSObject, NativePlugin, PHPhotoLibraryChangeObserver
             handleThumbnail(call: call, result: result)
         case "resolveFile":
             handleResolveFile(call: call, result: result)
+        case "saveToLibrary":
+            handleSaveToLibrary(call: call, result: result)
         default:
             result(FlutterMethodNotImplemented)
         }
@@ -358,6 +360,69 @@ public class GalleryPlugin: NSObject, NativePlugin, PHPhotoLibraryChangeObserver
                     "width": Int(image.size.width * image.scale),
                     "height": Int(image.size.height * image.scale),
                 ])
+            }
+        }
+    }
+
+    // MARK: - Save to library
+
+    /// Add-only authorization needs no read access, so iOS shows the
+    /// lighter "Allow Adding Photos?" prompt instead of the full
+    /// library-access one.
+    private static func requestAddAuthorization(
+        _ handler: @escaping (PHAuthorizationStatus) -> Void,
+    ) {
+        if #available(iOS 14, *) {
+            PHPhotoLibrary.requestAuthorization(for: .addOnly, handler: handler)
+        } else {
+            PHPhotoLibrary.requestAuthorization(handler)
+        }
+    }
+
+    private static func isAuthorizedForAdd(_ status: PHAuthorizationStatus) -> Bool {
+        if status == .authorized { return true }
+        if #available(iOS 14, *), status == .limited { return true }
+        return false
+    }
+
+    private func handleSaveToLibrary(call: FlutterMethodCall, result: @escaping FlutterResult) {
+        let args = call.arguments as? [String: Any] ?? [:]
+        guard let path = args["path"] as? String,
+              let kind = args["kind"] as? String
+        else {
+            result(FlutterError(code: "bad_args", message: "missing path/kind", details: nil))
+            return
+        }
+        guard FileManager.default.fileExists(atPath: path) else {
+            result(FlutterError(code: "not_found", message: "no file at path", details: nil))
+            return
+        }
+        let url = URL(fileURLWithPath: path)
+        Self.requestAddAuthorization { status in
+            DispatchQueue.main.async {
+                guard Self.isAuthorizedForAdd(status) else {
+                    result("denied")
+                    return
+                }
+                PHPhotoLibrary.shared().performChanges({
+                    if kind == "video" {
+                        _ = PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url)
+                    } else {
+                        _ = PHAssetChangeRequest.creationRequestForAssetFromImage(atFileURL: url)
+                    }
+                }) { success, error in
+                    DispatchQueue.main.async {
+                        if success {
+                            result("saved")
+                        } else {
+                            result(FlutterError(
+                                code: "save_failed",
+                                message: error?.localizedDescription ?? "performChanges failed",
+                                details: nil,
+                            ))
+                        }
+                    }
+                }
             }
         }
     }

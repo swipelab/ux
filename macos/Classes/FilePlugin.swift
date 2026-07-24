@@ -31,6 +31,7 @@ public class FilePlugin: NSObject, NativePlugin {
         case "share":              handleShare(call, result: result)
         case "open":               handleOpen(call, result: result)
         case "pick":               handlePick(call, result: result)
+        case "saveCopy":           handleSaveCopy(call, result: result)
         case "showInFolder":       handleShowInFolder(call, result: result)
         case "beginScopedAccess":  handleBeginScopedAccess(call, result: result)
         case "endScopedAccess":    handleEndScopedAccess(call, result: result)
@@ -180,6 +181,51 @@ public class FilePlugin: NSObject, NativePlugin {
                 reply["bookmark"] = FlutterStandardTypedData(bytes: bookmark)
             }
             result(reply)
+        }
+
+        if let host = host {
+            panel.beginSheetModal(for: host, completionHandler: completion)
+        } else {
+            panel.begin(completionHandler: completion)
+        }
+    }
+
+    /// `NSSavePanel` "Save As…" — copies the file at `path` to the
+    /// user-chosen destination. The panel handles overwrite confirmation;
+    /// an existing item at the confirmed URL is replaced.
+    private func handleSaveCopy(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+        guard let args = call.arguments as? [String: Any],
+              let path = args["path"] as? String else {
+            return result(FlutterError(code: "bad_args", message: "path is required", details: nil))
+        }
+        let sourceURL = URL(fileURLWithPath: path)
+        guard FileManager.default.fileExists(atPath: path) else {
+            return result(FlutterError(code: "not_found", message: "no file at path", details: nil))
+        }
+
+        let panel = NSSavePanel()
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = sourceURL.lastPathComponent
+
+        let host = XWindow.flutterView?.window
+        let completion: (NSApplication.ModalResponse) -> Void = { response in
+            guard response == .OK, let dest = panel.url else {
+                result("cancelled")
+                return
+            }
+            do {
+                if FileManager.default.fileExists(atPath: dest.path) {
+                    try FileManager.default.removeItem(at: dest)
+                }
+                try FileManager.default.copyItem(at: sourceURL, to: dest)
+                result("saved")
+            } catch {
+                result(FlutterError(
+                    code: "save_failed",
+                    message: error.localizedDescription,
+                    details: nil,
+                ))
+            }
         }
 
         if let host = host {

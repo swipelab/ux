@@ -8,6 +8,7 @@ public class FilePlugin: NSObject, NativePlugin {
     private var channel: FlutterMethodChannel?
     private var previewDataSource: FilePreviewDataSource?
     private var pickerDelegate: XDocumentPickerDelegate?
+    private var exportDelegate: XDocumentExportDelegate?
 
     private struct ScopedEntry {
         let url: URL
@@ -29,6 +30,7 @@ public class FilePlugin: NSObject, NativePlugin {
         case "share":              handleShare(call, result: result)
         case "open":               handleOpen(call, result: result)
         case "pick":               handlePick(call, result: result)
+        case "saveCopy":           handleSaveCopy(call, result: result)
         case "showInFolder":       result(false) // no Finder equivalent on iOS
         case "beginScopedAccess":  handleBeginScopedAccess(call, result: result)
         case "endScopedAccess":    handleEndScopedAccess(call, result: result)
@@ -188,6 +190,37 @@ public class FilePlugin: NSObject, NativePlugin {
         }
         // The delegate is weak on UIDocumentPickerViewController; keep a strong ref.
         pickerDelegate = delegate
+        picker.delegate = delegate
+
+        topVC.present(picker, animated: true, completion: nil)
+    }
+
+    /// Presents the system export picker ("Save to Files") for the file
+    /// at `path`. `asCopy` keeps our cache file in place — the picker
+    /// writes a copy to wherever the user chooses.
+    private func handleSaveCopy(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+        guard let args = call.arguments as? [String: Any],
+              let path = args["path"] as? String else {
+            return result(FlutterError(code: "bad_args", message: "path is required", details: nil))
+        }
+        guard FileManager.default.fileExists(atPath: path) else {
+            return result(FlutterError(code: "not_found", message: "no file at path", details: nil))
+        }
+        guard let topVC = XWindow.topViewController else {
+            return result(FlutterError(code: "no_view", message: "no top view controller", details: nil))
+        }
+        let url = URL(fileURLWithPath: path)
+        let picker: UIDocumentPickerViewController
+        if #available(iOS 14, *) {
+            picker = UIDocumentPickerViewController(forExporting: [url], asCopy: true)
+        } else {
+            picker = UIDocumentPickerViewController(urls: [url], in: .exportToService)
+        }
+        let delegate = XDocumentExportDelegate(result: result) { [weak self] in
+            self?.exportDelegate = nil
+        }
+        // The delegate is weak on UIDocumentPickerViewController; keep a strong ref.
+        exportDelegate = delegate
         picker.delegate = delegate
 
         topVC.present(picker, animated: true, completion: nil)
@@ -418,6 +451,33 @@ private final class XDocumentPickerDelegate: NSObject, UIDocumentPickerDelegate 
         settled = true
         defer { onDone() }
         result(nil)
+    }
+}
+
+/// Picker delegate for export mode (`saveCopy`). The system writes the
+/// copy itself — we only report whether the user completed or dismissed.
+private final class XDocumentExportDelegate: NSObject, UIDocumentPickerDelegate {
+    private let result: FlutterResult
+    private let onDone: () -> Void
+    private var settled = false
+
+    init(result: @escaping FlutterResult, onDone: @escaping () -> Void) {
+        self.result = result
+        self.onDone = onDone
+    }
+
+    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+        guard !settled else { return }
+        settled = true
+        defer { onDone() }
+        result("saved")
+    }
+
+    func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+        guard !settled else { return }
+        settled = true
+        defer { onDone() }
+        result("cancelled")
     }
 }
 

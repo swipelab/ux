@@ -3,18 +3,23 @@ package io.swipelab.ux
 import android.Manifest
 import android.app.Activity
 import android.content.ContentUris
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.database.ContentObserver
 import android.database.Cursor
+import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
 import android.provider.Settings
 import android.util.Size
+import android.webkit.MimeTypeMap
+import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
@@ -126,6 +131,9 @@ class GalleryPlugin : NativePlugin, MethodChannel.MethodCallHandler,
         pendingPermissionResult = null
         pendingPickerResult?.success(null)
         pendingPickerResult = null
+        pendingWriteResult?.success("denied")
+        pendingWriteResult = null
+        pendingWriteAction = null
     }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
@@ -138,6 +146,7 @@ class GalleryPlugin : NativePlugin, MethodChannel.MethodCallHandler,
             "assets" -> handleAssets(call, result)
             "thumbnail" -> handleThumbnail(call, result)
             "resolveFile" -> handleResolveFile(call, result)
+            "saveToLibrary" -> handleSaveToLibrary(call, result)
             else -> result.notImplemented()
         }
     }
@@ -227,6 +236,20 @@ class GalleryPlugin : NativePlugin, MethodChannel.MethodCallHandler,
         permissions: Array<out String>,
         grantResults: IntArray,
     ): Boolean {
+        if (requestCode == REQUEST_CODE_WRITE) {
+            val r = pendingWriteResult ?: return true
+            val action = pendingWriteAction
+            pendingWriteResult = null
+            pendingWriteAction = null
+            val granted = grantResults.isNotEmpty() &&
+                grantResults[0] == PackageManager.PERMISSION_GRANTED
+            if (granted && action != null) {
+                action()
+            } else {
+                r.success("denied")
+            }
+            return true
+        }
         if (requestCode != REQUEST_CODE_PERMISSION) return false
         val r = pendingPermissionResult ?: return true
         pendingPermissionResult = null
@@ -653,6 +676,167 @@ class GalleryPlugin : NativePlugin, MethodChannel.MethodCallHandler,
         }
     }
 
+    // ─── Save to library ────────────────────────────────────────────────
+
+    /// In-flight WRITE_EXTERNAL_STORAGE request for the API <29 save
+    /// path. Set by [handleSaveToLibrary], cleared in
+    /// [onRequestPermissionsResult]. Reentrancy is rejected.
+    private var pendingWriteResult: MethodChannel.Result? = null
+    private var pendingWriteAction: (() -> Unit)? = null
+
+    private fun handleSaveToLibrary(call: MethodCall, result: MethodChannel.Result) {
+        val ctx = context ?: run {
+            result.error("no_context", "no application context", null)
+            return
+        }
+        val path = call.argument<String>("path") ?: run {
+            result.error("bad_args", "missing path", null)
+            return
+        }
+        val kind = call.argument<String>("kind") ?: "image"
+        val src = File(path)
+        if (!src.isFile) {
+            result.error("not_found", "no file at path", null)
+            return
+        }
+        val mime = call.argument<String>("mime") ?: guessMime(src, kind)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            saveViaMediaStore(ctx, src, kind, mime, result)
+            return
+        }
+        // API <29: MediaStore inserts write to the shared filesystem
+        // directly, which needs the legacy WRITE permission.
+        if (isGranted(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
+            saveViaPublicDir(ctx, src, kind, mime, result)
+            return
+        }
+        val act = activity ?: run {
+            result.success("denied")
+            return
+        }
+        if (pendingWriteResult != null) {
+            result.error(
+                "in_progress", "a save permission request is already in progress", null,
+            )
+            return
+        }
+        pendingWriteResult = result
+        pendingWriteAction = { saveViaPublicDir(ctx, src, kind, mime, result) }
+        act.requestPermissions(
+            arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
+            REQUEST_CODE_WRITE,
+        )
+    }
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun saveViaMediaStore(
+        ctx: Context,
+        src: File,
+        kind: String,
+        mime: String,
+        result: MethodChannel.Result,
+    ) {
+        Thread {
+            try {
+                val isVideo = kind == "video"
+                val collection = if (isVideo) {
+                    MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                } else {
+                    MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                }
+                val relDir = (if (isVideo) {
+                    Environment.DIRECTORY_MOVIES
+                } else {
+                    Environment.DIRECTORY_PICTURES
+                }) + "/" + appLabel(ctx)
+                val values = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, src.name)
+                    put(MediaStore.MediaColumns.MIME_TYPE, mime)
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, relDir)
+                    put(MediaStore.MediaColumns.IS_PENDING, 1)
+                }
+                val resolver = ctx.contentResolver
+                val uri = resolver.insert(collection, values)
+                    ?: throw IllegalStateException("MediaStore insert returned null")
+                try {
+                    resolver.openOutputStream(uri).use { output ->
+                        requireNotNull(output) { "openOutputStream returned null for $uri" }
+                        src.inputStream().use { it.copyTo(output, 16 * 1024) }
+                    }
+                    values.clear()
+                    values.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                    resolver.update(uri, values, null, null)
+                } catch (e: Throwable) {
+                    resolver.delete(uri, null, null)
+                    throw e
+                }
+                mainHandler.post { result.success("saved") }
+            } catch (e: Throwable) {
+                mainHandler.post { result.error("save_failed", e.message, null) }
+            }
+        }.start()
+    }
+
+    private fun saveViaPublicDir(
+        ctx: Context,
+        src: File,
+        kind: String,
+        mime: String,
+        result: MethodChannel.Result,
+    ) {
+        Thread {
+            try {
+                val baseDir = Environment.getExternalStoragePublicDirectory(
+                    if (kind == "video") {
+                        Environment.DIRECTORY_MOVIES
+                    } else {
+                        Environment.DIRECTORY_PICTURES
+                    },
+                )
+                val destDir = File(baseDir, appLabel(ctx)).apply { mkdirs() }
+                val dest = uniqueDestination(destDir, src.name)
+                src.inputStream().use { input ->
+                    FileOutputStream(dest).use { input.copyTo(it, 16 * 1024) }
+                }
+                MediaScannerConnection.scanFile(
+                    ctx, arrayOf(dest.absolutePath), arrayOf(mime), null,
+                )
+                mainHandler.post { result.success("saved") }
+            } catch (e: Throwable) {
+                mainHandler.post { result.error("save_failed", e.message, null) }
+            }
+        }.start()
+    }
+
+    private fun uniqueDestination(dir: File, name: String): File {
+        val dot = name.lastIndexOf('.')
+        val stem = if (dot > 0) name.substring(0, dot) else name
+        val ext = if (dot > 0) name.substring(dot) else ""
+        var candidate = File(dir, name)
+        var i = 1
+        while (candidate.exists()) {
+            candidate = File(dir, "$stem ($i)$ext")
+            i++
+        }
+        return candidate
+    }
+
+    /// Album folder under Pictures/ / Movies/ — the host app's launcher
+    /// label with path separators stripped (package name when blank).
+    private fun appLabel(ctx: Context): String {
+        val label = ctx.applicationInfo.loadLabel(ctx.packageManager).toString()
+        val safe = label.replace(Regex("[\\\\/]"), "_").trim()
+        return safe.ifEmpty { ctx.packageName }
+    }
+
+    private fun guessMime(src: File, kind: String): String {
+        val fromMap = MimeTypeMap.getSingleton()
+            .getMimeTypeFromExtension(src.extension.lowercase())
+        if (fromMap != null) return fromMap
+        return if (kind == "video") "video/mp4" else "image/jpeg"
+    }
+
     private fun queryNameAndMime(ctx: Context, uri: Uri): Pair<String?, String?> {
         var name: String? = null
         ctx.contentResolver.query(
@@ -877,6 +1061,7 @@ class GalleryPlugin : NativePlugin, MethodChannel.MethodCallHandler,
     companion object {
         private const val REQUEST_CODE_PERMISSION = 0xC52
         private const val REQUEST_CODE_PICKER = 0xC53
+        private const val REQUEST_CODE_WRITE = 0xC54
         private const val PICKER_PREFS = "ux_gallery_picker"
         private const val PICKER_URIS_KEY = "picker_uris"
         private const val PICKER_URI_CAP = 400
