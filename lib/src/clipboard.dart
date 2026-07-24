@@ -1,7 +1,23 @@
 import 'package:flutter/services.dart';
 
+/// A file reference read from the system clipboard (e.g. a Finder
+/// "Copy"). [bookmark] is a macOS security-scoped bookmark so a
+/// sandboxed reader can re-acquire access after the transient
+/// pasteboard grant lapses; null where not applicable.
+class XClipboardFile {
+  const XClipboardFile({
+    required this.path,
+    required this.name,
+    this.bookmark,
+  });
+
+  final String path;
+  final String name;
+  final Uint8List? bookmark;
+}
+
 /// OS clipboard access for shapes Flutter's [Clipboard] doesn't cover.
-/// Right now this is image bytes — the system text path is already
+/// Image bytes and copied files — the system text path is already
 /// handled by the SDK's `Clipboard.getData(Clipboard.kTextPlain)`.
 class XClipboard {
   XClipboard._();
@@ -23,6 +39,31 @@ class XClipboard {
       return null;
     } on MissingPluginException {
       return null;
+    }
+  }
+
+  /// Files currently on the system clipboard (a Finder / file-manager
+  /// "Copy"). macOS only for now — other platforms (and channel
+  /// failures) resolve to an empty list. Check this BEFORE [readImage]:
+  /// a copied file may also expose a thumbnail image on the pasteboard,
+  /// and the file is the user's intent.
+  static Future<List<XClipboardFile>> readFiles() async {
+    try {
+      final raw = await _channel.invokeListMethod<Object?>('readFiles');
+      if (raw == null) return const [];
+      return [
+        for (final entry in raw)
+          if (entry is Map)
+            XClipboardFile(
+              path: entry['path']! as String,
+              name: entry['name']! as String,
+              bookmark: entry['bookmark'] as Uint8List?,
+            ),
+      ];
+    } on PlatformException {
+      return const [];
+    } on MissingPluginException {
+      return const [];
     }
   }
 }

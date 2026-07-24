@@ -15,8 +15,41 @@ public class ClipboardPlugin: NSObject, NativePlugin {
     private func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         switch call.method {
         case "readImage": handleReadImage(result: result)
+        case "readFiles": handleReadFiles(result: result)
         default:          result(FlutterMethodNotImplemented)
         }
+    }
+
+    /// File URLs on the pasteboard (Finder "Copy"). Each entry carries a
+    /// security-scoped bookmark minted while the pasteboard's transient
+    /// sandbox extension is still alive, so Dart-side readers can
+    /// re-acquire access later through `ux/file` `beginScopedAccess`.
+    private func handleReadFiles(result: @escaping FlutterResult) {
+        let pb = NSPasteboard.general
+        let options: [NSPasteboard.ReadingOptionKey: Any] = [
+            .urlReadingFileURLsOnly: true,
+        ]
+        guard let urls = pb.readObjects(forClasses: [NSURL.self], options: options) as? [URL],
+              !urls.isEmpty
+        else {
+            return result([])
+        }
+        var out: [[String: Any]] = []
+        for url in urls {
+            var entry: [String: Any] = [
+                "path": url.path,
+                "name": url.lastPathComponent,
+            ]
+            if let bookmark = try? url.bookmarkData(
+                options: .withSecurityScope,
+                includingResourceValuesForKeys: nil,
+                relativeTo: nil,
+            ) {
+                entry["bookmark"] = FlutterStandardTypedData(bytes: bookmark)
+            }
+            out.append(entry)
+        }
+        result(out)
     }
 
     private func handleReadImage(result: @escaping FlutterResult) {
