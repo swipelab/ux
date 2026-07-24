@@ -56,7 +56,7 @@ public class UxVideoExporterPlugin: NSObject, NativePlugin, FlutterStreamHandler
         return nil
     }
 
-    private func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         switch call.method {
         case "start": start(call, result: result)
         case "cancel": cancel(call, result: result)
@@ -129,7 +129,7 @@ public class UxVideoExporterPlugin: NSObject, NativePlugin, FlutterStreamHandler
                let outWidth, let outHeight, let compVideo {
                 self.exportTransformed(
                     sessionId: sessionId, composition: composition,
-                    compVideo: compVideo, sourceTransform: videoTrack.preferredTransform,
+                    compVideo: compVideo, sourceTransform: Self.uprightTransform(of: videoTrack),
                     affine: transform, outWidth: outWidth, outHeight: outHeight,
                     videoBitrate: videoBitrate ?? 3_000_000, hasAudio: !removeAudio,
                     overlayPath: overlayPath,
@@ -212,7 +212,8 @@ public class UxVideoExporterPlugin: NSObject, NativePlugin, FlutterStreamHandler
         // Flutter sends a row-major 3×3 source-px → output-px affine
         // [a,b,tx, d,e,ty, …]. CG's convention is the transpose. The
         // Flutter affine is in upright (decoded-poster) space, so compose
-        // the track's preferredTransform first: raw → upright → output.
+        // the track's origin-anchored upright transform first:
+        // raw → upright@origin → output.
         let flutter = CGAffineTransform(
             a: affine[0], b: affine[3], c: affine[1], d: affine[4], tx: affine[2], ty: affine[5])
         let full = sourceTransform.concatenating(flutter)
@@ -372,6 +373,16 @@ public class UxVideoExporterPlugin: NSObject, NativePlugin, FlutterStreamHandler
                 }
             }
         }
+    }
+
+    /// The track's raw→upright transform with the upright frame anchored
+    /// at the origin. Camera tracks store the bare rotation/flip
+    /// (tx/ty = 0), which alone would land the frame outside the render
+    /// canvas.
+    private static func uprightTransform(of track: AVAssetTrack) -> CGAffineTransform {
+        let t = track.preferredTransform
+        let rect = CGRect(origin: .zero, size: track.naturalSize).applying(t)
+        return t.concatenating(CGAffineTransform(translationX: -rect.minX, y: -rect.minY))
     }
 
     private func cancel(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
