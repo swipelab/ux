@@ -42,6 +42,22 @@ class XClipboard {
     }
   }
 
+  /// Whether the clipboard currently holds media this class can paste —
+  /// an image on any platform, copied files on macOS. Type-level check
+  /// only: it never reads clip contents, so it triggers neither iOS's
+  /// paste-permission prompt nor Android 12+'s paste toast. Drives paste
+  /// affordances (e.g. showing a Paste menu item for an image-only
+  /// clipboard, which the text-oriented `Clipboard.hasStrings` misses).
+  static Future<bool> hasMedia() async {
+    try {
+      return await _channel.invokeMethod<bool>('hasMedia') ?? false;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
   /// Files currently on the system clipboard (a Finder / file-manager
   /// "Copy"). macOS only for now — other platforms (and channel
   /// failures) resolve to an empty list. Check this BEFORE [readImage]:

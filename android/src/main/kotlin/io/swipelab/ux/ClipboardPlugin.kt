@@ -1,5 +1,6 @@
 package io.swipelab.ux
 
+import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
 import io.flutter.embedding.engine.plugins.FlutterPlugin
@@ -27,8 +28,21 @@ class ClipboardPlugin : NativePlugin, MethodChannel.MethodCallHandler {
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
             "readImage" -> handleReadImage(result)
+            "hasMedia" -> handleHasMedia(result)
             else -> result.notImplemented()
         }
+    }
+
+    /// Type-level check only — [ClipboardManager.getPrimaryClipDescription]
+    /// doesn't count as clip-data access, so no Android 12+ paste toast.
+    private fun handleHasMedia(result: MethodChannel.Result) {
+        val ctx = context ?: return result.success(false)
+        val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+            ?: return result.success(false)
+        val desc = cm.primaryClipDescription ?: return result.success(false)
+        val has = desc.hasMimeType("image/*") ||
+            desc.hasMimeType(ClipDescription.MIMETYPE_TEXT_URILIST)
+        result.success(has)
     }
 
     private fun handleReadImage(result: MethodChannel.Result) {

@@ -17,6 +17,7 @@ public class ClipboardPlugin: NSObject, NativePlugin {
     private func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         switch call.method {
         case "readImage": handleReadImage(result: result)
+        case "hasMedia":  result(UIPasteboard.general.hasImages)
         default:          result(FlutterMethodNotImplemented)
         }
     }

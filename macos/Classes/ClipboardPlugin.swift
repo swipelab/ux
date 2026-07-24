@@ -16,8 +16,21 @@ public class ClipboardPlugin: NSObject, NativePlugin {
         switch call.method {
         case "readImage": handleReadImage(result: result)
         case "readFiles": handleReadFiles(result: result)
+        case "hasMedia":  handleHasMedia(result: result)
         default:          result(FlutterMethodNotImplemented)
         }
+    }
+
+    /// Type-level check mirroring what readImage / readFiles can consume.
+    private func handleHasMedia(result: @escaping FlutterResult) {
+        let pb = NSPasteboard.general
+        if pb.availableType(from: [.png, .tiff]) != nil {
+            return result(true)
+        }
+        let options: [NSPasteboard.ReadingOptionKey: Any] = [
+            .urlReadingFileURLsOnly: true,
+        ]
+        result(pb.canReadObject(forClasses: [NSURL.self], options: options))
     }
 
     /// File URLs on the pasteboard (Finder "Copy"). Each entry carries a

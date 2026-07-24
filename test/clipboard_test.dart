@@ -40,6 +40,20 @@ void main() {
       expect(await XClipboard.readFiles(), isEmpty);
     });
 
+    test('hasMedia forwards the platform bool and defaults false', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+        expect(call.method, 'hasMedia');
+        return true;
+      });
+      expect(await XClipboard.hasMedia(), isTrue);
+
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+      // MissingPluginException path (no handler) → false.
+      expect(await XClipboard.hasMedia(), isFalse);
+    });
+
     test('readImage returns bytes verbatim and null on failure', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (call) async {
