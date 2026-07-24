@@ -33,6 +33,7 @@ import io.flutter.plugin.common.PluginRegistry
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
+import kotlin.math.roundToInt
 
 class FilePlugin : NativePlugin, MethodChannel.MethodCallHandler,
     PluginRegistry.ActivityResultListener,
@@ -363,8 +364,8 @@ class FilePlugin : NativePlugin, MethodChannel.MethodCallHandler,
         } else {
             1f
         }
-        val thumbW = (outWidth * scale).toInt().coerceAtLeast(1)
-        val thumbH = (outHeight * scale).toInt().coerceAtLeast(1)
+        val thumbW = (outWidth * scale).roundToInt().coerceAtLeast(1)
+        val thumbH = (outHeight * scale).roundToInt().coerceAtLeast(1)
 
         val out = Bitmap.createBitmap(thumbW, thumbH, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(out)

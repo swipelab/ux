@@ -305,6 +305,7 @@ class XFiles {
   }) async {
     assert((transform == null) == (outWidth == null) &&
         (outWidth == null) == (outHeight == null));
+    assert(transform == null || transform.length == 9);
     assert(overlayPath == null || transform != null);
     final result = await _channel.invokeMapMethod<String, Object?>(
       'videoThumbnail',
