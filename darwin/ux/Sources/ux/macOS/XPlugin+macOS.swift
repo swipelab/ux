@@ -22,6 +22,7 @@ public class XPlugin: NSObject, FlutterPlugin {
             DropPlugin(),
             AppGroupPlugin(),
             VideoProbePlugin(),
+            ImageProbePlugin(),
         ]
         for plugin in plugins {
             plugin.register(with: registrar)

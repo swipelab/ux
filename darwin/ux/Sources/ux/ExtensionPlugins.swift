@@ -10,3 +10,4 @@ import ux_extension
 extension AppGroupPlugin: NativePlugin {}
 extension CryptoPlugin: NativePlugin {}
 extension VideoProbePlugin: NativePlugin {}
+extension ImageProbePlugin: NativePlugin {}
