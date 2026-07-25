@@ -52,6 +52,7 @@ let package = Package(
         .linkedFramework("AVFoundation"),
         .linkedFramework("CoreMedia"),
         .linkedFramework("CoreVideo"),
+        .linkedFramework("Intents", .when(platforms: [.iOS])),
         .linkedFramework("Photos", .when(platforms: [.iOS])),
         .linkedFramework("PhotosUI", .when(platforms: [.iOS])),
       ]

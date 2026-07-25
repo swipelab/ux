@@ -23,6 +23,7 @@ public class XPlugin: NSObject, FlutterPlugin {
             UrlPlugin(),
             AppGroupPlugin(),
             VideoProbePlugin(),
+            ShortcutsPlugin(),
         ]
         for plugin in plugins {
             plugin.register(with: registrar)
