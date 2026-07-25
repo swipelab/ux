@@ -84,12 +84,21 @@ class ShortcutsPlugin : NativePlugin, MethodChannel.MethodCallHandler {
                 .build()
         }
         ShortcutManagerCompat.setDynamicShortcuts(ctx, shortcuts)
+        // A previous clear() may have left these ids pinned-but-disabled.
+        ShortcutManagerCompat.enableShortcuts(ctx, shortcuts)
         result.success(null)
     }
 
     private fun handleClear(result: MethodChannel.Result) {
         val ctx = context ?: return result.error("no_context", "plugin is detached", null)
+        // A pinned shortcut belongs to the launcher, not to us: it survives
+        // removeAllDynamicShortcuts, so the only way to stop it showing a name
+        // and a face is to disable it. A null message takes the system's.
+        val pinned = ShortcutManagerCompat
+            .getShortcuts(ctx, ShortcutManagerCompat.FLAG_MATCH_PINNED)
+            .map { it.id }
         ShortcutManagerCompat.removeAllDynamicShortcuts(ctx)
+        if (pinned.isNotEmpty()) ShortcutManagerCompat.disableShortcuts(ctx, pinned, null)
         result.success(null)
     }
 
