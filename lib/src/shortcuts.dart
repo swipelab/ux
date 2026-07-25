@@ -1,5 +1,6 @@
 import 'dart:io' show Platform;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 /// One donated target — a conversation, a document, whatever the app wants
@@ -43,7 +44,14 @@ class XShortcuts {
 
   static const _channel = MethodChannel('ux/shortcuts');
 
-  static bool get supported => Platform.isAndroid || Platform.isIOS;
+  static bool get supported =>
+      debugSupported ?? (Platform.isAndroid || Platform.isIOS);
+
+  /// Forces [supported] on a host that has no share targets, so a consumer's
+  /// tests can exercise [donate]/[clear] against a mock `ux/shortcuts`
+  /// handler instead of skipping the code path entirely.
+  @visibleForTesting
+  static bool? debugSupported;
 
   /// Replaces the donated set with [targets], ranked in list order. The OS
   /// caps how many it keeps; extras past the cap are dropped.
