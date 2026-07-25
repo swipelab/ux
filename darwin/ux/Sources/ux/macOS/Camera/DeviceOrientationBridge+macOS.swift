@@ -2,7 +2,7 @@
 
 import Foundation
 
-/// macOS counterpart of `ios/Classes/Camera/DeviceOrientationBridge.swift`.
+/// macOS counterpart of `iOS/Camera/DeviceOrientationBridge+iOS.swift`.
 /// Desktops don't rotate; the bridge is shaped identically to the iOS
 /// one so [CameraInstance] can call it without `#if` blocks, but
 /// `current` stays at `.portraitUp` and the listener never fires.

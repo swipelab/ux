@@ -13,8 +13,8 @@ import Foundation
 ///
 /// Platform-specific init bits — the application-audio-session flags
 /// and the interruption observers — live in `setupPlatform()` whose
-/// real implementation is in `ios/Classes/Camera/CameraSession+iOS.swift`.
-/// The macOS counterpart (`macos/Classes/Camera/CameraSession+macOS.swift`)
+/// real implementation is in `iOS/Camera/CameraSession+iOS.swift`.
+/// The macOS counterpart (`macOS/Camera/CameraSession+macOS.swift`)
 /// is a no-op: macOS has no `AVAudioSession` and no
 /// `AVCaptureSessionWasInterrupted` notification.
 final class CameraSession {

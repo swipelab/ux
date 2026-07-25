@@ -297,8 +297,8 @@ public class CameraPlugin: NSObject, NativePlugin, FlutterStreamHandler {
             DispatchQueue.main.async {
                 // Per-platform helper: iOS opens app-specific Settings
                 // via UIApplication; macOS opens the Camera privacy
-                // pane via NSWorkspace. See `CameraSettings.swift` in
-                // each platform's Classes/Camera/ folder.
+                // pane via NSWorkspace. See `CameraSettings+iOS.swift`
+                // and `CameraSettings+macOS.swift`.
                 CameraSettings.openAppSettings()
                 result(nil)
             }

@@ -8,8 +8,8 @@ import AVFoundation
 ///
 /// The enum is platform-shared; the listener that turns physical
 /// rotation into a stream of these values is platform-specific —
-/// see `ios/Classes/Camera/DeviceOrientationBridge.swift` for the
-/// iOS implementation and `macos/Classes/Camera/DeviceOrientationBridge.swift`
+/// see `iOS/Camera/DeviceOrientationBridge+iOS.swift` for the
+/// iOS implementation and `macOS/Camera/DeviceOrientationBridge+macOS.swift`
 /// for the macOS one (no-op; desktops don't rotate).
 public enum DeviceOrientationFlutter: String {
     case portraitUp

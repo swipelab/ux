@@ -27,7 +27,7 @@ let package = Package(
   dependencies: [
     // DropPlugin.zipForUpload needs FileManager.zipItem(progress:) for
     // cancellable folder upload; macOS only.
-    .package(url: "https://github.com/weichsel/ZIPFoundation.git", from: "0.9.19")
+    .package(url: "https://github.com/weichsel/ZIPFoundation.git", .upToNextMinor(from: "0.9.20"))
   ],
   targets: [
     .target(

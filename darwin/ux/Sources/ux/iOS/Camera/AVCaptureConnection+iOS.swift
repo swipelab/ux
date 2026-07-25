@@ -8,7 +8,7 @@ import AVFoundation
 /// it appears to rotate stills but not preview/data-output, AND
 /// desktop cameras are physically landscape so any rotation skews
 /// the result. The macOS counterpart in
-/// `macos/Classes/Camera/AVCaptureConnection+macOS.swift` is a no-op.
+/// `macOS/Camera/AVCaptureConnection+macOS.swift` is a no-op.
 extension AVCaptureConnection {
     func applyXCaptureOrientation(_ orientation: DeviceOrientationFlutter) {
         if isVideoOrientationSupported {

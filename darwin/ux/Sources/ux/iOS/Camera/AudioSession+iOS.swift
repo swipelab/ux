@@ -14,7 +14,7 @@ import AVFoundation
 /// so AVCaptureSession doesn't yank the category back.
 ///
 /// iOS-only. The macOS counterpart lives in
-/// `macos/Classes/Camera/AudioSession.swift` and is a no-op —
+/// `macOS/Camera/AudioSession+macOS.swift` and is a no-op —
 /// `AVCaptureSession` manages its own audio routing on macOS.
 enum AudioSession {
     /// Upgrade the shared category to include `.playAndRecord` (and

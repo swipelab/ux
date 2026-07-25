@@ -13,7 +13,7 @@ import UIKit
 /// called on main, balanced with `end…()`; this class enforces both.
 ///
 /// iOS-only. The macOS counterpart in
-/// `macos/Classes/Camera/DeviceOrientationBridge.swift` is a no-op —
+/// `macOS/Camera/DeviceOrientationBridge+macOS.swift` is a no-op —
 /// desktops don't rotate, so `current` stays at the initial
 /// `portraitUp` and the listener never fires.
 final class DeviceOrientationBridge {

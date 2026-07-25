@@ -7,7 +7,7 @@ import FlutterMacOS
 #endif
 
 /// Single-slot latest-pixel-buffer sink that feeds a `FlutterTexture`.
-/// Mirrors `PreviewSink` in `darwin/Camera/` — receiver writes, the
+/// Mirrors `PreviewSink` in `Camera/` — receiver writes, the
 /// engine reads via `copyPixelBuffer()`. We retain only the most
 /// recent buffer; older ones get released the moment a new frame
 /// arrives, bounding memory at one frame.
