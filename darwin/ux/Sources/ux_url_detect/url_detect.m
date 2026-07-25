@@ -65,7 +65,7 @@ static NSData *ux_utf8(NSString *s) {
     return [s dataUsingEncoding:NSUTF8StringEncoding allowLossyConversion:YES];
 }
 
-__attribute__((visibility("default")))
+__attribute__((used, visibility("default")))
 uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
     if (out_size) *out_size = 0;
     if (utf16 == NULL || len <= 0) return NULL;
@@ -211,7 +211,7 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
     }
 }
 
-__attribute__((visibility("default")))
+__attribute__((used, visibility("default")))
 void ux_free(uint8_t *buf) {
     if (buf != NULL) free(buf);
 }
