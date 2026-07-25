@@ -182,8 +182,10 @@ dependencies {
     implementation 'com.google.zxing:core:3.5.3'
     // ShortcutManagerCompat + IconCompat + Person, the XShortcuts backing API.
     implementation 'androidx.core:core:1.13.1'
-    // EXIF orientation for XImageProbe — the platform's own ExifInterface
-    // reads only the JPEG APP1 segment; this one also handles HEIF/PNG/WebP.
+    // EXIF orientation for XImageProbe. The platform's own ExifInterface gains
+    // HEIF only at API 28 and minSdk is 21. Already on the classpath through
+    // camera-core and media3; declared because ux uses it directly. The
+    // resolved version is whatever those agree on, not this floor.
     implementation 'androidx.exifinterface:exifinterface:1.3.7'
     // Media3 for ux.video_player. Same version line video_player_android
     // 2.9.5 pulls in (1.9.x) so the spike fork can coexist during the
