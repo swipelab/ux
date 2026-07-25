@@ -12,6 +12,7 @@ import io.flutter.plugin.common.MethodChannel
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 
 /// Describes an image file for `XImageProbe`: upright dimensions and a
 /// downscaled PNG, without ever holding the full-resolution bitmap.
@@ -45,25 +46,35 @@ class ImageProbePlugin : NativePlugin, MethodChannel.MethodCallHandler {
         val path = call.argument<String>("path")
             ?: return result.error("bad_args", "path is required", null)
         when (call.method) {
-            "size" -> worker.execute {
-                val size = displaySize(path)
-                main.post {
-                    result.success(
-                        size?.let { mapOf("width" to it.first, "height" to it.second) },
-                    )
-                }
+            "size" -> submit(result) {
+                displaySize(path)?.let { mapOf("width" to it.first, "height" to it.second) }
             }
             "thumbnail" -> {
                 val maxLongest = call.argument<Int>("maxLongest") ?: 0
                 if (maxLongest <= 0) {
                     return result.error("bad_args", "maxLongest must be > 0", null)
                 }
-                worker.execute {
-                    val thumb = thumbnail(path, maxLongest)
-                    main.post { result.success(thumb) }
-                }
+                submit(result) { thumbnail(path, maxLongest) }
             }
             else -> result.notImplemented()
+        }
+    }
+
+    /// Runs [work] off the platform thread and always answers the channel.
+    /// A decode can OutOfMemoryError and a vanished file throws — the caller is
+    /// an await, so a reply that never arrives is a permanently stuck send.
+    private fun submit(result: MethodChannel.Result, work: () -> Map<String, Any?>?) {
+        try {
+            worker.execute {
+                val reply = try {
+                    work()
+                } catch (e: Throwable) {
+                    null
+                }
+                main.post { result.success(reply) }
+            }
+        } catch (e: RejectedExecutionException) {
+            main.post { result.error("probe_failed", e.message ?: e.toString(), null) }
         }
     }
 
@@ -145,9 +156,9 @@ class ImageProbePlugin : NativePlugin, MethodChannel.MethodCallHandler {
             ExifInterface.ORIENTATION_NORMAL,
         )
     ) {
-        ExifInterface.ORIENTATION_ROTATE_90 -> 1
+        ExifInterface.ORIENTATION_ROTATE_90, ExifInterface.ORIENTATION_TRANSPOSE -> 1
         ExifInterface.ORIENTATION_ROTATE_180 -> 2
-        ExifInterface.ORIENTATION_ROTATE_270 -> 3
+        ExifInterface.ORIENTATION_ROTATE_270, ExifInterface.ORIENTATION_TRANSVERSE -> 3
         else -> 0
     }
 }
