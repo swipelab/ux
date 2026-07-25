@@ -1,4 +1,13 @@
 ### 0.10.0
+- **Darwin sources unified and moved to Swift Package Manager.** iOS and macOS
+  now build from one package at `darwin/ux/` (`sharedDarwinSource: true`);
+  `ios/` and `macos/` are gone, as are both podspecs — the plugin no longer
+  supports CocoaPods. Consumers on a recent Flutter get SPM automatically and
+  can `pod deintegrate`. `ZIPFoundation` is now an SPM dependency (macOS only).
+  Removes the podspec copy-mirror of `darwin/{Camera,Video,File}` into
+  `Classes/*-shared`, which existed only because CocoaPods cannot glob through
+  symlinks — SPM reads the shared sources directly, so they can no longer go
+  stale between builds.
 - `XGallery.saveToLibrary(path, kind, mimeType?)`: add a file on disk to the
   system photo library. iOS requests add-only authorization (`.addOnly`
   "Allow Adding Photos?" prompt) then `performChanges`; Android inserts via
