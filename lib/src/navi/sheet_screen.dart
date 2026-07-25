@@ -127,8 +127,8 @@ mixin SheetScreen<T> on Screen<T> {
   }
 
   /// System back / iOS edge swipe pops the innermost nested page
-  /// first. With the nested stack empty, falls through to the
-  /// default `handleBack` (which pops the sheet itself).
+  /// first. With the nested stack empty, declines — the router's
+  /// pop-the-top fallback then dismisses the sheet itself.
   @override
   bool handleBack() {
     if (_nestedHost.pages.isNotEmpty) {
@@ -177,6 +177,5 @@ class _SheetBody with Screen<void> {
   final SheetScreen sheet;
 
   @override
-  Widget buildPresenter(BuildContext context) =>
-      sheet.buildSheetBody(context);
+  Widget buildPresenter(BuildContext context) => sheet.buildSheetBody(context);
 }

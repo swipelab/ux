@@ -70,9 +70,9 @@ class XRouter extends BackButtonDispatcher
   }
 
   List<Screen> get pages => [
-    ..._expand(home),
-    for (final page in stack) ..._expand(page),
-  ];
+        ..._expand(home),
+        for (final page in stack) ..._expand(page),
+      ];
 
   late final _overlayEntry = OverlayEntry(builder: _buildContent);
 
@@ -100,7 +100,8 @@ class XRouter extends BackButtonDispatcher
       removeBottom: true,
       child: Material(
         child: NotificationListener<NavigationNotification>(
-          onNotification: (_) => true, // absorb — router manages system back directly
+          onNotification: (_) =>
+              true, // absorb — router manages system back directly
           child: ScreenStack(
             home: p.first,
             stack: p.skip(1).toList(),
@@ -221,16 +222,25 @@ class XRouterBack extends RootBackButtonDispatcher {
 
   @override
   Future<bool> didPopRoute() async {
+    // System back belongs to the topmost unpopped stack screen — a
+    // covered screen (or the home shell under a modal) must never see
+    // it, else back dismisses content UNDER the visible screen. The
+    // home shell handles back only once the stack is empty.
+    //
+    // Unhandled back returns `false` — NOT `super.didPopRoute()`,
+    // which re-invokes the `Router`'s registered callback and recurses
+    // straight back into this method. `false` lets the binding hand
+    // the event to the OS (the app backgrounds).
     for (final page in router.stack.reversed) {
+      if (page.popped) continue;
       if (page.handleBack()) return true;
+      if (page.canPop) {
+        page.pop();
+        return true;
+      }
+      return false;
     }
-    if (router.home.handleBack()) return true;
-    final page = router.stack.lastOrNull;
-    if (page != null && page.canPop) {
-      page.pop();
-      return true;
-    }
-    return super.didPopRoute();
+    return router.home.handleBack();
   }
 }
 
@@ -298,7 +308,8 @@ class XRouteParser extends RouteInformationParser<Object> {
   }
 
   @override
-  Future<Object> parseRouteInformation(RouteInformation routeInformation) async {
+  Future<Object> parseRouteInformation(
+      RouteInformation routeInformation) async {
     return parse(routeInformation.uri) as Object;
   }
 
