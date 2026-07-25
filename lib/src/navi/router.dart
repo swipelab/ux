@@ -20,13 +20,26 @@ import 'package:ux/src/navi/screen.dart';
 class XRouter extends BackButtonDispatcher
     with Dispose, ScreenShell
     implements ScreenHost {
-  XRouter({required this.home, this.routeParser}) {
+  XRouter({
+    required this.home,
+    this.routeParser,
+    this.keepKeyboardInsets = false,
+  }) {
     home.parentHost = this;
     _updateActive();
   }
 
   final Screen home;
   final RouteInformationParser<Object>? routeParser;
+
+  /// Whether screens see the keyboard in `MediaQuery.viewInsets.bottom`.
+  ///
+  /// Off by default: a host that drives its bottom-anchored UI from
+  /// [XKeyboard] wants the raw inset gone, or the two move the same pixels
+  /// twice. Turn it on where [XKeyboard] is unavailable — notably inside an
+  /// app extension, which links neither its FFI nor its channel — and the
+  /// ordinary `Scaffold`-style `viewInsets` arithmetic works instead.
+  final bool keepKeyboardInsets;
   late final stack = ListEmitter<Screen>()..disposeBy(this);
   late final delegate = XRouterDelegate(router: this);
   late final backDispatcher = XRouterBack(router: this);
@@ -95,19 +108,21 @@ class XRouter extends BackButtonDispatcher
     // [pages] (not the [home]/[stack] fields) so subclasses can
     // override for gating — e.g. swap home to an auth screen.
     final p = pages;
+    final content = Material(
+      child: NotificationListener<NavigationNotification>(
+        onNotification: (_) =>
+            true, // absorb — router manages system back directly
+        child: ScreenStack(
+          home: p.first,
+          stack: p.skip(1).toList(),
+        ),
+      ),
+    );
+    if (keepKeyboardInsets) return content;
     return MediaQuery.removeViewInsets(
       context: context,
       removeBottom: true,
-      child: Material(
-        child: NotificationListener<NavigationNotification>(
-          onNotification: (_) =>
-              true, // absorb — router manages system back directly
-          child: ScreenStack(
-            home: p.first,
-            stack: p.skip(1).toList(),
-          ),
-        ),
-      ),
+      child: content,
     );
   }
 
