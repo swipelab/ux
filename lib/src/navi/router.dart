@@ -32,6 +32,27 @@ class XRouter extends BackButtonDispatcher
   final Screen home;
   final RouteInformationParser<Object>? routeParser;
 
+  PlatformRouteInformationProvider? _routeInformationProvider;
+
+  /// Feeds the platform's route information — the launch intent's route on
+  /// cold start and warm `pushRouteInformation` events — into the [Router].
+  /// Null without a [routeParser]: a route can't become a screen there, and
+  /// Flutter's [Router] only accepts a provider alongside a parser.
+  PlatformRouteInformationProvider? get routeInformationProvider {
+    if (routeParser == null) return null;
+    final existing = _routeInformationProvider;
+    if (existing != null) return existing;
+    final provider = PlatformRouteInformationProvider(
+      initialRouteInformation: RouteInformation(
+        uri: Uri.parse(
+          WidgetsBinding.instance.platformDispatcher.defaultRouteName,
+        ),
+      ),
+    );
+    addDispose(provider.dispose);
+    return _routeInformationProvider = provider;
+  }
+
   /// Whether screens see the keyboard in `MediaQuery.viewInsets.bottom`.
   ///
   /// Off by default: a host that drives its bottom-anchored UI from
@@ -222,7 +243,12 @@ class XRouter extends BackButtonDispatcher
   }
 
   Future<void> setNewRoutePath(Screen? configuration) {
-    if (configuration == null || configuration == home) {
+    // A route that resolves to the home screen collapses the stack rather
+    // than pushing: the parser mints a fresh instance for `/`, so an
+    // identity/== check alone would stack a second home on every launch.
+    if (configuration == null ||
+        configuration == home ||
+        configuration.runtimeType == home.runtimeType) {
       popAll();
       return SynchronousFuture(null);
     }
@@ -395,6 +421,8 @@ class XApp extends StatelessWidget {
                           child: _InspectorScope(
                             child: Router(
                               routeInformationParser: router.routeParser,
+                              routeInformationProvider:
+                                  router.routeInformationProvider,
                               routerDelegate: router.delegate,
                               backButtonDispatcher: router.backDispatcher,
                             ),
