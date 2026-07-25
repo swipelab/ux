@@ -33,6 +33,7 @@ export 'src/keyboard.dart';
 export 'src/view_padding.dart';
 export 'src/auto_map.dart';
 export 'src/scanner.dart';
+export 'src/shortcuts.dart';
 export 'src/url.dart';
 export 'src/sensor.dart';
 export 'src/functional.dart';

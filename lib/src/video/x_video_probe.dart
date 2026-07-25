@@ -25,16 +25,16 @@ class XVideoProbeResult {
 
 /// Dimensions, duration and a poster frame in one native round-trip.
 ///
-/// Backed by AVFoundation alone — no player, no texture registry — which is
-/// what makes it usable inside an **app extension**, where the `XVideoPlayer`
-/// route is not available. Apple-only for that reason: on Android the share
-/// surface runs in the app process, so nothing needs it there yet.
+/// Backed by AVFoundation (Apple) / `MediaMetadataRetriever` (Android) alone —
+/// no player, no texture registry — which is what makes it usable inside an
+/// **app extension**, where the `XVideoPlayer` route is not available, and
+/// cheap enough for a share surface that describes files it never plays.
 class XVideoProbe {
   XVideoProbe._();
 
   static const _channel = MethodChannel('ux/video_probe');
 
-  /// Probes [path]. Null when the file has no video track at all. [maxWidth]
+  /// Probes [path]. Null when the file yields no video track at all. [maxWidth]
   /// caps the poster's width (aspect preserved); null asks for the frame at
   /// native resolution.
   static Future<XVideoProbeResult?> probe({

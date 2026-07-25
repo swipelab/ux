@@ -180,6 +180,8 @@ dependencies {
     implementation 'androidx.lifecycle:lifecycle-process:2.7.0'
     // Pure-Kotlin/Java QR decoder. ~470 KB jar, no Play Services dep.
     implementation 'com.google.zxing:core:3.5.3'
+    // ShortcutManagerCompat + IconCompat + Person, the XShortcuts backing API.
+    implementation 'androidx.core:core:1.13.1'
     // Media3 for ux.video_player. Same version line video_player_android
     // 2.9.5 pulls in (1.9.x) so the spike fork can coexist during the
     // Phase 2/3 migration without dragging in two ExoPlayer copies.
