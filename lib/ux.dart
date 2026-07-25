@@ -6,6 +6,7 @@
 /// system ([XApp], [XRouter], [Screen]), and modal sheets ([Sheet]).
 library;
 
+export 'src/app_group.dart';
 export 'src/app_info.dart';
 export 'src/bend_box.dart';
 export 'src/json_extension.dart';
