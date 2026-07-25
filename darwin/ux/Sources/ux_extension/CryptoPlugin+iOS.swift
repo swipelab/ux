@@ -1,7 +1,7 @@
-#if os(macOS)
+#if os(iOS)
 
 import CommonCrypto
-import FlutterMacOS
+import Flutter
 import Foundation
 
 /// Native AES-256-CTR for chat-attachment upload encryption. Mirrors, byte for
@@ -10,7 +10,7 @@ import Foundation
 /// processed `pos` plaintext bytes (CTR is symmetric, so the same call also
 /// decrypts). Backed by CommonCrypto, which is hardware-accelerated on all
 /// Apple targets. `kCCModeOptionCTR_BE` matches the Dart big-endian counter.
-public class CryptoPlugin: NSObject, NativePlugin {
+public class CryptoPlugin: NSObject {
     private var channel: FlutterMethodChannel?
     // Stateless per call, so a concurrent queue lets chunk encrypts use
     // multiple cores while staying off the platform main thread.
@@ -18,7 +18,7 @@ public class CryptoPlugin: NSObject, NativePlugin {
         label: "ux.crypto", qos: .userInitiated, attributes: .concurrent)
 
     public func register(with registrar: FlutterPluginRegistrar) {
-        let c = FlutterMethodChannel(name: "ux/crypto", binaryMessenger: registrar.messenger)
+        let c = FlutterMethodChannel(name: "ux/crypto", binaryMessenger: registrar.messenger())
         c.setMethodCallHandler { [weak self] call, result in
             self?.handle(call, result: result)
         }

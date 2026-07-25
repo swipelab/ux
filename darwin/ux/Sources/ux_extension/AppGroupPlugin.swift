@@ -9,7 +9,7 @@ import Foundation
 /// platforms — `FileManager` is the whole implementation, and it is
 /// app-extension safe, so the plugin can register inside an extension host
 /// as well as the app.
-public class AppGroupPlugin: NSObject, NativePlugin {
+public class AppGroupPlugin: NSObject {
     private var channel: FlutterMethodChannel?
 
     public func register(with registrar: FlutterPluginRegistrar) {

@@ -2,6 +2,7 @@
 
 import FlutterMacOS
 import AppKit
+import ux_extension
 
 public class XPlugin: NSObject, FlutterPlugin {
     private static var plugins: [NativePlugin] = []
@@ -20,6 +21,7 @@ public class XPlugin: NSObject, FlutterPlugin {
             WindowPlugin(),
             DropPlugin(),
             AppGroupPlugin(),
+            VideoProbePlugin(),
         ]
         for plugin in plugins {
             plugin.register(with: registrar)

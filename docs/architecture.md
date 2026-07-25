@@ -28,8 +28,24 @@ Conventions:
 | `XNotifications` — OS notifications: show / cancel / tap / authorization | [lib/src/notifications/](../lib/src/notifications/) | [android/.../NotificationsPlugin.kt](../android/src/main/kotlin/io/swipelab/ux/NotificationsPlugin.kt) | [darwin/ux/Sources/ux/macOS/NotificationsPlugin.swift](../darwin/ux/Sources/ux/macOS/NotificationsPlugin.swift) (macOS only) |
 | `XWindow` — host focus state (`focused`) | [lib/src/window/](../lib/src/window/) | [android/.../WindowPlugin.kt](../android/src/main/kotlin/io/swipelab/ux/WindowPlugin.kt) | [darwin/ux/Sources/ux/macOS/WindowPlugin.swift](../darwin/ux/Sources/ux/macOS/WindowPlugin.swift) (macOS only) |
 | `XFiles.videoThumbnail` — single-frame poster extract, optionally BAKED: `transform3x3` + `outWidth`/`outHeight` (the exporter's upright-source-px→output-px affine contract) + `overlayPath` (strokes PNG composited before the affine) + `maxLongest` (final thumb cap) run entirely in the native software rasteriser (Android `Bitmap`/`Canvas`, Apple `CGContext`) and return the finished PNG. Callers must NOT re-rasterise the frame through Flutter's `Picture.toImage` — it silently returns blank/black frames in some device states (Huawei, after sleep/wake cycles; ~50% of calls). Consumer: banlu's send-time bubble thumb. | [lib/src/file.dart](../lib/src/file.dart) | [android/.../FilePlugin.kt](../android/src/main/kotlin/io/swipelab/ux/FilePlugin.kt) | [darwin/ux/Sources/ux/iOS/FilePlugin+iOS.swift](../darwin/ux/Sources/ux/iOS/FilePlugin+iOS.swift) · [darwin/ux/Sources/ux/macOS/FilePlugin+macOS.swift](../darwin/ux/Sources/ux/macOS/FilePlugin+macOS.swift) |
-| `XAppGroup` — Apple App Group container lookup (`containerPath(groupId)` → `FileManager.containerURL(forSecurityApplicationGroupIdentifier:)`, null when the target isn't entitled). Consumer: banlu's data root, shared with its share extension. No Android analogue — the app and its share activity are one process | [lib/src/app_group.dart](../lib/src/app_group.dart) | n/a | [darwin/ux/Sources/ux/AppGroup/AppGroupPlugin.swift](../darwin/ux/Sources/ux/AppGroup/AppGroupPlugin.swift) |
+| `XAppGroup` — Apple App Group container lookup (`containerPath(groupId)` → `FileManager.containerURL(forSecurityApplicationGroupIdentifier:)`, null when the target isn't entitled). Consumer: banlu's data root, shared with its share extension. No Android analogue — the app and its share activity are one process | [lib/src/app_group.dart](../lib/src/app_group.dart) | n/a | [darwin/ux/Sources/ux_extension/AppGroupPlugin.swift](../darwin/ux/Sources/ux_extension/AppGroupPlugin.swift) |
+| `XVideoProbe` — one AVFoundation round-trip describing a video file: upright display dimensions, duration, and a poster frame (`AVAssetImageGenerator`). No player and no texture registry, which is what lets an **app extension** host it — see the packaging note below. Consumer: banlu's share extension, whose picker needs a video placeholder without spinning `XVideoPlayer`. Apple-only: on Android the share surface runs in the app process, where `XVideoPlayer` is already registered | [lib/src/video/x_video_probe.dart](../lib/src/video/x_video_probe.dart) | n/a | [darwin/ux/Sources/ux_extension/VideoProbePlugin.swift](../darwin/ux/Sources/ux_extension/VideoProbePlugin.swift) |
 | `XFile`, navi — see source | [lib/src/](../lib/src/) | mixed | mixed |
+
+### Apple packaging — two SPM products
+
+`darwin/ux` vends `ux` and `ux_extension`. `ux_extension`
+([Sources/ux_extension/](../darwin/ux/Sources/ux_extension/):
+`AppGroupPlugin`, `CryptoPlugin`, `VideoProbePlugin`) is everything an **app
+extension** may link:
+it is compiled `-application-extension`, so `UIApplication` and friends fail to
+compile there. `ux` cannot be linked from an extension at all — keyboard,
+gallery, camera and url all reach for `UIApplication.shared`. `ux` depends on
+`ux_extension` and declares its plugins' `NativePlugin` conformances
+([Sources/ux/ExtensionPlugins.swift](../darwin/ux/Sources/ux/ExtensionPlugins.swift)),
+so `XPlugin` registers them for the app exactly as before; an extension host
+links `ux_extension` alone and registers what it needs itself. Consumer:
+banlu's iOS share extension.
 
 ---
 

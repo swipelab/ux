@@ -15,6 +15,11 @@ import PackageDescription
 // Swift in a single target. Nothing imports it — Dart reaches
 // `ux_match_url`/`ux_free` through dart:ffi — so it needs no headers
 // exposed to the Swift side, only to be linked into the binary.
+//
+// `ux_extension` is the subset an app extension may link. `ux` itself is not
+// linkable from one: keyboard, gallery, camera and url all go through
+// `UIApplication`, which is unavailable there. Its plugins are plain classes —
+// the `NativePlugin` conformances are declared by `ux`, which depends on it.
 let package = Package(
   name: "ux",
   platforms: [
@@ -22,7 +27,8 @@ let package = Package(
     .macOS("10.15"),
   ],
   products: [
-    .library(name: "ux", targets: ["ux"])
+    .library(name: "ux", targets: ["ux"]),
+    .library(name: "ux_extension", targets: ["ux_extension"]),
   ],
   dependencies: [
     // DropPlugin.zipForUpload needs FileManager.zipItem(progress:) for
@@ -33,6 +39,7 @@ let package = Package(
     .target(
       name: "ux",
       dependencies: [
+        .target(name: "ux_extension"),
         .target(name: "ux_url_detect"),
         .product(
           name: "ZIPFoundation",
@@ -48,6 +55,11 @@ let package = Package(
         .linkedFramework("Photos", .when(platforms: [.iOS])),
         .linkedFramework("PhotosUI", .when(platforms: [.iOS])),
       ]
+    ),
+    .target(
+      name: "ux_extension",
+      path: "Sources/ux_extension",
+      swiftSettings: [.unsafeFlags(["-application-extension"])]
     ),
     .target(
       name: "ux_url_detect",

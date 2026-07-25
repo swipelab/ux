@@ -2,6 +2,7 @@
 
 import Flutter
 import UIKit
+import ux_extension
 
 public class XPlugin: NSObject, FlutterPlugin {
     private static var plugins: [NativePlugin] = []
@@ -21,6 +22,7 @@ public class XPlugin: NSObject, FlutterPlugin {
             UxVideoExporterPlugin(),
             UrlPlugin(),
             AppGroupPlugin(),
+            VideoProbePlugin(),
         ]
         for plugin in plugins {
             plugin.register(with: registrar)
