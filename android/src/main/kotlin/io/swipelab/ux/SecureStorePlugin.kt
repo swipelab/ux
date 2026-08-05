@@ -13,7 +13,9 @@ import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.security.KeyStore
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -45,7 +47,9 @@ class SecureStorePlugin : NativePlugin, MethodChannel.MethodCallHandler {
 
     /// One thread: Keystore round-trips stay off the platform thread, and the
     /// order Dart issues commands in is the order they hit the store.
-    private val worker = Executors.newSingleThreadExecutor()
+    private val worker: ExecutorService = Executors.newSingleThreadExecutor { r ->
+        Thread(r, "ux-secure-store").apply { isDaemon = true }
+    }
     private val main = Handler(Looper.getMainLooper())
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
@@ -59,6 +63,7 @@ class SecureStorePlugin : NativePlugin, MethodChannel.MethodCallHandler {
         methodChannel?.setMethodCallHandler(null)
         methodChannel = null
         prefs = null
+        worker.shutdown()
     }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
@@ -81,13 +86,17 @@ class SecureStorePlugin : NativePlugin, MethodChannel.MethodCallHandler {
     }
 
     private fun run(result: MethodChannel.Result, work: () -> String?) {
-        worker.execute {
-            try {
-                val value = work()
-                main.post { result.success(value) }
-            } catch (e: Throwable) {
-                main.post { result.error("store_failed", e.javaClass.simpleName, null) }
+        try {
+            worker.execute {
+                try {
+                    val value = work()
+                    main.post { result.success(value) }
+                } catch (e: Throwable) {
+                    main.post { result.error("store_failed", e.javaClass.simpleName, null) }
+                }
             }
+        } catch (e: RejectedExecutionException) {
+            result.error("store_failed", "detached", null)
         }
     }
 
