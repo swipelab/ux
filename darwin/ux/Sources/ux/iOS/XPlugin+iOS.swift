@@ -23,6 +23,8 @@ public class XPlugin: NSObject, FlutterPlugin {
             UxVideoPlayerPlugin(),
             UxVideoExporterPlugin(),
             UrlPlugin(),
+            WindowPlugin(),
+            SecureStorePlugin(),
             AppGroupPlugin(),
             VideoProbePlugin(),
             ImageProbePlugin(),
