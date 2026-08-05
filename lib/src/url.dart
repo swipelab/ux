@@ -65,6 +65,29 @@ class XUrl {
       return false;
     }
   }
+
+  /// Opens the OS settings the user needs to grant this app a permission it
+  /// has denied. Returns false when the settings surface cannot be reached.
+  ///
+  /// iOS and Android land on this app's own page —
+  /// `UIApplication.openSettingsURLString` and
+  /// `ACTION_APPLICATION_DETAILS_SETTINGS` for the host package. macOS has no
+  /// per-app page, so it opens the Privacy & Security pane of System
+  /// Settings, where camera / microphone / screen-recording access lives.
+  static Future<bool> openAppSettings() async {
+    if (kIsWeb) return false;
+    if (!(Platform.isIOS || Platform.isAndroid || Platform.isMacOS)) {
+      return false;
+    }
+    try {
+      final ok = await _channel.invokeMethod<bool>('openAppSettings');
+      return ok ?? false;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
 }
 
 const Set<String> _kLaunchSchemes = {

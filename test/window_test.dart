@@ -7,19 +7,27 @@ void main() {
   final messenger =
       TestWidgetsFlutterBinding.ensureInitialized().defaultBinaryMessenger;
   const channel = MethodChannel('ux/window/events');
+  const methods = MethodChannel('ux/window');
 
   final listenCalls = <String>[];
+  final methodCalls = <MethodCall>[];
 
   setUp(() {
     listenCalls.clear();
+    methodCalls.clear();
     messenger.setMockMethodCallHandler(channel, (call) async {
       listenCalls.add(call.method);
+      return null;
+    });
+    messenger.setMockMethodCallHandler(methods, (call) async {
+      methodCalls.add(call);
       return null;
     });
   });
 
   tearDown(() {
     messenger.setMockMethodCallHandler(channel, null);
+    messenger.setMockMethodCallHandler(methods, null);
     debugDefaultTargetPlatformOverride = null;
   });
 
@@ -59,5 +67,45 @@ void main() {
     await sendEvent({'type': 'focus', 'focused': true});
     await pumpEventQueue();
     expect(w.focused.value, isTrue);
+  });
+
+  for (final platform in [
+    TargetPlatform.iOS,
+    TargetPlatform.android,
+    TargetPlatform.macOS,
+  ]) {
+    test('keepAwake reaches the platform on ${platform.name}', () async {
+      debugDefaultTargetPlatformOverride = platform;
+      final w = MethodChannelXWindow();
+      await pumpEventQueue();
+
+      await w.keepAwake(true);
+      await w.keepAwake(false);
+
+      expect(methodCalls.map((c) => c.method), ['keepAwake', 'keepAwake']);
+      expect(methodCalls.first.arguments, {'enabled': true});
+      expect(methodCalls.last.arguments, {'enabled': false});
+    });
+  }
+
+  test('keepAwake is a no-op where no plugin serves it', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+    final w = MethodChannelXWindow();
+    await pumpEventQueue();
+
+    await w.keepAwake(true);
+
+    expect(methodCalls, isEmpty);
+  });
+
+  test('a platform failure leaves keepAwake resolved', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    messenger.setMockMethodCallHandler(methods, (call) async {
+      throw PlatformException(code: 'keep_awake_failed');
+    });
+    final w = MethodChannelXWindow();
+    await pumpEventQueue();
+
+    await expectLater(w.keepAwake(true), completes);
   });
 }

@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.provider.Settings
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.flutter.plugin.common.MethodCall
@@ -47,7 +48,29 @@ class UrlPlugin : NativePlugin, MethodChannel.MethodCallHandler {
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
             "launch" -> handleLaunch(call, result)
+            "openAppSettings" -> handleOpenAppSettings(result)
             else -> result.notImplemented()
+        }
+    }
+
+    /// ACTION_APPLICATION_DETAILS_SETTINGS on the host package — the page
+    /// carrying this app's permission switches.
+    private fun handleOpenAppSettings(result: MethodChannel.Result) {
+        val ctx = activity ?: appContext ?: return result.success(false)
+        val intent = Intent(
+            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+            Uri.fromParts("package", ctx.packageName, null),
+        )
+        if (ctx !is android.app.Activity) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        try {
+            ctx.startActivity(intent)
+            result.success(true)
+        } catch (_: ActivityNotFoundException) {
+            result.success(false)
+        } catch (_: SecurityException) {
+            result.success(false)
         }
     }
 

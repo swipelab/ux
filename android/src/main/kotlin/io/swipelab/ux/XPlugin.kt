@@ -18,6 +18,8 @@ class XPlugin : FlutterPlugin, ActivityAware {
         ClipboardPlugin(),
         GalleryPlugin(),
         CameraPlugin(),
+        AudioCapturePlugin(),
+        AudioSinkPlugin(),
         VideoPlayerPlugin(),
         VideoProbePlugin(),
         ImageProbePlugin(),
@@ -27,6 +29,7 @@ class XPlugin : FlutterPlugin, ActivityAware {
         UrlPlugin(),
         NotificationsPlugin(),
         WindowPlugin(),
+        SecureStorePlugin(),
     )
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) =

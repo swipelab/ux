@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="io.swipelab.ux_example">
 
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
     <application
         android:label="ux_example"
         android:icon="@mipmap/ic_launcher">
