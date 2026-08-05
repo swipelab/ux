@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:ux/ux.dart';
 
+import 'package:ux_example/audio_capture_page.dart';
+
 void main() => runApp(MaterialApp(
       theme: ThemeData(useMaterial3: true),
       home: ChatScreen(),
@@ -54,7 +56,18 @@ class _ChatScreenState extends State<ChatScreen> {
     // Disable Flutter's built-in resize — we handle it ourselves.
     return Scaffold(
       resizeToAvoidBottomInset: false,
-      appBar: AppBar(title: Text('XKeyboard Chat')),
+      appBar: AppBar(
+        title: Text('XKeyboard Chat'),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.mic),
+            tooltip: 'XAudioCapture',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const AudioCapturePage()),
+            ),
+          ),
+        ],
+      ),
       // ListenableBuilder rebuilds only when XKeyboard notifies (height changes).
       body: ListenableBuilder(
         listenable: _keyboard,
