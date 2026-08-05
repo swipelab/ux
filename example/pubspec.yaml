@@ -13,8 +13,11 @@ dependencies:
     path: ../
 
 dev_dependencies:
+  flutter_webrtc: ^1.5.2
   flutter_lints: ^6.0.0
   flutter_test:
+    sdk: flutter
+  integration_test:
     sdk: flutter
 
 flutter:

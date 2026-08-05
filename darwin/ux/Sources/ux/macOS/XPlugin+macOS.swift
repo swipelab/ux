@@ -14,6 +14,7 @@ public class XPlugin: NSObject, FlutterPlugin {
             ClipboardPlugin(),
             GalleryPlugin(),
             CameraPlugin(),
+            AudioCapturePlugin(),
             UxVideoPlayerPlugin(),
             UxVideoExporterPlugin(),
             UrlPlugin(),

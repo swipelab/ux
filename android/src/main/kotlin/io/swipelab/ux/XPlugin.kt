@@ -18,6 +18,7 @@ class XPlugin : FlutterPlugin, ActivityAware {
         ClipboardPlugin(),
         GalleryPlugin(),
         CameraPlugin(),
+        AudioCapturePlugin(),
         VideoPlayerPlugin(),
         VideoProbePlugin(),
         ImageProbePlugin(),
