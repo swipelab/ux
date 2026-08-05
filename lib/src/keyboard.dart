@@ -98,6 +98,11 @@ double _inverseLerp(List<double> samples, double value) {
 /// final keyboard = XKeyboard.instance;
 /// keyboard.enableInteractiveDismiss(trackingInset: 56);
 /// ```
+///
+/// First access to [instance] registers a persistent frame callback and, on
+/// Android, a method call handler — both require an initialized Flutter
+/// binding, so touch it only after `runApp` (or an explicit
+/// `WidgetsFlutterBinding.ensureInitialized()`).
 class XKeyboard with ChangeNotifier {
   XKeyboard._() {
     if (Platform.isAndroid) {

@@ -2,6 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ux/ux.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   test('XKeyboard.instance is a singleton', () {
     expect(XKeyboard.instance, same(XKeyboard.instance));
   });
