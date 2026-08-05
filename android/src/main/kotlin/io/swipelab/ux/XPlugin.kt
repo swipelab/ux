@@ -29,6 +29,7 @@ class XPlugin : FlutterPlugin, ActivityAware {
         UrlPlugin(),
         NotificationsPlugin(),
         WindowPlugin(),
+        SecureStorePlugin(),
     )
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) =

@@ -28,6 +28,7 @@ export 'src/video/x_video_probe.dart';
 export 'src/clipboard.dart';
 export 'src/crypto.dart';
 export 'src/notifications/x_notifications.dart';
+export 'src/secure_store/x_secure_store.dart';
 export 'src/window/x_window.dart';
 export 'src/drop/x_drop.dart' show XDrop, XDropFile, XDropRegion, ZipJob;
 export 'src/file.dart';

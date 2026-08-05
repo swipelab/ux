@@ -21,6 +21,7 @@ public class XPlugin: NSObject, FlutterPlugin {
             UrlPlugin(),
             NotificationsPlugin(),
             WindowPlugin(),
+            SecureStorePlugin(),
             DropPlugin(),
             AppGroupPlugin(),
             VideoProbePlugin(),

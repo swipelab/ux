@@ -5,6 +5,8 @@ import 'package:ux/ux.dart';
 
 import 'package:ux_example/audio_capture_page.dart';
 import 'package:ux_example/audio_sink_page.dart';
+import 'package:ux_example/keep_awake_page.dart';
+import 'package:ux_example/secure_store_page.dart';
 
 void main() => runApp(MaterialApp(
       theme: ThemeData(useMaterial3: true),
@@ -72,6 +74,20 @@ class _ChatScreenState extends State<ChatScreen> {
             tooltip: 'XAudioSink',
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const AudioSinkPage()),
+            ),
+          ),
+          IconButton(
+            icon: Icon(Icons.lock),
+            tooltip: 'XSecureStore',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SecureStorePage()),
+            ),
+          ),
+          IconButton(
+            icon: Icon(Icons.brightness_high),
+            tooltip: 'Keep awake',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const KeepAwakePage()),
             ),
           ),
         ],
