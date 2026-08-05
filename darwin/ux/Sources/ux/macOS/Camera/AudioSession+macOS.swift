@@ -8,6 +8,7 @@ import Foundation
 /// own audio routing on macOS, so this is a pure no-op.
 enum AudioSession {
     static func upgradeForRecording() {}
+    static func upgradeForPlayback() {}
 }
 
 #endif
