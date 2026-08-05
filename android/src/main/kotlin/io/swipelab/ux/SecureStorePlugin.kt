@@ -26,10 +26,7 @@ import javax.crypto.spec.GCMParameterSpec
 /// by the caller's key: values are unreadable off the device that wrote them,
 /// key names are not secret.
 ///
-/// Jetpack Security's `EncryptedSharedPreferences` wraps the same
-/// construction, but its minSdk is 23 — above this library's — and it is
-/// deprecated upstream, so the Keystore is used directly and API 22 and below
-/// answers `unsupported`.
+/// API 22 and below answers `unsupported` because Keystore AES requires API 23.
 ///
 /// Failures report the exception type. No key, value, or ciphertext is logged.
 class SecureStorePlugin : NativePlugin, MethodChannel.MethodCallHandler {
