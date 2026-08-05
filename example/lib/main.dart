@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:ux/ux.dart';
 
 import 'package:ux_example/audio_capture_page.dart';
+import 'package:ux_example/audio_sink_page.dart';
 
 void main() => runApp(MaterialApp(
       theme: ThemeData(useMaterial3: true),
@@ -64,6 +65,13 @@ class _ChatScreenState extends State<ChatScreen> {
             tooltip: 'XAudioCapture',
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const AudioCapturePage()),
+            ),
+          ),
+          IconButton(
+            icon: Icon(Icons.volume_up),
+            tooltip: 'XAudioSink',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const AudioSinkPage()),
             ),
           ),
         ],

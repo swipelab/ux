@@ -12,6 +12,7 @@ export 'src/bend_box.dart';
 export 'src/json_extension.dart';
 export 'src/bezier.dart';
 export 'src/audio/x_audio_capture.dart';
+export 'src/audio/x_audio_sink.dart';
 export 'src/camera/camera.dart';
 export 'src/camera/camera_backend.dart' show XCameraBackend, XCameraCreateResult, XCameraEvent, XCameraDeviceOrientationChanged, XCameraSessionError, XCameraSessionInterrupted, XCameraSessionResumed, XCameraDiagnostic, XCameraPreviewSizeChanged;
 export 'src/camera/camera_channel.dart' show MethodChannelXCameraBackend;

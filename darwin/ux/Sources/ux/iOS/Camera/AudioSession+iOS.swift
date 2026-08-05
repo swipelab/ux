@@ -28,6 +28,13 @@ enum AudioSession {
         )
     }
 
+    /// Upgrade the shared category to include playback, adding no options:
+    /// the union leaves whatever routing policy is already set — a call's
+    /// speaker/bluetooth choice — untouched.
+    static func upgradeForPlayback() {
+        upgrade(requestedCategory: .playback, options: [])
+    }
+
     private static func upgrade(
         requestedCategory: AVAudioSession.Category,
         options: AVAudioSession.CategoryOptions
