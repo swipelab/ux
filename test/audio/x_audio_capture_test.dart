@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
@@ -90,7 +91,10 @@ void main() {
       final received = <XAudioFrame>[];
       capture.frames.listen(received.add);
 
-      await sendEvent({'type': 'frame', 'pcm': _bytes([16384, -16384])});
+      await sendEvent({
+        'type': 'frame',
+        'pcm': _bytes([16384, -16384])
+      });
       await pumpEventQueue();
 
       expect(received, hasLength(1));
@@ -135,9 +139,84 @@ void main() {
       expect(calls, containsAllInOrder(['start', 'stop']));
     });
 
+    test('concurrent starts reach the platform one at a time', () async {
+      final firstStarted = Completer<void>();
+      final releaseFirst = Completer<void>();
+      var starts = 0;
+      messenger.setMockMethodCallHandler(methods, (call) async {
+        calls.add(call.method);
+        if (call.method != 'start') return null;
+        starts++;
+        if (starts == 1) {
+          firstStarted.complete();
+          await releaseFirst.future;
+        }
+        return null;
+      });
+      final capture = MethodChannelXAudioCapture();
+      await pumpEventQueue();
+
+      final first = capture.start();
+      await firstStarted.future;
+      final second = capture.start();
+      await pumpEventQueue();
+      expect(starts, 1);
+
+      releaseFirst.complete();
+      await Future.wait([first, second]);
+      expect(starts, 2);
+    });
+
+    test('stop waits for an in-flight start', () async {
+      final startReachedPlatform = Completer<void>();
+      final releaseStart = Completer<void>();
+      messenger.setMockMethodCallHandler(methods, (call) async {
+        calls.add(call.method);
+        if (call.method == 'start') {
+          startReachedPlatform.complete();
+          await releaseStart.future;
+        }
+        return null;
+      });
+      final capture = MethodChannelXAudioCapture();
+      await pumpEventQueue();
+
+      final start = capture.start();
+      await startReachedPlatform.future;
+      final stop = capture.stop();
+      await pumpEventQueue();
+      expect(calls.where((call) => call == 'stop'), isEmpty);
+
+      releaseStart.complete();
+      await Future.wait([start, stop]);
+      expect(calls, containsAllInOrder(['start', 'stop']));
+    });
+
+    test('a failed command does not prevent the next command', () async {
+      var starts = 0;
+      messenger.setMockMethodCallHandler(methods, (call) async {
+        calls.add(call.method);
+        if (call.method == 'start' && starts++ == 0) {
+          throw PlatformException(code: 'start_failed');
+        }
+        return null;
+      });
+      final capture = MethodChannelXAudioCapture();
+      await pumpEventQueue();
+
+      await expectLater(
+        capture.start(),
+        throwsA(isA<XAudioCaptureException>()),
+      );
+      await capture.start();
+
+      expect(starts, 2);
+    });
+
     test('a platform failure surfaces as XAudioCaptureException', () async {
       messenger.setMockMethodCallHandler(methods, (call) async {
-        throw PlatformException(code: 'permission_denied', message: 'microphone');
+        throw PlatformException(
+            code: 'permission_denied', message: 'microphone');
       });
       final capture = MethodChannelXAudioCapture();
       await pumpEventQueue();

@@ -36,9 +36,10 @@ class _AudioCapturePageState extends State<AudioCapturePage> {
   @override
   void dispose() {
     _frames?.cancel();
-    if (_capture.state.value != XAudioCaptureState.idle) {
-      unawaited(_capture.stop());
-    }
+    unawaited(_capture.stop().then<void>(
+          (_) {},
+          onError: (Object _, StackTrace __) {},
+        ));
     super.dispose();
   }
 
@@ -47,11 +48,13 @@ class _AudioCapturePageState extends State<AudioCapturePage> {
     try {
       if (_capture.state.value == XAudioCaptureState.running) {
         await _capture.stop();
+        if (!mounted) return;
         setState(() => _level = 0);
       } else {
         await _capture.start();
       }
     } on XAudioCaptureException catch (e) {
+      if (!mounted) return;
       setState(() => _error = '${e.code}: ${e.message ?? ''}');
     }
   }

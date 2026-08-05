@@ -1,21 +1,15 @@
 PODS:
   - Flutter (1.0.0)
-  - ux (0.9.0):
-    - Flutter
 
 DEPENDENCIES:
   - Flutter (from `Flutter`)
-  - ux (from `.symlinks/plugins/ux/ios`)
 
 EXTERNAL SOURCES:
   Flutter:
     :path: Flutter
-  ux:
-    :path: ".symlinks/plugins/ux/ios"
 
 SPEC CHECKSUMS:
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
-  ux: 86fcd1a58b4329c8675be9906edfc6db5ca4e546
 
 PODFILE CHECKSUM: 5c8eb167e48255b7544ab290f70b4d6a1076ca06
 

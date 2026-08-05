@@ -122,8 +122,6 @@ class AudioCapturePlugin :
         pending = null
     }
 
-    // MARK: - EventChannel
-
     override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
         eventSink = events
     }
@@ -131,8 +129,6 @@ class AudioCapturePlugin :
     override fun onCancel(arguments: Any?) {
         eventSink = null
     }
-
-    // MARK: - MethodChannel
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
@@ -212,18 +208,14 @@ class AudioCapturePlugin :
         }
     }
 
-    /// Never called from the reader thread — it signals through [interrupt],
-    /// so joining it here is safe.
     private fun stopRecord() {
         if (!running) return
         running = false
         unregisterRecordingCallback()
+        record?.stop()
         reader?.join()
         reader = null
-        record?.let {
-            it.stop()
-            it.release()
-        }
+        record?.release()
         record = null
     }
 
@@ -251,8 +243,6 @@ class AudioCapturePlugin :
 
     private fun audioManager(): AudioManager? =
         context?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-
-    // MARK: - Emission
 
     private fun emitFrame(samples: ShortArray) {
         val pcm = ByteBuffer.allocate(samples.size * 2)

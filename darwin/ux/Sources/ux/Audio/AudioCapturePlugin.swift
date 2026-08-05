@@ -58,8 +58,6 @@ public class AudioCapturePlugin: NSObject, NativePlugin, FlutterStreamHandler {
         observe()
     }
 
-    // MARK: - FlutterStreamHandler
-
     public func onListen(
         withArguments arguments: Any?,
         eventSink events: @escaping FlutterEventSink
@@ -72,8 +70,6 @@ public class AudioCapturePlugin: NSObject, NativePlugin, FlutterStreamHandler {
         eventSink = nil
         return nil
     }
-
-    // MARK: - Method dispatch
 
     private func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         switch call.method {
@@ -162,8 +158,6 @@ public class AudioCapturePlugin: NSObject, NativePlugin, FlutterStreamHandler {
         pending.removeAll(keepingCapacity: false)
     }
 
-    // MARK: - Capture
-
     /// Runs on the render thread: resample, then cut [pending] into frames.
     private func consume(_ buffer: AVAudioPCMBuffer) {
         guard let converter else { return }
@@ -199,8 +193,6 @@ public class AudioCapturePlugin: NSObject, NativePlugin, FlutterStreamHandler {
             emitFrame(frame.withUnsafeBufferPointer { Data(buffer: $0) })
         }
     }
-
-    // MARK: - Interruptions
 
     private func observe() {
         let nc = NotificationCenter.default
@@ -254,8 +246,6 @@ public class AudioCapturePlugin: NSObject, NativePlugin, FlutterStreamHandler {
             self.emitState("interrupted", reason: reason)
         }
     }
-
-    // MARK: - Emission
 
     private func emitFrame(_ pcm: Data) {
         DispatchQueue.main.async {

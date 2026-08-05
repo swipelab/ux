@@ -54,7 +54,10 @@ void main() {
     expect(calls, contains('start'));
 
     await sendEvent({'type': 'state', 'state': 'running'});
-    await sendEvent({'type': 'frame', 'pcm': pcm([16384, -16384])});
+    await sendEvent({
+      'type': 'frame',
+      'pcm': pcm([16384, -16384])
+    });
     await tester.pumpAndSettle();
 
     expect(find.text('state: running'), findsOneWidget);
@@ -97,5 +100,15 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('permission_denied: microphone'), findsOneWidget);
+  });
+
+  testWidgets('disposing the page always stops the tap', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: AudioCapturePage()));
+    calls.clear();
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+
+    expect(calls, contains('stop'));
   });
 }

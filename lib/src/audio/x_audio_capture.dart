@@ -3,13 +3,17 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart'
-    show TargetPlatform, ValueListenable, defaultTargetPlatform;
+    show
+        ErrorDescription,
+        FlutterError,
+        FlutterErrorDetails,
+        TargetPlatform,
+        ValueListenable,
+        defaultTargetPlatform,
+        kIsWeb;
 import 'package:flutter/services.dart';
 
 import 'package:ux/src/core/emitter.dart';
-import 'package:ux/src/log.dart' show Log;
-
-final _log = Log.tag('audio_capture');
 
 /// One chunk of captured microphone audio: mono signed 16-bit PCM at
 /// [XAudioCapture.sampleRate], with the RMS level of that chunk.
@@ -147,7 +151,12 @@ class MethodChannelXAudioCapture implements XAudioCapture {
   MethodChannelXAudioCapture() {
     if (!supported) return;
     _events.receiveBroadcastStream().listen(_onEvent, onError: (e, st) {
-      _log.w('event channel error', error: e, stackTrace: st);
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: e,
+        stack: st,
+        library: 'ux',
+        context: ErrorDescription('while receiving microphone audio'),
+      ));
     });
   }
 
@@ -155,12 +164,14 @@ class MethodChannelXAudioCapture implements XAudioCapture {
   static const _events = EventChannel('ux/audio_capture/events');
 
   final _frames = StreamController<XAudioFrame>.broadcast();
+  Future<void>? _commandTail;
 
   @override
   bool get supported =>
-      defaultTargetPlatform == TargetPlatform.iOS ||
-      defaultTargetPlatform == TargetPlatform.macOS ||
-      defaultTargetPlatform == TargetPlatform.android;
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.iOS ||
+          defaultTargetPlatform == TargetPlatform.macOS ||
+          defaultTargetPlatform == TargetPlatform.android);
 
   @override
   Stream<XAudioFrame> get frames => _frames.stream;
@@ -170,25 +181,40 @@ class MethodChannelXAudioCapture implements XAudioCapture {
       ValueEmitter(XAudioCaptureState.idle);
 
   @override
-  Future<void> start() async {
-    if (!supported) {
-      throw XAudioCaptureException('unsupported', '$defaultTargetPlatform');
-    }
-    try {
-      await _methods.invokeMethod<void>('start');
-    } on PlatformException catch (e) {
-      throw XAudioCaptureException(e.code, e.message);
-    }
-  }
+  Future<void> start() => _enqueue(() async {
+        if (!supported) {
+          throw XAudioCaptureException('unsupported', '$defaultTargetPlatform');
+        }
+        try {
+          await _methods.invokeMethod<void>('start');
+        } on PlatformException catch (e) {
+          throw XAudioCaptureException(e.code, e.message);
+        }
+      });
 
   @override
-  Future<void> stop() async {
-    if (!supported) return;
-    try {
-      await _methods.invokeMethod<void>('stop');
-    } on PlatformException catch (e) {
-      throw XAudioCaptureException(e.code, e.message);
-    }
+  Future<void> stop() => _enqueue(() async {
+        if (!supported) return;
+        try {
+          await _methods.invokeMethod<void>('stop');
+        } on PlatformException catch (e) {
+          throw XAudioCaptureException(e.code, e.message);
+        }
+      });
+
+  Future<void> _enqueue(Future<void> Function() command) {
+    final previous = _commandTail;
+    final operation =
+        previous == null ? command() : previous.then((_) => command());
+    final tail = operation.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace __) {},
+    );
+    _commandTail = tail;
+    tail.whenComplete(() {
+      if (identical(_commandTail, tail)) _commandTail = null;
+    });
+    return operation;
   }
 
   void _onEvent(Object? event) {
