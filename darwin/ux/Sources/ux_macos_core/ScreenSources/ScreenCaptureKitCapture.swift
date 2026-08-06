@@ -7,6 +7,7 @@ import ScreenCaptureKit
 
 /// ``ScreenCapturing`` over ScreenCaptureKit.
 @available(macOS 14.0, *)
+@MainActor
 public final class ScreenCaptureKitCapture: ScreenCapturing {
     public init() {}
 
@@ -17,7 +18,7 @@ public final class ScreenCaptureKitCapture: ScreenCapturing {
             true, onScreenWindowsOnly: false
         )
         self.content = content
-        let names = await Self.displayNames()
+        let names = Self.displayNames()
         return content.displays.map { display in
             ScreenSource(
                 kind: .display,
@@ -76,7 +77,6 @@ public final class ScreenCaptureKitCapture: ScreenCapturing {
         }
     }
 
-    @MainActor
     private static func displayNames() -> [CGDirectDisplayID: String] {
         var names: [CGDirectDisplayID: String] = [:]
         for screen in NSScreen.screens {

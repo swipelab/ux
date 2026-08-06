@@ -52,8 +52,7 @@ actor FakeScreenCapture: ScreenCapturing {
         requestedSizes[Self.key(source)] = ScreenThumbnailSize(
             width: width, height: height
         )
-        // Yields so that concurrent renders overlap observably.
-        for _ in 0..<4 { await Task.yield() }
+        try? await Task.sleep(nanoseconds: 20_000_000)
 
         if vanished.contains(Self.key(source)) { throw FakeCaptureError.notFound }
         return Self.image(width: width, height: height)
