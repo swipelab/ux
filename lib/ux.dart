@@ -17,6 +17,8 @@ export 'src/camera/camera.dart';
 export 'src/camera/camera_backend.dart' show XCameraBackend, XCameraCreateResult, XCameraEvent, XCameraDeviceOrientationChanged, XCameraSessionError, XCameraSessionInterrupted, XCameraSessionResumed, XCameraDiagnostic, XCameraPreviewSizeChanged;
 export 'src/camera/camera_channel.dart' show MethodChannelXCameraBackend;
 export 'src/camera/camera_preview.dart';
+export 'src/screen/x_screen_sources.dart';
+export 'src/screen/x_screen_sources_channel.dart' show MethodChannelXScreenSourcesBackend;
 export 'src/video/ffmpeg_license.dart' show registerFfmpegLicense;
 export 'src/video/x_video_exporter.dart';
 export 'src/video/x_video_player.dart';
