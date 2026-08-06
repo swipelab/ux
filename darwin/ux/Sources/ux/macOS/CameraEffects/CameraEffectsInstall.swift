@@ -16,7 +16,8 @@ public enum CameraEffects {
         service.install(CameraEffectsBridgeAdapter(bridge))
     }
 
-    /// Drops the bridge. A live attachment is reported failed at this moment
+    /// Drops the bridge, detaching a live attachment through it and then
+    /// tearing it down. That attachment is reported failed at this moment
     /// rather than at the next command.
     public static func uninstall() {
         service.uninstall()
@@ -65,25 +66,54 @@ final class CameraEffectsBridgeAdapter: CameraTrackBridging {
         switch bridge.detach(handle.attachment) {
         case .removed: return .removed
         case .alreadyGone: return .alreadyGone
+        case .trackReplaced: return .trackReplaced
         }
+    }
+
+    func teardown() {
+        bridge.teardown()
     }
 
     private static func taken(_ frame: CameraEffectsFrame) -> CameraFrame {
         CameraFrame(
             pixelBuffer: frame.pixelBuffer,
             crop: frame.crop,
-            rotationDegrees: frame.rotationDegrees,
-            timestampNs: frame.timestampNs
+            adaptedWidth: frame.adaptedWidth,
+            adaptedHeight: frame.adaptedHeight,
+            rotation: taken(frame.rotation),
+            timestampNs: frame.timestampNs,
+            timestamp90kHz: frame.timestamp90kHz
         )
+    }
+
+    private static func taken(_ rotation: CameraEffectsRotation) -> CameraFrameRotation {
+        switch rotation {
+        case .degrees0: return .degrees0
+        case .degrees90: return .degrees90
+        case .degrees180: return .degrees180
+        case .degrees270: return .degrees270
+        }
     }
 
     private static func published(_ frame: CameraFrame) -> CameraEffectsFrame {
         CameraEffectsFrame(
             pixelBuffer: frame.pixelBuffer,
             crop: frame.crop,
-            rotationDegrees: frame.rotationDegrees,
-            timestampNs: frame.timestampNs
+            adaptedWidth: frame.adaptedWidth,
+            adaptedHeight: frame.adaptedHeight,
+            rotation: published(frame.rotation),
+            timestampNs: frame.timestampNs,
+            timestamp90kHz: frame.timestamp90kHz
         )
+    }
+
+    private static func published(_ rotation: CameraFrameRotation) -> CameraEffectsRotation {
+        switch rotation {
+        case .degrees0: return .degrees0
+        case .degrees90: return .degrees90
+        case .degrees180: return .degrees180
+        case .degrees270: return .degrees270
+        }
     }
 
     private final class Handle: CameraTrackAttachment {
@@ -92,6 +122,8 @@ final class CameraEffectsBridgeAdapter: CameraTrackBridging {
         }
 
         let attachment: CameraEffectsAttachment
+
+        var trackId: String { attachment.trackId }
     }
 }
 

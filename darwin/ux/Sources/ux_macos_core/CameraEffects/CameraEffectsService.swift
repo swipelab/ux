@@ -44,19 +44,34 @@ public final class CameraEffectsService {
         return bridge != nil
     }
 
+    /// A live attachment is detached through the outgoing bridge, which owns
+    /// its registration, before the new bridge is stored.
     public func install(_ bridge: CameraTrackBridging) {
+        lock.lock()
+        let outgoing = self.bridge
+        let handle = attached?.handle
+        attached?.handle = nil
+        attached = nil
+        lock.unlock()
+
+        if let handle, let outgoing { outgoing.detach(handle) }
+
         lock.lock()
         self.bridge = bridge
         lock.unlock()
     }
 
-    /// Drops the bridge. A live attachment is abandoned without a bridge call
-    /// and reported once as a failure; a withheld reply resolves immediately
-    /// rather than waiting out its deadline.
+    /// Drops the bridge. A live attachment is detached through it, then the
+    /// bridge is told to release the rest, and the attachment is reported once
+    /// as a failure; a withheld reply resolves immediately rather than waiting
+    /// out its deadline.
     public func uninstall() {
         lock.lock()
+        let outgoing = bridge
         bridge = nil
         let record = attached
+        let handle = record?.handle
+        record?.handle = nil
         let pending = withheld
         attached = nil
         withheld = nil
@@ -75,6 +90,10 @@ public final class CameraEffectsService {
         lock.unlock()
 
         pending?.deadline.cancel()
+        if let outgoing, record != nil {
+            if let handle { outgoing.detach(handle) }
+            outgoing.teardown()
+        }
         if let event { emit(event, to: observer) }
         if let pending {
             finish(.failure(.integrationUnavailable), pending.completion)

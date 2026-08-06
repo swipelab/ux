@@ -1,3 +1,4 @@
+import CoreGraphics
 import XCTest
 
 @testable import ux_macos_core
@@ -293,7 +294,9 @@ final class CameraEffectsServiceTests: XCTestCase {
                 .failed(.blur, generation: 1, code: "integration_unavailable"),
             ]
         )
-        XCTAssertEqual(harness.bridge.detachCount, 0)
+        XCTAssertEqual(harness.bridge.detachCount, 1)
+        XCTAssertEqual(harness.bridge.teardownCount, 1)
+        XCTAssertTrue(harness.bridge.live.isEmpty)
 
         XCTAssertEqual(
             harness.send(.setEffect(trackId: "a", effect: .blur, generation: 2)).value,
@@ -318,7 +321,8 @@ final class CameraEffectsServiceTests: XCTestCase {
 
         XCTAssertEqual(reply.value, .failure(.integrationUnavailable))
         XCTAssertTrue(harness.scheduler.armed.isEmpty)
-        XCTAssertEqual(harness.bridge.detachCount, 0)
+        XCTAssertEqual(harness.bridge.detachCount, 1)
+        XCTAssertTrue(harness.bridge.live.isEmpty)
         XCTAssertEqual(
             harness.events,
             [
@@ -351,6 +355,96 @@ final class CameraEffectsServiceTests: XCTestCase {
                 .idle(generation: 2),
             ]
         )
+    }
+
+    func testABridgeSwapLeavesOneRegistrationOnTheTrackThroughout() {
+        let world = FakeTrackWorld()
+        let harness = CameraEffectsHarness(world: world)
+        harness.send(.setEffect(trackId: "t", effect: .blur, generation: 1))
+        harness.deliverFrame()
+
+        XCTAssertEqual(world.registrations(on: "t"), 1)
+
+        harness.service.uninstall()
+
+        XCTAssertEqual(world.registrations(on: "t"), 0)
+        XCTAssertEqual(harness.bridge.detachCount, 1)
+        XCTAssertEqual(harness.bridge.outcomes, [.removed])
+
+        let replacement = FakeCameraTrackBridge(world: world)
+        harness.service.install(replacement)
+        let reply = harness.send(.setEffect(trackId: "t", effect: .blur, generation: 2))
+        replacement.live.last?.deliverFrame()
+
+        XCTAssertEqual(reply.value, .done)
+        XCTAssertEqual(replacement.attachCount, 1)
+        XCTAssertEqual(world.registrations(on: "t"), 1)
+    }
+
+    func testInstallingUnderALiveAttachmentDetachesThroughTheOutgoingBridge() {
+        let world = FakeTrackWorld()
+        let harness = CameraEffectsHarness(world: world)
+        harness.send(.setEffect(trackId: "a", effect: .blur, generation: 1))
+        harness.deliverFrame()
+        let outgoing = harness.bridge.live[0]
+
+        let replacement = FakeCameraTrackBridge(world: world)
+        harness.service.install(replacement)
+
+        XCTAssertEqual(harness.bridge.detachedIdentities, [ObjectIdentifier(outgoing)])
+        XCTAssertEqual(harness.bridge.teardownCount, 0)
+        XCTAssertEqual(replacement.detachCount, 0)
+        XCTAssertEqual(world.registrations(on: "a"), 0)
+    }
+
+    func testUninstallTearsDownAfterTheDetachAndNotAtAllWithNothingAttached() {
+        let harness = CameraEffectsHarness()
+        harness.send(.setEffect(trackId: "a", effect: .blur, generation: 1))
+        harness.deliverFrame()
+
+        harness.service.uninstall()
+
+        XCTAssertEqual(harness.bridge.calls, [.attach("a"), .detach("a"), .teardown])
+
+        let idle = CameraEffectsHarness()
+
+        idle.service.uninstall()
+
+        XCTAssertEqual(idle.bridge.calls, [])
+    }
+
+    func testTheAttachmentCarriesItsTrackIdAndDetachResolvesTheTrackFromIt() {
+        let harness = CameraEffectsHarness()
+        harness.send(.setEffect(trackId: "a", effect: .blur, generation: 1))
+        harness.deliverFrame()
+
+        XCTAssertEqual(harness.bridge.live[0].trackId, "a")
+        XCTAssertEqual(harness.world.registrations(on: "a"), 1)
+
+        harness.send(.clear(generation: 2))
+
+        XCTAssertEqual(harness.bridge.calls, [.attach("a"), .detach("a")])
+        XCTAssertEqual(harness.bridge.outcomes, [.removed])
+        XCTAssertEqual(harness.world.registrations(on: "a"), 0)
+    }
+
+    func testADetachWhoseTrackWasReplacedSucceedsAsAnAlreadyGoneOneDoes() {
+        let harness = CameraEffectsHarness()
+        harness.send(.setEffect(trackId: "a", effect: .blur, generation: 1))
+        harness.deliverFrame()
+        harness.listen()
+        harness.world.replaceTrack("a")
+
+        XCTAssertEqual(harness.send(.clear(generation: 2)).value, .done)
+        XCTAssertEqual(harness.bridge.outcomes, [.trackReplaced])
+        XCTAssertEqual(harness.events, [.active(.blur, generation: 1)])
+        XCTAssertEqual(harness.service.currentStatus, .idle(generation: 2))
+
+        let reply = harness.send(.setEffect(trackId: "a", effect: .dim, generation: 3))
+        harness.deliverFrame()
+
+        XCTAssertEqual(reply.value, .done)
+        XCTAssertEqual(harness.world.registrations(on: "a"), 1)
     }
 
     func testADetachThatFindsTheTrackGoneStillSucceeds() {
@@ -394,6 +488,65 @@ final class CameraEffectsServiceTests: XCTestCase {
         XCTAssertEqual(second.value, .done)
         XCTAssertEqual(harness.bridge.detachCount, 1)
     }
+
+    // MARK: - Frames
+
+    func testAFrameRoundTripsThroughProcessingWithEveryFieldIntact() {
+        let harness = CameraEffectsHarness(processors: RebuildingEffectProcessors())
+        harness.send(.setEffect(trackId: "a", effect: .blur, generation: 1))
+        let sent = makeCameraFrame(
+            crop: CGRect(x: 4, y: 6, width: 640, height: 360),
+            adaptedWidth: 320,
+            adaptedHeight: 180,
+            rotation: .degrees270,
+            timestampNs: 123_456_789,
+            timestamp90kHz: 900_090
+        )
+
+        let published = harness.bridge.live[0].deliverFrame(sent)
+
+        XCTAssertTrue(published?.pixelBuffer === sent.pixelBuffer)
+        XCTAssertEqual(published?.crop, sent.crop)
+        XCTAssertEqual(published?.adaptedWidth, 320)
+        XCTAssertEqual(published?.adaptedHeight, 180)
+        XCTAssertEqual(published?.rotation, .degrees270)
+        XCTAssertEqual(published?.timestampNs, 123_456_789)
+        XCTAssertEqual(published?.timestamp90kHz, 900_090)
+    }
+
+    func testTheFourQuarterTurnsAreTheOnlyFrameRotations() {
+        XCTAssertEqual(CameraFrameRotation(rawValue: 0), .degrees0)
+        XCTAssertEqual(CameraFrameRotation(rawValue: 90), .degrees90)
+        XCTAssertEqual(CameraFrameRotation(rawValue: 180), .degrees180)
+        XCTAssertEqual(CameraFrameRotation(rawValue: 270), .degrees270)
+        XCTAssertNil(CameraFrameRotation(rawValue: 45))
+        XCTAssertNil(CameraFrameRotation(rawValue: 360))
+        XCTAssertNil(CameraFrameRotation(rawValue: -90))
+    }
+
+    func testFramesTheBridgeCannotPresentNeverReachProcessingAndTheAttachExpires() {
+        let harness = CameraEffectsHarness()
+        harness.listen()
+        let reply = harness.send(.setEffect(trackId: "a", effect: .blur, generation: 1))
+        let attachment = harness.bridge.live[0]
+
+        for _ in 0..<3 { attachment.forwardUnprocessedFrame() }
+        harness.scheduler.advance()
+
+        XCTAssertEqual(attachment.unprocessedFrames, 3)
+        XCTAssertEqual(reply.value, .failure(.trackNotProcessable))
+        XCTAssertEqual(harness.world.registrations(on: "a"), 0)
+        XCTAssertEqual(
+            harness.events,
+            [
+                .idle(generation: 0),
+                .applying(.blur, generation: 1),
+                .idle(generation: 1),
+            ]
+        )
+    }
+
+    // MARK: - Threading
 
     func testEveryFlutterFacingContinuationArrivesOnTheMainQueue() {
         let bridge = FakeCameraTrackBridge()
