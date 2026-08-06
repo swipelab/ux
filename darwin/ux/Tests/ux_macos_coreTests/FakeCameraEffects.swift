@@ -4,29 +4,95 @@ import Foundation
 
 @testable import ux_macos_core
 
-func makeCameraFrame(timestampNs: Int64 = 0) -> CameraFrame {
+func makeCameraFrame(
+    crop: CGRect = CGRect(x: 0, y: 0, width: 2, height: 2),
+    adaptedWidth: Int = 2,
+    adaptedHeight: Int = 2,
+    rotation: CameraFrameRotation = .degrees0,
+    timestampNs: Int64 = 0,
+    timestamp90kHz: Int32 = 0
+) -> CameraFrame {
     var buffer: CVPixelBuffer?
     CVPixelBufferCreate(kCFAllocatorDefault, 2, 2, kCVPixelFormatType_32BGRA, nil, &buffer)
     return CameraFrame(
         pixelBuffer: buffer!,
-        crop: CGRect(x: 0, y: 0, width: 2, height: 2),
-        rotationDegrees: 0,
-        timestampNs: timestampNs
+        crop: crop,
+        adaptedWidth: adaptedWidth,
+        adaptedHeight: adaptedHeight,
+        rotation: rotation,
+        timestampNs: timestampNs,
+        timestamp90kHz: timestamp90kHz
     )
 }
 
+/// The host's tracks, which outlive any one bridge: a track takes as many
+/// processing callbacks as are put on it, and only the object currently under
+/// an id can be reached by that id.
+final class FakeTrackWorld {
+    final class Track {
+        init(id: String) { self.id = id }
+
+        let id: String
+        var registrations: [FakeCameraTrackBridge.Attachment] = []
+    }
+
+    private var tracks: [String: Track] = [:]
+
+    func track(_ id: String) -> Track {
+        if let track = tracks[id] { return track }
+        let track = Track(id: id)
+        tracks[id] = track
+        return track
+    }
+
+    func current(_ id: String) -> Track? { tracks[id] }
+
+    /// The id comes to name a different track object.
+    func replaceTrack(_ id: String) {
+        tracks[id] = Track(id: id)
+    }
+
+    /// The track dies: nothing answers to `id`, and its callbacks die with it.
+    func removeTrack(_ id: String) {
+        tracks[id]?.registrations.removeAll()
+        tracks[id] = nil
+    }
+
+    func registrations(on id: String) -> Int { tracks[id]?.registrations.count ?? 0 }
+}
+
 final class FakeCameraTrackBridge: CameraTrackBridging {
+    init(world: FakeTrackWorld = FakeTrackWorld()) {
+        self.world = world
+    }
+
+    let world: FakeTrackWorld
+
     final class Attachment: CameraTrackAttachment {
-        init(trackId: String, processing: @escaping (CameraFrame) -> CameraFrame) {
-            self.trackId = trackId
+        init(
+            track: FakeTrackWorld.Track,
+            processing: @escaping (CameraFrame) -> CameraFrame
+        ) {
+            self.track = track
             self.processing = processing
         }
 
-        let trackId: String
+        let track: FakeTrackWorld.Track
         var processing: ((CameraFrame) -> CameraFrame)?
 
-        func deliverFrame(_ frame: CameraFrame = makeCameraFrame()) {
-            _ = processing?(frame)
+        private(set) var unprocessedFrames = 0
+
+        var trackId: String { track.id }
+
+        @discardableResult
+        func deliverFrame(_ frame: CameraFrame = makeCameraFrame()) -> CameraFrame? {
+            processing?(frame)
+        }
+
+        /// A frame the bridge cannot present as a `CVPixelBuffer`: it is
+        /// published without reaching `processing`.
+        func forwardUnprocessedFrame() {
+            unprocessedFrames += 1
         }
     }
 
@@ -34,9 +100,26 @@ final class FakeCameraTrackBridge: CameraTrackBridging {
 
     private(set) var attachCount = 0
     private(set) var detachCount = 0
+    private(set) var teardownCount = 0
     private(set) var attachedTracks: [String] = []
     private(set) var detachedIdentities: [ObjectIdentifier] = []
-    private(set) var live: [Attachment] = []
+    private(set) var outcomes: [CameraTrackDetachOutcome] = []
+    private(set) var calls: [Call] = []
+
+    enum Call: Equatable {
+        case attach(String)
+        case detach(String)
+        case teardown
+    }
+
+    private var attachments: [Attachment] = []
+
+    /// The attachments whose callback is still registered on its track.
+    var live: [Attachment] {
+        attachments.filter { attachment in
+            attachment.track.registrations.contains { $0 === attachment }
+        }
+    }
 
     func attach(
         trackId: String,
@@ -45,27 +128,45 @@ final class FakeCameraTrackBridge: CameraTrackBridging {
         if let attachError { throw attachError }
         attachCount += 1
         attachedTracks.append(trackId)
-        let attachment = Attachment(trackId: trackId, processing: processing)
-        live.append(attachment)
+        calls.append(.attach(trackId))
+        let track = world.track(trackId)
+        let attachment = Attachment(track: track, processing: processing)
+        track.registrations.append(attachment)
+        attachments.append(attachment)
         return attachment
     }
 
     @discardableResult
     func detach(_ attachment: CameraTrackAttachment) -> CameraTrackDetachOutcome {
         detachCount += 1
-        guard
-            let target = attachment as? Attachment,
-            let index = live.firstIndex(where: { $0 === target })
-        else { return .alreadyGone }
-        detachedIdentities.append(ObjectIdentifier(target))
-        live.remove(at: index)
-        target.processing = nil
-        return .removed
+        calls.append(.detach(attachment.trackId))
+        let outcome = remove(attachment)
+        outcomes.append(outcome)
+        return outcome
+    }
+
+    func teardown() {
+        teardownCount += 1
+        calls.append(.teardown)
     }
 
     /// The track dies under the attachment: the next detach finds nothing.
     func lose(_ attachment: Attachment) {
-        live.removeAll { $0 === attachment }
+        world.removeTrack(attachment.trackId)
+    }
+
+    /// Removal reaches the track through its id alone.
+    private func remove(_ attachment: CameraTrackAttachment) -> CameraTrackDetachOutcome {
+        guard let target = attachment as? Attachment else { return .alreadyGone }
+        guard let track = world.current(target.trackId) else { return .alreadyGone }
+        guard track === target.track else { return .trackReplaced }
+        guard let index = track.registrations.firstIndex(where: { $0 === target }) else {
+            return .alreadyGone
+        }
+        detachedIdentities.append(ObjectIdentifier(target))
+        track.registrations.remove(at: index)
+        target.processing = nil
+        return .removed
     }
 }
 
@@ -136,14 +237,42 @@ final class FakeEffectProcessors: CameraEffectProcessorFactory {
     }
 }
 
+/// Rebuilds every frame from its parts, so a field the frame type cannot carry
+/// does not survive processing.
+final class RebuildingEffectProcessor: CameraEffectProcessor {
+    func process(_ frame: CameraFrame) -> CameraFrame {
+        CameraFrame(
+            pixelBuffer: frame.pixelBuffer,
+            crop: frame.crop,
+            adaptedWidth: frame.adaptedWidth,
+            adaptedHeight: frame.adaptedHeight,
+            rotation: frame.rotation,
+            timestampNs: frame.timestampNs,
+            timestamp90kHz: frame.timestamp90kHz
+        )
+    }
+}
+
+final class RebuildingEffectProcessors: CameraEffectProcessorFactory {
+    func makeProcessor(for effect: CameraEffect) throws -> CameraEffectProcessor {
+        RebuildingEffectProcessor()
+    }
+}
+
 enum FakeProcessorError: Error {
     case standUp
 }
 
 /// A service wired to fakes, with the plugin's own listen/seed shape.
 final class CameraEffectsHarness {
-    init(processors: CameraEffectProcessorFactory? = FakeEffectProcessors(), installed: Bool = true) {
+    init(
+        processors: CameraEffectProcessorFactory? = FakeEffectProcessors(),
+        installed: Bool = true,
+        world: FakeTrackWorld = FakeTrackWorld()
+    ) {
         self.processors = processors
+        self.world = world
+        bridge = FakeCameraTrackBridge(world: world)
         service = CameraEffectsService(
             processors: processors,
             scheduler: scheduler,
@@ -152,7 +281,8 @@ final class CameraEffectsHarness {
         if installed { service.install(bridge) }
     }
 
-    let bridge = FakeCameraTrackBridge()
+    let world: FakeTrackWorld
+    let bridge: FakeCameraTrackBridge
     let scheduler = FakeCameraEffectsScheduler()
     let processors: CameraEffectProcessorFactory?
     let service: CameraEffectsService
