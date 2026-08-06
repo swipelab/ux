@@ -10,13 +10,19 @@ enum FakeCaptureError: Error {
 }
 
 actor FakeScreenCapture: ScreenCapturing {
-    init(sources: [ScreenSource] = [], enumerationError: Error? = nil) {
+    init(
+        sources: [ScreenSource] = [],
+        enumerationError: Error? = nil,
+        concurrencyGate: Int? = nil
+    ) {
         self.sources = sources
         self.enumerationError = enumerationError
+        self.concurrencyGate = concurrencyGate
     }
 
     private let sources: [ScreenSource]
     private let enumerationError: Error?
+    private let concurrencyGate: Int?
 
     /// Keys — `"<kind>:<id>"` — whose capture throws ``FakeCaptureError/notFound``.
     var vanished: Set<String> = []
@@ -24,7 +30,11 @@ actor FakeScreenCapture: ScreenCapturing {
     private(set) var enumerations = 0
     private(set) var requestedSizes: [String: ScreenThumbnailSize] = [:]
     private(set) var peakConcurrency = 0
+    private(set) var gateFilled = false
     private var inFlight = 0
+    private var gateWaiters: [CheckedContinuation<Void, Never>] = []
+    private var gateWatchdog: Task<Void, Never>?
+    private var gateOpen = false
 
     static func key(_ source: ScreenSource) -> String {
         "\(source.kind.rawValue):\(source.id)"
@@ -52,10 +62,37 @@ actor FakeScreenCapture: ScreenCapturing {
         requestedSizes[Self.key(source)] = ScreenThumbnailSize(
             width: width, height: height
         )
-        try? await Task.sleep(nanoseconds: 20_000_000)
+        await passGate()
 
         if vanished.contains(Self.key(source)) { throw FakeCaptureError.notFound }
         return Self.image(width: width, height: height)
+    }
+
+    /// Holds every capture until `concurrencyGate` of them are in flight, so a
+    /// peak-concurrency assertion needs no timing assumption. The watchdog
+    /// releases a gate that cannot fill: a serializing loader fails the
+    /// assertion instead of hanging the suite.
+    private func passGate() async {
+        guard let concurrencyGate, !gateOpen else { return }
+        if inFlight >= concurrencyGate {
+            gateFilled = true
+            return openGate()
+        }
+        if gateWatchdog == nil {
+            gateWatchdog = Task {
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                await self.openGate()
+            }
+        }
+        await withCheckedContinuation { gateWaiters.append($0) }
+    }
+
+    private func openGate() {
+        gateOpen = true
+        gateWatchdog?.cancel()
+        gateWatchdog = nil
+        for waiter in gateWaiters { waiter.resume() }
+        gateWaiters = []
     }
 
     private static func image(width: Int, height: Int) -> CGImage {

@@ -15,7 +15,7 @@ public struct ScreenSourceSnapshotItem: Equatable, Sendable {
 }
 
 /// Turns the capture stack's sources into one picker snapshot.
-public struct ScreenSourceLoader {
+public struct ScreenSourceLoader: Sendable {
     public init(capture: ScreenCapturing, maxConcurrentRenders: Int = 3) {
         self.capture = capture
         self.maxConcurrentRenders = max(1, maxConcurrentRenders)

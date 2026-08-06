@@ -231,7 +231,7 @@ final class ScreenSourceLoaderTests: XCTestCase {
 
     func testRendersAtMostThreeSourcesConcurrently() async throws {
         let sources = (1...9).map { source(.window, "\($0)") }
-        let capture = FakeScreenCapture(sources: sources)
+        let capture = FakeScreenCapture(sources: sources, concurrencyGate: 3)
         let loader = ScreenSourceLoader(capture: capture)
 
         let snapshot = try await loader.snapshot(
@@ -242,6 +242,8 @@ final class ScreenSourceLoaderTests: XCTestCase {
         )
 
         XCTAssertEqual(snapshot.count, 9)
+        let filled = await capture.gateFilled
+        XCTAssertTrue(filled)
         let peak = await capture.peakConcurrency
         XCTAssertEqual(peak, 3)
     }

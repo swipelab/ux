@@ -14,7 +14,7 @@ public struct ScreenThumbnailSize: Equatable, Sendable {
 }
 
 /// Renders one source into a PNG that fits given bounds.
-public struct ScreenThumbnailRenderer {
+public struct ScreenThumbnailRenderer: Sendable {
     public init(capture: ScreenCapturing) {
         self.capture = capture
     }

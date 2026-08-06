@@ -3,7 +3,7 @@ import Foundation
 
 /// Screen capture as a picker snapshot needs it, injected so the core runs
 /// without a window server.
-public protocol ScreenCapturing {
+public protocol ScreenCapturing: Sendable {
     /// Every display and window the capture stack offers right now.
     func shareableSources() async throws -> [ScreenSource]
 
