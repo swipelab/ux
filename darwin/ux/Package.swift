@@ -20,6 +20,12 @@ import PackageDescription
 // linkable from one: keyboard, gallery, camera and url all go through
 // `UIApplication`, which is unavailable there. Its plugins are plain classes —
 // the `NativePlugin` conformances are declared by `ux`, which depends on it.
+//
+// `ux_macos_core` imports no Flutter, so it and its tests build under bare
+// SwiftPM: `swift test --package-path darwin/ux --test-product uxPackageTests`
+// builds that product's graph alone, leaving the Flutter-importing targets —
+// which have no module to import outside an Xcode-driven Flutter build —
+// uncompiled.
 let package = Package(
   name: "ux",
   platforms: [
@@ -40,6 +46,7 @@ let package = Package(
       name: "ux",
       dependencies: [
         .target(name: "ux_extension"),
+        .target(name: "ux_macos_core"),
         .target(name: "ux_url_detect"),
         .product(
           name: "ZIPFoundation",
@@ -64,9 +71,18 @@ let package = Package(
       swiftSettings: [.unsafeFlags(["-application-extension"])]
     ),
     .target(
+      name: "ux_macos_core",
+      path: "Sources/ux_macos_core"
+    ),
+    .target(
       name: "ux_url_detect",
       path: "Sources/ux_url_detect",
       publicHeadersPath: "include"
+    ),
+    .testTarget(
+      name: "ux_macos_coreTests",
+      dependencies: ["ux_macos_core"],
+      path: "Tests/ux_macos_coreTests"
     ),
   ]
 )
