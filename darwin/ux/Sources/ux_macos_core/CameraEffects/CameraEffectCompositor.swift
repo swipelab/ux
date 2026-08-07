@@ -315,22 +315,3 @@ public final class CameraEffectCompositor {
         return buffer
     }
 }
-
-/// The compositor behind the total processing seam: the outcome's frame is
-/// published, its reason dropped.
-public final class CompositingEffectProcessor: CameraEffectProcessor {
-    public init(
-        compositor: CameraEffectCompositor,
-        mask: @escaping () -> CameraMask? = { nil }
-    ) {
-        self.compositor = compositor
-        self.mask = mask
-    }
-
-    private let compositor: CameraEffectCompositor
-    private let mask: () -> CameraMask?
-
-    public func process(_ frame: CameraFrame) -> CameraFrame {
-        compositor.composite(frame: frame, mask: mask()).frame
-    }
-}

@@ -19,8 +19,10 @@ public final class CameraEffectsService {
         self.delivery = delivery
     }
 
-    /// The window an attach has to see its first frame.
-    static let attachDeadline: TimeInterval = 0.75
+    /// The window an attach has to see its first frame, and the window
+    /// `applying` has — from that frame, or from an accepted same-track
+    /// switch — to see a composited output.
+    static let commandDeadline: TimeInterval = 0.75
 
     private let processors: CameraEffectProcessorFactory?
     private let scheduler: CameraEffectsScheduling
@@ -49,12 +51,17 @@ public final class CameraEffectsService {
     public func install(_ bridge: CameraTrackBridging) {
         lock.lock()
         let outgoing = self.bridge
-        let handle = attached?.handle
-        attached?.handle = nil
+        let record = attached
+        let handle = record?.handle
+        let applying = record?.applyingDeadline
+        record?.applyingDeadline = nil
+        record?.handle = nil
         attached = nil
         lock.unlock()
 
+        applying?.cancel()
         if let handle, let outgoing { outgoing.detach(handle) }
+        record?.currentProcessor().retire()
 
         lock.lock()
         self.bridge = bridge
@@ -71,6 +78,8 @@ public final class CameraEffectsService {
         bridge = nil
         let record = attached
         let handle = record?.handle
+        let applying = record?.applyingDeadline
+        record?.applyingDeadline = nil
         record?.handle = nil
         let pending = withheld
         attached = nil
@@ -90,10 +99,12 @@ public final class CameraEffectsService {
         lock.unlock()
 
         pending?.deadline.cancel()
+        applying?.cancel()
         if let outgoing, record != nil {
             if let handle { outgoing.detach(handle) }
             outgoing.teardown()
         }
+        record?.currentProcessor().retire()
         if let event { emit(event, to: observer) }
         if let pending {
             finish(.failure(.integrationUnavailable), pending.completion)
@@ -137,7 +148,10 @@ public final class CameraEffectsService {
     public func teardown() {
         lock.lock()
         observer = nil
-        let handle = attached?.handle
+        let record = attached
+        let handle = record?.handle
+        let applying = record?.applyingDeadline
+        record?.applyingDeadline = nil
         let pending = withheld
         let bridge = self.bridge
         attached = nil
@@ -147,7 +161,9 @@ public final class CameraEffectsService {
         lock.unlock()
 
         pending?.deadline.cancel()
+        applying?.cancel()
         if let handle, let bridge { bridge.detach(handle) }
+        record?.currentProcessor().retire()
         if let pending {
             delivery.deliver { pending.completion(.failure(.integrationUnavailable)) }
         }
@@ -235,16 +251,21 @@ public final class CameraEffectsService {
         if let current = attached, current.trackId == trackId {
             current.effect = effect
             current.activated = false
-            current.adopt(processor)
+            current.failed = false
+            let outgoing = current.adopt(processor)
+            armApplyingDeadline(current)
             lock.unlock()
+            outgoing.retire()
             emit(applying, to: observer)
             return finish(.done, completion)
         }
 
         let previous = attached
+        let previousDeadline = previous?.applyingDeadline
+        previous?.applyingDeadline = nil
         let record = Attached(trackId: trackId, effect: effect, processor: processor)
         attached = record
-        let deadline = scheduler.schedule(after: Self.attachDeadline) {
+        let deadline = scheduler.schedule(after: Self.commandDeadline) {
             [weak self, weak record] in
             guard let record else { return }
             self?.deadlineElapsed(record)
@@ -253,14 +274,20 @@ public final class CameraEffectsService {
         lock.unlock()
 
         emit(applying, to: observer)
-        if let handle = previous?.handle { bridge.detach(handle) }
+        previousDeadline?.cancel()
+        if let previous {
+            if let handle = previous.handle { bridge.detach(handle) }
+            previous.currentProcessor().retire()
+        }
 
         do {
             let handle = try bridge.attach(
                 trackId: trackId,
                 processing: { [weak self] frame in
                     self?.callbackEntered(record)
-                    return record.process(frame)
+                    let outcome = record.process(frame)
+                    self?.frameProcessed(record, outcome)
+                    return outcome.frame
                 }
             )
             lock.lock()
@@ -292,6 +319,7 @@ public final class CameraEffectsService {
         lock.unlock()
 
         pending.deadline.cancel()
+        record.currentProcessor().retire()
         emit(idle, to: observer)
         finish(.failure(failure), pending.completion)
     }
@@ -312,31 +340,111 @@ public final class CameraEffectsService {
         lock.unlock()
 
         if let handle, let bridge { bridge.detach(handle) }
+        record.currentProcessor().retire()
         emit(idle, to: observer)
         finish(.failure(.trackNotProcessable), pending.completion)
     }
 
+    /// The first frame on an attachment: the attach guard is satisfied and
+    /// the withheld reply resolves, while activation waits for a composited
+    /// output under the applying deadline armed here.
     private func callbackEntered(_ record: Attached) {
         lock.lock()
-        guard attached === record, !record.activated else {
+        guard attached === record, !record.entered else {
             lock.unlock()
             return
         }
-        record.activated = true
+        record.entered = true
         var pending = withheld
         if pending?.record === record {
             withheld = nil
         } else {
             pending = nil
         }
-        let active = CameraEffectStatus.active(record.effect, generation: lastGeneration)
-        status = active
-        let observer = self.observer
+        armApplyingDeadline(record)
         lock.unlock()
 
         pending?.deadline.cancel()
-        emit(active, to: observer)
         if let pending { finish(.done, pending.completion) }
+    }
+
+    /// Bounds applying→active. The deadline carries the processor whose
+    /// composite must resolve it, so one armed for a retired processor cannot
+    /// tear down its successor's command on the same record.
+    private func armApplyingDeadline(_ record: Attached) {
+        record.applyingDeadline?.cancel()
+        let processor = record.currentProcessor()
+        record.applyingDeadline = scheduler.schedule(after: Self.commandDeadline) {
+            [weak self, weak record, weak processor] in
+            guard let record, let processor else { return }
+            self?.applyingElapsed(record, processor)
+        }
+    }
+
+    /// The applying deadline expired with no composited output: the processor
+    /// is detached — so the track stops publishing substitutes — before idle
+    /// is emitted. No effect was ever active, so no failure code fits.
+    private func applyingElapsed(_ record: Attached, _ processor: CameraEffectProcessor) {
+        lock.lock()
+        guard attached === record, record.holds(processor), !record.activated else {
+            lock.unlock()
+            return
+        }
+        attached = nil
+        let handle = record.handle
+        record.handle = nil
+        let bridge = self.bridge
+        let idle = CameraEffectStatus.idle(generation: lastGeneration)
+        status = idle
+        let observer = self.observer
+        lock.unlock()
+
+        if let handle, let bridge { bridge.detach(handle) }
+        processor.retire()
+        emit(idle, to: observer)
+    }
+
+    private func frameProcessed(_ record: Attached, _ outcome: CameraFrameOutcome) {
+        lock.lock()
+        guard attached === record, record.holds(outcome.processor) else {
+            lock.unlock()
+            return
+        }
+        switch outcome.outcome {
+        case .composited:
+            guard !record.activated else {
+                lock.unlock()
+                return
+            }
+            record.activated = true
+            let deadline = record.applyingDeadline
+            record.applyingDeadline = nil
+            let active = CameraEffectStatus.active(
+                record.effect, generation: lastGeneration
+            )
+            status = active
+            let observer = self.observer
+            lock.unlock()
+
+            deadline?.cancel()
+            emit(active, to: observer)
+        case .substituted:
+            guard record.activated, !record.failed else {
+                lock.unlock()
+                return
+            }
+            record.failed = true
+            let failed = CameraEffectStatus.failed(
+                record.effect,
+                generation: lastGeneration,
+                code: CameraEffectStatusCode.processingFailed
+            )
+            status = failed
+            let observer = self.observer
+            lock.unlock()
+
+            emit(failed, to: observer)
+        }
     }
 
     // MARK: - clear
@@ -344,13 +452,18 @@ public final class CameraEffectsService {
     private func clear(generation: Int, completion: @escaping Completion) {
         lock.lock()
         lastGeneration = generation
-        let handle = attached?.handle
+        let record = attached
+        let handle = record?.handle
+        let applying = record?.applyingDeadline
+        record?.applyingDeadline = nil
         attached = nil
         status = .idle(generation: generation)
         let bridge = self.bridge
         lock.unlock()
 
+        applying?.cancel()
         if let handle, let bridge { bridge.detach(handle) }
+        record?.currentProcessor().retire()
         finish(.done, completion)
     }
 
@@ -370,9 +483,10 @@ public final class CameraEffectsService {
         let completion: Completion
     }
 
-    /// One track holding one processing callback. `effect`, `activated` and
-    /// `handle` are guarded by the service's lock; the processor by this
-    /// object's, which is the only lock the capture thread takes.
+    /// One track holding one processing callback. `effect`, `entered`,
+    /// `activated`, `failed`, `handle` and `applyingDeadline` are guarded by
+    /// the service's lock; the processor by this object's, which is the only
+    /// lock the capture thread takes.
     private final class Attached {
         init(trackId: String, effect: CameraEffect, processor: CameraEffectProcessor) {
             self.trackId = trackId
@@ -382,19 +496,36 @@ public final class CameraEffectsService {
 
         let trackId: String
         var effect: CameraEffect
+        var entered = false
         var activated = false
+        var failed = false
         var handle: CameraTrackAttachment?
+        var applyingDeadline: CameraEffectsScheduledWork?
 
         private let processorLock = NSLock()
         private var processor: CameraEffectProcessor
 
-        func adopt(_ processor: CameraEffectProcessor) {
+        func adopt(_ processor: CameraEffectProcessor) -> CameraEffectProcessor {
             processorLock.lock()
+            let outgoing = self.processor
             self.processor = processor
             processorLock.unlock()
+            return outgoing
         }
 
-        func process(_ frame: CameraFrame) -> CameraFrame {
+        func holds(_ processor: CameraEffectProcessor) -> Bool {
+            processorLock.lock()
+            defer { processorLock.unlock() }
+            return self.processor === processor
+        }
+
+        func currentProcessor() -> CameraEffectProcessor {
+            processorLock.lock()
+            defer { processorLock.unlock() }
+            return processor
+        }
+
+        func process(_ frame: CameraFrame) -> CameraFrameOutcome {
             processorLock.lock()
             let processor = self.processor
             processorLock.unlock()

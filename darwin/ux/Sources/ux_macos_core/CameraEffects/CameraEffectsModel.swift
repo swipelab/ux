@@ -66,6 +66,12 @@ extension CameraEffectStatus {
     }
 }
 
+/// Codes that ride the status stream and are never thrown.
+public enum CameraEffectStatusCode {
+    /// Processing stopped after the effect was active.
+    public static let processingFailed = "processing_failed"
+}
+
 /// A command the channel cannot serve, carrying the code Dart raises.
 public struct CameraEffectsFailure: Error, Equatable, Sendable {
     public init(code: String, message: String? = nil) {
