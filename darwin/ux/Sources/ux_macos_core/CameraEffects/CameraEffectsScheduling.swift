@@ -20,6 +20,19 @@ public protocol CameraEffectsDelivering: AnyObject {
     func deliver(_ body: @escaping () -> Void)
 }
 
+/// Monotonic seconds. Injected so a test advances time without sleeping.
+public protocol CameraEffectsClock: AnyObject {
+    var now: TimeInterval { get }
+}
+
+public final class UptimeClock: CameraEffectsClock {
+    public init() {}
+
+    public var now: TimeInterval {
+        TimeInterval(DispatchTime.now().uptimeNanoseconds) / 1_000_000_000
+    }
+}
+
 public final class MainQueueScheduler: CameraEffectsScheduling {
     public init() {}
 
