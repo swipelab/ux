@@ -76,16 +76,9 @@ func makeEffectFrame(
     )
 }
 
-/// A single-channel mask: zero everywhere except `person`, given in the
+/// A single-channel buffer: zero everywhere except `person`, given in the
 /// mask's own top-left-origin grid.
-func makeEffectMask(
-    width: Int,
-    height: Int,
-    sourceRect: CGRect,
-    person: CGRect? = nil,
-    declaredWidth: Int? = nil,
-    declaredHeight: Int? = nil
-) -> CameraMask {
+func makeMaskBuffer(width: Int, height: Int, person: CGRect? = nil) -> CVPixelBuffer {
     var made: CVPixelBuffer?
     CVPixelBufferCreate(
         kCFAllocatorDefault, width, height, kCVPixelFormatType_OneComponent8,
@@ -104,8 +97,19 @@ func makeEffectMask(
         }
     }
     CVPixelBufferUnlockBaseAddress(buffer, [])
-    return CameraMask(
-        pixelBuffer: buffer,
+    return buffer
+}
+
+func makeEffectMask(
+    width: Int,
+    height: Int,
+    sourceRect: CGRect,
+    person: CGRect? = nil,
+    declaredWidth: Int? = nil,
+    declaredHeight: Int? = nil
+) -> CameraMask {
+    CameraMask(
+        pixelBuffer: makeMaskBuffer(width: width, height: height, person: person),
         width: declaredWidth ?? width,
         height: declaredHeight ?? height,
         sourceRect: sourceRect
