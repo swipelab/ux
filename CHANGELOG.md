@@ -26,6 +26,27 @@
   (iOS / Android / macOS).
 - `FakeXGalleryBackend`: implements `saveToLibrary`, records calls in
   `savedToLibrary`, outcome overridable via `onSaveToLibrary`.
+- `XScreenSources`: the displays and windows a screen-share picker offers, as
+  one snapshot over `ux/screen_sources` (macOS 14+). `list(allowedDisplayIds:,
+  allowedWindowIds:, thumbnailWidth:, thumbnailHeight:)` intersects the
+  caller's allow-sets with what is on screen and returns each survivor as an
+  id, kind, title, owning application, source pixel dimensions and an
+  aspect-fit PNG thumbnail; a source whose thumbnail fails to render comes back
+  with a null `thumbnailPng`, and `thumbnail_failed` is thrown only when no
+  requested source rendered. `list` never prompts — `hasPermission` /
+  `requestPermission` are explicit. `XScreenSourcesBackend.instance` is
+  settable and `FakeXScreenSourcesBackend` ships in `package:ux/testing.dart`.
+- `XCameraEffects`: none / blur / dim behind the person on the outgoing camera
+  track, over `ux/camera_effects` (+`/events`) (macOS 12+). `setEffect(trackId,
+  effect)` hands the local video track to the native processor and `clear()`
+  gives it back its own frames; `status` (`idle`/`applying`/`active`/`failed`)
+  is the processor's account of the frames. Compositing is Core Image with a
+  Vision person mask, and a failure falls back to the last good effected frame
+  or black, never the raw input. The host app supplies its camera stack by
+  conforming to `CameraEffectsBridge` and calling `CameraEffects.install(_:)`;
+  without it commands answer `integration_unavailable`.
+  `XCameraEffectsBackend.instance` is settable and `FakeXCameraEffectsBackend`
+  ships in `package:ux/testing.dart`.
 
 ### 0.9.0
 - `XScanner`: new platform-view widget for QR-code (and forward-compat

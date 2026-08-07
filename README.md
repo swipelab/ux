@@ -84,6 +84,93 @@ Scaffold(
 - Use `max(keyboardHeight, safeBottom)` for bottom padding — the keyboard height includes
   the safe area when open, and `safeBottom` covers the home indicator when closed
 
+## XScreenSources
+
+The displays and windows a screen-share picker offers, taken as one snapshot.
+
+macOS only, macOS 14 and up. `supported` is the platform family; `available()`
+adds the OS version. Needs the screen-recording grant, which the app drives
+itself: `list` never prompts, `hasPermission` answers without prompting and
+`requestPermission` asks. Nothing to install on the host side.
+
+### Quick start
+
+```dart
+final sources = XScreenSourcesBackend.instance;
+if (!await sources.available()) return;
+if (!await sources.hasPermission() && !await sources.requestPermission()) {
+  return;
+}
+
+final snapshot = await sources.list(
+  allowedDisplayIds: {'1'},
+  allowedWindowIds: {'27', '31'},
+  thumbnailWidth: 320,
+  thumbnailHeight: 180,
+);
+```
+
+The caller passes the ids its capture stack reported and presents exactly what
+comes back — each survivor as an `XScreenSource` carrying its id, kind, title,
+owning application, source pixel dimensions and an aspect-fit PNG. A source
+whose thumbnail fails to render arrives with a null `thumbnailPng`, so one bad
+window never costs the picker its list; the call throws `thumbnail_failed` only
+when no requested source rendered at all. `XScreenSourcesBackend.instance` is
+settable, and `package:ux/testing.dart` vends `FakeXScreenSourcesBackend` for
+tests without a host.
+
+## XCameraEffects
+
+None, blur or dim behind the person on the outgoing camera track.
+
+macOS only, macOS 12 and up. `supported` is the platform family; `available()`
+adds the OS version and whether the host installed its bridge. Needs the camera
+grant the host already holds for capture — `NSCameraUsageDescription`, plus
+`com.apple.security.device.camera` for a sandboxed macOS app.
+
+`ux` owns the effect, not the camera: the host app supplies the seam to its own
+video stack by conforming to `CameraEffectsBridge` and installing one instance.
+
+```swift
+import ux
+
+final class MyCameraEffectsBridge: CameraEffectsBridge {
+    func attach(
+        trackId: String,
+        processing: @escaping (CameraEffectsFrame) -> CameraEffectsFrame
+    ) throws -> CameraEffectsAttachment { /* look the track up, add the callback */ }
+
+    func detach(_ attachment: CameraEffectsAttachment) -> CameraEffectsDetachOutcome {
+        /* remove that exact callback */
+    }
+
+    func teardown() { /* release what the bridge holds */ }
+}
+
+CameraEffects.install(MyCameraEffectsBridge())
+```
+
+With nothing installed every command answers `integration_unavailable` and
+`available()` answers false.
+
+### Quick start
+
+```dart
+final effects = XCameraEffectsBackend.instance;
+if (!await effects.available()) return;
+
+await effects.setEffect(track.id, XCameraEffect.blur);
+// effects.status reaches XCameraEffectPhase.active when effected frames flow
+await effects.clear();
+```
+
+One track carries an effect at a time. `setEffect` returns once the platform
+has taken the command, and `status` reports what the frames are doing —
+`idle`, `applying`, `active`, or `failed` when processing stops after the
+effect was live. A command that cannot be served throws
+`XCameraEffectsException`. `XCameraEffectsBackend.instance` is settable, and
+`package:ux/testing.dart` vends `FakeXCameraEffectsBackend`.
+
 ## Other utilities
 
 - **BendBox** — a flexible layout widget
