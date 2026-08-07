@@ -6,6 +6,7 @@ import 'package:ux/ux.dart';
 import 'package:ux_example/audio_capture_page.dart';
 import 'package:ux_example/audio_sink_page.dart';
 import 'package:ux_example/keep_awake_page.dart';
+import 'package:ux_example/screen_sources_page.dart';
 import 'package:ux_example/secure_store_page.dart';
 
 void main() => runApp(MaterialApp(
@@ -81,6 +82,13 @@ class _ChatScreenState extends State<ChatScreen> {
             tooltip: 'XSecureStore',
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const SecureStorePage()),
+            ),
+          ),
+          IconButton(
+            icon: Icon(Icons.screen_share),
+            tooltip: 'XScreenSources',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ScreenSourcesPage()),
             ),
           ),
           IconButton(
