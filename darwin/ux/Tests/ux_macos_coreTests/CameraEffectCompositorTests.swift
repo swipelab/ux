@@ -385,16 +385,19 @@ final class CameraEffectCompositorTests: XCTestCase {
         let pools = ScriptedPools()
         pools.allocationsFail = true
         let compositor = CameraEffectCompositor(effect: .dim, pools: pools)
-        let processor = CompositingEffectProcessor(compositor: compositor)
+        let processor = XCameraFrameProcessor(
+            compositor: compositor,
+            producer: PersonMaskProducer(segmenter: ScriptedSegmenter(.deferred))
+        )
         let frame = makeEffectFrame(width: 64, height: 36) { _, _ in 200 }
 
         let published = processor.process(frame)
 
-        XCTAssertFalse(published.pixelBuffer === frame.pixelBuffer)
-        assertGray(published.pixelBuffer, 32, 18, 0, within: 0)
+        XCTAssertFalse(published.frame.pixelBuffer === frame.pixelBuffer)
+        assertGray(published.frame.pixelBuffer, 32, 18, 0, within: 0)
 
         pools.allocationsFail = false
         let recovered = processor.process(frame)
-        assertGray(recovered.pixelBuffer, 32, 18, 100)
+        assertGray(recovered.frame.pixelBuffer, 32, 18, 100)
     }
 }

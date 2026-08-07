@@ -211,17 +211,101 @@ final class ImmediateDelivery: CameraEffectsDelivering {
     func deliver(_ body: @escaping () -> Void) { body() }
 }
 
+/// A processor the tests script: it answers composited or substituted, and
+/// can hold `process` open until released so a switch lands mid-frame.
 final class FakeEffectProcessor: CameraEffectProcessor {
-    private(set) var frames = 0
+    enum Answer {
+        case composite
+        case substitute
+    }
 
-    func process(_ frame: CameraFrame) -> CameraFrame {
-        frames += 1
-        return frame
+    private let state = NSCondition()
+    private var scripted = Answer.composite
+    private var holding = false
+    private var processed = 0
+    private var retires = 0
+
+    var answer: Answer {
+        get {
+            state.lock()
+            defer { state.unlock() }
+            return scripted
+        }
+        set {
+            state.lock()
+            scripted = newValue
+            state.unlock()
+        }
+    }
+
+    var frames: Int {
+        state.lock()
+        defer { state.unlock() }
+        return processed
+    }
+
+    var retireCount: Int {
+        state.lock()
+        defer { state.unlock() }
+        return retires
+    }
+
+    /// Blocks the next `process` calls until `release()`.
+    func hold() {
+        state.lock()
+        holding = true
+        state.unlock()
+    }
+
+    func release() {
+        state.lock()
+        holding = false
+        state.broadcast()
+        state.unlock()
+    }
+
+    @discardableResult
+    func waitForFrames(_ count: Int, timeout: TimeInterval = 5) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        state.lock()
+        defer { state.unlock() }
+        while processed < count {
+            if !state.wait(until: deadline) { return false }
+        }
+        return true
+    }
+
+    func process(_ frame: CameraFrame) -> CameraFrameOutcome {
+        state.lock()
+        processed += 1
+        state.broadcast()
+        while holding { state.wait() }
+        let answer = scripted
+        state.unlock()
+        switch answer {
+        case .composite:
+            return CameraFrameOutcome(
+                outcome: .composited(frame, maskRejection: nil), processor: self
+            )
+        case .substitute:
+            return CameraFrameOutcome(
+                outcome: .substituted(frame, reason: .renderFailed), processor: self
+            )
+        }
+    }
+
+    func retire() {
+        state.lock()
+        retires += 1
+        state.unlock()
     }
 }
 
 final class FakeEffectProcessors: CameraEffectProcessorFactory {
     var error: Error?
+
+    /// Vended before any self-made processor, in order.
+    var prepared: [CameraEffectProcessor] = []
 
     private(set) var requested: [CameraEffect] = []
 
@@ -231,6 +315,7 @@ final class FakeEffectProcessors: CameraEffectProcessorFactory {
     func makeProcessor(for effect: CameraEffect) throws -> CameraEffectProcessor {
         requested.append(effect)
         if let error { throw error }
+        if !prepared.isEmpty { return prepared.removeFirst() }
         let processor = FakeEffectProcessor()
         last = processor
         return processor
@@ -240,8 +325,8 @@ final class FakeEffectProcessors: CameraEffectProcessorFactory {
 /// Rebuilds every frame from its parts, so a field the frame type cannot carry
 /// does not survive processing.
 final class RebuildingEffectProcessor: CameraEffectProcessor {
-    func process(_ frame: CameraFrame) -> CameraFrame {
-        CameraFrame(
+    func process(_ frame: CameraFrame) -> CameraFrameOutcome {
+        let rebuilt = CameraFrame(
             pixelBuffer: frame.pixelBuffer,
             crop: frame.crop,
             adaptedWidth: frame.adaptedWidth,
@@ -250,7 +335,12 @@ final class RebuildingEffectProcessor: CameraEffectProcessor {
             timestampNs: frame.timestampNs,
             timestamp90kHz: frame.timestamp90kHz
         )
+        return CameraFrameOutcome(
+            outcome: .composited(rebuilt, maskRejection: nil), processor: self
+        )
     }
+
+    func retire() {}
 }
 
 final class RebuildingEffectProcessors: CameraEffectProcessorFactory {

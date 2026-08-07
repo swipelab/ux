@@ -32,7 +32,7 @@ public enum CameraEffects {
 
     private static func hostProcessors() -> CameraEffectProcessorFactory? {
         guard #available(macOS 12.0, *) else { return nil }
-        return PassthroughEffectProcessors()
+        return XCameraFrameProcessors()
     }
 }
 

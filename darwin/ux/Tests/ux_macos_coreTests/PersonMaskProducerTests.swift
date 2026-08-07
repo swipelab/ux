@@ -202,12 +202,10 @@ final class PersonMaskProducerTests: XCTestCase {
         producer.queue.sync {}
         XCTAssertEqual(producer.mask?.sourceRect, cropped.crop)
 
-        let processor = CompositingEffectProcessor(
-            compositor: compositor, mask: { [weak producer] in producer?.mask }
-        )
+        let processor = XCameraFrameProcessor(compositor: compositor, producer: producer)
         let published = processor.process(cropped)
-        assertGray(published.pixelBuffer, 80, 45, 200)
-        assertGray(published.pixelBuffer, 10, 10, 100)
+        assertGray(published.frame.pixelBuffer, 80, 45, 200)
+        assertGray(published.frame.pixelBuffer, 10, 10, 100)
     }
 
     func testAnAllZeroMaskIsPublishedAndTheCompositorTakesTheWholeFramePath() {

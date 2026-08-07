@@ -546,6 +546,277 @@ final class CameraEffectsServiceTests: XCTestCase {
         )
     }
 
+    // MARK: - Activation and outcomes
+
+    func testActivationWaitsForACompositedOutputNotCallbackEntry() {
+        let harness = CameraEffectsHarness()
+        harness.listen()
+        let reply = harness.send(.setEffect(trackId: "a", effect: .blur, generation: 1))
+        let processor = harness.fakeProcessors!.last!
+        processor.answer = .substitute
+
+        harness.deliverFrame(count: 3)
+
+        XCTAssertEqual(reply.value, .done)
+        XCTAssertEqual(
+            harness.events,
+            [.idle(generation: 0), .applying(.blur, generation: 1)]
+        )
+        XCTAssertEqual(harness.service.currentStatus, .applying(.blur, generation: 1))
+
+        processor.answer = .composite
+        harness.deliverFrame()
+
+        XCTAssertEqual(harness.events.last, .active(.blur, generation: 1))
+        XCTAssertEqual(harness.service.currentStatus, .active(.blur, generation: 1))
+    }
+
+    func testCallbackEntryAloneSatisfiesTheAttachGuard() {
+        let harness = CameraEffectsHarness()
+        harness.listen()
+        let reply = harness.send(.setEffect(trackId: "a", effect: .blur, generation: 1))
+        let processor = harness.fakeProcessors!.last!
+        processor.answer = .substitute
+        XCTAssertEqual(harness.scheduler.armed.first?.delay, 0.75)
+
+        harness.deliverFrame()
+
+        XCTAssertEqual(reply.value, .done)
+        XCTAssertEqual(harness.scheduler.scheduled.count, 2)
+        XCTAssertTrue(harness.scheduler.scheduled[0].cancelled)
+        XCTAssertEqual(harness.scheduler.armed.count, 1)
+        XCTAssertEqual(harness.scheduler.armed.first?.delay, 0.75)
+        XCTAssertEqual(
+            harness.events,
+            [.idle(generation: 0), .applying(.blur, generation: 1)]
+        )
+    }
+
+    func testAFailedCompositeAfterActivationEmitsProcessingFailedOncePerRecord() {
+        let harness = CameraEffectsHarness()
+        harness.listen()
+        harness.send(.setEffect(trackId: "a", effect: .blur, generation: 1))
+        let first = harness.fakeProcessors!.last!
+        harness.deliverFrame()
+
+        first.answer = .substitute
+        harness.deliverFrame(count: 3)
+
+        harness.send(.setEffect(trackId: "a", effect: .dim, generation: 2))
+        XCTAssertEqual(first.retireCount, 1)
+        let second = harness.fakeProcessors!.last!
+        harness.deliverFrame()
+
+        second.answer = .substitute
+        harness.deliverFrame(count: 2)
+
+        XCTAssertEqual(
+            harness.events,
+            [
+                .idle(generation: 0),
+                .applying(.blur, generation: 1),
+                .active(.blur, generation: 1),
+                .failed(.blur, generation: 1, code: "processing_failed"),
+                .applying(.dim, generation: 2),
+                .active(.dim, generation: 2),
+                .failed(.dim, generation: 2, code: "processing_failed"),
+            ]
+        )
+    }
+
+    func testAPersistentlySubstitutingProcessorResolvesApplyingIntoIdle() {
+        let harness = CameraEffectsHarness()
+        harness.listen()
+        let reply = harness.send(.setEffect(trackId: "a", effect: .blur, generation: 1))
+        let processor = harness.fakeProcessors!.last!
+        processor.answer = .substitute
+        harness.deliverFrame(count: 3)
+        XCTAssertEqual(reply.value, .done)
+
+        harness.scheduler.advance()
+
+        XCTAssertEqual(harness.bridge.detachCount, 1)
+        XCTAssertTrue(harness.bridge.live.isEmpty)
+        XCTAssertEqual(processor.retireCount, 1)
+        XCTAssertEqual(
+            harness.events,
+            [
+                .idle(generation: 0),
+                .applying(.blur, generation: 1),
+                .idle(generation: 1),
+            ]
+        )
+        XCTAssertEqual(harness.service.currentStatus, .idle(generation: 1))
+    }
+
+    func testTheAttachGuardAloneOwnsTheNoFrameOutcome() {
+        let harness = CameraEffectsHarness()
+        harness.listen()
+        let reply = harness.send(.setEffect(trackId: "a", effect: .blur, generation: 1))
+        XCTAssertEqual(harness.scheduler.scheduled.count, 1)
+
+        harness.scheduler.advance()
+
+        XCTAssertEqual(reply.value, .failure(.trackNotProcessable))
+        XCTAssertEqual(harness.scheduler.scheduled.count, 1)
+        XCTAssertEqual(
+            harness.events,
+            [
+                .idle(generation: 0),
+                .applying(.blur, generation: 1),
+                .idle(generation: 1),
+            ]
+        )
+    }
+
+    func testASameTrackSwitchSupersedesThePendingApplyingDeadline() {
+        let harness = CameraEffectsHarness()
+        harness.send(.setEffect(trackId: "a", effect: .blur, generation: 1))
+        let first = harness.fakeProcessors!.last!
+        first.answer = .substitute
+        harness.deliverFrame()
+        XCTAssertEqual(harness.scheduler.armed.count, 1)
+        let superseded = harness.scheduler.armed[0]
+
+        harness.send(.setEffect(trackId: "a", effect: .dim, generation: 2))
+
+        XCTAssertTrue(superseded.cancelled)
+        XCTAssertEqual(harness.scheduler.armed.count, 1)
+
+        harness.deliverFrame()
+
+        XCTAssertTrue(harness.scheduler.armed.isEmpty)
+
+        harness.scheduler.advance()
+
+        XCTAssertEqual(harness.bridge.live.count, 1)
+        XCTAssertEqual(harness.service.currentStatus, .active(.dim, generation: 2))
+    }
+
+    func testASwitchWhoseTrackGoesSilentStillResolvesToIdle() {
+        let harness = CameraEffectsHarness()
+        harness.send(.setEffect(trackId: "a", effect: .blur, generation: 1))
+        harness.deliverFrame()
+        harness.listen()
+
+        let reply = harness.send(.setEffect(trackId: "a", effect: .dim, generation: 2))
+
+        XCTAssertEqual(reply.value, .done)
+        XCTAssertEqual(harness.scheduler.armed.count, 1)
+        XCTAssertEqual(harness.scheduler.armed.first?.delay, 0.75)
+        let processor = harness.fakeProcessors!.last!
+
+        harness.scheduler.advance()
+
+        XCTAssertEqual(harness.bridge.detachCount, 1)
+        XCTAssertTrue(harness.bridge.live.isEmpty)
+        XCTAssertEqual(processor.retireCount, 1)
+        XCTAssertEqual(
+            harness.events,
+            [
+                .active(.blur, generation: 1),
+                .applying(.dim, generation: 2),
+                .idle(generation: 2),
+            ]
+        )
+        XCTAssertEqual(harness.service.currentStatus, .idle(generation: 2))
+    }
+
+    func testACompositeFromARetiredProcessorDoesNotActivate() {
+        let first = FakeEffectProcessor()
+        let second = FakeEffectProcessor()
+        let processors = FakeEffectProcessors()
+        processors.prepared = [first, second]
+        let harness = CameraEffectsHarness(processors: processors)
+        harness.listen()
+        harness.send(.setEffect(trackId: "a", effect: .blur, generation: 1))
+        first.hold()
+        let attachment = harness.bridge.live[0]
+        let returned = expectation(description: "held frame returns")
+        DispatchQueue.global().async {
+            attachment.deliverFrame()
+            returned.fulfill()
+        }
+        XCTAssertTrue(first.waitForFrames(1))
+
+        XCTAssertEqual(
+            harness.send(.setEffect(trackId: "a", effect: .dim, generation: 2)).value,
+            .done
+        )
+        first.release()
+        wait(for: [returned], timeout: 5)
+
+        XCTAssertEqual(harness.service.currentStatus, .applying(.dim, generation: 2))
+
+        harness.deliverFrame()
+
+        XCTAssertEqual(
+            harness.events,
+            [
+                .idle(generation: 0),
+                .applying(.blur, generation: 1),
+                .applying(.dim, generation: 2),
+                .active(.dim, generation: 2),
+            ]
+        )
+    }
+
+    func testASubstitutionFromARetiredProcessorDoesNotSpendTheFailOnce() {
+        let first = FakeEffectProcessor()
+        let second = FakeEffectProcessor()
+        let processors = FakeEffectProcessors()
+        processors.prepared = [first, second]
+        let harness = CameraEffectsHarness(processors: processors)
+        harness.listen()
+        harness.send(.setEffect(trackId: "a", effect: .blur, generation: 1))
+        harness.deliverFrame()
+        first.answer = .substitute
+        first.hold()
+        let attachment = harness.bridge.live[0]
+        let returned = expectation(description: "held frame returns")
+        DispatchQueue.global().async {
+            attachment.deliverFrame()
+            returned.fulfill()
+        }
+        XCTAssertTrue(first.waitForFrames(2))
+
+        harness.send(.setEffect(trackId: "a", effect: .dim, generation: 2))
+        harness.deliverFrame()
+        first.release()
+        wait(for: [returned], timeout: 5)
+
+        XCTAssertEqual(
+            harness.events,
+            [
+                .idle(generation: 0),
+                .applying(.blur, generation: 1),
+                .active(.blur, generation: 1),
+                .applying(.dim, generation: 2),
+                .active(.dim, generation: 2),
+            ]
+        )
+
+        second.answer = .substitute
+        harness.deliverFrame()
+
+        XCTAssertEqual(
+            harness.events.last,
+            .failed(.dim, generation: 2, code: "processing_failed")
+        )
+        XCTAssertEqual(harness.events.filter { $0.phase == .failed }.count, 1)
+    }
+
+    func testClearRetiresTheProcessor() {
+        let harness = CameraEffectsHarness()
+        harness.send(.setEffect(trackId: "a", effect: .blur, generation: 1))
+        let processor = harness.fakeProcessors!.last!
+        harness.deliverFrame()
+
+        harness.send(.clear(generation: 2))
+
+        XCTAssertEqual(processor.retireCount, 1)
+    }
+
     // MARK: - Threading
 
     func testEveryFlutterFacingContinuationArrivesOnTheMainQueue() {
