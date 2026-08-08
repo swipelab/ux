@@ -180,6 +180,10 @@ dependencies {
     implementation 'androidx.lifecycle:lifecycle-process:2.7.0'
     // Pure-Kotlin/Java QR decoder. ~470 KB jar, no Play Services dep.
     implementation 'com.google.zxing:core:3.5.3'
+    // On-device selfie segmentation, the person mask behind ux.camera effects.
+    // The model ships inside the artifact; no Play Services download gates the
+    // first inference.
+    implementation 'com.google.mlkit:segmentation-selfie:16.0.0-beta6'
     // ShortcutManagerCompat + IconCompat + Person, the XShortcuts backing API.
     implementation 'androidx.core:core:1.13.1'
     // EXIF orientation for XImageProbe. The platform's own ExifInterface gains
