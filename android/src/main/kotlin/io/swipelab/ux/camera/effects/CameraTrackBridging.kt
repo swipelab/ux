@@ -34,10 +34,10 @@ class CameraFramePlanes(
 }
 
 /**
- * One frame the host hands the core. [planes] materializes CPU pixels on the
- * first ask — for a host frame that costs a texture readback, so a frame the
- * core short-circuits never pays for one. [close] is terminal and gives up
- * only planes materialized through this frame.
+ * One frame the host hands the core. [planes] resolves CPU pixels on the first
+ * ask and memoizes that outcome — for a host frame the source costs a texture
+ * readback, so it runs at most once. [close] is terminal and gives up only
+ * planes successfully materialized through this frame.
  */
 class CameraFrame(
     val width: Int,
@@ -48,11 +48,19 @@ class CameraFrame(
 ) : AutoCloseable {
     private val lock = Any()
     private var materialized: CameraFramePlanes? = null
+    private var materializationFailure: Throwable? = null
     private var closed = false
 
     fun planes(): CameraFramePlanes = synchronized(lock) {
         check(!closed) { "Camera frame is closed" }
-        materialized ?: source().also { materialized = it }
+        materialized?.let { return@synchronized it }
+        materializationFailure?.let { throw it }
+        try {
+            source().also { materialized = it }
+        } catch (failure: Throwable) {
+            materializationFailure = failure
+            throw failure
+        }
     }
 
     override fun close() {
@@ -127,11 +135,11 @@ class CameraTrackAttachException(val unknownTrack: Boolean) : Exception()
  *   call and closes it exactly once on every return and every failure path
  *   before `processing` returns. The host neither closes the frame nor its
  *   planes, and does not touch the frame after `processing` returns.
- * - Planes materialize lazily: the core asks at most once, and only when it
- *   needs the pixels. A frame the core short-circuits never materializes, so a
- *   readback that was never performed is never released. The host supplies the
- *   closure that gives the underlying buffer back and never invokes it
- *   directly.
+ * - Planes materialize lazily: the frame invokes the host source at most once,
+ *   and only when the core needs the pixels. A frame the core short-circuits
+ *   never materializes, so a readback that was never performed is never
+ *   released. The host supplies the closure that gives the underlying buffer
+ *   back and never invokes it directly.
  * - `processing` returns a [PublishedFrame] — always distinct from its input,
  *   never over the host's raw pixels, over planes the core already holds. The
  *   host owns it from that return and closes it exactly once, after the

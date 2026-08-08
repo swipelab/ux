@@ -177,6 +177,12 @@ class CameraEffectCompositor(
     ): CompositeOutcome {
         val width = maxOf(1, frame.width)
         val height = maxOf(1, frame.height)
+        if (!holdsFallback) {
+            val substitute = makeBlackBuffer(width, height)
+            val publication = published(substitute, frame)
+            substitute.release()
+            return CompositeOutcome.Substituted(publication, reason)
+        }
         val good = lastGood
         if (good != null && good.width == width && good.height == height) {
             return CompositeOutcome.Substituted(published(good, frame), reason)

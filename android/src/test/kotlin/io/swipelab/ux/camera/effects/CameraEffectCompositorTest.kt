@@ -477,20 +477,32 @@ class CameraEffectCompositorTest {
     }
 
     @Test
-    fun aFailureAfterRetirementPublishesBlackRatherThanAStaleFrame() {
+    fun postRetirementFailuresPublishIndependentBlackFramesAndRetainNoPoolClaim() {
         val pools = ScriptedBufferPools()
         val compositor = CameraEffectCompositor(CameraEffect.DIM, pools)
         val input = EffectFrame(width = 64, height = 36).apply { fillLuma { _, _ -> 200 } }
         composited(compositor.composite(input.frame(), null)).frame.close()
 
         compositor.retire()
-        composited(compositor.composite(input.frame(), null)).frame.close()
-        val failing = EffectFrame(width = 64, height = 36).apply { failsToMaterialize = true }
-        val outcome = substituted(compositor.composite(failing.frame(), null))
+        val firstFailure = EffectFrame(width = 64, height = 36).apply {
+            failsToMaterialize = true
+        }
+        val first = substituted(compositor.composite(firstFailure.frame(), null))
 
-        assertEquals(CameraCompositeSubstitution.RENDER_FAILED, outcome.reason)
-        assertLuma(outcome.frame.planes, 32, 18, 0, within = 0)
-        outcome.frame.close()
+        assertEquals(CameraCompositeSubstitution.RENDER_FAILED, first.reason)
+        assertLuma(first.frame.planes, 32, 18, 0, within = 0)
+        first.frame.planes.dataY.put(0, 31)
+
+        val secondFailure = EffectFrame(width = 64, height = 36).apply {
+            failsToMaterialize = true
+        }
+        val second = substituted(compositor.composite(secondFailure.frame(), null))
+
+        assertEquals(CameraCompositeSubstitution.RENDER_FAILED, second.reason)
+        assertLuma(second.frame.planes, 0, 0, 0, within = 0)
+        assertEquals(31, luma(first.frame.planes, 0, 0))
+        first.frame.close()
+        second.frame.close()
         assertEquals(pools.pools[0].taken, pools.pools[0].recycled)
     }
 

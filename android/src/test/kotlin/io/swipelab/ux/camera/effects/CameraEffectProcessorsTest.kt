@@ -128,11 +128,24 @@ class CameraEffectProcessorsTest {
     fun aReadbackFailureSubstitutesAndTheProducerAcceptsTheNextFrame() {
         val producer = makeProducer()
         val processor = makeProcessor(producer)
-        val unreadable = personFrame().apply { failsToMaterialize = true }
+        var materializations = 0
+        val failure = PlaneReadbackFailure()
+        val unreadable = CameraFrame(
+            width = 320,
+            height = 180,
+            rotation = CameraFrameRotation.DEGREES_0,
+            timestampNs = 0,
+            source = {
+                materializations += 1
+                throw failure
+            },
+        )
 
-        val failed = substituted(processor.process(unreadable.frame()))
+        val failed = substituted(processor.process(unreadable))
 
         assertEquals(CameraCompositeSubstitution.RENDER_FAILED, failed.reason)
+        assertEquals(1, materializations)
+        assertThrows(IllegalStateException::class.java) { unreadable.planes() }
         failed.frame.close()
         val recovered = composited(processor.process(personFrame().frame()))
         recovered.frame.close()
