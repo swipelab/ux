@@ -103,7 +103,6 @@ class XRouter extends BackButtonDispatcher
     }
   }
 
-  @override
   List<Screen> get pages => [
         ..._expand(home),
         for (final page in stack) ..._expand(page),
@@ -176,7 +175,6 @@ class XRouter extends BackButtonDispatcher
   /// The type parameter `T` on the awaiter may differ from the mounted
   /// page's original `T`; the returned future is cast. Pushing an equal
   /// page of a different `T` is undefined.
-  @override
   Future<T?> push<T>(Screen<T> page) async {
     FocusManager.instance.primaryFocus?.unfocus();
     if (home == page) {

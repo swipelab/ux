@@ -12,5 +12,5 @@ abstract class StoreFactory<T> {
   T get instance;
 
   /// Passes strongly typed instance to [fn] while retaining generic [T].
-  R pipeInstance<R>(R Function<S>(S instance) fn) => fn<T>(instance);
+  R pipeInstance<R>(R Function<T>(T instance) fn) => fn<T>(instance);
 }

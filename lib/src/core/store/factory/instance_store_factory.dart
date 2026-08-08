@@ -6,7 +6,6 @@ class InstanceStoreFactory<T> extends StoreFactory<T> {
 
   final T _value;
 
-  @override
   Future<T> get future async => _value;
 
   @override

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show Size;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -137,8 +138,7 @@ class XCameraValue {
         isRecordingVideo: isRecordingVideo ?? this.isRecordingVideo,
         deviceOrientation: deviceOrientation ?? this.deviceOrientation,
         enableAudio: enableAudio ?? this.enableAudio,
-        audioPermissionGranted:
-            audioPermissionGranted ?? this.audioPermissionGranted,
+        audioPermissionGranted: audioPermissionGranted ?? this.audioPermissionGranted,
         previewRotationQuarterTurns:
             previewRotationQuarterTurns ?? this.previewRotationQuarterTurns,
         errorDescription: identical(errorDescription, _unset)
@@ -214,11 +214,11 @@ class XCameraController extends ValueNotifier<XCameraValue> {
       _handle = result.handle;
       _textureId = result.textureId;
       _eventsSub = XCameraBackend.instance.events(result.handle).listen(
-        _onEvent,
-        onError: (Object error, StackTrace? stack) {
-          value = value.copyWith(errorDescription: error.toString());
-        },
-      );
+            _onEvent,
+            onError: (Object error, StackTrace? stack) {
+              value = value.copyWith(errorDescription: error.toString());
+            },
+          );
       await XCameraBackend.instance.initialize(result.handle);
       final audioGranted =
           await XCameraBackend.instance.audioPermissionGranted();
@@ -274,8 +274,7 @@ class XCameraController extends ValueNotifier<XCameraValue> {
   /// recording is in flight — call [stopVideoRecording] first.
   Future<void> setDescription(XCameraDescription description) async {
     final handle = _requireHandle('setDescription');
-    final r =
-        await XCameraBackend.instance.setDescription(handle, description.id);
+    final r = await XCameraBackend.instance.setDescription(handle, description.id);
     value = value.copyWith(
       description: description,
       previewSize: r.previewSize,
