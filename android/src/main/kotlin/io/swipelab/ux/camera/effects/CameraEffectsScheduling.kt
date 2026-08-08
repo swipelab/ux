@@ -24,6 +24,15 @@ interface CameraEffectsDelivering {
     fun deliver(body: () -> Unit)
 }
 
+/** Monotonic nanoseconds. Injected so a test advances time without sleeping. */
+interface CameraEffectsClock {
+    val nowNanos: Long
+}
+
+class MonotonicClock : CameraEffectsClock {
+    override val nowNanos: Long get() = System.nanoTime()
+}
+
 class MainLooperScheduler : CameraEffectsScheduling {
     private val handler = Handler(Looper.getMainLooper())
 
