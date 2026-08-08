@@ -107,6 +107,15 @@ android {
         jvmTarget = '1.8'
     }
 
+    testOptions {
+        unitTests.all {
+            // The camera-effects benchmark reports its latencies on stdout.
+            testLogging {
+                showStandardStreams = true
+            }
+        }
+    }
+
     sourceSets {
         main {
             // libffmpegJNI.so is built by the buildFfmpegJni task into

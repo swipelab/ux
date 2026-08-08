@@ -17,12 +17,20 @@ data class CameraFrameRect(
 class PersonMaskPixels(
     val width: Int,
     val height: Int,
-    val confidence: FloatBuffer,
-)
+    confidence: FloatBuffer,
+) {
+    private val samples: FloatBuffer = confidence.asReadOnlyBuffer()
+
+    val confidence: FloatBuffer get() = samples.asReadOnlyBuffer()
+
+    init {
+        require(hasMaskStorage(width, height, samples))
+    }
+}
 
 /** A single-channel person mask over one camera frame. */
 class CameraMask(
-    val confidence: FloatBuffer,
+    confidence: FloatBuffer,
 
     /**
      * The mask's own grid, whose aspect does not track the frame's: the whole
@@ -36,4 +44,18 @@ class CameraMask(
 
     /** The producer generation the inference was submitted under. */
     val generation: Int,
-)
+) {
+    private val samples: FloatBuffer = confidence.asReadOnlyBuffer()
+
+    val confidence: FloatBuffer get() = samples.asReadOnlyBuffer()
+
+    internal val hasValidStorage: Boolean = hasMaskStorage(width, height, samples)
+
+    internal fun confidenceView(): FloatBuffer = samples.asReadOnlyBuffer()
+}
+
+private fun hasMaskStorage(width: Int, height: Int, confidence: FloatBuffer): Boolean {
+    if (width <= 0 || height <= 0) return true
+    val samples = width.toLong() * height.toLong()
+    return samples <= Int.MAX_VALUE && samples <= confidence.limit().toLong()
+}
