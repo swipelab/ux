@@ -61,7 +61,7 @@ class CameraEffectCompositorTest {
         val outcome = composited(compositor.composite(input.frame(), personMask()))
 
         assertNull(outcome.maskRejection)
-        val planes = outcome.frame.planes()
+        val planes = outcome.frame.planes
         assertLuma(planes, 110, 50, 40)
         assertLuma(planes, 300, 20, 220)
         val nearEdge = luma(planes, 170, 80)
@@ -79,7 +79,7 @@ class CameraEffectCompositorTest {
         val outcome = composited(compositor.composite(input.frame(), personMask()))
 
         assertNull(outcome.maskRejection)
-        val planes = outcome.frame.planes()
+        val planes = outcome.frame.planes
         assertLuma(planes, 110, 50, 40)
         assertLuma(planes, 300, 20, 110)
         assertLuma(planes, 170, 80, 110)
@@ -97,7 +97,7 @@ class CameraEffectCompositorTest {
         val outcome = composited(compositor.composite(input.frame(), null))
 
         assertNull(outcome.maskRejection)
-        val planes = outcome.frame.planes()
+        val planes = outcome.frame.planes
         assertLuma(planes, 20, 90, 60)
         assertLuma(planes, 300, 90, 200)
         val boundary = luma(planes, 160, 90)
@@ -112,7 +112,7 @@ class CameraEffectCompositorTest {
         val compositor = CameraEffectCompositor(CameraEffect.DIM)
         val input = EffectFrame(width = 320, height = 180).apply { fillLuma { _, _ -> 200 } }
 
-        val planes = composited(compositor.composite(input.frame(), null)).frame.planes()
+        val planes = composited(compositor.composite(input.frame(), null)).frame.planes
 
         assertLuma(planes, 160, 90, 100)
         assertLuma(planes, 2, 2, 100)
@@ -124,7 +124,7 @@ class CameraEffectCompositorTest {
         val compositor = CameraEffectCompositor(CameraEffect.BLUR)
         val input = EffectFrame(width = 320, height = 180).apply { fillLuma { _, _ -> 255 } }
 
-        val planes = composited(compositor.composite(input.frame(), null)).frame.planes()
+        val planes = composited(compositor.composite(input.frame(), null)).frame.planes
 
         assertLuma(planes, 160, 90, 255)
         assertLuma(planes, 0, 0, 255)
@@ -147,7 +147,7 @@ class CameraEffectCompositorTest {
         val outcome = composited(compositor.composite(input.frame(), mask))
 
         assertNull(outcome.maskRejection)
-        val planes = outcome.frame.planes()
+        val planes = outcome.frame.planes
         assertLuma(planes, 450, 240, 200)
         assertLuma(planes, 600, 240, 100)
         assertLuma(planes, 450, 330, 100)
@@ -164,7 +164,7 @@ class CameraEffectCompositorTest {
         val outcome = composited(compositor.composite(input.frame(), mask))
 
         assertEquals(CameraMaskRejection.EMPTY, outcome.maskRejection)
-        assertLuma(outcome.frame.planes(), 32, 18, 100)
+        assertLuma(outcome.frame.planes, 32, 18, 100)
     }
 
     @Test
@@ -183,7 +183,7 @@ class CameraEffectCompositorTest {
         val outcome = composited(compositor.composite(input.frame(), mask))
 
         assertEquals(CameraMaskRejection.ZERO_DIMENSIONED, outcome.maskRejection)
-        assertLuma(outcome.frame.planes(), 32, 18, 100)
+        assertLuma(outcome.frame.planes, 32, 18, 100)
     }
 
     @Test
@@ -200,7 +200,7 @@ class CameraEffectCompositorTest {
         val outcome = composited(compositor.composite(input.frame(), mask))
 
         assertEquals(CameraMaskRejection.SOURCE_RECT_MISMATCH, outcome.maskRejection)
-        val planes = outcome.frame.planes()
+        val planes = outcome.frame.planes
         assertLuma(planes, 32, 18, 100)
         assertLuma(planes, 20, 12, 100)
     }
@@ -220,7 +220,7 @@ class CameraEffectCompositorTest {
         val outcome = composited(compositor.composite(input.frame(), mask))
 
         assertEquals(CameraMaskRejection.INVALID_STORAGE, outcome.maskRejection)
-        assertLuma(outcome.frame.planes(), 32, 18, 100)
+        assertLuma(outcome.frame.planes, 32, 18, 100)
     }
 
     @Test
@@ -239,7 +239,7 @@ class CameraEffectCompositorTest {
         val outcome = composited(compositor.composite(input.frame(), mask))
 
         assertEquals(CameraMaskRejection.INVALID_STORAGE, outcome.maskRejection)
-        assertLuma(outcome.frame.planes(), 32, 18, 100)
+        assertLuma(outcome.frame.planes, 32, 18, 100)
     }
 
     @Test
@@ -257,7 +257,7 @@ class CameraEffectCompositorTest {
         val outcome = composited(compositor.composite(input.frame(), mask))
 
         assertEquals(CameraMaskRejection.INVALID_STORAGE, outcome.maskRejection)
-        assertLuma(outcome.frame.planes(), 32, 18, 100)
+        assertLuma(outcome.frame.planes, 32, 18, 100)
     }
 
     @Test
@@ -279,7 +279,7 @@ class CameraEffectCompositorTest {
         val outcome = composited(compositor.composite(input.frame(), mask))
 
         assertNull(outcome.maskRejection)
-        assertLuma(outcome.frame.planes(), 32, 18, 200)
+        assertLuma(outcome.frame.planes, 32, 18, 200)
     }
 
     @Test
@@ -297,7 +297,7 @@ class CameraEffectCompositorTest {
         val outcome = composited(compositor.composite(input.frame(), mask))
 
         assertNull(outcome.maskRejection)
-        assertLuma(outcome.frame.planes(), 32, 18, 200)
+        assertLuma(outcome.frame.planes, 32, 18, 200)
     }
 
     @Test
@@ -319,7 +319,7 @@ class CameraEffectCompositorTest {
         assertEquals(36, outcome.frame.height)
         assertEquals(CameraFrameRotation.DEGREES_180, outcome.frame.rotation)
         assertEquals(4242, outcome.frame.timestampNs)
-        val planes = outcome.frame.planes()
+        val planes = outcome.frame.planes
         assertLuma(planes, 5, 5, 0, within = 0)
         assertLuma(planes, 60, 30, 0, within = 0)
         assertEquals(128, chromaU(planes, 5, 5))
@@ -345,7 +345,7 @@ class CameraEffectCompositorTest {
         assertEquals(CameraCompositeSubstitution.MALFORMED_FRAME, outcome.reason)
         assertEquals(CameraFrameRotation.DEGREES_90, outcome.frame.rotation)
         assertEquals(999, outcome.frame.timestampNs)
-        assertLuma(outcome.frame.planes(), 32, 18, 100)
+        assertLuma(outcome.frame.planes, 32, 18, 100)
     }
 
     @Test
@@ -356,7 +356,7 @@ class CameraEffectCompositorTest {
         val outcome = substituted(compositor.composite(input.frame(), null))
 
         assertEquals(CameraCompositeSubstitution.RENDER_FAILED, outcome.reason)
-        assertLuma(outcome.frame.planes(), 32, 18, 0, within = 0)
+        assertLuma(outcome.frame.planes, 32, 18, 0, within = 0)
     }
 
     @Test
@@ -379,10 +379,10 @@ class CameraEffectCompositorTest {
         assertEquals(CameraFrameRotation.DEGREES_270, outcome.frame.rotation)
         assertEquals(77, outcome.frame.timestampNs)
         assertEquals(
-            luma(effected.planes(), 32, 18),
-            luma(outcome.frame.planes(), 32, 18),
+            luma(effected.planes, 32, 18),
+            luma(outcome.frame.planes, 32, 18),
         )
-        assertLuma(outcome.frame.planes(), 32, 18, 100)
+        assertLuma(outcome.frame.planes, 32, 18, 100)
     }
 
     @Test
@@ -400,7 +400,7 @@ class CameraEffectCompositorTest {
         assertEquals(48, outcome.frame.width)
         assertEquals(24, outcome.frame.height)
         assertEquals(1234, outcome.frame.timestampNs)
-        val planes = outcome.frame.planes()
+        val planes = outcome.frame.planes
         assertLuma(planes, 5, 5, 0, within = 0)
         assertLuma(planes, 40, 20, 0, within = 0)
         assertEquals(2, pools.pools.size)
@@ -413,12 +413,122 @@ class CameraEffectCompositorTest {
         val input = EffectFrame(width = 64, height = 36)
 
         repeat(500) {
-            composited(compositor.composite(input.frame(), null)).frame.planes().release()
+            composited(compositor.composite(input.frame(), null)).frame.close()
         }
 
         assertEquals(1, pools.pools.size)
         assertEquals(500, pools.pools[0].taken)
+        assertEquals(499, pools.pools[0].recycled)
         assertEquals(0, pools.pools[0].exhausted)
+
+        compositor.retire()
+
+        assertEquals(500, pools.pools[0].recycled)
+    }
+
+    @Test
+    fun releasingCompositorOutputsWithoutReadingPlanesDoesNotExhaustThePool() {
+        val pools = ScriptedBufferPools()
+        val compositor = CameraEffectCompositor(CameraEffect.DIM, pools)
+        val input = EffectFrame(width = 64, height = 36)
+        val rounds = FrameBufferPool.ALLOCATION_BOUND * 4
+
+        repeat(rounds) {
+            composited(compositor.composite(input.frame(), null)).frame.close()
+        }
+
+        assertEquals(rounds, pools.pools[0].taken)
+        assertEquals(rounds - 1, pools.pools[0].recycled)
+        assertEquals(0, pools.pools[0].exhausted)
+    }
+
+    @Test
+    fun closingAPublishedFrameTwiceReleasesItsPublicationOnce() {
+        val pools = ScriptedBufferPools()
+        val compositor = CameraEffectCompositor(CameraEffect.DIM, pools)
+        val input = EffectFrame(width = 64, height = 36)
+        composited(compositor.composite(input.frame(), null)).frame.close()
+        compositor.retire()
+        val published = composited(compositor.composite(input.frame(), null)).frame
+        val recycledBefore = pools.pools[0].recycled
+
+        published.close()
+        published.close()
+
+        assertEquals(recycledBefore + 1, pools.pools[0].recycled)
+        assertEquals(pools.pools[0].taken, pools.pools[0].recycled)
+    }
+
+    @Test
+    fun aPublicationOutlivesRetirementAndItsBufferRecyclesOnTheHostsRelease() {
+        val pools = ScriptedBufferPools()
+        val compositor = CameraEffectCompositor(CameraEffect.DIM, pools)
+        val input = EffectFrame(width = 64, height = 36).apply { fillLuma { _, _ -> 200 } }
+        val published = composited(compositor.composite(input.frame(), null)).frame
+
+        compositor.retire()
+
+        assertEquals(0, pools.pools[0].recycled)
+        assertLuma(published.planes, 32, 18, 100)
+
+        published.close()
+
+        assertEquals(pools.pools[0].taken, pools.pools[0].recycled)
+    }
+
+    @Test
+    fun aFailureAfterRetirementPublishesBlackRatherThanAStaleFrame() {
+        val pools = ScriptedBufferPools()
+        val compositor = CameraEffectCompositor(CameraEffect.DIM, pools)
+        val input = EffectFrame(width = 64, height = 36).apply { fillLuma { _, _ -> 200 } }
+        composited(compositor.composite(input.frame(), null)).frame.close()
+
+        compositor.retire()
+        composited(compositor.composite(input.frame(), null)).frame.close()
+        val failing = EffectFrame(width = 64, height = 36).apply { failsToMaterialize = true }
+        val outcome = substituted(compositor.composite(failing.frame(), null))
+
+        assertEquals(CameraCompositeSubstitution.RENDER_FAILED, outcome.reason)
+        assertLuma(outcome.frame.planes, 32, 18, 0, within = 0)
+        outcome.frame.close()
+        assertEquals(pools.pools[0].taken, pools.pools[0].recycled)
+    }
+
+    @Test
+    fun aFailedGeometryAdoptionPublishesIncomingSizedBlackAndPreservesTheOldGeometry() {
+        val pools = ScriptedBufferPools()
+        val compositor = CameraEffectCompositor(CameraEffect.DIM, pools)
+        val wide = EffectFrame(width = 64, height = 36).apply { fillLuma { _, _ -> 200 } }
+        composited(compositor.composite(wide.frame(), null)).frame.close()
+
+        pools.creationFails = true
+        val narrow = EffectFrame(width = 48, height = 24, timestampNs = 1234)
+        val failed = substituted(compositor.composite(narrow.frame(), null))
+
+        assertEquals(CameraCompositeSubstitution.RENDER_FAILED, failed.reason)
+        assertEquals(48, failed.frame.width)
+        assertEquals(24, failed.frame.height)
+        assertLuma(failed.frame.planes, 24, 12, 0, within = 0)
+        failed.frame.close()
+        assertEquals(1, pools.pools.size)
+
+        val staleSized = EffectFrame(
+            width = 32,
+            height = 18,
+            declaredWidth = 64,
+            declaredHeight = 36,
+        )
+        val recovered = substituted(compositor.composite(staleSized.frame(), null))
+
+        assertEquals(CameraCompositeSubstitution.MALFORMED_FRAME, recovered.reason)
+        assertLuma(recovered.frame.planes, 32, 18, 100)
+        recovered.frame.close()
+
+        pools.creationFails = false
+        val next = composited(compositor.composite(wide.frame(), null))
+        assertLuma(next.frame.planes, 32, 18, 100)
+        next.frame.close()
+        assertEquals(1, pools.pools.size)
     }
 
     @Test
@@ -426,7 +536,7 @@ class CameraEffectCompositorTest {
         val compositor = CameraEffectCompositor(CameraEffect.NONE)
         val input = EffectFrame(width = 64, height = 36).apply { fillLuma { _, _ -> 200 } }
 
-        val planes = composited(compositor.composite(input.frame(), null)).frame.planes()
+        val planes = composited(compositor.composite(input.frame(), null)).frame.planes
         input.fillLuma { _, _ -> 10 }
         input.fillChroma(30, 40)
 
@@ -444,7 +554,7 @@ class CameraEffectCompositorTest {
         val compositor = CameraEffectCompositor(CameraEffect.DIM)
         val input = EffectFrame(width = 64, height = 36)
 
-        val planes = composited(compositor.composite(input.frame(), null)).frame.planes()
+        val planes = composited(compositor.composite(input.frame(), null)).frame.planes
 
         assertTrue(planes.dataY.isDirect)
         assertTrue(planes.dataU.isDirect)
@@ -474,7 +584,8 @@ class CameraEffectCompositorTest {
 
     @Test
     fun concurrentCompositesAcrossAGeometryChangeStayCoherent() {
-        val compositor = CameraEffectCompositor(CameraEffect.DIM)
+        val pools = ScriptedBufferPools()
+        val compositor = CameraEffectCompositor(CameraEffect.DIM, pools)
         val wide = EffectFrame(width = 64, height = 36)
         val narrow = EffectFrame(width = 48, height = 24)
         val violations = AtomicInteger()
@@ -482,19 +593,22 @@ class CameraEffectCompositorTest {
 
         repeat(240) { index ->
             workers.execute {
+                if (index == 120) compositor.retire()
                 val source = if (index % 3 == 0) narrow else wide
                 val output = compositor.composite(source.frame(), null).frame
-                val planes = output.planes()
+                val planes = output.planes
                 val coherent = output.width == planes.width &&
                     output.height == planes.height &&
                     (output.width == 64 || output.width == 48)
                 if (!coherent) violations.incrementAndGet()
-                planes.release()
+                output.close()
             }
         }
         workers.shutdown()
 
         assertTrue(workers.awaitTermination(30, TimeUnit.SECONDS))
         assertEquals(0, violations.get())
+        compositor.retire()
+        for (pool in pools.pools) assertEquals(pool.taken, pool.recycled)
     }
 }

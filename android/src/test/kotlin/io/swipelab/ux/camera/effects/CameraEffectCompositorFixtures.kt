@@ -69,7 +69,7 @@ class EffectFrame(
                 dataY = dataY, strideY = strideY,
                 dataU = dataU, strideU = strideChroma,
                 dataV = dataV, strideV = strideChroma,
-                release = { releases += 1 },
+                onRelease = { releases += 1 },
             )
         },
     )
@@ -109,17 +109,21 @@ fun chromaU(planes: CameraFramePlanes, x: Int, y: Int): Int =
 fun chromaV(planes: CameraFramePlanes, x: Int, y: Int): Int =
     planes.dataV.get(y * planes.strideV + x).toInt() and 0xFF
 
-/** Pools whose allocations can be made to fail, over real pooled buffers. */
+class PoolCreationFailure : Exception()
+
+/** Pools whose creation and allocations can be made to fail, over real pooled buffers. */
 class ScriptedBufferPools(
     private val bound: Int = FrameBufferPool.ALLOCATION_BOUND,
 ) : CameraEffectBufferPools {
     var allocationsFail = false
+    var creationFails = false
 
     inner class ScriptedPool(width: Int, height: Int) : CameraEffectBufferPool {
         private val delegate = FrameBufferPool(width, height, bound)
 
         val taken: Int get() = delegate.taken
         val exhausted: Int get() = delegate.exhausted
+        val recycled: Int get() = delegate.recycled
 
         override fun take(): CameraEffectBuffer? =
             if (allocationsFail) null else delegate.take()
@@ -127,6 +131,8 @@ class ScriptedBufferPools(
 
     val pools = mutableListOf<ScriptedPool>()
 
-    override fun makePool(width: Int, height: Int): CameraEffectBufferPool =
-        ScriptedPool(width, height).also { pools.add(it) }
+    override fun makePool(width: Int, height: Int): CameraEffectBufferPool {
+        if (creationFails) throw PoolCreationFailure()
+        return ScriptedPool(width, height).also { pools.add(it) }
+    }
 }

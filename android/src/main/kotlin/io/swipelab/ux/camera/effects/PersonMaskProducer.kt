@@ -34,10 +34,13 @@ class PersonMaskInputPool(width: Int, height: Int, capacity: Int) {
 
     private var takenCount = 0
     private var exhaustedCount = 0
+    private var recycledCount = 0
 
     val taken: Int get() = synchronized(this) { takenCount }
 
     val exhausted: Int get() = synchronized(this) { exhaustedCount }
+
+    val recycled: Int get() = synchronized(this) { recycledCount }
 
     fun take(): PersonMaskInput? = synchronized(this) {
         val input = free.removeFirstOrNull()
@@ -46,6 +49,7 @@ class PersonMaskInputPool(width: Int, height: Int, capacity: Int) {
     }
 
     fun recycle(input: PersonMaskInput) = synchronized(this) {
+        recycledCount += 1
         free.addLast(input)
     }
 }
@@ -125,22 +129,17 @@ class PersonMaskProducer(
      * an inference and never retains the frame's planes.
      */
     fun consider(frame: CameraFrame) {
-        val claimed = claim() ?: return
-        val input = pool.take() ?: return release(claimed)
-        var enqueued = false
+        val claim = open() ?: return
         try {
-            val planes = frame.planes()
-            if (planes.width <= 0 || planes.height <= 0) return
-            copy(planes, input)
-            val sourceRect = CameraFrameRect(0, 0, planes.width, planes.height)
-            val submission = stamp(sourceRect, claimed, input) ?: return
-            enqueued = enqueue(submission)
-        } catch (_: Exception) {
-        } finally {
-            if (!enqueued) {
-                pool.recycle(input)
-                release(claimed)
+            claim.use {
+                val planes = frame.planes()
+                if (planes.width <= 0 || planes.height <= 0) return
+                copy(planes, it.input)
+                val sourceRect = CameraFrameRect(0, 0, planes.width, planes.height)
+                val submission = stamp(sourceRect, it) ?: return
+                if (enqueue(submission)) it.commit()
             }
+        } catch (_: Exception) {
         }
     }
 
@@ -184,9 +183,41 @@ class PersonMaskProducer(
     )
 
     /**
-     * The generation the caller may submit under, or `null` when an inference
-     * is in flight or the cadence gate has not opened.
+     * One frame's right to submit: the generation it claimed and the input it
+     * holds. Enqueueing transfers both to the [Submission]; closing an
+     * untransferred claim gives both back.
      */
+    private inner class MaskClaim(
+        val generation: Int,
+        val input: PersonMaskInput,
+    ) : AutoCloseable {
+        private var held = true
+
+        fun commit() {
+            held = false
+        }
+
+        override fun close() {
+            if (!held) return
+            held = false
+            pool.recycle(input)
+            release(generation)
+        }
+    }
+
+    /**
+     * The claim the caller may submit under, or `null` when an inference is in
+     * flight, the cadence gate has not opened, or no input is free.
+     */
+    private fun open(): MaskClaim? {
+        val claimed = claim() ?: return null
+        val input = pool.take() ?: run {
+            release(claimed)
+            return null
+        }
+        return MaskClaim(claimed, input)
+    }
+
     private fun claim(): Int? = synchronized(lock) {
         if (closed) return null
         if (inFlight) return null
@@ -202,11 +233,10 @@ class PersonMaskProducer(
 
     private fun stamp(
         sourceRect: CameraFrameRect,
-        claimed: Int,
-        input: PersonMaskInput,
+        claim: MaskClaim,
     ): Submission? = synchronized(lock) {
-        if (closed || claimed != generation) return null
-        Submission(claimed, sourceRect, input, clock.nowNanos)
+        if (closed || claim.generation != generation) return null
+        Submission(claim.generation, sourceRect, claim.input, clock.nowNanos)
     }
 
     private fun enqueue(submission: Submission): Boolean = synchronized(lock) {

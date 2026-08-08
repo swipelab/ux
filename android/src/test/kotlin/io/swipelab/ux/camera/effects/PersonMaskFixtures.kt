@@ -110,7 +110,7 @@ class TestFrame(val width: Int = 320, val height: Int = 180) {
                 dataY = dataY, strideY = width,
                 dataU = dataU, strideU = chromaWidth,
                 dataV = dataV, strideV = chromaWidth,
-                release = { releases += 1 },
+                onRelease = { releases += 1 },
             )
         },
     )

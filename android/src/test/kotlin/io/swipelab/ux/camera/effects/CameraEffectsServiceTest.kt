@@ -3,7 +3,6 @@ package io.swipelab.ux.camera.effects
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -57,7 +56,7 @@ class CameraEffectsServiceTest {
     @Test
     fun aFrameResolvesTheWithheldReplyAndACompositeActivates() {
         setEffect()
-        liveAttachment().deliverFrame()
+        liveAttachment().deliverFrame()?.close()
         assertEquals(listOf<CameraEffectsReply>(CameraEffectsReply.Done), replies)
         assertEquals(CameraEffectStatus.active(CameraEffect.BLUR, 1), events.last())
         assertEquals(CameraEffectStatus.active(CameraEffect.BLUR, 1), service.currentStatus)
@@ -66,7 +65,7 @@ class CameraEffectsServiceTest {
     @Test
     fun aSameTrackSwitchDoesNotReattachAndResolvesImmediately() {
         setEffect()
-        liveAttachment().deliverFrame()
+        liveAttachment().deliverFrame()?.close()
         setEffect(effect = CameraEffect.DIM, generation = 2)
         assertEquals(1, bridge.attachCount)
         assertEquals(
@@ -74,30 +73,33 @@ class CameraEffectsServiceTest {
             replies,
         )
         assertEquals(CameraEffectStatus.applying(CameraEffect.DIM, 2), events.last())
-        assertTrue(factory.made.first().retired)
-        liveAttachment().deliverFrame()
+        assertEquals(1, factory.made.first().retires)
+        assertTrue(factory.made.first().balanced)
+        liveAttachment().deliverFrame()?.close()
         assertEquals(CameraEffectStatus.active(CameraEffect.DIM, 2), events.last())
     }
 
     @Test
     fun aSecondTrackDetachesTheFirstByIdentityAndAttachesTheSecond() {
         setEffect()
-        liveAttachment().deliverFrame()
+        liveAttachment().deliverFrame()?.close()
         setEffect(trackId = "t2", generation = 2)
         assertEquals(2, bridge.attachCount)
         assertEquals(0, bridge.world.registrations("t1"))
         assertEquals(1, bridge.world.registrations("t2"))
-        assertTrue(factory.made.first().retired)
+        assertEquals(1, factory.made.first().retires)
+        assertTrue(factory.made.first().balanced)
     }
 
     @Test
     fun clearDetachesAndIsIdempotent() {
         setEffect()
-        liveAttachment().deliverFrame()
+        liveAttachment().deliverFrame()?.close()
         clear()
         assertEquals(0, bridge.world.registrations("t1"))
         assertEquals(CameraEffectStatus.idle(2), service.currentStatus)
-        assertTrue(factory.made.first().retired)
+        assertEquals(1, factory.made.first().retires)
+        assertTrue(factory.made.first().balanced)
         val detaches = bridge.detachCount
         clear(generation = 3)
         assertEquals(detaches, bridge.detachCount)
@@ -112,7 +114,7 @@ class CameraEffectsServiceTest {
     @Test
     fun aSuccessfulClearEmitsNothing() {
         setEffect()
-        liveAttachment().deliverFrame()
+        liveAttachment().deliverFrame()?.close()
         val before = events.size
         clear()
         assertEquals(before, events.size)
@@ -131,16 +133,17 @@ class CameraEffectsServiceTest {
         )
         assertEquals(0, bridge.world.registrations("t1"))
         assertEquals(CameraEffectStatus.idle(1), events.last())
-        assertTrue(factory.made.first().retired)
+        assertEquals(1, bridge.detachCount)
+        assertEquals(1, factory.made.first().retires)
     }
 
     @Test
     fun aCallbackBeforeTheDeadlineActivatesOnceAndCancelsIt() {
         setEffect()
         val attachDeadline = scheduler.scheduled.first()
-        liveAttachment().deliverFrame()
+        liveAttachment().deliverFrame()?.close()
         assertTrue(attachDeadline.cancelled)
-        liveAttachment().deliverFrame()
+        liveAttachment().deliverFrame()?.close()
         assertEquals(1, events.count { it.phase == CameraEffectPhase.ACTIVE })
     }
 
@@ -148,7 +151,7 @@ class CameraEffectsServiceTest {
     fun activationWaitsForACompositedOutputNotCallbackEntry() {
         setEffect()
         factory.made.first().substitute = true
-        liveAttachment().deliverFrame()
+        liveAttachment().deliverFrame()?.close()
         assertEquals(listOf<CameraEffectsReply>(CameraEffectsReply.Done), replies)
         assertEquals(CameraEffectStatus.applying(CameraEffect.BLUR, 1), events.last())
     }
@@ -157,20 +160,21 @@ class CameraEffectsServiceTest {
     fun aPersistentlySubstitutingProcessorResolvesApplyingIntoIdle() {
         setEffect()
         factory.made.first().substitute = true
-        liveAttachment().deliverFrame()
+        liveAttachment().deliverFrame()?.close()
         scheduler.fireLast()
         assertEquals(CameraEffectStatus.idle(1), events.last())
         assertEquals(0, bridge.world.registrations("t1"))
-        assertTrue(factory.made.first().retired)
+        assertEquals(1, factory.made.first().retires)
+        assertEquals(1, factory.made.size)
     }
 
     @Test
     fun aFailedCompositeAfterActivationEmitsProcessingFailedOnce() {
         setEffect()
-        liveAttachment().deliverFrame()
+        liveAttachment().deliverFrame()?.close()
         factory.made.first().substitute = true
-        liveAttachment().deliverFrame()
-        liveAttachment().deliverFrame()
+        liveAttachment().deliverFrame()?.close()
+        liveAttachment().deliverFrame()?.close()
         val failures = events.filter { it.phase == CameraEffectPhase.FAILED }
         assertEquals(1, failures.size)
         assertEquals(CameraEffectStatusCode.PROCESSING_FAILED, failures.first().code)
@@ -180,7 +184,7 @@ class CameraEffectsServiceTest {
     @Test
     fun everyEventCarriesTheLastCommandsGeneration() {
         setEffect(generation = 7)
-        liveAttachment().deliverFrame()
+        liveAttachment().deliverFrame()?.close()
         assertTrue(events.all { it.generation == 7 })
     }
 
@@ -259,7 +263,8 @@ class CameraEffectsServiceTest {
             ),
             got,
         )
-        assertTrue(made.retired)
+        assertEquals(1, made.retires)
+        assertTrue(made.pools.pools.isEmpty())
     }
 
     @Test
@@ -274,19 +279,22 @@ class CameraEffectsServiceTest {
         )
         assertEquals(CameraEffectStatus.idle(1), events.last())
         assertNull(bridge.live.firstOrNull())
+        assertEquals(1, factory.made.first().retires)
+        assertTrue(factory.made.first().pools.pools.isEmpty())
     }
 
     @Test
     fun uninstallingUnderALiveAttachmentFailsOnceAndTearsDown() {
         setEffect()
-        liveAttachment().deliverFrame()
+        liveAttachment().deliverFrame()?.close()
         service.uninstall()
         val failed = events.last()
         assertEquals(CameraEffectPhase.FAILED, failed.phase)
         assertEquals(CameraEffectsFailure.integrationUnavailable.code, failed.code)
         assertEquals(1, bridge.teardownCount)
         assertEquals(0, bridge.world.registrations("t1"))
-        assertTrue(factory.made.first().retired)
+        assertEquals(1, factory.made.first().retires)
+        assertTrue(factory.made.first().balanced)
     }
 
     @Test
@@ -305,19 +313,22 @@ class CameraEffectsServiceTest {
     @Test
     fun installingUnderALiveAttachmentDetachesThroughTheOutgoingBridge() {
         setEffect()
-        liveAttachment().deliverFrame()
+        liveAttachment().deliverFrame()?.close()
         service.install(FakeCameraTrackBridge())
         assertEquals(0, bridge.world.registrations("t1"))
         assertEquals(0, bridge.teardownCount)
-        assertTrue(factory.made.first().retired)
+        assertEquals(1, factory.made.first().retires)
+        assertTrue(factory.made.first().balanced)
     }
 
     @Test
     fun teardownDetachesAndReleasesTheObserver() {
         setEffect()
-        liveAttachment().deliverFrame()
+        liveAttachment().deliverFrame()?.close()
         service.teardown()
         assertEquals(0, bridge.world.registrations("t1"))
+        assertEquals(1, factory.made.first().retires)
+        assertTrue(factory.made.first().balanced)
         val eventsBefore = events.size
         clear(generation = 5)
         assertEquals(eventsBefore, events.size)
@@ -330,7 +341,7 @@ class CameraEffectsServiceTest {
         assertTrue(replies.isEmpty())
         assertEquals(1, bridge.world.registrations("t1"))
         assertEquals(0, bridge.detachCount)
-        liveAttachment().deliverFrame()
+        liveAttachment().deliverFrame()?.close()
         assertEquals(
             listOf<CameraEffectsReply>(CameraEffectsReply.Done, CameraEffectsReply.Done),
             replies,
@@ -340,11 +351,33 @@ class CameraEffectsServiceTest {
     }
 
     @Test
-    fun aFrameRoundTripsThroughProcessingUntouched() {
+    fun aRepresentableFramePublishesADistinctOwnedFrame() {
         setEffect()
-        val frame = makeCameraFrame(timestampNs = 41)
-        val published = liveAttachment().deliverFrame(frame)
-        assertSame(frame, published)
+        val source = EffectFrame(width = 64, height = 36, timestampNs = 41)
+        val frame = source.frame()
+
+        val published = requireNotNull(liveAttachment().deliverFrame(frame))
+
+        assertEquals(41, published.timestampNs)
+        assertEquals(1, source.releases)
+        assertTrue(published.planes.dataY !== source.dataY)
+        assertTrue(published.planes.dataY.isDirect)
+        published.close()
+    }
+
+    @Test
+    fun aFrameInFlightAcrossASameTrackSwitchPublishesFreshEffectedPixels() {
+        setEffect()
+        liveAttachment().deliverFrame()?.close()
+        val outgoing = factory.made.first()
+        outgoing.beforeOutcome = { setEffect(effect = CameraEffect.DIM, generation = 2) }
+
+        val published = requireNotNull(liveAttachment().deliverFrame())
+
+        assertTrue(outgoing.retired)
+        assertEquals(100, luma(published.planes, 32, 18))
+        published.close()
+        assertEquals(CameraEffectStatus.applying(CameraEffect.DIM, 2), events.last())
     }
 
     @Test
@@ -353,46 +386,52 @@ class CameraEffectsServiceTest {
         factory.made.first().beforeOutcome = {
             setEffect(effect = CameraEffect.DIM, generation = 2)
         }
-        liveAttachment().deliverFrame()
+        liveAttachment().deliverFrame()?.close()
         assertFalse(events.any { it.phase == CameraEffectPhase.ACTIVE })
         assertEquals(CameraEffectStatus.applying(CameraEffect.DIM, 2), events.last())
         factory.made.first().beforeOutcome = null
-        liveAttachment().deliverFrame()
+        liveAttachment().deliverFrame()?.close()
         assertEquals(CameraEffectStatus.active(CameraEffect.DIM, 2), events.last())
     }
 
     @Test
     fun aDetachWhoseTrackWasReplacedReportsTrackReplaced() {
         setEffect()
-        liveAttachment().deliverFrame()
+        liveAttachment().deliverFrame()?.close()
         bridge.world.replaceTrack("t1")
         clear()
         assertEquals(CameraTrackDetachOutcome.TRACK_REPLACED, bridge.outcomes.last())
     }
 
     @Test
-    fun aRetiredCallbackOnAReplacedTrackIsDroppedAfterUninstall() {
+    fun aRetiredCallbackOnAReplacedTrackPublishesAnEffectedFrameAndChangesNoStatus() {
         setEffect()
-        val retired = liveAttachment()
-        retired.deliverFrame()
+        val retained = liveAttachment()
+        retained.deliverFrame()?.close()
         bridge.world.replaceTrack("t1")
         clear()
         service.uninstall()
         val eventsBefore = events.toList()
-        val frame = makeCameraFrame(timestampNs = 42)
+        val source = EffectFrame(width = 64, height = 36, timestampNs = 42)
 
-        val published = retired.deliverFrame(frame)
+        val published = requireNotNull(retained.deliverFrame(source.frame()))
 
-        assertSame(frame, published)
+        assertEquals(42, published.timestampNs)
+        assertEquals(100, luma(published.planes, 32, 18))
+        assertEquals(1, source.releases)
+        published.close()
         assertEquals(eventsBefore, events)
         assertEquals(CameraTrackDetachOutcome.TRACK_REPLACED, bridge.outcomes.last())
         assertEquals(0, bridge.teardownCount)
+
+        bridge.world.removeTrack("t1")
+        assertEquals(0, bridge.world.registrations("t1"))
     }
 
     @Test
     fun aDetachThatFindsTheTrackGoneStillSucceeds() {
         setEffect()
-        liveAttachment().deliverFrame()
+        liveAttachment().deliverFrame()?.close()
         bridge.world.removeTrack("t1")
         clear()
         assertEquals(CameraTrackDetachOutcome.ALREADY_GONE, bridge.outcomes.last())

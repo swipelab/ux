@@ -16,8 +16,8 @@ enum class CameraFrameRotation(val degrees: Int) {
 }
 
 /**
- * CPU pixels of one frame, I420. The buffers stay valid until [release];
- * whoever materialized them calls it exactly once.
+ * CPU pixels of one frame, I420. The buffers stay valid until the frame
+ * holding them is closed, which is the only thing that gives them up.
  */
 class CameraFramePlanes(
     val width: Int,
@@ -28,15 +28,16 @@ class CameraFramePlanes(
     val strideU: Int,
     val dataV: ByteBuffer,
     val strideV: Int,
-    val release: () -> Unit,
-)
+    private val onRelease: () -> Unit,
+) {
+    internal fun release() = onRelease()
+}
 
 /**
- * One camera frame as it crosses the bridge. [planes] materializes CPU pixels
- * on the first ask — for a host frame that costs a texture readback, so a
- * processor that publishes the input untouched never asks. A processor that
- * produces new pixels returns a frame built over its own planes. [release] is
- * terminal and releases only planes already materialized through this frame.
+ * One frame the host hands the core. [planes] materializes CPU pixels on the
+ * first ask — for a host frame that costs a texture readback, so a frame the
+ * core short-circuits never pays for one. [close] is terminal and gives up
+ * only planes materialized through this frame.
  */
 class CameraFrame(
     val width: Int,
@@ -44,23 +45,46 @@ class CameraFrame(
     val rotation: CameraFrameRotation,
     val timestampNs: Long,
     private val source: () -> CameraFramePlanes,
-) {
+) : AutoCloseable {
     private val lock = Any()
     private var materialized: CameraFramePlanes? = null
-    private var released = false
+    private var closed = false
 
     fun planes(): CameraFramePlanes = synchronized(lock) {
-        check(!released) { "Camera frame is released" }
+        check(!closed) { "Camera frame is closed" }
         materialized ?: source().also { materialized = it }
     }
 
-    fun release() {
+    override fun close() {
         val planes = synchronized(lock) {
-            if (released) return
-            released = true
+            if (closed) return
+            closed = true
             materialized
         }
-        planes?.release?.invoke()
+        planes?.release()
+    }
+}
+
+/**
+ * One frame the core hands back, over planes it already holds. [close] gives
+ * up the core's publication.
+ */
+class PublishedFrame(
+    val width: Int,
+    val height: Int,
+    val rotation: CameraFrameRotation,
+    val timestampNs: Long,
+    val planes: CameraFramePlanes,
+) : AutoCloseable {
+    private val lock = Any()
+    private var closed = false
+
+    override fun close() {
+        synchronized(lock) {
+            if (closed) return
+            closed = true
+        }
+        planes.release()
     }
 }
 
@@ -94,14 +118,36 @@ class CameraTrackAttachException(val unknownTrack: Boolean) : Exception()
  * callback on one track, remove it by identity, release everything on
  * teardown.
  *
- * A frame the bridge cannot present as a [CameraFrame] does not reach
- * `processing`; the bridge publishes it as it stands.
+ * **Ownership.** Every frame crossing the bridge is released exactly once, by
+ * the party it was transferred to; its direction names that party. Ownership
+ * follows the transfer, not who materialized the pixels.
+ *
+ * - For every host frame it can represent, the bridge constructs one
+ *   [CameraFrame] and transfers it to `processing`. The core owns it from that
+ *   call and closes it exactly once on every return and every failure path
+ *   before `processing` returns. The host neither closes the frame nor its
+ *   planes, and does not touch the frame after `processing` returns.
+ * - Planes materialize lazily: the core asks at most once, and only when it
+ *   needs the pixels. A frame the core short-circuits never materializes, so a
+ *   readback that was never performed is never released. The host supplies the
+ *   closure that gives the underlying buffer back and never invokes it
+ *   directly.
+ * - `processing` returns a [PublishedFrame] — always distinct from its input,
+ *   never over the host's raw pixels, over planes the core already holds. The
+ *   host owns it from that return and closes it exactly once, after the
+ *   downstream consumer has finished with its planes. For a host that wraps
+ *   those planes for a downstream consumer, "after" is that consumer's release
+ *   callback, not the return of the capture callback.
+ * - For a host frame the bridge cannot represent, the bridge constructs no
+ *   [CameraFrame], does not call `processing`, and publishes the host frame
+ *   unchanged.
+ * - `processing` does not throw.
  */
 interface CameraTrackBridging {
     @Throws(CameraTrackAttachException::class)
     fun attach(
         trackId: String,
-        processing: (CameraFrame) -> CameraFrame,
+        processing: (CameraFrame) -> PublishedFrame,
     ): CameraTrackAttachment
 
     fun detach(attachment: CameraTrackAttachment): CameraTrackDetachOutcome

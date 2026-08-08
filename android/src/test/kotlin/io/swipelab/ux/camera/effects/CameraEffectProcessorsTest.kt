@@ -77,9 +77,9 @@ class CameraEffectProcessorsTest {
 
         val warmUp = composited(processor.process(input.frame()))
         assertNull(warmUp.maskRejection)
-        assertLuma(warmUp.frame.planes(), 110, 50, 20)
-        assertLuma(warmUp.frame.planes(), 300, 20, 110)
-        warmUp.frame.release()
+        assertLuma(warmUp.frame.planes, 110, 50, 20)
+        assertLuma(warmUp.frame.planes, 300, 20, 110)
+        warmUp.frame.close()
 
         assertTrue(executor.runNext())
         assertEquals(1, segmenter.submits)
@@ -89,11 +89,11 @@ class CameraEffectProcessorsTest {
         val masked = processor.process(input.frame())
 
         assertSame(processor, masked.processor)
-        val planes = composited(masked).frame.planes()
+        val planes = composited(masked).frame.planes
         assertNull(composited(masked).maskRejection)
         assertLuma(planes, 110, 50, 40)
         assertLuma(planes, 300, 20, 110)
-        composited(masked).frame.release()
+        composited(masked).frame.close()
     }
 
     @Test
@@ -106,11 +106,10 @@ class CameraEffectProcessorsTest {
         val output = processor.process(frame).frame
 
         assertEquals(1, input.releases)
-        frame.release()
+        frame.close()
         assertEquals(1, input.releases)
         assertThrows(IllegalStateException::class.java) { frame.planes() }
-        output.planes()
-        output.release()
+        output.close()
     }
 
     @Test
@@ -118,8 +117,8 @@ class CameraEffectProcessorsTest {
         val input = personFrame()
         val frame = input.frame()
 
-        frame.release()
-        frame.release()
+        frame.close()
+        frame.close()
 
         assertEquals(0, input.releases)
         assertThrows(IllegalStateException::class.java) { frame.planes() }
@@ -134,11 +133,9 @@ class CameraEffectProcessorsTest {
         val failed = substituted(processor.process(unreadable.frame()))
 
         assertEquals(CameraCompositeSubstitution.RENDER_FAILED, failed.reason)
-        failed.frame.planes()
-        failed.frame.release()
+        failed.frame.close()
         val recovered = composited(processor.process(personFrame().frame()))
-        recovered.frame.planes()
-        recovered.frame.release()
+        recovered.frame.close()
         assertTrue(executor.runNext())
         assertEquals(1, segmenter.submits)
     }
@@ -160,7 +157,7 @@ class CameraEffectProcessorsTest {
                     dataY = ByteBuffer.allocate(1), strideY = 320,
                     dataU = ByteBuffer.allocate(1), strideU = 160,
                     dataV = ByteBuffer.allocate(1), strideV = 160,
-                    release = { releases += 1 },
+                    onRelease = { releases += 1 },
                 )
             },
         )
@@ -169,49 +166,60 @@ class CameraEffectProcessorsTest {
 
         assertEquals(CameraCompositeSubstitution.MALFORMED_FRAME, failed.reason)
         assertEquals(1, releases)
-        failed.frame.planes()
-        failed.frame.release()
+        failed.frame.close()
         val recovered = composited(processor.process(personFrame().frame()))
-        recovered.frame.planes()
-        recovered.frame.release()
+        recovered.frame.close()
         assertTrue(executor.runNext())
         assertEquals(1, segmenter.submits)
     }
 
     @Test
     fun retireClosesTheProducerExactlyOnce() {
+        val pools = ScriptedBufferPools()
         val producer = makeProducer()
-        val processor = makeProcessor(producer)
+        val processor = CompositingEffectProcessor(
+            CameraEffectCompositor(CameraEffect.DIM, pools), producer,
+        )
         val output = processor.process(personFrame().frame()).frame
-        output.planes()
-        output.release()
+        output.close()
         assertTrue(executor.runNext())
 
         processor.retire()
+        val recycled = pools.pools[0].recycled
         processor.retire()
 
         assertEquals(1, segmenter.closes)
         assertEquals(1, executor.closes)
         assertNull(producer.mask)
+        assertEquals(pools.pools[0].taken, recycled)
+        assertEquals(recycled, pools.pools[0].recycled)
     }
 
     @Test
-    fun aRetiredProcessorSubstitutesRatherThanCompositing() {
-        val processor = makeProcessor(makeProducer())
+    fun aFrameOnARetiredProcessorPublishesAFreshWholeFrameEffect() {
+        val pools = ScriptedBufferPools()
+        val producer = makeProducer()
+        val processor = CompositingEffectProcessor(
+            CameraEffectCompositor(CameraEffect.DIM, pools), producer,
+        )
         val input = personFrame()
-        val active = composited(processor.process(input.frame())).frame
-        active.planes()
-        active.release()
+        composited(processor.process(input.frame())).frame.close()
+        assertTrue(executor.runNext())
+        assertNotNull(producer.mask)
+        val masked = composited(processor.process(input.frame()))
+        assertLuma(masked.frame.planes, 110, 50, 40)
+        masked.frame.close()
 
         processor.retire()
-        val outcome = substituted(processor.process(input.frame()))
+        val outcome = composited(processor.process(input.frame()))
 
-        assertEquals(CameraCompositeSubstitution.RETIRED, outcome.reason)
-        val planes = outcome.frame.planes()
-        assertEquals(0, luma(planes, 110, 50))
-        assertEquals(0, luma(planes, 300, 20))
-        assertEquals(128, chromaU(planes, 150, 10))
-        outcome.frame.release()
+        assertNull(outcome.maskRejection)
+        assertNull(producer.mask)
+        val planes = outcome.frame.planes
+        assertLuma(planes, 110, 50, 20)
+        assertLuma(planes, 300, 20, 110)
+        outcome.frame.close()
+        assertEquals(pools.pools[0].taken, pools.pools[0].recycled)
     }
 
     @Test

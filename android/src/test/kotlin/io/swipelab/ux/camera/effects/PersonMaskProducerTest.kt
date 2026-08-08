@@ -170,7 +170,7 @@ class PersonMaskProducerTest {
                         dataY = ByteBuffer.allocate(1), strideY = source.width,
                         dataU = ByteBuffer.allocate(1), strideU = source.width / 2,
                         dataV = ByteBuffer.allocate(1), strideV = source.width / 2,
-                        release = {},
+                        onRelease = {},
                     )
                 },
             )

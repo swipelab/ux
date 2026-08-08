@@ -21,9 +21,9 @@ class CameraEffectBuffer internal constructor(
 
     private var references = 1
 
-    fun retain(): Unit = synchronized(this) { references += 1 }
+    internal fun retain(): Unit = synchronized(this) { references += 1 }
 
-    fun release() {
+    internal fun release() {
         val recycles = synchronized(this) {
             references -= 1
             references == 0
@@ -96,10 +96,13 @@ class FrameBufferPool(
     private var allocated = 0
     private var takenCount = 0
     private var exhaustedCount = 0
+    private var recycledCount = 0
 
     val taken: Int get() = synchronized(this) { takenCount }
 
     val exhausted: Int get() = synchronized(this) { exhaustedCount }
+
+    val recycled: Int get() = synchronized(this) { recycledCount }
 
     override fun take(): CameraEffectBuffer? = synchronized(this) {
         val buffer = free.removeFirstOrNull()
@@ -119,6 +122,7 @@ class FrameBufferPool(
     }
 
     internal fun recycle(buffer: CameraEffectBuffer) = synchronized(this) {
+        recycledCount += 1
         free.addLast(buffer)
     }
 }

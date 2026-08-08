@@ -9,16 +9,14 @@ class CompositingEffectProcessor(
     private val compositor: CameraEffectCompositor,
     private val producer: PersonMaskProducer,
 ) : CameraEffectProcessor {
-    override fun process(frame: CameraFrame): CameraFrameOutcome = try {
+    override fun process(frame: CameraFrame): CameraFrameOutcome = frame.use {
         producer.consider(frame)
         CameraFrameOutcome(compositor.composite(frame, producer.mask), this)
-    } finally {
-        frame.release()
     }
 
     override fun retire() {
         producer.close()
-        compositor.release()
+        compositor.retire()
     }
 }
 
