@@ -1,5 +1,7 @@
 package io.swipelab.ux.camera.effects
 
+import java.nio.ByteBuffer
+import java.util.concurrent.RejectedExecutionException
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -150,6 +152,64 @@ class PersonMaskProducerTest {
             200,
             input.nv21.get(input.width * input.height - 1).toInt() and 0xff,
         )
+    }
+
+    @Test
+    fun malformedPlanePreparationRecyclesItsClaimAndInput() {
+        val producer = makeProducer()
+        val malformed = {
+            CameraFrame(
+                width = source.width,
+                height = source.height,
+                rotation = CameraFrameRotation.DEGREES_0,
+                timestampNs = 0,
+                source = {
+                    CameraFramePlanes(
+                        width = source.width,
+                        height = source.height,
+                        dataY = ByteBuffer.allocate(1), strideY = source.width,
+                        dataU = ByteBuffer.allocate(1), strideU = source.width / 2,
+                        dataV = ByteBuffer.allocate(1), strideV = source.width / 2,
+                        release = {},
+                    )
+                },
+            )
+        }
+
+        repeat(3) { producer.consider(malformed()) }
+        producer.consider(source.frame())
+        drain()
+
+        assertEquals(4, pool.taken)
+        assertEquals(0, pool.exhausted)
+        assertEquals(1, segmenter.submits)
+        assertNotNull(producer.mask)
+    }
+
+    @Test
+    fun rejectedEnqueueRecyclesItsClaimAndInput() {
+        var rejects = true
+        val rejecting = object : PersonMaskExecutor {
+            override fun execute(command: Runnable) {
+                if (rejects) {
+                    rejects = false
+                    throw RejectedExecutionException()
+                }
+                command.run()
+            }
+
+            override fun close() = Unit
+        }
+        val producer = PersonMaskProducer(segmenter, pool, clock, rejecting)
+
+        producer.consider(source.frame())
+        producer.consider(source.frame())
+
+        assertEquals(2, pool.taken)
+        assertEquals(0, pool.exhausted)
+        assertEquals(1, segmenter.submits)
+        assertNotNull(producer.mask)
+        producer.close()
     }
 
     @Test

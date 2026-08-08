@@ -16,7 +16,7 @@ extension LateExtension<T> on Late<T> {
 
   bool get isValue => this is LateValue;
 
-  T? get value => this.isValue ? (this as LateValue).value : null;
+  T? get value => isValue ? (this as LateValue).value : null;
 
   R map<R>({
     required R Function(LateValue<T> e) value,

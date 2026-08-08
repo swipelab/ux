@@ -30,6 +30,7 @@ class _Task<T> implements CancellationToken {
   final VoidCallback? onDone;
   bool _isCancelled;
 
+  @override
   bool get isCancelled => _isCancelled;
 
   final _completer = Completer<T?>();
@@ -104,7 +105,9 @@ mixin Tasks on Dispose {
   /// Cancels all enqueued tasks
   @nonVirtual
   void cancelTasks() {
-    _queue.forEach((e) => e.cancel());
+    for (var e in _queue) {
+      e.cancel();
+    }
   }
 
   bool _isActive = false;

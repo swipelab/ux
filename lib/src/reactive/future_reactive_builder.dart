@@ -17,8 +17,8 @@ class FutureReactiveBuilder<T> extends StatefulWidget {
     required this.future,
     required this.builder,
     this.child,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   final Widget? child;
 
@@ -29,7 +29,8 @@ class FutureReactiveBuilder<T> extends StatefulWidget {
   final Widget Function(BuildContext context, T state, Widget? child) builder;
 
   @override
-  State<FutureReactiveBuilder<T>> createState() => _FutureReactiveBuilderState<T>();
+  State<FutureReactiveBuilder<T>> createState() =>
+      _FutureReactiveBuilderState<T>();
 }
 
 class _FutureReactiveBuilderState<T> extends State<FutureReactiveBuilder<T>> {

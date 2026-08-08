@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' show Size;
 
 import 'package:flutter/services.dart';
 import 'package:ux/src/camera/camera.dart';
@@ -177,8 +176,7 @@ class FakeXCameraBackend implements XCameraBackend {
     int handle,
     DeviceOrientation orientation,
   ) async {
-    lockCaptureOrientationCalls
-        .add((handle: handle, orientation: orientation));
+    lockCaptureOrientationCalls.add((handle: handle, orientation: orientation));
   }
 
   @override

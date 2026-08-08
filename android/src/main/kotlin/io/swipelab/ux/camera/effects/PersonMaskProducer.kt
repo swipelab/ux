@@ -112,7 +112,6 @@ class PersonMaskProducer(
     private var published: CameraMask? = null
     private var inFlight = false
     private var generation = 0
-    private var submittedAt = 0L
     private var lastSubmissionAt: Long? = null
     private var interval = TARGET_SUBMISSION_INTERVAL_NANOS
     private var publications = 0
@@ -128,19 +127,21 @@ class PersonMaskProducer(
     fun consider(frame: CameraFrame) {
         val claimed = claim() ?: return
         val input = pool.take() ?: return release(claimed)
-        val planes = frame.planes()
-        if (planes.width <= 0 || planes.height <= 0) {
-            pool.recycle(input)
-            return release(claimed)
+        var enqueued = false
+        try {
+            val planes = frame.planes()
+            if (planes.width <= 0 || planes.height <= 0) return
+            copy(planes, input)
+            val sourceRect = CameraFrameRect(0, 0, planes.width, planes.height)
+            val submission = stamp(sourceRect, claimed, input) ?: return
+            enqueued = enqueue(submission)
+        } catch (_: Exception) {
+        } finally {
+            if (!enqueued) {
+                pool.recycle(input)
+                release(claimed)
+            }
         }
-        copy(planes, input)
-        val sourceRect = CameraFrameRect(0, 0, planes.width, planes.height)
-        val submission = stamp(sourceRect, claimed, input)
-        if (submission == null) {
-            pool.recycle(input)
-            return
-        }
-        enqueue(submission)
     }
 
     /**
@@ -179,6 +180,7 @@ class PersonMaskProducer(
         val generation: Int,
         val sourceRect: CameraFrameRect,
         val input: PersonMaskInput,
+        val submittedAt: Long,
     )
 
     /**
@@ -204,21 +206,17 @@ class PersonMaskProducer(
         input: PersonMaskInput,
     ): Submission? = synchronized(lock) {
         if (closed || claimed != generation) return null
-        submittedAt = clock.nowNanos
-        lastSubmissionAt = submittedAt
-        Submission(claimed, sourceRect, input)
+        Submission(claimed, sourceRect, input, clock.nowNanos)
     }
 
-    private fun enqueue(submission: Submission) {
-        val accepted = synchronized(lock) {
-            if (closed || submission.generation != generation) {
-                false
-            } else {
-                executor.execute { submit(submission) }
-                true
-            }
+    private fun enqueue(submission: Submission): Boolean = synchronized(lock) {
+        if (closed || submission.generation != generation) {
+            false
+        } else {
+            executor.execute { submit(submission) }
+            lastSubmissionAt = submission.submittedAt
+            true
         }
-        if (!accepted) pool.recycle(submission.input)
     }
 
     private fun submit(submission: Submission) {
@@ -248,7 +246,7 @@ class PersonMaskProducer(
             // is two orders of magnitude slower than a warm one.
             if (publications <= 1) return
             interval = maxOf(
-                TARGET_SUBMISSION_INTERVAL_NANOS, clock.nowNanos - submittedAt,
+                TARGET_SUBMISSION_INTERVAL_NANOS, clock.nowNanos - submission.submittedAt,
             )
         }
     }

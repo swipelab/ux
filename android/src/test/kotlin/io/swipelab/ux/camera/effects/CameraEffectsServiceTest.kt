@@ -219,6 +219,50 @@ class CameraEffectsServiceTest {
     }
 
     @Test
+    fun aMissingBridgeDoesNotCreateAProcessor() {
+        service.uninstall()
+
+        setEffect()
+
+        assertTrue(factory.made.isEmpty())
+        assertEquals(
+            listOf<CameraEffectsReply>(
+                CameraEffectsReply.Failure(CameraEffectsFailure.integrationUnavailable)
+            ),
+            replies,
+        )
+    }
+
+    @Test
+    fun aProcessorMadeWhileTheBridgeDisappearsIsRetired() {
+        val made = FlippableProcessor()
+        lateinit var disappearingService: CameraEffectsService
+        val disappearingFactory = object : CameraEffectProcessorFactory {
+            override fun makeProcessor(effect: CameraEffect): CameraEffectProcessor {
+                disappearingService.uninstall()
+                return made
+            }
+        }
+        disappearingService = CameraEffectsService(
+            disappearingFactory, scheduler, ImmediateDelivery(),
+        )
+        disappearingService.install(FakeCameraTrackBridge())
+        val got = mutableListOf<CameraEffectsReply>()
+
+        disappearingService.reply(
+            CameraEffectsRequest.SetEffect("t1", CameraEffect.BLUR, 1)
+        ) { got.add(it) }
+
+        assertEquals(
+            listOf<CameraEffectsReply>(
+                CameraEffectsReply.Failure(CameraEffectsFailure.integrationUnavailable)
+            ),
+            got,
+        )
+        assertTrue(made.retired)
+    }
+
+    @Test
     fun anUnknownTrackFailsWithTrackNotFoundAndRetractsToIdle() {
         bridge.attachException = CameraTrackAttachException(unknownTrack = true)
         setEffect()

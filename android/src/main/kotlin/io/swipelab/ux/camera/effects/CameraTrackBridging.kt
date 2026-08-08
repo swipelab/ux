@@ -35,7 +35,8 @@ class CameraFramePlanes(
  * One camera frame as it crosses the bridge. [planes] materializes CPU pixels
  * on the first ask — for a host frame that costs a texture readback, so a
  * processor that publishes the input untouched never asks. A processor that
- * produces new pixels returns a frame built over its own planes.
+ * produces new pixels returns a frame built over its own planes. [release] is
+ * terminal and releases only planes already materialized through this frame.
  */
 class CameraFrame(
     val width: Int,
@@ -44,10 +45,23 @@ class CameraFrame(
     val timestampNs: Long,
     private val source: () -> CameraFramePlanes,
 ) {
+    private val lock = Any()
     private var materialized: CameraFramePlanes? = null
+    private var released = false
 
-    fun planes(): CameraFramePlanes =
+    fun planes(): CameraFramePlanes = synchronized(lock) {
+        check(!released) { "Camera frame is released" }
         materialized ?: source().also { materialized = it }
+    }
+
+    fun release() {
+        val planes = synchronized(lock) {
+            if (released) return
+            released = true
+            materialized
+        }
+        planes?.release?.invoke()
+    }
 }
 
 /**

@@ -28,6 +28,7 @@ abstract class Reactive<T> with Emitter, Tasks implements ValueListenable<T> {
 
   /// The current value of the [Reactive].
   /// If [value] is null, [buildState] is called to build the value.
+  @override
   T get value => _value ??= buildState();
 
   /// Override to build the derived state snapshot.

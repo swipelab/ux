@@ -10,6 +10,7 @@ class TransientStoreFactory<T> extends StoreFactory<T> with TransientFactory {
   final LocatorCreateDelegate<T> delegate;
   final Locator locator;
 
+  @override
   Future<T> get future async => instance;
 
   @override

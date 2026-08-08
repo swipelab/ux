@@ -13,8 +13,8 @@ class StoreProvider extends StatelessWidget {
   const StoreProvider({
     required this.store,
     required this.builder,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   final Store store;
   final WidgetBuilder builder;

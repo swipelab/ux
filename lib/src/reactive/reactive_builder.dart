@@ -32,24 +32,22 @@ typedef ReactiveCreateDelegate<T extends Listenable> = T Function(
 /// {@end-tool}
 class ReactiveBuilder<T extends Listenable> extends StatefulWidget {
   const ReactiveBuilder({
-    Key? key,
+    super.key,
     required ReactiveCreateDelegate<T> create,
     required this.builder,
     this.child,
     this.onUpdate,
   })  : _value = null,
-        _create = create,
-        super(key: key);
+        _create = create;
 
   const ReactiveBuilder.value(
     T value, {
-    Key? key,
+    super.key,
     required this.builder,
     this.child,
     this.onUpdate,
   })  : _value = value,
-        _create = null,
-        super(key: key);
+        _create = null;
 
   /// Creates the listenable once; dependencies captured at creation time.
   final ReactiveCreateDelegate<T>? _create;
@@ -79,7 +77,7 @@ class ReactiveBuilder<T extends Listenable> extends StatefulWidget {
   final ReactiveBuilderUpdateDelegate<T>? onUpdate;
 
   @override
-  _ReactiveBuilderState<T> createState() => _ReactiveBuilderState();
+  State<ReactiveBuilder<T>> createState() => _ReactiveBuilderState();
 }
 
 class _ReactiveBuilderState<T extends Listenable>

@@ -1,5 +1,6 @@
 package io.swipelab.ux.camera.effects
 
+import java.nio.ByteBuffer
 import java.nio.FloatBuffer
 import kotlin.math.abs
 import org.junit.Assert.assertEquals
@@ -7,6 +8,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -77,6 +79,7 @@ class CameraEffectProcessorsTest {
         assertNull(warmUp.maskRejection)
         assertLuma(warmUp.frame.planes(), 110, 50, 20)
         assertLuma(warmUp.frame.planes(), 300, 20, 110)
+        warmUp.frame.release()
 
         assertTrue(executor.runNext())
         assertEquals(1, segmenter.submits)
@@ -90,13 +93,98 @@ class CameraEffectProcessorsTest {
         assertNull(composited(masked).maskRejection)
         assertLuma(planes, 110, 50, 40)
         assertLuma(planes, 300, 20, 110)
+        composited(masked).frame.release()
+    }
+
+    @Test
+    fun everyProcessedFrameReleasesMaterializedInputPlanesExactlyOnce() {
+        val processor = makeProcessor(makeProducer())
+        val input = personFrame()
+        val frame = input.frame()
+        frame.planes()
+
+        val output = processor.process(frame).frame
+
+        assertEquals(1, input.releases)
+        frame.release()
+        assertEquals(1, input.releases)
+        assertThrows(IllegalStateException::class.java) { frame.planes() }
+        output.planes()
+        output.release()
+    }
+
+    @Test
+    fun releasingAnUnmaterializedFrameIsTerminalWithoutReadingItBack() {
+        val input = personFrame()
+        val frame = input.frame()
+
+        frame.release()
+        frame.release()
+
+        assertEquals(0, input.releases)
+        assertThrows(IllegalStateException::class.java) { frame.planes() }
+    }
+
+    @Test
+    fun aReadbackFailureSubstitutesAndTheProducerAcceptsTheNextFrame() {
+        val producer = makeProducer()
+        val processor = makeProcessor(producer)
+        val unreadable = personFrame().apply { failsToMaterialize = true }
+
+        val failed = substituted(processor.process(unreadable.frame()))
+
+        assertEquals(CameraCompositeSubstitution.RENDER_FAILED, failed.reason)
+        failed.frame.planes()
+        failed.frame.release()
+        val recovered = composited(processor.process(personFrame().frame()))
+        recovered.frame.planes()
+        recovered.frame.release()
+        assertTrue(executor.runNext())
+        assertEquals(1, segmenter.submits)
+    }
+
+    @Test
+    fun malformedPlanesSubstituteAndTheProducerAcceptsTheNextFrame() {
+        val producer = makeProducer()
+        val processor = makeProcessor(producer)
+        var releases = 0
+        val malformed = CameraFrame(
+            width = 320,
+            height = 180,
+            rotation = CameraFrameRotation.DEGREES_0,
+            timestampNs = 0,
+            source = {
+                CameraFramePlanes(
+                    width = 320,
+                    height = 180,
+                    dataY = ByteBuffer.allocate(1), strideY = 320,
+                    dataU = ByteBuffer.allocate(1), strideU = 160,
+                    dataV = ByteBuffer.allocate(1), strideV = 160,
+                    release = { releases += 1 },
+                )
+            },
+        )
+
+        val failed = substituted(processor.process(malformed))
+
+        assertEquals(CameraCompositeSubstitution.MALFORMED_FRAME, failed.reason)
+        assertEquals(1, releases)
+        failed.frame.planes()
+        failed.frame.release()
+        val recovered = composited(processor.process(personFrame().frame()))
+        recovered.frame.planes()
+        recovered.frame.release()
+        assertTrue(executor.runNext())
+        assertEquals(1, segmenter.submits)
     }
 
     @Test
     fun retireClosesTheProducerExactlyOnce() {
         val producer = makeProducer()
         val processor = makeProcessor(producer)
-        processor.process(personFrame().frame())
+        val output = processor.process(personFrame().frame()).frame
+        output.planes()
+        output.release()
         assertTrue(executor.runNext())
 
         processor.retire()
@@ -111,7 +199,9 @@ class CameraEffectProcessorsTest {
     fun aRetiredProcessorSubstitutesRatherThanCompositing() {
         val processor = makeProcessor(makeProducer())
         val input = personFrame()
-        composited(processor.process(input.frame()))
+        val active = composited(processor.process(input.frame())).frame
+        active.planes()
+        active.release()
 
         processor.retire()
         val outcome = substituted(processor.process(input.frame()))
@@ -121,6 +211,7 @@ class CameraEffectProcessorsTest {
         assertEquals(0, luma(planes, 110, 50))
         assertEquals(0, luma(planes, 300, 20))
         assertEquals(128, chromaU(planes, 150, 10))
+        outcome.frame.release()
     }
 
     @Test

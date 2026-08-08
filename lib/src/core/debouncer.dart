@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-const kDefaultDebounce = const Duration(milliseconds: 100);
+const kDefaultDebounce = Duration(milliseconds: 100);
 
 /// Utility that delays execution of the last scheduled callback until
 /// [duration] has elapsed without a new schedule.

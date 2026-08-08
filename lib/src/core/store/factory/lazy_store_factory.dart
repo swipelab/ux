@@ -14,6 +14,7 @@ class LazyStoreFactory<T> extends StoreFactory<T> {
   Completer<T>? _completer;
   T? _instance;
 
+  @override
   Future<T> get future async {
     if (_completer == null) {
       _completer = Completer<T>();

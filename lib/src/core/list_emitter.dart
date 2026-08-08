@@ -24,6 +24,7 @@ class ListEmitter<T> with Emitter implements List<T>, ValueListenable<List<T>> {
   @override
   T get first => _list.first;
 
+  @override
   set first(T value) {
     _list.first = value;
     notifyListeners();
@@ -32,6 +33,7 @@ class ListEmitter<T> with Emitter implements List<T>, ValueListenable<List<T>> {
   @override
   T get last => _list.last;
 
+  @override
   set last(T value) {
     _list.last = value;
     notifyListeners();
@@ -40,6 +42,7 @@ class ListEmitter<T> with Emitter implements List<T>, ValueListenable<List<T>> {
   @override
   int get length => _list.length;
 
+  @override
   set length(int value) {
     _list.length = value;
     notifyListeners();
@@ -96,7 +99,8 @@ class ListEmitter<T> with Emitter implements List<T>, ValueListenable<List<T>> {
   bool every(bool Function(T element) test) => _list.every(test);
 
   @override
-  Iterable<R> expand<R>(Iterable<R> f(T element)) => _list.expand<R>(f);
+  Iterable<R> expand<R>(Iterable<R> Function(T element) f) =>
+      _list.expand<R>(f);
 
   @override
   void fillRange(int start, int end, [T? fillValue]) =>
