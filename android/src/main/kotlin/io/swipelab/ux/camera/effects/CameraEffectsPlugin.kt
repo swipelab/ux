@@ -13,8 +13,8 @@ import io.swipelab.ux.NativePlugin
  * CameraEffects.install(MyCameraEffectsBridge())
  * ```
  *
- * With nothing installed, every effect command answers
- * `integration_unavailable` and `available()` answers false.
+ * With nothing installed, `available()` answers false, `setEffect` answers
+ * `integration_unavailable`, and `clear()` remains an idempotent success.
  */
 object CameraEffects {
     fun install(bridge: CameraTrackBridging) = service.install(bridge)

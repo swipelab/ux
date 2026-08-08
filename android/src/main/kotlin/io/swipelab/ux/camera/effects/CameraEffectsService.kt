@@ -37,8 +37,6 @@ class CameraEffectsService(
     private var serving = false
     private val queued = ArrayDeque<Pair<Command, CameraEffectsCompletion>>()
 
-    // Bridge
-
     val isBridgeInstalled: Boolean
         get() {
             lock.lock()
@@ -120,8 +118,6 @@ class CameraEffectsService(
         }
     }
 
-    // Status
-
     val currentStatus: CameraEffectStatus
         get() {
             lock.lock()
@@ -137,8 +133,6 @@ class CameraEffectsService(
         this.observer = observer
         lock.unlock()
     }
-
-    // Commands
 
     fun reply(request: CameraEffectsRequest, completion: CameraEffectsCompletion) {
         when (request) {
@@ -188,8 +182,6 @@ class CameraEffectsService(
         }
     }
 
-    // Serialization
-
     private sealed interface Command {
         data class SetEffect(
             val trackId: String,
@@ -233,8 +225,6 @@ class CameraEffectsService(
         lock.unlock()
         run(next.first, next.second)
     }
-
-    // setEffect
 
     private fun setEffect(
         trackId: String,
@@ -479,8 +469,6 @@ class CameraEffectsService(
         }
     }
 
-    // clear
-
     private fun clear(generation: Int, completion: CameraEffectsCompletion) {
         lock.lock()
         lastGeneration = generation
@@ -498,8 +486,6 @@ class CameraEffectsService(
         record?.currentProcessor()?.retire()
         finish(CameraEffectsReply.Done, completion)
     }
-
-    // Emission
 
     private fun emit(status: CameraEffectStatus, observer: ((CameraEffectStatus) -> Unit)?) {
         if (observer == null) return

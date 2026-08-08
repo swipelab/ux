@@ -327,6 +327,25 @@ class CameraEffectsServiceTest {
     }
 
     @Test
+    fun aRetiredCallbackOnAReplacedTrackIsDroppedAfterUninstall() {
+        setEffect()
+        val retired = liveAttachment()
+        retired.deliverFrame()
+        bridge.world.replaceTrack("t1")
+        clear()
+        service.uninstall()
+        val eventsBefore = events.toList()
+        val frame = makeCameraFrame(timestampNs = 42)
+
+        val published = retired.deliverFrame(frame)
+
+        assertSame(frame, published)
+        assertEquals(eventsBefore, events)
+        assertEquals(CameraTrackDetachOutcome.TRACK_REPLACED, bridge.outcomes.last())
+        assertEquals(0, bridge.teardownCount)
+    }
+
+    @Test
     fun aDetachThatFindsTheTrackGoneStillSucceeds() {
         setEffect()
         liveAttachment().deliverFrame()
