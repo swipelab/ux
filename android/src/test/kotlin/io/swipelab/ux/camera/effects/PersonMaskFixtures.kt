@@ -67,7 +67,11 @@ class TestPersonMaskExecutor : PersonMaskExecutor {
 }
 
 /** A frame over test-owned I420 planes the test can rewrite or count. */
-class TestFrame(val width: Int = 320, val height: Int = 180) {
+class TestFrame(
+    val width: Int = 320,
+    val height: Int = 180,
+    private val rotation: CameraFrameRotation = CameraFrameRotation.DEGREES_0,
+) {
     private val chromaWidth = (width + 1) / 2
     private val chromaHeight = (height + 1) / 2
 
@@ -101,7 +105,7 @@ class TestFrame(val width: Int = 320, val height: Int = 180) {
     fun frame(): CameraFrame = CameraFrame(
         width = width,
         height = height,
-        rotation = CameraFrameRotation.DEGREES_0,
+        rotation = rotation,
         timestampNs = 0,
         source = {
             CameraFramePlanes(

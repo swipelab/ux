@@ -15,6 +15,8 @@ enum class PersonMaskQuality {
 
 /** One inference input: NV21 pixels the producer owns, on a fixed grid. */
 class PersonMaskInput(val width: Int, val height: Int) {
+    var rotation: CameraFrameRotation = CameraFrameRotation.DEGREES_0
+
     private val chromaWidth = (width + 1) / 2
     private val chromaHeight = (height + 1) / 2
 
@@ -134,6 +136,7 @@ class PersonMaskProducer(
             claim.use {
                 val planes = frame.planes()
                 if (planes.width <= 0 || planes.height <= 0) return
+                it.input.rotation = frame.rotation
                 copy(planes, it.input)
                 val sourceRect = CameraFrameRect(0, 0, planes.width, planes.height)
                 val submission = stamp(sourceRect, it) ?: return

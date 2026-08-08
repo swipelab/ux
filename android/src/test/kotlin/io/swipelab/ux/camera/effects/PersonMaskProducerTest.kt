@@ -137,6 +137,21 @@ class PersonMaskProducerTest {
     }
 
     @Test
+    fun theInferenceInputCarriesTheFrameRotation() {
+        val manual = ManualExecutor()
+        val producer = PersonMaskProducer(segmenter, pool, clock, manual)
+        val rotated = TestFrame(rotation = CameraFrameRotation.DEGREES_270)
+
+        producer.consider(rotated.frame())
+        assertTrue(manual.runNext())
+
+        assertEquals(
+            CameraFrameRotation.DEGREES_270,
+            requireNotNull(segmenter.lastInput).rotation,
+        )
+    }
+
+    @Test
     fun theFramePlanesMayBeRewrittenTheMomentConsiderReturns() {
         val manual = ManualExecutor()
         val producer = PersonMaskProducer(segmenter, pool, clock, manual)

@@ -26,7 +26,7 @@ class MlKitPersonSegmenter : PersonSegmenting {
             input.nv21,
             input.width,
             input.height,
-            0,
+            input.rotation.degrees,
             InputImage.IMAGE_FORMAT_NV21,
         )
         completion(
@@ -36,7 +36,7 @@ class MlKitPersonSegmenter : PersonSegmenting {
                     width = mask.width,
                     height = mask.height,
                     confidence = mask.buffer.asFloatBuffer(),
-                )
+                ).onInputGrid(input.rotation)
             }
         )
     }
