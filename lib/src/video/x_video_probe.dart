@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/services.dart';
 
 /// What [XVideoProbe.probe] reports about one video file.

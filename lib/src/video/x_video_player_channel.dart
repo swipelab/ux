@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show Size;
 
 import 'package:flutter/services.dart';
 
@@ -35,7 +36,8 @@ class MethodChannelXVideoPlayerBackend implements XVideoPlayerBackend {
         (s['height'] as num).toDouble(),
       ),
       duration: Duration(milliseconds: (m['durationMs'] as num).toInt()),
-      rotationQuarterTurns: (m['rotationQuarterTurns'] as num?)?.toInt() ?? 0,
+      rotationQuarterTurns:
+          (m['rotationQuarterTurns'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -44,13 +46,16 @@ class MethodChannelXVideoPlayerBackend implements XVideoPlayerBackend {
       _invokeVoid('dispose', {'handle': handle});
 
   @override
-  Future<void> play(int handle) => _invokeVoid('play', {'handle': handle});
+  Future<void> play(int handle) =>
+      _invokeVoid('play', {'handle': handle});
 
   @override
-  Future<void> pause(int handle) => _invokeVoid('pause', {'handle': handle});
+  Future<void> pause(int handle) =>
+      _invokeVoid('pause', {'handle': handle});
 
   @override
-  Future<void> seekTo(int handle, Duration position) => _invokeVoid('seekTo', {
+  Future<void> seekTo(int handle, Duration position) =>
+      _invokeVoid('seekTo', {
         'handle': handle,
         'positionMs': position.inMilliseconds,
       });
