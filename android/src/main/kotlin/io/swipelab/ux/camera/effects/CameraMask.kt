@@ -43,10 +43,10 @@ fun PersonMaskPixels.onInputGrid(rotation: CameraFrameRotation): PersonMaskPixel
         for (x in 0 until inputWidth) {
             val index = when (rotation) {
                 CameraFrameRotation.DEGREES_0 -> y * width + x
-                CameraFrameRotation.DEGREES_90 -> (inputWidth - 1 - x) * width + y
+                CameraFrameRotation.DEGREES_90 -> x * width + (inputHeight - 1 - y)
                 CameraFrameRotation.DEGREES_180 ->
                     (inputHeight - 1 - y) * width + (inputWidth - 1 - x)
-                CameraFrameRotation.DEGREES_270 -> x * width + (inputHeight - 1 - y)
+                CameraFrameRotation.DEGREES_270 -> (inputWidth - 1 - x) * width + y
             }
             mapped.put(y * inputWidth + x, source.get(index))
         }
