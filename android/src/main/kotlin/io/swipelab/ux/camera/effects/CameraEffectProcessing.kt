@@ -5,6 +5,7 @@ enum class CameraCompositeSubstitution {
     MALFORMED_FRAME,
     POOL_UNAVAILABLE,
     RENDER_FAILED,
+    RETIRED,
 }
 
 /** Why a mask was set aside and the whole frame took the effect. */
@@ -66,17 +67,4 @@ interface CameraEffectProcessor {
 interface CameraEffectProcessorFactory {
     @Throws(Exception::class)
     fun makeProcessor(effect: CameraEffect): CameraEffectProcessor
-}
-
-/** Publishes the camera's own frames. */
-class PassthroughEffectProcessor : CameraEffectProcessor {
-    override fun process(frame: CameraFrame) =
-        CameraFrameOutcome(CompositeOutcome.Composited(frame), this)
-
-    override fun retire() {}
-}
-
-class PassthroughEffectProcessors : CameraEffectProcessorFactory {
-    override fun makeProcessor(effect: CameraEffect): CameraEffectProcessor =
-        PassthroughEffectProcessor()
 }

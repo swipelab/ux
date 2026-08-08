@@ -34,8 +34,12 @@ class CameraEffectCompositor(
     private var geometry: Geometry? = null
     private var lastGood: CameraEffectBuffer? = null
     private var black: CameraEffectBuffer? = null
+    private var retired = false
 
     fun composite(frame: CameraFrame, mask: CameraMask?): CompositeOutcome = synchronized(lock) {
+        if (retired) {
+            return substitution(frame, CameraCompositeSubstitution.RETIRED)
+        }
         if (frame.width <= 0 || frame.height <= 0) {
             return substitution(frame, CameraCompositeSubstitution.MALFORMED_FRAME)
         }
@@ -60,6 +64,18 @@ class CameraEffectCompositor(
         lastGood?.release()
         lastGood = output
         CompositeOutcome.Composited(published(output, frame), assessed.rejection)
+    }
+
+    /** Gives up the buffers the effect held; every later composite substitutes. */
+    fun release() {
+        synchronized(lock) {
+            retired = true
+            lastGood?.release()
+            lastGood = null
+            black?.release()
+            black = null
+            geometry = null
+        }
     }
 
     private fun adopt(width: Int, height: Int): Geometry {
