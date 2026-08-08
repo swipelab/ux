@@ -53,6 +53,45 @@ class CameraEffectCompositorTest {
         person = CameraFrameRect(30, 20, 50, 40),
     )
 
+    private fun variance(
+        planes: CameraFramePlanes,
+        left: Int,
+        top: Int,
+        right: Int,
+        bottom: Int,
+    ): Double {
+        var sum = 0.0
+        var squares = 0.0
+        var count = 0
+        for (y in top until bottom) {
+            for (x in left until right) {
+                val value = luma(planes, x, y).toDouble()
+                sum += value
+                squares += value * value
+                count += 1
+            }
+        }
+        val mean = sum / count
+        return squares / count - mean * mean
+    }
+
+    @Test
+    fun blurLeavesThePersonRegionsVarianceAndTakesTheBackgrounds() {
+        val compositor = CameraEffectCompositor(CameraEffect.BLUR)
+        val input = EffectFrame(width = 320, height = 180).apply {
+            fillLuma { x, y -> if ((x + y) % 2 == 0) 40 else 220 }
+        }
+
+        val outcome = composited(compositor.composite(input.frame(), personMask()))
+
+        assertNull(outcome.maskRejection)
+        val planes = outcome.frame.planes
+        val person = variance(planes, 80, 60, 140, 100)
+        val background = variance(planes, 220, 20, 300, 60)
+        assertTrue("the person region should keep its detail, got $person", person > 4000.0)
+        assertTrue("the background should lose its detail, got $background", background < 100.0)
+    }
+
     @Test
     fun blurKeepsThePersonAndChangesTheBackground() {
         val compositor = CameraEffectCompositor(CameraEffect.BLUR)

@@ -28,6 +28,32 @@ class PersonMaskPixels(
     }
 }
 
+/**
+ * The same mask on the grid its inference input sits on, from the upright grid
+ * a segmenter given [rotation] answers on.
+ */
+fun PersonMaskPixels.onInputGrid(rotation: CameraFrameRotation): PersonMaskPixels {
+    val turned = rotation == CameraFrameRotation.DEGREES_90 ||
+        rotation == CameraFrameRotation.DEGREES_270
+    val inputWidth = if (turned) height else width
+    val inputHeight = if (turned) width else height
+    val source = confidence
+    val mapped = FloatBuffer.allocate(inputWidth * inputHeight)
+    for (y in 0 until inputHeight) {
+        for (x in 0 until inputWidth) {
+            val index = when (rotation) {
+                CameraFrameRotation.DEGREES_0 -> y * width + x
+                CameraFrameRotation.DEGREES_90 -> x * width + (inputHeight - 1 - y)
+                CameraFrameRotation.DEGREES_180 ->
+                    (inputHeight - 1 - y) * width + (inputWidth - 1 - x)
+                CameraFrameRotation.DEGREES_270 -> (inputWidth - 1 - x) * width + y
+            }
+            mapped.put(y * inputWidth + x, source.get(index))
+        }
+    }
+    return PersonMaskPixels(inputWidth, inputHeight, mapped)
+}
+
 /** A single-channel person mask over one camera frame. */
 class CameraMask(
     confidence: FloatBuffer,
