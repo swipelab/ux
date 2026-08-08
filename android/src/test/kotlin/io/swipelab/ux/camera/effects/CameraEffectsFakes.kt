@@ -157,7 +157,10 @@ class SubstitutingProcessor : CameraEffectProcessor {
         private set
 
     override fun process(frame: CameraFrame) =
-        CameraFrameOutcome(CompositeOutcome.Substituted(frame), this)
+        CameraFrameOutcome(
+            CompositeOutcome.Substituted(frame, CameraCompositeSubstitution.RENDER_FAILED),
+            this,
+        )
 
     override fun retire() {
         retired = true
@@ -178,8 +181,11 @@ class FlippableProcessor : CameraEffectProcessor {
     override fun process(frame: CameraFrame): CameraFrameOutcome {
         beforeOutcome?.invoke()
         return CameraFrameOutcome(
-            if (substitute) CompositeOutcome.Substituted(frame)
-            else CompositeOutcome.Composited(frame),
+            if (substitute) {
+                CompositeOutcome.Substituted(frame, CameraCompositeSubstitution.RENDER_FAILED)
+            } else {
+                CompositeOutcome.Composited(frame)
+            },
             this,
         )
     }

@@ -1,17 +1,40 @@
 package io.swipelab.ux.camera.effects
 
+/** Why a composite answered with a substitute instead of a rendered frame. */
+enum class CameraCompositeSubstitution {
+    MALFORMED_FRAME,
+    POOL_UNAVAILABLE,
+    RENDER_FAILED,
+}
+
+/** Why a mask was set aside and the whole frame took the effect. */
+enum class CameraMaskRejection {
+    EMPTY,
+    ZERO_DIMENSIONED,
+    SOURCE_RECT_MISMATCH,
+}
+
 /** One frame's result: the frame the track publishes and how it was produced. */
 sealed interface CompositeOutcome {
     val frame: CameraFrame
 
-    /** A rendered frame. */
-    data class Composited(override val frame: CameraFrame) : CompositeOutcome
+    /**
+     * A rendered frame; a set-aside mask records why the whole frame took the
+     * effect.
+     */
+    data class Composited(
+        override val frame: CameraFrame,
+        val maskRejection: CameraMaskRejection? = null,
+    ) : CompositeOutcome
 
     /**
      * A fail-closed substitute — the last-good effected frame or black,
      * never the input.
      */
-    data class Substituted(override val frame: CameraFrame) : CompositeOutcome
+    data class Substituted(
+        override val frame: CameraFrame,
+        val reason: CameraCompositeSubstitution,
+    ) : CompositeOutcome
 }
 
 /**
