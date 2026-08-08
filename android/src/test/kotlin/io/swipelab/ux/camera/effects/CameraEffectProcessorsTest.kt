@@ -236,6 +236,56 @@ class CameraEffectProcessorsTest {
     }
 
     @Test
+    fun thePassthroughStageCopiesTheFrameAndRunsNoInference() {
+        val made = mutableListOf<ScriptedSegmenter>()
+        val factory = CameraEffectProcessors { ScriptedSegmenter().also { made.add(it) } }
+        factory.stage = CameraEffectStage.PASSTHROUGH
+
+        val processor = factory.makeProcessor(CameraEffect.BLUR)
+        val outcome = composited(processor.process(personFrame().frame()))
+
+        assertTrue(made.isEmpty())
+        assertLuma(outcome.frame.planes, 110, 50, 40)
+        assertLuma(outcome.frame.planes, 300, 20, 220)
+        outcome.frame.close()
+        processor.retire()
+    }
+
+    @Test
+    fun theMaskOnlyStageRunsTheInferenceAndCopiesTheFrameAnyway() {
+        val producer = makeProducer()
+        val processor = StagedEffectProcessor(
+            CameraEffectCompositor(CameraEffect.NONE), producer,
+        )
+        val input = personFrame()
+
+        composited(processor.process(input.frame())).frame.close()
+        assertTrue(executor.runNext())
+        assertNotNull(producer.mask)
+        clock.advance(PersonMaskProducer.TARGET_SUBMISSION_INTERVAL_NANOS)
+        val outcome = composited(processor.process(input.frame()))
+
+        assertEquals(1, segmenter.submits)
+        assertNull(outcome.maskRejection)
+        assertLuma(outcome.frame.planes, 110, 50, 40)
+        assertLuma(outcome.frame.planes, 300, 20, 220)
+        outcome.frame.close()
+        processor.retire()
+        assertEquals(1, segmenter.closes)
+    }
+
+    @Test
+    fun theCompositeStageIsWhatTheFactoryHolds() {
+        val factory = CameraEffectProcessors { ScriptedSegmenter() }
+
+        val processor = factory.makeProcessor(CameraEffect.DIM)
+
+        assertEquals(CameraEffectStage.COMPOSITE, factory.stage)
+        assertTrue(processor is CompositingEffectProcessor)
+        processor.retire()
+    }
+
+    @Test
     fun theFactoryBuildsOneProducerPerProcessor() {
         val made = mutableListOf<ScriptedSegmenter>()
         val factory = CameraEffectProcessors { ScriptedSegmenter().also { made.add(it) } }

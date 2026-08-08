@@ -98,6 +98,12 @@ android {
         }
     }
 
+    // CameraEffectsRig reads BuildConfig.DEBUG to keep its stage knob out of
+    // release builds.
+    buildFeatures {
+        buildConfig true
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
