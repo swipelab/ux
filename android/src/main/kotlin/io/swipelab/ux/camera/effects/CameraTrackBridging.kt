@@ -142,10 +142,9 @@ class CameraTrackAttachException(val unknownTrack: Boolean) : Exception()
  *   back and never invokes it directly.
  * - `processing` returns a [PublishedFrame] — always distinct from its input,
  *   never over the host's raw pixels, over planes the core already holds. The
- *   host owns it from that return and closes it exactly once, after the
- *   downstream consumer has finished with its planes. For a host that wraps
- *   those planes for a downstream consumer, "after" is that consumer's release
- *   callback, not the return of the capture callback.
+ *   host owns it from that return and closes it exactly once, once it has
+ *   taken what it needs from the planes; that close is what gives the core its
+ *   buffer back.
  * - For a host frame the bridge cannot represent, the bridge constructs no
  *   [CameraFrame], does not call `processing`, and publishes the host frame
  *   unchanged.
