@@ -37,7 +37,7 @@ class CameraEffectCompositorBenchmark {
             val outcome = compositor.composite(input, mask)
             val elapsed = (System.nanoTime() - start) / 1_000_000.0
             assertTrue("$label substituted: $outcome", outcome is CompositeOutcome.Composited)
-            outcome.frame.planes().release()
+            outcome.frame.close()
             if (index >= WARMUP) samples[index - WARMUP] = elapsed
         }
 

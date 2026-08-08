@@ -241,6 +241,15 @@ class CameraEffectsService(
                 CameraEffectsReply.Failure(CameraEffectsFailure.unsupported), completion
             )
         }
+        lock.lock()
+        val bridgeBeforeCreation = bridge
+        lock.unlock()
+        if (bridgeBeforeCreation == null) {
+            return finish(
+                CameraEffectsReply.Failure(CameraEffectsFailure.integrationUnavailable),
+                completion,
+            )
+        }
         val processor: CameraEffectProcessor = try {
             processors.makeProcessor(effect)
         } catch (_: Exception) {
@@ -254,6 +263,7 @@ class CameraEffectsService(
         val bridge = this.bridge
         if (bridge == null) {
             lock.unlock()
+            processor.retire()
             return finish(
                 CameraEffectsReply.Failure(CameraEffectsFailure.integrationUnavailable),
                 completion,

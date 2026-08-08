@@ -34,6 +34,7 @@ class CameraEffectCompositor(
     private var geometry: Geometry? = null
     private var lastGood: CameraEffectBuffer? = null
     private var black: CameraEffectBuffer? = null
+    private var holdsFallback = true
 
     fun composite(frame: CameraFrame, mask: CameraMask?): CompositeOutcome = synchronized(lock) {
         if (frame.width <= 0 || frame.height <= 0) {
@@ -47,7 +48,11 @@ class CameraEffectCompositor(
         if (!isWellFormed(frame, planes)) {
             return substitution(frame, CameraCompositeSubstitution.MALFORMED_FRAME)
         }
-        val active = adopt(frame.width, frame.height)
+        val active = try {
+            adopt(frame.width, frame.height)
+        } catch (_: Exception) {
+            return substitution(frame, CameraCompositeSubstitution.RENDER_FAILED)
+        }
         val output = active.pool?.take()
             ?: return substitution(frame, CameraCompositeSubstitution.POOL_UNAVAILABLE)
         val assessed = assess(mask, frame)
@@ -57,9 +62,27 @@ class CameraEffectCompositor(
             output.release()
             return substitution(frame, CameraCompositeSubstitution.RENDER_FAILED)
         }
-        lastGood?.release()
-        lastGood = output
-        CompositeOutcome.Composited(published(output, frame), assessed.rejection)
+        // Publishing forks the claim before this one is given up, so the buffer
+        // cannot recirculate while it is being handed out.
+        val published = published(output, frame)
+        if (holdsFallback) {
+            lastGood?.release()
+            lastGood = output
+        } else {
+            output.release()
+        }
+        CompositeOutcome.Composited(published, assessed.rejection)
+    }
+
+    /** Gives up the fallback claim; later composites keep none. */
+    fun retire() {
+        synchronized(lock) {
+            holdsFallback = false
+            lastGood?.release()
+            lastGood = null
+            black?.release()
+            black = null
+        }
     }
 
     private fun adopt(width: Int, height: Int): Geometry {
@@ -67,13 +90,15 @@ class CameraEffectCompositor(
         if (current != null && current.width == width && current.height == height) {
             return current
         }
+        val replacement = Geometry(
+            width, height, pools.makePool(width, height), RenderScratch(width, height),
+        )
+        geometry = replacement
         lastGood?.release()
         lastGood = null
         black?.release()
         black = null
-        return Geometry(
-            width, height, pools.makePool(width, height), RenderScratch(width, height),
-        ).also { geometry = it }
+        return replacement
     }
 
     private fun render(
@@ -145,17 +170,32 @@ class CameraEffectCompositor(
         return true
     }
 
+    /** Fills the frame it was asked for, so a preserved other-sized fallback stays put. */
     private fun substitution(
         frame: CameraFrame,
         reason: CameraCompositeSubstitution,
     ): CompositeOutcome {
+        val width = maxOf(1, frame.width)
+        val height = maxOf(1, frame.height)
+        if (!holdsFallback) {
+            val substitute = makeBlackBuffer(width, height)
+            val publication = published(substitute, frame)
+            substitute.release()
+            return CompositeOutcome.Substituted(publication, reason)
+        }
         val good = lastGood
-        if (good != null) {
+        if (good != null && good.width == width && good.height == height) {
             return CompositeOutcome.Substituted(published(good, frame), reason)
         }
-        val substitute = black ?: makeBlackBuffer(
-            maxOf(1, frame.width), maxOf(1, frame.height),
-        ).also { black = it }
+        val current = black
+        val substitute = if (current != null && current.width == width && current.height == height) {
+            current
+        } else {
+            makeBlackBuffer(width, height).also {
+                current?.release()
+                black = it
+            }
+        }
         return CompositeOutcome.Substituted(published(substitute, frame), reason)
     }
 
@@ -167,28 +207,27 @@ class CameraEffectCompositor(
     }
 
     /**
-     * The published frame carries a reference to [buffer]; releasing the
-     * frame's planes is what returns the buffer to its pool.
+     * The publication forks a claim on [buffer]; closing the published frame is
+     * what gives that claim up.
      */
-    private fun published(buffer: CameraEffectBuffer, from: CameraFrame): CameraFrame {
+    private fun published(buffer: CameraEffectBuffer, from: CameraFrame): PublishedFrame {
         buffer.retain()
-        val planes = CameraFramePlanes(
-            width = buffer.width,
-            height = buffer.height,
-            dataY = buffer.publishedY(),
-            strideY = buffer.width,
-            dataU = buffer.publishedU(),
-            strideU = buffer.chromaWidth,
-            dataV = buffer.publishedV(),
-            strideV = buffer.chromaWidth,
-            release = buffer::release,
-        )
-        return CameraFrame(
+        return PublishedFrame(
             width = buffer.width,
             height = buffer.height,
             rotation = from.rotation,
             timestampNs = from.timestampNs,
-            source = { planes },
+            planes = CameraFramePlanes(
+                width = buffer.width,
+                height = buffer.height,
+                dataY = buffer.publishedY(),
+                strideY = buffer.width,
+                dataU = buffer.publishedU(),
+                strideU = buffer.chromaWidth,
+                dataV = buffer.publishedV(),
+                strideV = buffer.chromaWidth,
+                onRelease = buffer::release,
+            ),
         )
     }
 }

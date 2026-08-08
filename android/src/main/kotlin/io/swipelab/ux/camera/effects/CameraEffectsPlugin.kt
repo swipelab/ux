@@ -29,7 +29,7 @@ object CameraEffects {
     val isInstalled: Boolean get() = service.isBridgeInstalled
 
     internal val service = CameraEffectsService(
-        processors = PassthroughEffectProcessors(),
+        processors = CameraEffectProcessors(),
         scheduler = MainLooperScheduler(),
         delivery = MainLooperDelivery(),
     )

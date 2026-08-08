@@ -17,14 +17,14 @@ enum class CameraMaskRejection {
 
 /** One frame's result: the frame the track publishes and how it was produced. */
 sealed interface CompositeOutcome {
-    val frame: CameraFrame
+    val frame: PublishedFrame
 
     /**
      * A rendered frame; a set-aside mask records why the whole frame took the
      * effect.
      */
     data class Composited(
-        override val frame: CameraFrame,
+        override val frame: PublishedFrame,
         val maskRejection: CameraMaskRejection? = null,
     ) : CompositeOutcome
 
@@ -33,7 +33,7 @@ sealed interface CompositeOutcome {
      * never the input.
      */
     data class Substituted(
-        override val frame: CameraFrame,
+        override val frame: PublishedFrame,
         val reason: CameraCompositeSubstitution,
     ) : CompositeOutcome
 }
@@ -46,13 +46,14 @@ class CameraFrameOutcome(
     val outcome: CompositeOutcome,
     val processor: CameraEffectProcessor,
 ) {
-    val frame: CameraFrame get() = outcome.frame
+    val frame: PublishedFrame get() = outcome.frame
 }
 
 /**
  * Turns a camera frame into the frame the track publishes and reports what
- * that frame produced. [retire] releases what the processor holds for its
- * effect; a [process] already in flight completes and returns its output.
+ * that frame produced. [retire] closes what the processor holds that needs a
+ * deterministic close; a processor still reachable from a callback answers
+ * every frame it is given.
  */
 interface CameraEffectProcessor {
     fun process(frame: CameraFrame): CameraFrameOutcome
@@ -66,17 +67,4 @@ interface CameraEffectProcessor {
 interface CameraEffectProcessorFactory {
     @Throws(Exception::class)
     fun makeProcessor(effect: CameraEffect): CameraEffectProcessor
-}
-
-/** Publishes the camera's own frames. */
-class PassthroughEffectProcessor : CameraEffectProcessor {
-    override fun process(frame: CameraFrame) =
-        CameraFrameOutcome(CompositeOutcome.Composited(frame), this)
-
-    override fun retire() {}
-}
-
-class PassthroughEffectProcessors : CameraEffectProcessorFactory {
-    override fun makeProcessor(effect: CameraEffect): CameraEffectProcessor =
-        PassthroughEffectProcessor()
 }

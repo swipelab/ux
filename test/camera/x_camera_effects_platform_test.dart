@@ -35,15 +35,19 @@ void main() {
       debugDefaultTargetPlatformOverride = null;
     });
 
-    test('macOS is supported', () {
-      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    for (final platform in const [
+      TargetPlatform.macOS,
+      TargetPlatform.android,
+    ]) {
+      test('$platform is supported', () {
+        debugDefaultTargetPlatformOverride = platform;
 
-      expect(MethodChannelXCameraEffectsBackend().supported, isTrue);
-    });
+        expect(MethodChannelXCameraEffectsBackend().supported, isTrue);
+      });
+    }
 
     for (final platform in const [
       TargetPlatform.iOS,
-      TargetPlatform.android,
       TargetPlatform.linux,
       TargetPlatform.windows,
       TargetPlatform.fuchsia,

@@ -1,23 +1,7 @@
 package io.swipelab.ux.camera.effects
 
-import java.nio.ByteBuffer
-
-fun makeCameraFrame(timestampNs: Long = 0): CameraFrame = CameraFrame(
-    width = 2,
-    height = 2,
-    rotation = CameraFrameRotation.DEGREES_0,
-    timestampNs = timestampNs,
-    source = {
-        CameraFramePlanes(
-            width = 2,
-            height = 2,
-            dataY = ByteBuffer.allocate(4), strideY = 2,
-            dataU = ByteBuffer.allocate(1), strideU = 1,
-            dataV = ByteBuffer.allocate(1), strideV = 1,
-            release = {},
-        )
-    },
-)
+fun makeCameraFrame(timestampNs: Long = 0): CameraFrame =
+    EffectFrame(width = 64, height = 36, timestampNs = timestampNs).frame()
 
 /**
  * The host's tracks, which outlive any one bridge: a track takes as many
@@ -55,11 +39,11 @@ class FakeCameraTrackBridge(
 
     class Attachment(
         val track: FakeTrackWorld.Track,
-        var processing: ((CameraFrame) -> CameraFrame)?,
+        var processing: ((CameraFrame) -> PublishedFrame)?,
     ) : CameraTrackAttachment {
         override val trackId: String get() = track.id
 
-        fun deliverFrame(frame: CameraFrame = makeCameraFrame()): CameraFrame? =
+        fun deliverFrame(frame: CameraFrame = makeCameraFrame()): PublishedFrame? =
             processing?.invoke(frame)
     }
 
@@ -83,7 +67,7 @@ class FakeCameraTrackBridge(
 
     override fun attach(
         trackId: String,
-        processing: (CameraFrame) -> CameraFrame,
+        processing: (CameraFrame) -> PublishedFrame,
     ): CameraTrackAttachment {
         attachCount += 1
         attachException?.let { throw it }
@@ -123,6 +107,111 @@ class FakeCameraTrackBridge(
     }
 }
 
+/**
+ * A bridge that counts every obligation the ownership contract places on a
+ * host: inputs constructed, readbacks performed, input plane releases the core
+ * caused, `processing` calls, publications received and closed. A host frame it
+ * cannot represent is published as it stands.
+ */
+class CountingTrackBridge(
+    private val width: Int = 64,
+    private val height: Int = 36,
+) : CameraTrackBridging {
+    /** One frame of the host's own, which the bridge may or may not represent. */
+    class HostFrame(val representable: Boolean = true) {
+        var publishedUnchanged = false
+            internal set
+    }
+
+    class Registration(
+        override val trackId: String,
+        var processing: ((CameraFrame) -> PublishedFrame)?,
+    ) : CameraTrackAttachment
+
+    var inputsConstructed = 0
+        private set
+    var readbacks = 0
+        private set
+    var inputPlaneReleases = 0
+        private set
+    var processingCalls = 0
+        private set
+    var publicationsReceived = 0
+        private set
+    var publicationsClosed = 0
+        private set
+    var teardownCount = 0
+        private set
+
+    private val held = mutableListOf<PublishedFrame>()
+    private val registrations = mutableListOf<Registration>()
+
+    val liveRegistrations: Int get() = registrations.size
+
+    val outstandingPublications: Int get() = held.size
+
+    override fun attach(
+        trackId: String,
+        processing: (CameraFrame) -> PublishedFrame,
+    ): CameraTrackAttachment = Registration(trackId, processing).also { registrations.add(it) }
+
+    override fun detach(attachment: CameraTrackAttachment): CameraTrackDetachOutcome {
+        val registration = attachment as? Registration
+            ?: return CameraTrackDetachOutcome.ALREADY_GONE
+        registrations.removeAll { it === registration }
+        registration.processing = null
+        return CameraTrackDetachOutcome.REMOVED
+    }
+
+    override fun teardown() {
+        teardownCount += 1
+        for (registration in registrations) registration.processing = null
+        registrations.clear()
+    }
+
+    /** The capture callback: one host frame across the bridge and back. */
+    fun deliver(host: HostFrame = HostFrame()) {
+        val processing = registrations.lastOrNull()?.processing ?: return
+        if (!host.representable) {
+            host.publishedUnchanged = true
+            return
+        }
+        processingCalls += 1
+        held.add(processing(input()))
+        publicationsReceived += 1
+    }
+
+    /** The downstream consumer finishing with the planes it was handed. */
+    fun releasePublications() {
+        for (published in held) {
+            published.close()
+            publicationsClosed += 1
+        }
+        held.clear()
+    }
+
+    private fun input(): CameraFrame {
+        inputsConstructed += 1
+        val source = EffectFrame(width = width, height = height)
+        return CameraFrame(
+            width = width,
+            height = height,
+            rotation = CameraFrameRotation.DEGREES_0,
+            timestampNs = 0,
+        ) {
+            readbacks += 1
+            CameraFramePlanes(
+                width = width,
+                height = height,
+                dataY = source.dataY, strideY = source.strideY,
+                dataU = source.dataU, strideU = source.strideChroma,
+                dataV = source.dataV, strideV = source.strideChroma,
+                onRelease = { inputPlaneReleases += 1 },
+            )
+        }
+    }
+}
+
 class FakeScheduler : CameraEffectsScheduling {
     class Work(val body: () -> Unit) : CameraEffectsScheduledWork {
         var cancelled = false
@@ -152,46 +241,45 @@ class ImmediateDelivery : CameraEffectsDelivering {
     override fun deliver(body: () -> Unit) = body()
 }
 
-class SubstitutingProcessor : CameraEffectProcessor {
-    var retired = false
-        private set
-
-    override fun process(frame: CameraFrame) =
-        CameraFrameOutcome(
-            CompositeOutcome.Substituted(frame, CameraCompositeSubstitution.RENDER_FAILED),
-            this,
-        )
-
-    override fun retire() {
-        retired = true
-    }
-}
-
 /**
- * Composites until [substitute] flips, then substitutes. [beforeOutcome]
- * runs inside `process`, between taking the frame and returning — where a
- * concurrent command lands relative to an in-flight frame.
+ * Publishes through a real compositor, so the service tests exercise the
+ * production claim protocol; [substitute] decides only how the outcome is
+ * classified. [beforeOutcome] runs inside `process`, before the composite —
+ * where a concurrent command lands relative to an in-flight frame.
  */
 class FlippableProcessor : CameraEffectProcessor {
+    val pools = ScriptedBufferPools()
+
+    private val compositor = CameraEffectCompositor(CameraEffect.DIM, pools)
+
     var substitute = false
     var beforeOutcome: (() -> Unit)? = null
-    var retired = false
+    var retires = 0
         private set
 
-    override fun process(frame: CameraFrame): CameraFrameOutcome {
+    val retired: Boolean get() = retires > 0
+
+    /** Every pooled claim this processor took has come back. */
+    val balanced: Boolean get() = pools.pools.all { it.taken == it.recycled }
+
+    override fun process(frame: CameraFrame): CameraFrameOutcome = frame.use {
         beforeOutcome?.invoke()
-        return CameraFrameOutcome(
+        val published = compositor.composite(frame, null).frame
+        CameraFrameOutcome(
             if (substitute) {
-                CompositeOutcome.Substituted(frame, CameraCompositeSubstitution.RENDER_FAILED)
+                CompositeOutcome.Substituted(
+                    published, CameraCompositeSubstitution.RENDER_FAILED,
+                )
             } else {
-                CompositeOutcome.Composited(frame)
+                CompositeOutcome.Composited(published)
             },
             this,
         )
     }
 
     override fun retire() {
-        retired = true
+        retires += 1
+        compositor.retire()
     }
 }
 
