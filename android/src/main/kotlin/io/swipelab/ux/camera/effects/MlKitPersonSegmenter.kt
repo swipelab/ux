@@ -5,7 +5,6 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.segmentation.Segmentation
 import com.google.mlkit.vision.segmentation.selfie.SelfieSegmenterOptions
 
-/** [PersonSegmenting] over ML Kit's selfie segmentation. */
 class MlKitPersonSegmenter : PersonSegmenting {
     override val quality = PersonMaskQuality.STREAM
 
@@ -42,5 +41,5 @@ class MlKitPersonSegmenter : PersonSegmenting {
         )
     }
 
-    fun close() = client.close()
+    override fun close() = client.close()
 }

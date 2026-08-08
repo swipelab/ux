@@ -54,11 +54,27 @@ class PersonMaskInputPool(width: Int, height: Int, capacity: Int) {
  * Person segmentation over one ux-owned input, answering through the
  * completion when the inference finishes.
  */
-interface PersonSegmenting {
+interface PersonSegmenting : AutoCloseable {
     val quality: PersonMaskQuality
 
     /** Called on the producer's executor, one submission at a time. */
     fun submit(input: PersonMaskInput, completion: (Result<PersonMaskPixels>) -> Unit)
+
+    override fun close() = Unit
+}
+
+interface PersonMaskExecutor : Executor, AutoCloseable
+
+private class SerialPersonMaskExecutor : PersonMaskExecutor {
+    private val delegate = Executors.newSingleThreadExecutor { body ->
+        Thread(body, "ux-person-mask")
+    }
+
+    override fun execute(command: Runnable) = delegate.execute(command)
+
+    override fun close() {
+        delegate.shutdownNow()
+    }
 }
 
 /**
@@ -72,10 +88,8 @@ class PersonMaskProducer(
         INPUT_WIDTH, INPUT_HEIGHT, INPUT_BUFFER_COUNT,
     ),
     private val clock: CameraEffectsClock = MonotonicClock(),
-    private val executor: Executor = Executors.newSingleThreadExecutor { body ->
-        Thread(body, "ux-person-mask")
-    },
-) {
+    private val executor: PersonMaskExecutor = SerialPersonMaskExecutor(),
+) : AutoCloseable {
     companion object {
         /** The inference input's size, in the frame's unrotated pixel space. */
         const val INPUT_WIDTH = 256
@@ -94,6 +108,7 @@ class PersonMaskProducer(
 
     private val lock = Any()
 
+    private var closed = false
     private var published: CameraMask? = null
     private var inFlight = false
     private var generation = 0
@@ -125,9 +140,7 @@ class PersonMaskProducer(
             pool.recycle(input)
             return
         }
-        executor.execute {
-            segmenter.submit(input) { result -> complete(result, submission) }
-        }
+        enqueue(submission)
     }
 
     /**
@@ -135,11 +148,31 @@ class PersonMaskProducer(
      * still inside the segmenter is abandoned rather than waited on.
      */
     fun reset() = synchronized(lock) {
+        if (closed) return@synchronized
         generation += 1
         published = null
         inFlight = false
         lastSubmissionAt = null
         interval = TARGET_SUBMISSION_INTERVAL_NANOS
+    }
+
+    override fun close() {
+        val closesResources = synchronized(lock) {
+            if (closed) return@synchronized false
+            closed = true
+            generation += 1
+            published = null
+            inFlight = false
+            lastSubmissionAt = null
+            interval = TARGET_SUBMISSION_INTERVAL_NANOS
+            true
+        }
+        if (!closesResources) return
+        try {
+            segmenter.close()
+        } finally {
+            executor.close()
+        }
     }
 
     private class Submission(
@@ -153,6 +186,7 @@ class PersonMaskProducer(
      * is in flight or the cadence gate has not opened.
      */
     private fun claim(): Int? = synchronized(lock) {
+        if (closed) return null
         if (inFlight) return null
         val last = lastSubmissionAt
         if (last != null && clock.nowNanos - last < interval) return null
@@ -169,16 +203,37 @@ class PersonMaskProducer(
         claimed: Int,
         input: PersonMaskInput,
     ): Submission? = synchronized(lock) {
-        if (claimed != generation) return null
+        if (closed || claimed != generation) return null
         submittedAt = clock.nowNanos
         lastSubmissionAt = submittedAt
         Submission(claimed, sourceRect, input)
     }
 
+    private fun enqueue(submission: Submission) {
+        val accepted = synchronized(lock) {
+            if (closed || submission.generation != generation) {
+                false
+            } else {
+                executor.execute { submit(submission) }
+                true
+            }
+        }
+        if (!accepted) pool.recycle(submission.input)
+    }
+
+    private fun submit(submission: Submission) {
+        val active = synchronized(lock) { !closed }
+        if (!active) {
+            pool.recycle(submission.input)
+            return
+        }
+        segmenter.submit(submission.input) { result -> complete(result, submission) }
+    }
+
     private fun complete(result: Result<PersonMaskPixels>, submission: Submission) {
         pool.recycle(submission.input)
         synchronized(lock) {
-            if (submission.generation != generation) return
+            if (closed || submission.generation != generation) return
             inFlight = false
             val pixels = result.getOrNull() ?: return
             published = CameraMask(

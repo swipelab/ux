@@ -1,9 +1,8 @@
 package io.swipelab.ux.camera.effects
 
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
@@ -13,7 +12,7 @@ import org.junit.Test
 private const val TARGET = PersonMaskProducer.TARGET_SUBMISSION_INTERVAL_NANOS
 
 class PersonMaskProducerTest {
-    private val executor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val executor = TestPersonMaskExecutor()
     private val clock = TestClock()
     private val pool = PersonMaskInputPool(
         PersonMaskProducer.INPUT_WIDTH,
@@ -26,14 +25,66 @@ class PersonMaskProducerTest {
     @After
     fun tearDown() {
         segmenter.release()
-        executor.shutdownNow()
+        executor.close()
     }
 
     private fun makeProducer() = PersonMaskProducer(segmenter, pool, clock, executor)
 
     /** Waits out everything `consider` handed the executor. */
     private fun drain() {
-        executor.submit {}.get()
+        executor.drain()
+    }
+
+    @Test
+    fun closeIsIdempotentAndStopsFurtherSubmissions() {
+        val manual = ManualExecutor()
+        val producer = PersonMaskProducer(segmenter, pool, clock, manual)
+
+        producer.consider(source.frame())
+        producer.close()
+        producer.close()
+        producer.consider(source.frame())
+
+        assertFalse(manual.runNext())
+        assertEquals(0, segmenter.submits)
+        assertEquals(1, segmenter.closes)
+        assertEquals(1, manual.closes)
+        assertNull(producer.mask)
+    }
+
+    @Test(timeout = 1_000)
+    fun closeDuringInFlightInferenceDropsItsLateResult() {
+        val manual = ManualExecutor()
+        val deferred = ScriptedSegmenter(ScriptedSegmenter.Behavior.Deferred)
+        val producer = PersonMaskProducer(deferred, pool, clock, manual)
+
+        producer.consider(source.frame())
+        assertTrue(manual.runNext())
+        assertEquals(1, deferred.submits)
+
+        producer.close()
+        deferred.answerHeld()
+
+        assertNull(producer.mask)
+        assertEquals(1, deferred.closes)
+        assertEquals(1, manual.closes)
+    }
+
+    @Test(timeout = 2_000)
+    fun closeStopsTheOwnedWorkerThread() {
+        val ownedExecutor = TestPersonMaskExecutor()
+        val blocked = ScriptedSegmenter(ScriptedSegmenter.Behavior.Blocked)
+        val producer = PersonMaskProducer(blocked, pool, clock, ownedExecutor)
+
+        producer.consider(source.frame())
+        assertTrue(blocked.waitForSubmits(1))
+
+        producer.close()
+
+        assertTrue(ownedExecutor.workerStopsWithin(1_000))
+        assertEquals(1, blocked.closes)
+        assertEquals(1, ownedExecutor.closes)
+        assertNull(producer.mask)
     }
 
     @Test

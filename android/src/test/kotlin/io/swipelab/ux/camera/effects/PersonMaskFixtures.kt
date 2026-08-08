@@ -2,7 +2,7 @@ package io.swipelab.ux.camera.effects
 
 import java.nio.ByteBuffer
 import java.nio.FloatBuffer
-import java.util.concurrent.Executor
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -21,14 +21,49 @@ fun makeMaskPixels(width: Int = 256, height: Int = 144): PersonMaskPixels =
     PersonMaskPixels(width, height, FloatBuffer.allocate(width * height))
 
 /** Holds what it is handed until the test runs it, on the test's own thread. */
-class ManualExecutor : Executor {
+class ManualExecutor : PersonMaskExecutor {
     private val pending = ArrayDeque<Runnable>()
+    var closes = 0
+        private set
 
     override fun execute(command: Runnable) {
         pending.add(command)
     }
 
     fun runNext(): Boolean = pending.removeFirstOrNull()?.let { it.run(); true } ?: false
+
+    override fun close() {
+        closes += 1
+        pending.clear()
+    }
+}
+
+class TestPersonMaskExecutor : PersonMaskExecutor {
+    @Volatile
+    private var worker: Thread? = null
+    private val delegate = Executors.newSingleThreadExecutor { body ->
+        Thread(body, "ux-person-mask-test").also { worker = it }
+    }
+
+    var closes = 0
+        private set
+
+    override fun execute(command: Runnable) = delegate.execute(command)
+
+    fun drain() {
+        delegate.submit {}.get()
+    }
+
+    fun workerStopsWithin(timeoutMillis: Long): Boolean {
+        val current = worker ?: return true
+        current.join(timeoutMillis)
+        return !current.isAlive
+    }
+
+    override fun close() {
+        closes += 1
+        delegate.shutdownNow()
+    }
 }
 
 /** A frame over test-owned I420 planes the test can rewrite or count. */
@@ -81,10 +116,6 @@ class TestFrame(val width: Int = 320, val height: Int = 180) {
     )
 }
 
-/**
- * A segmenter the tests drive: it answers at once, fails, holds its answer,
- * blocks its caller until released, or spends time on the injected clock.
- */
 class ScriptedSegmenter(
     behavior: Behavior = Behavior.Immediate,
     private val clock: TestClock? = null,
@@ -105,6 +136,7 @@ class ScriptedSegmenter(
     private var stored = behavior
     private var submitCount = 0
     private var finishCount = 0
+    private var closeCount = 0
     private val inputSizes = mutableListOf<Pair<Int, Int>>()
     private var releasing = false
     private val held = mutableListOf<(Result<PersonMaskPixels>) -> Unit>()
@@ -119,6 +151,8 @@ class ScriptedSegmenter(
         set(value) = state.withLock { stored = value }
 
     val submits: Int get() = state.withLock { submitCount }
+
+    val closes: Int get() = state.withLock { closeCount }
 
     val inputs: List<Pair<Int, Int>> get() = state.withLock { inputSizes.toList() }
 
@@ -139,8 +173,15 @@ class ScriptedSegmenter(
             Behavior.Failing -> completion(Result.failure(ScriptedSegmenterFailure()))
             Behavior.Deferred -> state.withLock { held.add(completion) }
             Behavior.Blocked -> {
-                state.withLock { while (!releasing) changed.await() }
-                completion(Result.success(mask()))
+                val released = state.withLock {
+                    try {
+                        while (!releasing) changed.await()
+                        true
+                    } catch (_: InterruptedException) {
+                        false
+                    }
+                }
+                if (released) completion(Result.success(mask()))
             }
             is Behavior.Advancing -> {
                 clock?.advance(current.nanos)
@@ -152,6 +193,10 @@ class ScriptedSegmenter(
             finishCount += 1
             changed.signalAll()
         }
+    }
+
+    override fun close() = state.withLock {
+        closeCount += 1
     }
 
     /** Lets every blocked and future submission answer. */
