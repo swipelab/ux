@@ -1,5 +1,8 @@
 package io.swipelab.ux.camera.effects
 
+import java.nio.Buffer
+import java.nio.ByteBuffer
+
 /**
  * One I420 output buffer, reference-counted: [release] at zero returns a
  * pooled buffer to its pool; a poolless buffer just stops circulating.
@@ -12,9 +15,9 @@ class CameraEffectBuffer internal constructor(
     val chromaWidth = (width + 1) / 2
     val chromaHeight = (height + 1) / 2
 
-    val dataY = ByteArray(width * height)
-    val dataU = ByteArray(chromaWidth * chromaHeight)
-    val dataV = ByteArray(chromaWidth * chromaHeight)
+    private val dataY = ByteBuffer.allocateDirect(width * height)
+    private val dataU = ByteBuffer.allocateDirect(chromaWidth * chromaHeight)
+    private val dataV = ByteBuffer.allocateDirect(chromaWidth * chromaHeight)
 
     private var references = 1
 
@@ -28,7 +31,45 @@ class CameraEffectBuffer internal constructor(
         if (recycles) pool?.recycle(this)
     }
 
+    internal fun write(y: ByteArray, u: ByteArray, v: ByteArray) {
+        writePlane(dataY, y)
+        writePlane(dataU, u)
+        writePlane(dataV, v)
+    }
+
+    internal fun fillBlack() {
+        fillPlane(dataY, 0)
+        fillPlane(dataU, 128.toByte())
+        fillPlane(dataV, 128.toByte())
+    }
+
+    internal fun publishedY(): ByteBuffer = positionZeroView(dataY)
+
+    internal fun publishedU(): ByteBuffer = positionZeroView(dataU)
+
+    internal fun publishedV(): ByteBuffer = positionZeroView(dataV)
+
     internal fun revive(): Unit = synchronized(this) { references = 1 }
+
+    private fun writePlane(destination: ByteBuffer, source: ByteArray) {
+        val cursor: Buffer = destination.duplicate()
+        cursor.position(0)
+        cursor.limit(source.size)
+        (cursor as ByteBuffer).put(source)
+    }
+
+    private fun fillPlane(destination: ByteBuffer, value: Byte) {
+        for (index in 0 until destination.capacity()) {
+            destination.put(index, value)
+        }
+    }
+
+    private fun positionZeroView(source: ByteBuffer): ByteBuffer {
+        val cursor: Buffer = source.duplicate()
+        cursor.position(0)
+        cursor.limit(source.capacity())
+        return (cursor as ByteBuffer).slice()
+    }
 }
 
 /** Vends the compositor's output buffers for one geometry. */

@@ -1,5 +1,6 @@
 package io.swipelab.ux.camera.effects
 
+import java.nio.FloatBuffer
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -205,6 +206,101 @@ class CameraEffectCompositorTest {
     }
 
     @Test
+    fun anUndersizedMaskIsSetAsideAndTheWholeFrameTakesTheEffect() {
+        val compositor = CameraEffectCompositor(CameraEffect.DIM)
+        val input = EffectFrame(width = 64, height = 36)
+        val mask = CameraMask(
+            confidence = FloatBuffer.allocate(32 * 24 - 1),
+            width = 32,
+            height = 24,
+            sourceRect = CameraFrameRect(0, 0, 64, 36),
+            generation = 0,
+        )
+
+        val outcome = composited(compositor.composite(input.frame(), mask))
+
+        assertEquals(CameraMaskRejection.INVALID_STORAGE, outcome.maskRejection)
+        assertLuma(outcome.frame.planes(), 32, 18, 100)
+    }
+
+    @Test
+    fun aLimitShortenedMaskIsSetAsideAndTheWholeFrameTakesTheEffect() {
+        val compositor = CameraEffectCompositor(CameraEffect.DIM)
+        val input = EffectFrame(width = 64, height = 36)
+        val confidence = FloatBuffer.allocate(32 * 24).apply { limit(32 * 24 - 1) }
+        val mask = CameraMask(
+            confidence = confidence,
+            width = 32,
+            height = 24,
+            sourceRect = CameraFrameRect(0, 0, 64, 36),
+            generation = 0,
+        )
+
+        val outcome = composited(compositor.composite(input.frame(), mask))
+
+        assertEquals(CameraMaskRejection.INVALID_STORAGE, outcome.maskRejection)
+        assertLuma(outcome.frame.planes(), 32, 18, 100)
+    }
+
+    @Test
+    fun anOverflowingMaskGridIsSetAsideAndTheWholeFrameTakesTheEffect() {
+        val compositor = CameraEffectCompositor(CameraEffect.DIM)
+        val input = EffectFrame(width = 64, height = 36)
+        val mask = CameraMask(
+            confidence = FloatBuffer.allocate(1),
+            width = Int.MAX_VALUE,
+            height = 2,
+            sourceRect = CameraFrameRect(0, 0, 64, 36),
+            generation = 0,
+        )
+
+        val outcome = composited(compositor.composite(input.frame(), mask))
+
+        assertEquals(CameraMaskRejection.INVALID_STORAGE, outcome.maskRejection)
+        assertLuma(outcome.frame.planes(), 32, 18, 100)
+    }
+
+    @Test
+    fun changingTheSuppliedMasksLimitDoesNotChangeTheMask() {
+        val compositor = CameraEffectCompositor(CameraEffect.DIM)
+        val input = EffectFrame(width = 64, height = 36)
+        val confidence = FloatBuffer.allocate(32 * 24).apply {
+            for (index in 0 until capacity()) put(index, 1f)
+        }
+        val mask = CameraMask(
+            confidence = confidence,
+            width = 32,
+            height = 24,
+            sourceRect = CameraFrameRect(0, 0, 64, 36),
+            generation = 0,
+        )
+        confidence.limit(1)
+
+        val outcome = composited(compositor.composite(input.frame(), mask))
+
+        assertNull(outcome.maskRejection)
+        assertLuma(outcome.frame.planes(), 32, 18, 200)
+    }
+
+    @Test
+    fun changingAnExposedMaskViewsLimitDoesNotChangeTheMask() {
+        val compositor = CameraEffectCompositor(CameraEffect.DIM)
+        val input = EffectFrame(width = 64, height = 36)
+        val mask = makeEffectMask(
+            width = 32,
+            height = 24,
+            sourceRect = CameraFrameRect(0, 0, 64, 36),
+            person = CameraFrameRect(0, 0, 32, 24),
+        )
+        mask.confidence.limit(1)
+
+        val outcome = composited(compositor.composite(input.frame(), mask))
+
+        assertNull(outcome.maskRejection)
+        assertLuma(outcome.frame.planes(), 32, 18, 200)
+    }
+
+    @Test
     fun theFirstMalformedFrameSubstitutesBlackAtTheFramesSize() {
         val compositor = CameraEffectCompositor(CameraEffect.DIM)
         val input = EffectFrame(
@@ -341,6 +437,21 @@ class CameraEffectCompositorTest {
         assertEquals(128, chromaU(planes, 16, 9))
         assertEquals(128, chromaV(planes, 16, 9))
         assertEquals(0, input.releases)
+    }
+
+    @Test
+    fun thePublishedPlanesAreDirectAndPositionedAtTheirStarts() {
+        val compositor = CameraEffectCompositor(CameraEffect.DIM)
+        val input = EffectFrame(width = 64, height = 36)
+
+        val planes = composited(compositor.composite(input.frame(), null)).frame.planes()
+
+        assertTrue(planes.dataY.isDirect)
+        assertTrue(planes.dataU.isDirect)
+        assertTrue(planes.dataV.isDirect)
+        assertEquals(0, planes.dataY.position())
+        assertEquals(0, planes.dataU.position())
+        assertEquals(0, planes.dataV.position())
     }
 
     @Test

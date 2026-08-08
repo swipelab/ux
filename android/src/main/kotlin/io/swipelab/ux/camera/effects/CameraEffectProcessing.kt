@@ -10,6 +10,7 @@ enum class CameraCompositeSubstitution {
 /** Why a mask was set aside and the whole frame took the effect. */
 enum class CameraMaskRejection {
     EMPTY,
+    INVALID_STORAGE,
     ZERO_DIMENSIONED,
     SOURCE_RECT_MISMATCH,
 }

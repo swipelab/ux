@@ -2,6 +2,7 @@ package io.swipelab.ux.camera.effects
 
 import java.nio.Buffer
 import java.nio.ByteBuffer
+import java.nio.FloatBuffer
 import kotlin.math.floor
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -51,7 +52,7 @@ class CameraEffectCompositor(
             ?: return substitution(frame, CameraCompositeSubstitution.POOL_UNAVAILABLE)
         val assessed = assess(mask, frame)
         try {
-            render(planes, assessed.mask, active.scratch, output)
+            render(planes, assessed.mask, assessed.confidence, active.scratch, output)
         } catch (_: Exception) {
             output.release()
             return substitution(frame, CameraCompositeSubstitution.RENDER_FAILED)
@@ -78,19 +79,21 @@ class CameraEffectCompositor(
     private fun render(
         planes: CameraFramePlanes,
         mask: CameraMask?,
+        confidence: FloatBuffer?,
         scratch: RenderScratch,
         output: CameraEffectBuffer,
     ) {
         scratch.readInput(planes)
         when (effect) {
-            CameraEffect.NONE -> scratch.copyInto(output)
-            CameraEffect.BLUR -> scratch.blurInto(output)
-            CameraEffect.DIM -> scratch.dimInto(output, dimNumerator)
+            CameraEffect.NONE -> scratch.copyInput()
+            CameraEffect.BLUR -> scratch.blur()
+            CameraEffect.DIM -> scratch.dim(dimNumerator)
         }
         if (mask != null) {
-            scratch.prepareMask(mask)
-            scratch.blendPersonInto(output)
+            scratch.prepareMask(mask, requireNotNull(confidence))
+            scratch.blendPerson()
         }
+        scratch.writeInto(output)
     }
 
     private fun isWellFormed(frame: CameraFrame, planes: CameraFramePlanes): Boolean {
@@ -111,23 +114,33 @@ class CameraEffectCompositor(
         return true
     }
 
-    private class AssessedMask(val mask: CameraMask?, val rejection: CameraMaskRejection?)
+    private class AssessedMask(
+        val mask: CameraMask?,
+        val confidence: FloatBuffer?,
+        val rejection: CameraMaskRejection?,
+    )
 
     private fun assess(mask: CameraMask?, frame: CameraFrame): AssessedMask {
-        if (mask == null) return AssessedMask(null, null)
+        if (mask == null) return AssessedMask(null, null, null)
         if (mask.width <= 0 || mask.height <= 0) {
-            return AssessedMask(null, CameraMaskRejection.ZERO_DIMENSIONED)
+            return AssessedMask(null, null, CameraMaskRejection.ZERO_DIMENSIONED)
         }
         if (mask.sourceRect != CameraFrameRect(0, 0, frame.width, frame.height)) {
-            return AssessedMask(null, CameraMaskRejection.SOURCE_RECT_MISMATCH)
+            return AssessedMask(null, null, CameraMaskRejection.SOURCE_RECT_MISMATCH)
         }
-        if (isAllZero(mask)) return AssessedMask(null, CameraMaskRejection.EMPTY)
-        return AssessedMask(mask, null)
+        if (!mask.hasValidStorage) {
+            return AssessedMask(null, null, CameraMaskRejection.INVALID_STORAGE)
+        }
+        val confidence = mask.confidenceView()
+        if (isAllZero(mask, confidence)) {
+            return AssessedMask(null, null, CameraMaskRejection.EMPTY)
+        }
+        return AssessedMask(mask, confidence, null)
     }
 
-    private fun isAllZero(mask: CameraMask): Boolean {
+    private fun isAllZero(mask: CameraMask, confidence: FloatBuffer): Boolean {
         for (index in 0 until mask.width * mask.height) {
-            if (mask.confidence.get(index) != 0f) return false
+            if (confidence.get(index) != 0f) return false
         }
         return true
     }
@@ -149,8 +162,7 @@ class CameraEffectCompositor(
     /** Poolless, so a pool failure can always be answered. */
     private fun makeBlackBuffer(width: Int, height: Int): CameraEffectBuffer {
         val buffer = CameraEffectBuffer(null, width, height)
-        buffer.dataU.fill(NEUTRAL_CHROMA)
-        buffer.dataV.fill(NEUTRAL_CHROMA)
+        buffer.fillBlack()
         return buffer
     }
 
@@ -163,11 +175,11 @@ class CameraEffectCompositor(
         val planes = CameraFramePlanes(
             width = buffer.width,
             height = buffer.height,
-            dataY = ByteBuffer.wrap(buffer.dataY),
+            dataY = buffer.publishedY(),
             strideY = buffer.width,
-            dataU = ByteBuffer.wrap(buffer.dataU),
+            dataU = buffer.publishedU(),
             strideU = buffer.chromaWidth,
-            dataV = ByteBuffer.wrap(buffer.dataV),
+            dataV = buffer.publishedV(),
             strideV = buffer.chromaWidth,
             release = buffer::release,
         )
@@ -180,8 +192,6 @@ class CameraEffectCompositor(
         )
     }
 }
-
-private val NEUTRAL_CHROMA = 128.toByte()
 
 private const val LUMA_DOWNSCALE = 8
 private const val CHROMA_DOWNSCALE = 4
@@ -200,6 +210,9 @@ private class RenderScratch(val width: Int, val height: Int) {
     private val inY = ByteArray(width * height)
     private val inU = ByteArray(chromaWidth * chromaHeight)
     private val inV = ByteArray(chromaWidth * chromaHeight)
+    private val outY = ByteArray(width * height)
+    private val outU = ByteArray(chromaWidth * chromaHeight)
+    private val outV = ByteArray(chromaWidth * chromaHeight)
 
     private val smallWidth = smallSize(width, LUMA_DOWNSCALE)
     private val smallHeight = smallSize(height, LUMA_DOWNSCALE)
@@ -235,19 +248,18 @@ private class RenderScratch(val width: Int, val height: Int) {
         copyPlane(planes.dataV, planes.strideV, chromaWidth, chromaHeight, inV)
     }
 
-    fun copyInto(output: CameraEffectBuffer) {
-        System.arraycopy(inY, 0, output.dataY, 0, inY.size)
-        System.arraycopy(inU, 0, output.dataU, 0, inU.size)
-        System.arraycopy(inV, 0, output.dataV, 0, inV.size)
+    fun copyInput() {
+        System.arraycopy(inY, 0, outY, 0, inY.size)
+        System.arraycopy(inU, 0, outU, 0, inU.size)
+        System.arraycopy(inV, 0, outV, 0, inV.size)
     }
 
-    fun dimInto(output: CameraEffectBuffer, numerator: Int) {
-        val outY = output.dataY
+    fun dim(numerator: Int) {
         for (index in inY.indices) {
             outY[index] = (((inY[index].toInt() and 0xFF) * numerator) shr 8).toByte()
         }
-        dimChroma(inU, output.dataU, numerator)
-        dimChroma(inV, output.dataV, numerator)
+        dimChroma(inU, outU, numerator)
+        dimChroma(inV, outV, numerator)
     }
 
     private fun dimChroma(source: ByteArray, into: ByteArray, numerator: Int) {
@@ -257,18 +269,18 @@ private class RenderScratch(val width: Int, val height: Int) {
         }
     }
 
-    fun blurInto(output: CameraEffectBuffer) {
+    fun blur() {
         blurPlane(
             inY, width, height, LUMA_DOWNSCALE,
-            lumaRows, lumaIndex0, lumaIndex1, lumaFrac, output.dataY,
+            lumaRows, lumaIndex0, lumaIndex1, lumaFrac, outY,
         )
         blurPlane(
             inU, chromaWidth, chromaHeight, CHROMA_DOWNSCALE,
-            chromaRows, chromaIndex0, chromaIndex1, chromaFrac, output.dataU,
+            chromaRows, chromaIndex0, chromaIndex1, chromaFrac, outU,
         )
         blurPlane(
             inV, chromaWidth, chromaHeight, CHROMA_DOWNSCALE,
-            chromaRows, chromaIndex0, chromaIndex1, chromaFrac, output.dataV,
+            chromaRows, chromaIndex0, chromaIndex1, chromaFrac, outV,
         )
     }
 
@@ -310,7 +322,7 @@ private class RenderScratch(val width: Int, val height: Int) {
     }
 
     /** Stretches the mask's grid across the frame's width, one row per grid row. */
-    fun prepareMask(mask: CameraMask) {
+    fun prepareMask(mask: CameraMask, confidence: FloatBuffer) {
         if (mask.width != maskGridWidth) {
             maskGridWidth = mask.width
             fillMapping(width, mask.width, maskIndex0, maskIndex1, maskFrac)
@@ -319,7 +331,6 @@ private class RenderScratch(val width: Int, val height: Int) {
         if (maskRows.size < mask.height * width) {
             maskRows = IntArray(mask.height * width)
         }
-        val confidence = mask.confidence
         for (row in 0 until mask.height) {
             val sourceBase = row * mask.width
             val base = row * width
@@ -332,10 +343,14 @@ private class RenderScratch(val width: Int, val height: Int) {
         }
     }
 
-    fun blendPersonInto(output: CameraEffectBuffer) {
-        blendLuma(output.dataY)
-        blendChroma(inU, output.dataU)
-        blendChroma(inV, output.dataV)
+    fun blendPerson() {
+        blendLuma(outY)
+        blendChroma(inU, outU)
+        blendChroma(inV, outV)
+    }
+
+    fun writeInto(output: CameraEffectBuffer) {
+        output.write(outY, outU, outV)
     }
 
     private fun blendLuma(into: ByteArray) {
