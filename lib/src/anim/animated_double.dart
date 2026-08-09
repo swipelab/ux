@@ -1,6 +1,9 @@
 import 'package:flutter/widgets.dart';
 
+/// Drives a builder with a double that animates from [start] to [end], and
+/// again to each new [end] the widget is rebuilt with.
 class AnimatedDouble extends StatefulWidget {
+  /// Binds the animated range, its timing, and the builder it drives.
   const AnimatedDouble({
     super.key,
     required this.builder,
@@ -11,11 +14,22 @@ class AnimatedDouble extends StatefulWidget {
     this.child,
   });
 
+  /// Rebuilt on every tick with the current value and [child].
   final ValueWidgetBuilder<double> builder;
+
+  /// Subtree passed through to [builder] untouched by ticks.
   final Widget? child;
+
+  /// Value the animation holds on the first frame.
   final double start;
+
+  /// Value the animation runs toward; changing it restarts the run.
   final double end;
+
+  /// Time a full run takes.
   final Duration duration;
+
+  /// Shape of the run over [duration].
   final Curve curve;
 
   @override

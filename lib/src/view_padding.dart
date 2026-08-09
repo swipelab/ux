@@ -117,8 +117,10 @@ class XInsets with ChangeNotifier, WidgetsBindingObserver {
 /// descendant `MediaQuery.viewPaddingOf(context)` read returns the animated
 /// value.
 class XAnimatedInsets extends StatefulWidget {
+  /// Binds the subtree the animated padding is published to.
   const XAnimatedInsets({super.key, required this.child});
 
+  /// The subtree that reads the animated `viewPadding`.
   final Widget child;
 
   @override

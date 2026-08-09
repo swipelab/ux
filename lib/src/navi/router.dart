@@ -20,6 +20,8 @@ import 'package:ux/src/navi/screen.dart';
 class XRouter extends BackButtonDispatcher
     with Dispose, ScreenShell
     implements ScreenHost {
+  /// Binds the screen at the bottom of the stack and the optional parser
+  /// that turns platform routes into screens.
   XRouter({
     required this.home,
     this.routeParser,
@@ -29,7 +31,11 @@ class XRouter extends BackButtonDispatcher
     _updateActive();
   }
 
+  /// The screen below everything on [stack]; it is never popped.
   final Screen home;
+
+  /// Turns platform route information into screens. Without one the router
+  /// takes no deep links.
   final RouteInformationParser<Object>? routeParser;
 
   PlatformRouteInformationProvider? _routeInformationProvider;
@@ -61,8 +67,13 @@ class XRouter extends BackButtonDispatcher
   /// app extension, which links neither its FFI nor its channel — and the
   /// ordinary `Scaffold`-style `viewInsets` arithmetic works instead.
   final bool keepKeyboardInsets;
+  /// Screens pushed above [home], bottom to top.
   late final stack = ListEmitter<Screen>()..disposeBy(this);
+
+  /// The delegate handed to Flutter's [Router].
   late final delegate = XRouterDelegate(router: this);
+
+  /// The back-button dispatcher handed to Flutter's [Router].
   late final backDispatcher = XRouterBack(router: this);
 
   /// The screen most recently fired `onActive`. Used to de-duplicate and
@@ -92,6 +103,7 @@ class XRouter extends BackButtonDispatcher
     );
   }
 
+  /// The screen a route restore would name: the top of [stack], else [home].
   Screen? get currentConfiguration => stack.lastOrNull ?? home;
 
   Iterable<Screen> _expand(Screen page) sync* {
@@ -103,6 +115,10 @@ class XRouter extends BackButtonDispatcher
     }
   }
 
+  /// Every screen to render, bottom to top, with each [ScreenShell]'s
+  /// hosted screens flattened in above it. Override to gate the list — for
+  /// instance to substitute an auth screen for [home].
+  @override
   List<Screen> get pages => [
         ..._expand(home),
         for (final page in stack) ..._expand(page),
@@ -110,6 +126,7 @@ class XRouter extends BackButtonDispatcher
 
   late final _overlayEntry = OverlayEntry(builder: _buildContent);
 
+  /// Whether a back gesture has something to pop inside the app.
   bool get canPop {
     final top = stack.lastOrNull;
     if (top != null) return top.canPop;
@@ -147,11 +164,13 @@ class XRouter extends BackButtonDispatcher
     );
   }
 
+  /// Builds the router's overlay, holding the current [pages].
   Widget build(BuildContext context) {
     _overlayEntry.markNeedsBuild();
     return Overlay(initialEntries: [_overlayEntry]);
   }
 
+  /// Pops everything above [home], including [home]'s hosted screens.
   void popAll() {
     while (stack.isNotEmpty) {
       stack.last.pop();
@@ -175,6 +194,7 @@ class XRouter extends BackButtonDispatcher
   /// The type parameter `T` on the awaiter may differ from the mounted
   /// page's original `T`; the returned future is cast. Pushing an equal
   /// page of a different `T` is undefined.
+  @override
   Future<T?> push<T>(Screen<T> page) async {
     FocusManager.instance.primaryFocus?.unfocus();
     if (home == page) {
@@ -242,6 +262,8 @@ class XRouter extends BackButtonDispatcher
     return null;
   }
 
+  /// Applies a parsed route: a configuration that resolves to [home]
+  /// collapses the stack, anything else is pushed.
   Future<void> setNewRoutePath(Screen? configuration) {
     // A route that resolves to the home screen collapses the stack rather
     // than pushing: the parser mints a fresh instance for `/`, so an
@@ -256,9 +278,12 @@ class XRouter extends BackButtonDispatcher
   }
 }
 
+/// Routes the system back gesture to the topmost unpopped screen.
 class XRouterBack extends RootBackButtonDispatcher {
+  /// Binds the router whose stack answers back.
   XRouterBack({required this.router});
 
+  /// The router this dispatcher pops.
   final XRouter router;
 
   @override
@@ -285,9 +310,12 @@ class XRouterBack extends RootBackButtonDispatcher {
   }
 }
 
+/// Adapts an [XRouter] to Flutter's [Router].
 class XRouterDelegate extends RouterDelegate<Screen> with Emitter {
+  /// Binds the router this delegate renders.
   XRouterDelegate({required this.router});
 
+  /// The router this delegate renders.
   final XRouter router;
 
   @override
@@ -331,17 +359,24 @@ mixin ScreenShell {
 
 /// Mixin for screens that support deep-linking via a URL.
 mixin Deeplink<T> on Screen<T> {
+  /// The URL that would bring this screen back.
   String get restoreUrl;
 }
 
 /// A [RouteInformationParser] that converts URIs into [Screen]s
 /// using a [UriParser], and restores URLs from [Deeplink] screens.
 class XRouteParser extends RouteInformationParser<Object> {
+  /// Binds the pattern set and the optional rewrite applied before it.
   XRouteParser({required this.parser, this.normalize});
 
+  /// Matches a URI against the app's route patterns.
   final UriParser<Screen, dynamic> parser;
+
+  /// Rewrites an incoming URI before it reaches [parser] — for instance to
+  /// strip a host or a locale prefix.
   final Uri Function(Uri)? normalize;
 
+  /// The screen [uri] names, or `null` when nothing matches.
   Screen? parse(Uri? uri) {
     if (uri == null) return null;
     if (normalize != null) uri = normalize!(uri);
@@ -368,6 +403,8 @@ class XRouteParser extends RouteInformationParser<Object> {
 /// localization, scroll behavior, and back-button dispatching —
 /// without pulling in Flutter's [Navigator] or [MaterialApp].
 class XApp extends StatelessWidget {
+  /// Binds the router to render and the app-wide theming and localization
+  /// it renders under.
   const XApp({
     super.key,
     required this.router,
@@ -380,13 +417,29 @@ class XApp extends StatelessWidget {
     this.overlayKey,
   });
 
+  /// The router whose screens fill the app.
   final XRouter router;
+
+  /// Name the OS shows for the app's window or task.
   final String title;
+
+  /// Theme the whole tree resolves against; a default [ThemeData] when
+  /// omitted.
   final ThemeData? theme;
+
+  /// Whether the debug ribbon is drawn over the app.
   final bool debugShowCheckedModeBanner;
+
+  /// App-supplied localizations, ahead of the Material and widget defaults.
   final Iterable<LocalizationsDelegate<dynamic>>? localizationsDelegates;
+
+  /// Locales the app ships; the first is the one it runs in.
   final Iterable<Locale> supportedLocales;
+
+  /// Scroll behaviour for the whole tree; Material's when omitted.
   final ScrollBehavior? scrollBehavior;
+
+  /// Key on the root overlay, for hosts that insert their own entries.
   final GlobalKey<OverlayState>? overlayKey;
 
   @override

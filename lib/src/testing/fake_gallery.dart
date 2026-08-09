@@ -17,6 +17,7 @@ final Uint8List _placeholderPng = base64Decode(
 /// mounts; restore with `XGallery.backend = ...` (or by replacing
 /// with another fake) in `tearDown`.
 class FakeXGalleryBackend implements XGalleryBackend {
+  /// Binds the library this backend serves and the hooks tests observe.
   FakeXGalleryBackend({
     this.permissionState = XGalleryPermission.granted,
     List<XAlbum> albums = const [],
@@ -61,7 +62,10 @@ class FakeXGalleryBackend implements XGalleryBackend {
   /// Optional hook fired on `requestPermission`. Default updates
   /// `permissionState` to [XGalleryPermission.granted].
   final XGalleryPermission Function()? onRequestPermission;
+  /// Optional hook fired on `openSettings`.
   final void Function()? onOpenSettings;
+
+  /// Optional hook fired on `presentLimitedLibraryPicker`.
   final void Function()? onPresentLimitedLibraryPicker;
 
   /// Optional hook deciding [saveToLibrary]'s outcome; defaults to

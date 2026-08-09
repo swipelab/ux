@@ -15,19 +15,48 @@ import 'package:flutter/services.dart';
 ///   populates from that subset. Call
 ///   [XGallery.presentLimitedLibraryPicker] to let them adjust.
 /// - [granted] — full access.
-enum XGalleryPermission { notDetermined, denied, restricted, limited, granted }
+enum XGalleryPermission {
+  /// The user has never been asked.
+  notDetermined,
 
-enum XAssetKind { image, video }
+  /// The user refused access.
+  denied,
+
+  /// Parental controls or MDM withhold access.
+  restricted,
+
+  /// The user granted access to a subset of the library.
+  limited,
+
+  /// The whole library is readable.
+  granted,
+}
+
+/// What kind of media an asset holds.
+enum XAssetKind {
+  /// A still photo.
+  image,
+
+  /// A video clip.
+  video,
+}
 
 /// Outcome of [XGallery.saveToLibrary]. [denied] means the user refused
 /// (or previously refused) the add-to-library permission — route them to
 /// [XGallery.openSettings]. Hard failures (unreadable source file, library
 /// write error) throw a `PlatformException` instead.
-enum XGallerySaveStatus { saved, denied }
+enum XGallerySaveStatus {
+  /// The file is now in the library.
+  saved,
+
+  /// Add-to-library permission was refused.
+  denied,
+}
 
 /// A user-visible album / collection in the system photo library
 /// (`PHAssetCollection` on Apple, `MediaStore.Bucket` on Android).
 class XAlbum {
+  /// Binds an album's identity to its listing metadata.
   const XAlbum({
     required this.id,
     required this.name,
@@ -35,15 +64,23 @@ class XAlbum {
     this.coverKind,
   });
 
+  /// Stable platform identifier, used to fetch the album's assets.
   final String id;
+
+  /// Title as the system Photos app shows it.
   final String name;
+
+  /// How many assets the album holds.
   final int count;
+
+  /// Kind of the album's key asset, or `null` for an empty album.
   final XAssetKind? coverKind;
 }
 
 /// A single asset (photo or video) in the system library
 /// (`PHAsset` / `ContentResolver` row).
 class XAsset {
+  /// Binds an asset's identity to its media metadata.
   const XAsset({
     required this.id,
     required this.kind,
@@ -55,12 +92,19 @@ class XAsset {
 
   /// Stable identifier (e.g. iOS `localIdentifier`, Android `content://` URI).
   final String id;
+  /// Whether this is a photo or a video.
   final XAssetKind kind;
 
   /// Duration for videos; null for photos.
   final Duration? duration;
+
+  /// Pixel width of the full-size asset.
   final int width;
+
+  /// Pixel height of the full-size asset.
   final int height;
+
+  /// When the asset was captured, as the library records it.
   final DateTime createdAt;
 }
 
@@ -68,14 +112,20 @@ class XAsset {
 /// `PHCachingImageManager` on Apple and `MediaStore.Thumbnails` on
 /// Android.
 class XAssetThumbnail {
+  /// Binds decoded thumbnail bytes to the size they decode at.
   const XAssetThumbnail({
     required this.bytes,
     required this.width,
     required this.height,
   });
 
+  /// Encoded image bytes.
   final Uint8List bytes;
+
+  /// Pixel width of the thumbnail.
   final int width;
+
+  /// Pixel height of the thumbnail.
   final int height;
 }
 
@@ -84,19 +134,37 @@ class XAssetThumbnail {
 /// channel; tests substitute their own (see
 /// `ux/lib/testing.dart`'s `FakeXGalleryBackend`).
 abstract class XGalleryBackend {
+  /// The library's current authorisation state, without prompting.
   Future<XGalleryPermission> permission();
+
+  /// Prompt for library access and report the resulting state.
   Future<XGalleryPermission> requestPermission();
+
+  /// Deep-link into the system settings page for this app.
   Future<void> openSettings();
+
+  /// Open the system sheet for adjusting a limited selection.
   Future<void> presentLimitedLibraryPicker();
+
+  /// The user's albums, optionally restricted to one asset kind.
   Future<List<XAlbum>> albums({XAssetKind? filter});
+
+  /// A page of assets, newest first. [start] inclusive, [end] exclusive.
   Future<List<XAsset>> assets({
     String? albumId,
     XAssetKind? filter,
     required int start,
     required int end,
   });
+
+  /// A thumbnail of the asset, no larger than [sizePx] on its long edge.
   Future<XAssetThumbnail> thumbnail(String assetId, {required int sizePx});
+
+  /// A readable file for the asset, copying it out of the library where
+  /// the platform requires it.
   Future<io.File> resolveFile(String assetId);
+
+  /// Add the file at [path] to the library as [kind].
   Future<XGallerySaveStatus> saveToLibrary(
     String path, {
     required XAssetKind kind,
@@ -122,11 +190,15 @@ class XGallery {
   /// any UI code mounts.
   static XGalleryBackend backend = MethodChannelGalleryBackend();
 
+  /// The library's current authorisation state, without prompting.
   static Future<XGalleryPermission> permission() => backend.permission();
 
+  /// Prompts for library access and reports the resulting state.
   static Future<XGalleryPermission> requestPermission() =>
       backend.requestPermission();
 
+  /// Deep-links into the system settings page for this app — the only
+  /// route back from [XGalleryPermission.denied].
   static Future<void> openSettings() => backend.openSettings();
 
   /// iOS 14+ only — opens the system "manage limited access" sheet.

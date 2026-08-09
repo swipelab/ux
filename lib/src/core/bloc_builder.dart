@@ -17,9 +17,8 @@ typedef BlocBuilderCreateDelegate<T> = T Function(
 /// if it implements [Disposable] or [ChangeNotifier]. Does NOT listen / rebuild
 /// automatically – use when you only need construction & disposal wiring.
 class BlocBuilder<T> extends StatefulWidget {
+  /// Binds the one-shot [create] to the [builder] it feeds.
   const BlocBuilder({
-    /// NOTE: if the create returns a Disposable/ChangeNotifier the `dispose` will be called
-    /// when the [BlocBuilder] is disposed
     required this.create,
     required this.builder,
     this.child,
@@ -31,6 +30,8 @@ class BlocBuilder<T> extends StatefulWidget {
 
   /// Builds the widget given the created bloc
   final BlocBuilderDelegate<T> builder;
+
+  /// Subtree passed through to [builder] untouched by rebuilds.
   final Widget? child;
 
   @override

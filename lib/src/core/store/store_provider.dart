@@ -3,22 +3,21 @@ import 'package:ux/src/core/core.dart';
 
 /// Provides a [Store] to the widget tree without creating an inherited
 /// dependency (safe for `initState` reads).
-///
-/// Useful extension to be added.
-/// extension StoreProviderExtension on BuildContext {
-//   /// Shortcut for `StoreProvider.of(context).store.get<T>()`.
-//   T get<T>() => StoreProvider.of(this).store.get<T>();
-// }
 class StoreProvider extends StatelessWidget {
+  /// Publishes [store] to the subtree [builder] produces.
   const StoreProvider({
     required this.store,
     required this.builder,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
+  /// The store this subtree resolves against.
   final Store store;
+
+  /// Builds the subtree, below the provider in the tree.
   final WidgetBuilder builder;
 
+  /// The nearest enclosing provider. Asserts when there is none.
   static StoreProvider of(BuildContext context) {
     final result = context.findAncestorWidgetOfExactType<StoreProvider>();
     assert(result != null, 'StoreProvider not found');

@@ -4,6 +4,7 @@
 /// Marker mixin indicating a factory yields transient (non-cached) instances.
 mixin TransientFactory {}
 
+/// Strategy that supplies the [T] a [Store] hands out.
 abstract class StoreFactory<T> {
   /// Future for async resolution / warm-up path.
   Future<T> get future;
@@ -12,5 +13,5 @@ abstract class StoreFactory<T> {
   T get instance;
 
   /// Passes strongly typed instance to [fn] while retaining generic [T].
-  R pipeInstance<R>(R Function<T>(T instance) fn) => fn<T>(instance);
+  R pipeInstance<R>(R Function<I>(I instance) fn) => fn<T>(instance);
 }

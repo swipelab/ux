@@ -9,12 +9,18 @@ abstract class CancellationToken {
   /// if(isCancelled) throw [TaskCancelledException]
   void ensureRunning();
 
+  /// Whether the work this token guards has been cancelled.
   bool get isCancelled;
 }
 
+/// Async unit of work runnable on a [Tasks] queue.
 typedef TaskDelegate = Future<void> Function();
+
+/// [TaskDelegate] handed the token guarding its own run.
 typedef CancellableTaskDelegate = Future<void> Function(
     CancellationToken token);
+
+/// [TaskDelegate] resolving to a [T].
 typedef TypedTaskDelegate<T> = Future<T> Function();
 
 /// Thrown when a queued task is cancelled (explicitly or during disposal).
@@ -30,6 +36,7 @@ class _Task<T> implements CancellationToken {
   final VoidCallback? onDone;
   bool _isCancelled;
 
+  @override
   bool get isCancelled => _isCancelled;
 
   final _completer = Completer<T?>();
@@ -104,7 +111,9 @@ mixin Tasks on Dispose {
   /// Cancels all enqueued tasks
   @nonVirtual
   void cancelTasks() {
-    _queue.forEach((e) => e.cancel());
+    for (final task in _queue) {
+      task.cancel();
+    }
   }
 
   bool _isActive = false;
@@ -146,6 +155,8 @@ mixin Tasks on Dispose {
     _runningTasks--;
   }
 
+  /// Closes the queue: running work finishes, everything still queued
+  /// completes with [TaskCancelledException].
   @protected
   @nonVirtual
   void disposeTasks() {

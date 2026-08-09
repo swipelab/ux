@@ -11,9 +11,13 @@ import 'x_video_player_view.dart' show XVideoPlayerView;
 /// Throws when a [XVideoPlayerController] call fails on the platform
 /// side. Maps from native `PlatformException` codes.
 class XVideoPlayerException implements Exception {
+  /// Binds the native error [code] and its optional message.
   const XVideoPlayerException(this.code, [this.description]);
 
+  /// Stable identifier of the failure.
   final String code;
+
+  /// Human-readable detail, where the native side supplied one.
   final String? description;
 
   @override
@@ -25,13 +29,20 @@ class XVideoPlayerException implements Exception {
 /// `package:video_player` exposes today so call sites that read it
 /// (gallery scrub bar) port mechanically.
 class XDurationRange {
+  /// Binds the span's bounds.
   const XDurationRange(this.start, this.end);
+
+  /// Where the buffered span begins.
   final Duration start;
+
+  /// Where the buffered span ends.
   final Duration end;
 }
 
 /// Immutable snapshot of an [XVideoPlayerController]'s state.
 class XVideoPlayerValue {
+  /// Binds a full state snapshot; every field defaults to its
+  /// pre-initialize value.
   const XVideoPlayerValue({
     this.isInitialized = false,
     this.isPlaying = false,
@@ -47,11 +58,19 @@ class XVideoPlayerValue {
     this.errorDescription,
   });
 
+  /// State of a player that has not been initialized.
   static const uninitialized = XVideoPlayerValue();
 
+  /// Whether the native player has reported its metadata.
   final bool isInitialized;
+
+  /// Whether the playhead is advancing.
   final bool isPlaying;
+
+  /// Whether playback is stalled waiting on data.
   final bool isBuffering;
+
+  /// Whether the track restarts on reaching its end.
   final bool isLooping;
 
   /// Quarter-turns of clockwise rotation [XVideoPlayerView] applies
@@ -73,7 +92,10 @@ class XVideoPlayerValue {
   /// the native side reports metadata.
   final Size size;
 
+  /// Playback gain, from 0 to 1.
   final double volume;
+
+  /// Playback rate, where 1 is real time.
   final double playbackSpeed;
 
   /// One range per contiguous buffered span. Empty before init; on
@@ -81,8 +103,10 @@ class XVideoPlayerValue {
   /// range that appears once the first frame is decoded.
   final List<XDurationRange> buffered;
 
+  /// The last playback error's message, or `null` while healthy.
   final String? errorDescription;
 
+  /// Whether [errorDescription] is set.
   bool get hasError => errorDescription != null;
 
   /// Aspect ratio with a graceful fall-through to 1:1 before the first
@@ -93,6 +117,7 @@ class XVideoPlayerValue {
     return size.width / size.height;
   }
 
+  /// This snapshot with the given fields replaced.
   XVideoPlayerValue copyWith({
     bool? isInitialized,
     bool? isPlaying,
@@ -245,18 +270,21 @@ class XVideoPlayerController extends ChangeNotifier
     }
   }
 
+  /// Starts or resumes playback.
   Future<void> play() async {
     final handle = _requireHandle('play');
     await XVideoPlayerBackend.instance.play(handle);
     _setValue = _value.copyWith(isPlaying: true);
   }
 
+  /// Halts playback, leaving the playhead where it is.
   Future<void> pause() async {
     final handle = _requireHandle('pause');
     await XVideoPlayerBackend.instance.pause(handle);
     _setValue = _value.copyWith(isPlaying: false);
   }
 
+  /// Moves the playhead, clamped into the track.
   Future<void> seekTo(Duration position) async {
     final handle = _requireHandle('seekTo');
     final clamped = position < Duration.zero
@@ -268,12 +296,14 @@ class XVideoPlayerController extends ChangeNotifier
     _setValue = _value.copyWith(position: clamped);
   }
 
+  /// Sets whether the track restarts on reaching its end.
   Future<void> setLooping(bool loop) async {
     final handle = _requireHandle('setLooping');
     await XVideoPlayerBackend.instance.setLooping(handle, loop);
     _setValue = _value.copyWith(isLooping: loop);
   }
 
+  /// Sets playback gain, clamped to 0–1.
   Future<void> setVolume(double volume) async {
     final handle = _requireHandle('setVolume');
     final clamped = volume.clamp(0.0, 1.0).toDouble();
@@ -281,6 +311,7 @@ class XVideoPlayerController extends ChangeNotifier
     _setValue = _value.copyWith(volume: clamped);
   }
 
+  /// Sets playback rate, clamped to 0.25–4.
   Future<void> setPlaybackSpeed(double rate) async {
     final handle = _requireHandle('setPlaybackSpeed');
     final clamped = rate.clamp(0.25, 4.0).toDouble();

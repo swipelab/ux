@@ -8,6 +8,7 @@ typedef ReactiveBuilderDelegate<T extends Listenable> = Widget Function(
   Widget? child,
 );
 
+/// Hook signature invoked with the reactive object before each build.
 typedef ReactiveBuilderUpdateDelegate<T extends Listenable> = void Function(
   BuildContext context,
   T bloc,
@@ -31,25 +32,26 @@ typedef ReactiveCreateDelegate<T extends Listenable> = T Function(
 /// ```
 /// {@end-tool}
 class ReactiveBuilder<T extends Listenable> extends StatefulWidget {
+  /// Creates the listenable through [create] and owns its disposal.
   const ReactiveBuilder({
-    Key? key,
+    super.key,
     required ReactiveCreateDelegate<T> create,
     required this.builder,
     this.child,
     this.onUpdate,
   })  : _value = null,
-        _create = create,
-        super(key: key);
+        _create = create;
 
+  /// Listens to an externally-owned [value] and leaves its disposal to
+  /// whoever created it.
   const ReactiveBuilder.value(
     T value, {
-    Key? key,
+    super.key,
     required this.builder,
     this.child,
     this.onUpdate,
   })  : _value = value,
-        _create = null,
-        super(key: key);
+        _create = null;
 
   /// Creates the listenable once; dependencies captured at creation time.
   final ReactiveCreateDelegate<T>? _create;
@@ -60,6 +62,7 @@ class ReactiveBuilder<T extends Listenable> extends StatefulWidget {
   /// Builds subtree; invoked on each listenable change.
   final ReactiveBuilderDelegate<T> builder;
 
+  /// Subtree passed through to [builder] untouched by rebuilds.
   final Widget? child;
 
   /// Delegate that gets called before every build.
@@ -79,7 +82,7 @@ class ReactiveBuilder<T extends Listenable> extends StatefulWidget {
   final ReactiveBuilderUpdateDelegate<T>? onUpdate;
 
   @override
-  _ReactiveBuilderState<T> createState() => _ReactiveBuilderState();
+  State<ReactiveBuilder<T>> createState() => _ReactiveBuilderState();
 }
 
 class _ReactiveBuilderState<T extends Listenable>

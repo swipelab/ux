@@ -5,14 +5,20 @@ import 'package:flutter/services.dart';
 /// sandboxed reader can re-acquire access after the transient
 /// pasteboard grant lapses; null where not applicable.
 class XClipboardFile {
+  /// Binds the file's path and name to its optional scoped bookmark.
   const XClipboardFile({
     required this.path,
     required this.name,
     this.bookmark,
   });
 
+  /// Absolute path on local disk.
   final String path;
+
+  /// Display name as the file manager shows it.
   final String name;
+
+  /// macOS security-scoped bookmark; null where not applicable.
   final Uint8List? bookmark;
 }
 

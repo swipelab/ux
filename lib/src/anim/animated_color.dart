@@ -1,6 +1,9 @@
 import 'package:flutter/widgets.dart';
 
+/// Drives a builder with a colour that tweens to each new [color] the widget
+/// is rebuilt with.
 class AnimatedColor extends StatefulWidget {
+  /// Binds the target colour, its timing, and the builder it drives.
   const AnimatedColor({
     required this.color,
     required this.builder,
@@ -10,10 +13,19 @@ class AnimatedColor extends StatefulWidget {
     super.key,
   });
 
+  /// Shape of the tween over [duration].
   final Curve curve;
+
+  /// Time a full tween takes.
   final Duration duration;
+
+  /// Colour the tween runs toward; changing it starts a new tween.
   final Color? color;
+
+  /// Rebuilt on every tick with the current colour and [child].
   final ValueWidgetBuilder<Color?> builder;
+
+  /// Subtree passed through to [builder] untouched by ticks.
   final Widget? child;
 
   @override

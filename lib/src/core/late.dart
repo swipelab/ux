@@ -9,15 +9,21 @@ sealed class Late<T> {
   factory Late.error([dynamic error]) => LateError<T>(error);
 }
 
+/// Inspects and folds a [Late] without writing the switch by hand.
 extension LateExtension<T> on Late<T> {
+  /// Whether resolution is still in flight.
   bool get isLoading => this is LateLoading;
 
+  /// Whether resolution failed.
   bool get isError => this is LateError;
 
+  /// Whether resolution succeeded.
   bool get isValue => this is LateValue;
 
-  T? get value => this.isValue ? (this as LateValue).value : null;
+  /// The resolved value, or `null` while loading or on error.
+  T? get value => isValue ? (this as LateValue).value : null;
 
+  /// Folds every state through its handler.
   R map<R>({
     required R Function(LateValue<T> e) value,
     required R Function(LateError<T> e) error,
@@ -31,6 +37,7 @@ extension LateExtension<T> on Late<T> {
     };
   }
 
+  /// Folds the states given a handler, falling back to [orElse].
   R maybeMap<R>({
     required R Function() orElse,
     R Function(LateValue<T> e)? value,
@@ -45,6 +52,7 @@ extension LateExtension<T> on Late<T> {
     };
   }
 
+  /// Folds the states given a handler, yielding `null` for the rest.
   R? mapOrNull<R>({
     R Function(LateValue<T> e)? value,
     R Function(LateError<T> e)? error,
@@ -58,6 +66,7 @@ extension LateExtension<T> on Late<T> {
     };
   }
 
+  /// Folds every state through its handler, unwrapped to the payload.
   R when<R>({
     required R Function() loading,
     required R Function(dynamic error) error,
@@ -71,6 +80,7 @@ extension LateExtension<T> on Late<T> {
     };
   }
 
+  /// Unwrapped [mapOrNull].
   R? whenOrNull<R>({
     R Function()? loading,
     R Function([dynamic error])? error,
@@ -84,6 +94,7 @@ extension LateExtension<T> on Late<T> {
     };
   }
 
+  /// Unwrapped [maybeMap].
   R maybeWhen<R>({
     required R Function() orElse,
     R Function()? loading,
@@ -99,9 +110,12 @@ extension LateExtension<T> on Late<T> {
   }
 }
 
+/// The failed state of a [Late].
 class LateError<T> implements Late<T> {
+  /// Carries [error] as the cause of the failure.
   const LateError([this.error]);
 
+  /// What went wrong, or `null` when the caller gave no cause.
   final dynamic error;
 
   @override
@@ -114,7 +128,9 @@ class LateError<T> implements Late<T> {
   int get hashCode => Object.hashAll([error]);
 }
 
+/// The unresolved state of a [Late].
 class LateLoading<T> implements Late<T> {
+  /// The single loading state; all instances compare equal.
   const LateLoading();
 
   @override
@@ -125,9 +141,12 @@ class LateLoading<T> implements Late<T> {
   int get hashCode => 0;
 }
 
+/// The resolved state of a [Late].
 class LateValue<T> implements Late<T> {
+  /// Carries [value] as the resolution.
   const LateValue(this.value);
 
+  /// What resolution produced.
   final T value;
 
   @override

@@ -15,6 +15,7 @@ import 'emitter.dart';
 /// ```
 /// {@end-tool}
 class Publisher<T> with Dispose {
+  /// Creates a bus that drops its subscribers when disposed.
   Publisher() {
     _subscriptions.clear.disposeBy(this);
   }

@@ -10,6 +10,7 @@ import 'package:ux/src/video/x_video_player_backend.dart';
 /// `XVideoPlayerBackend.instance = MethodChannelXVideoPlayerBackend()`
 /// in `tearDown`.
 class FakeXVideoPlayerBackend implements XVideoPlayerBackend {
+  /// Binds the metadata every player this backend creates reports.
   FakeXVideoPlayerBackend({
     this.size = const Size(720, 1280),
     this.duration = const Duration(seconds: 10),
@@ -19,25 +20,50 @@ class FakeXVideoPlayerBackend implements XVideoPlayerBackend {
 
   // ---- captured calls ---------------------------------------------
 
+  /// URIs passed to [create], in order.
   final List<String> createCalls = [];
+
+  /// Handles passed to [initialize], in order.
   final List<int> initializeCalls = [];
+
+  /// Handles passed to [disposeInstance], in order.
   final List<int> disposeCalls = [];
+
+  /// Handles passed to [play], in order.
   final List<int> playCalls = [];
+
+  /// Handles passed to [pause], in order.
   final List<int> pauseCalls = [];
+
+  /// Arguments of every [seekTo] call, in order.
   final List<({int handle, Duration position})> seekToCalls = [];
+
+  /// Arguments of every [setLooping] call, in order.
   final List<({int handle, bool loop})> setLoopingCalls = [];
+
+  /// Arguments of every [setVolume] call, in order.
   final List<({int handle, double volume})> setVolumeCalls = [];
+
+  /// Arguments of every [setPlaybackSpeed] call, in order.
   final List<({int handle, double rate})> setPlaybackSpeedCalls = [];
 
   // ---- configurable returns ---------------------------------------
 
+  /// Pixel dimensions [initialize] reports.
   Size size;
+
+  /// Track length [initialize] reports.
   Duration duration;
+
+  /// Display rotation [initialize] reports.
   int rotationQuarterTurns;
+
+  /// Base the texture ids count up from, one per created player.
   int textureIdSeed;
 
   /// If non-null, [create] throws this exception. Drives error paths.
   XVideoPlayerException? createError;
+  /// If non-null, [initialize] throws this exception.
   XVideoPlayerException? initializeError;
 
   // ---- internal ---------------------------------------------------
@@ -123,6 +149,7 @@ class FakeXVideoPlayerBackend implements XVideoPlayerBackend {
 
   // ---- test helpers ------------------------------------------------
 
+  /// Pushes a state change for [handle]; omitted fields stay as they are.
   void emitState(
     int handle, {
     bool? isPlaying,
@@ -141,14 +168,17 @@ class FakeXVideoPlayerBackend implements XVideoPlayerBackend {
     );
   }
 
+  /// Pushes a revised video size for [handle].
   void emitSizeChanged(int handle, Size size) {
     _controllerFor(handle).add(XVideoPlayerSizeChanged(handle, size));
   }
 
+  /// Pushes end-of-track for [handle].
   void emitCompleted(int handle) {
     _controllerFor(handle).add(XVideoPlayerCompleted(handle));
   }
 
+  /// Pushes a playback error for [handle].
   void emitError(int handle, String code, [String? description]) {
     _controllerFor(handle).add(XVideoPlayerError(handle, code, description));
   }
