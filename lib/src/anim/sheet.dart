@@ -11,8 +11,8 @@ const Duration _kSheetAnimation = Duration(milliseconds: 300);
 /// Child scroll views should register their `ScrollController` using
 /// [attach] when they become active and [detach] when they're no longer
 /// active. This lets the sheet coordinate gestures with the active
-/// scroll view (so e.g. dragging down on a list at scroll-top moves
-/// the sheet down rather than overscrolling the list).
+/// scroll view (so e.g. dragging down on a list with nothing left to
+/// reveal moves the sheet down rather than overscrolling the list).
 ///
 /// Use [physics] on the active scroll view so user-input scroll is
 /// blocked while the sheet is mid-drag.
@@ -22,7 +22,7 @@ class SheetController {
   ScrollController? get activeScrollController => _activeScrollController;
 
   /// Whether scrolling should be enabled for the active scroll view.
-  /// Sheet sets this to false while it's mid-pan from collapsed.
+  /// Sheet sets this to false while it consumes the drag itself.
   bool scrollEnabled = true;
 
   ScrollPhysics get physics => SheetScrollPhysics(controller: this);
@@ -128,11 +128,11 @@ class SheetScrollPhysics extends ScrollPhysics {
 /// - Drag down past threshold → calls [onDismiss] (host pops; reverse
 ///   animation plays).
 /// - Drag up from collapsed → expands to fullscreen.
-/// - Drag down from expanded with scroll at top → collapses.
+/// - Drag down with the attached list at its edge → collapses.
 /// - Spring physics for snap (telegram damping ≈ 124 / 0.45s).
-/// - Scroll coordination via [SheetController]: inner list scrolls
-///   freely when expanded + scrolled, sheet drags when collapsed or at
-///   scroll-top.
+/// - Scroll coordination via [SheetController]: the attached list
+///   scrolls while it has content left in the drag direction, and the
+///   same gesture moves the sheet once it doesn't.
 ///
 /// When [routeAnimation] is provided, the Sheet defers to it for the
 /// entry / exit position so the host's `Route` (or a `Screen`)
@@ -191,7 +191,17 @@ class SheetState extends State<Sheet> with SingleTickerProviderStateMixin {
 
   // Pan gesture state (mirrors telegram's panGestureArguments).
   double? _panTopInset;
+
+  /// Drag travel applied to the sheet in the current gesture, measured
+  /// from the snap the gesture started at. Negative expands.
   double _panOffset = 0.0;
+
+  /// Whether the pointer went down on sheet chrome rather than on the
+  /// attached scrollable — such gestures belong to the sheet.
+  bool _chromeOrigin = false;
+
+  /// Scroll pixels of the attached list at the previous pan update.
+  double _listPixels = 0.0;
 
   bool _expandedDuringPan = false;
 
@@ -282,19 +292,116 @@ class SheetState extends State<Sheet> with SingleTickerProviderStateMixin {
     });
   }
 
-  double get _scrollOffset => widget.controller?.scrollOffset ?? 0.0;
+  // ── Drag arbitration ───────────────────────────────────────────────
+
+  static const double _kEdgeEpsilon = 1.0;
+
+  ScrollPosition? get _listPosition {
+    final controller = widget.controller?.activeScrollController;
+    if (controller == null || !controller.hasClients) return null;
+    return controller.position;
+  }
+
+  /// Sign relating downward drag distance to scroll-pixel movement: a
+  /// reversed list scrolls toward [ScrollPosition.maxScrollExtent] when
+  /// the finger goes down, a forward one toward its minimum.
+  double _dragToScrollSign(ScrollPosition position) =>
+      axisDirectionIsReversed(position.axisDirection) ? 1.0 : -1.0;
+
+  /// Whether the attached list has content left to reveal in the
+  /// direction a drag of [dragDelta] pushes it.
+  bool _listHasRoom(double dragDelta) {
+    final position = _listPosition;
+    if (position == null) return false;
+    if (position.maxScrollExtent <= position.minScrollExtent) return false;
+    final scrollDelta = dragDelta * _dragToScrollSign(position);
+    if (scrollDelta > 0) {
+      return position.pixels < position.maxScrollExtent - _kEdgeEpsilon;
+    }
+    if (scrollDelta < 0) {
+      return position.pixels > position.minScrollExtent + _kEdgeEpsilon;
+    }
+    return false;
+  }
+
+  /// Whether the attached list, rather than the sheet, consumes a drag
+  /// of [dragDelta].
+  bool _listOwnsDrag(double dragDelta) {
+    if (_chromeOrigin) return false;
+    if (!_sheetAtSnap) return false;
+    if (dragDelta < 0 && !_isExpanded && !_expandedDuringPan) return false;
+    return _listHasRoom(dragDelta);
+  }
+
+  /// Drag distance the attached list consumed since the previous pan
+  /// update.
+  double _drainListMovement() {
+    final position = _listPosition;
+    if (position == null) return 0.0;
+    final moved = position.pixels - _listPixels;
+    _listPixels = position.pixels;
+    return moved * _dragToScrollSign(position);
+  }
+
+  /// Whether [globalPosition] lands on sheet chrome rather than on the
+  /// attached scrollable.
+  bool _isOnChrome(Offset globalPosition) {
+    final renderObject = _listPosition?.context.storageContext
+        .findRenderObject();
+    if (renderObject is! RenderBox || !renderObject.hasSize) return true;
+    final origin = renderObject.localToGlobal(Offset.zero);
+    return !(origin & renderObject.size).contains(globalPosition);
+  }
+
+  /// The sheet cannot travel above the expanded snap.
+  double get _panLowerBound => _isExpanded ? 0.0 : -_edgeTopInset;
+
+  bool get _sheetAtSnap => _panOffset == 0.0 || _panOffset == _panLowerBound;
+
+  /// Applies [delta] logical pixels of downward drag to the sheet. The
+  /// sheet stops at the snap it returns to, so the drag that follows is
+  /// arbitrated afresh.
+  void _moveSheet(double delta) {
+    final previous = _panOffset;
+    final target = previous + delta;
+    _panOffset = previous != 0.0 && target.sign != previous.sign
+        ? 0.0
+        : max(_panLowerBound, target);
+
+    widget.controller?.scrollEnabled = _panOffset == previous;
+    if (_panOffset == previous) return;
+
+    if (_isExpanded) {
+      setState(() => _boundsOriginY = -_panOffset);
+    } else if (_panOffset < 0) {
+      _expandedDuringPan = _panOffset == _panLowerBound;
+      setState(() => _animatedTop = _edgeTopInset + _panOffset);
+    } else {
+      _expandedDuringPan = false;
+      setState(() {
+        _animatedTop = null;
+        _boundsOriginY = -_panOffset;
+      });
+    }
+  }
 
   // ── Pan handlers ───────────────────────────────────────────────────
+
+  void _latchGestureOrigin(Offset globalPosition) {
+    _chromeOrigin = _isOnChrome(globalPosition);
+  }
 
   void _onPanStart(DragStartDetails details) {
     _animController.stop();
     _panTopInset = _isExpanded ? 0.0 : _edgeTopInset;
     _panOffset = 0.0;
     _expandedDuringPan = false;
+    _listPixels = _listPosition?.pixels ?? 0.0;
 
-    if (!_isExpanded) {
-      widget.controller?.scrollEnabled = false;
-    }
+    // The drag direction is unknown at gesture start; from a
+    // non-expanded snap the sheet takes the first delta so that an
+    // up-drag expands instead of scrolling the list.
+    widget.controller?.scrollEnabled = _isExpanded && !_chromeOrigin;
   }
 
   void _onPanUpdate(DragUpdateDetails details) {
@@ -302,57 +409,13 @@ class SheetState extends State<Sheet> with SingleTickerProviderStateMixin {
     if (topInset == null) return;
 
     final delta = details.delta.dy;
-    final contentOffset = _scrollOffset;
-    final translation = _panOffset + delta;
+    final consumedByList = _drainListMovement();
 
-    const epsilon = 1.0;
-
-    if (_isExpanded && !_expandedDuringPan) {
-      // EXPANDED — drag down only moves the sheet if we're at scroll-top.
-      if (contentOffset <= epsilon && delta > 0) {
-        _panOffset = translation;
-        final boundsOriginY = min(0.0, -translation);
-        widget.controller?.scrollEnabled = false;
-        setState(() => _boundsOriginY = boundsOriginY);
-      } else if (_boundsOriginY < 0 && delta < 0) {
-        // Sheet dragged down, now dragging back up — return to expanded.
-        _panOffset = translation;
-        final boundsOriginY = min(0.0, -translation);
-        widget.controller?.scrollEnabled = boundsOriginY >= 0;
-        setState(() => _boundsOriginY = boundsOriginY);
-      } else if (contentOffset > epsilon) {
-        // Mid-scroll — let the inner list handle it.
-      } else {
-        widget.controller?.scrollEnabled = true;
-      }
-    } else {
-      // COLLAPSED (or expanding mid-pan).
-      _panOffset = translation;
-
-      if (translation < 0) {
-        // Dragging UP.
-        final expandAmount = -translation;
-        final maxExpand = _edgeTopInset;
-        if (expandAmount > maxExpand) {
-          setState(() => _animatedTop = 0);
-          _expandedDuringPan = true;
-          widget.controller?.scrollEnabled = true;
-        } else {
-          widget.controller?.scrollEnabled = false;
-          _expandedDuringPan = false;
-          setState(() => _animatedTop = _edgeTopInset - expandAmount);
-        }
-      } else {
-        // Dragging DOWN — shrink sheet.
-        final boundsOriginY = min(0.0, -translation);
-        setState(() {
-          _animatedTop = null;
-          _boundsOriginY = boundsOriginY;
-        });
-        _expandedDuringPan = false;
-        widget.controller?.scrollEnabled = false;
-      }
+    if (_listOwnsDrag(delta)) {
+      widget.controller?.scrollEnabled = true;
+      return;
     }
+    _moveSheet(delta - consumedByList);
   }
 
   void _onPanEnd(DragEndDetails details) {
@@ -363,10 +426,10 @@ class SheetState extends State<Sheet> with SingleTickerProviderStateMixin {
     _panOffset = 0.0;
     widget.controller?.scrollEnabled = true;
 
-    final contentOffset = _scrollOffset;
+    final listAbsorbsDown = !_chromeOrigin && _listHasRoom(1.0);
     var velocity = details.velocity.pixelsPerSecond.dy;
 
-    if ((_isExpanded || _expandedDuringPan) && contentOffset > 0.1) {
+    if ((_isExpanded || _expandedDuringPan) && listAbsorbsDown) {
       velocity = 0.0;
     }
 
@@ -381,7 +444,7 @@ class SheetState extends State<Sheet> with SingleTickerProviderStateMixin {
       final pastCollapsedWithVelocity =
           currentTop > edgeTopInset && velocity > 300.0;
       final fastFlingFromExpanded = (_isExpanded || _expandedDuringPan) &&
-          contentOffset <= 0.1 &&
+          !listAbsorbsDown &&
           velocity > 1800.0;
 
       if (pastThreshold || pastCollapsedWithVelocity || fastFlingFromExpanded) {
@@ -609,6 +672,7 @@ class SheetState extends State<Sheet> with SingleTickerProviderStateMixin {
                   GestureRecognizerFactoryWithHandlers<_SheetPanRecognizer>(
                 _SheetPanRecognizer.new,
                 (r) => r
+                  ..onPointerDown = _latchGestureOrigin
                   ..onStart = _onPanStart
                   ..onUpdate = _onPanUpdate
                   ..onEnd = _onPanEnd,
@@ -641,6 +705,16 @@ class SheetState extends State<Sheet> with SingleTickerProviderStateMixin {
 /// drag-to-expand on the sheet beat sibling recognizers (e.g. a tap
 /// recognizer in the title bar).
 class _SheetPanRecognizer extends VerticalDragGestureRecognizer {
+  /// Reports the global position of each pointer-down on the sheet,
+  /// before the drag is recognized and the touch slop shifts it.
+  ValueChanged<Offset>? onPointerDown;
+
+  @override
+  void addAllowedPointer(PointerDownEvent event) {
+    onPointerDown?.call(event.position);
+    super.addAllowedPointer(event);
+  }
+
   @override
   void rejectGesture(int pointer) => acceptGesture(pointer);
 }
