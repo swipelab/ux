@@ -592,7 +592,7 @@ final class CameraEffectsServiceTests: XCTestCase {
         )
     }
 
-    func testAFailedCompositeAfterActivationEmitsProcessingFailedOncePerRecord() {
+    func testASubstitutionRunCoveringTheWindowEmitsProcessingFailedOncePerRecord() {
         let harness = CameraEffectsHarness()
         harness.listen()
         harness.send(.setEffect(trackId: "a", effect: .blur, generation: 1))
@@ -600,7 +600,7 @@ final class CameraEffectsServiceTests: XCTestCase {
         harness.deliverFrame()
 
         first.answer = .substitute
-        harness.deliverFrame(count: 3)
+        harness.deliverFrame(count: CameraEffectsHarness.framesPastWindow * 2)
 
         harness.send(.setEffect(trackId: "a", effect: .dim, generation: 2))
         XCTAssertEqual(first.retireCount, 1)
@@ -608,7 +608,7 @@ final class CameraEffectsServiceTests: XCTestCase {
         harness.deliverFrame()
 
         second.answer = .substitute
-        harness.deliverFrame(count: 2)
+        harness.deliverFrame(count: CameraEffectsHarness.framesPastWindow)
 
         XCTAssertEqual(
             harness.events,
@@ -622,6 +622,31 @@ final class CameraEffectsServiceTests: XCTestCase {
                 .failed(.dim, generation: 2, code: "processing_failed"),
             ]
         )
+    }
+
+    func testSubstitutionRunsInsideTheWindowKeepTheEffectActive() {
+        let harness = CameraEffectsHarness()
+        harness.listen()
+        harness.send(.setEffect(trackId: "a", effect: .blur, generation: 1))
+        let processor = harness.fakeProcessors!.last!
+        harness.deliverFrame()
+
+        for _ in 0..<3 {
+            processor.answer = .substitute
+            harness.deliverFrame(count: CameraEffectsHarness.framesInsideWindow)
+            processor.answer = .composite
+            harness.deliverFrame()
+        }
+
+        XCTAssertEqual(
+            harness.events,
+            [
+                .idle(generation: 0),
+                .applying(.blur, generation: 1),
+                .active(.blur, generation: 1),
+            ]
+        )
+        XCTAssertEqual(harness.service.currentStatus, .active(.blur, generation: 1))
     }
 
     func testAPersistentlySubstitutingProcessorResolvesApplyingIntoIdle() {
@@ -797,7 +822,7 @@ final class CameraEffectsServiceTests: XCTestCase {
         )
 
         second.answer = .substitute
-        harness.deliverFrame()
+        harness.deliverFrame(count: CameraEffectsHarness.framesPastWindow)
 
         XCTAssertEqual(
             harness.events.last,

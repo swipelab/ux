@@ -24,6 +24,16 @@ public final class CameraEffectsService {
     /// switch — to see a composited output.
     static let commandDeadline: TimeInterval = 0.75
 
+    /// The span an unbroken run of substituted frames may cover before an
+    /// active effect counts as failing. A pool exhausted behind a busy encoder
+    /// answers with substitutes until any of its
+    /// `PixelBufferPool.allocationThreshold` buffers comes back, so isolated
+    /// substitutions are backpressure; a run covering this span holds the
+    /// whole pool for several times its own depth at capture rate. It is the
+    /// window `commandDeadline` gives an applying effect to produce its first
+    /// composite.
+    static let sustainedSubstitution: TimeInterval = commandDeadline
+
     private let processors: CameraEffectProcessorFactory?
     private let scheduler: CameraEffectsScheduling
     private let delivery: CameraEffectsDelivering
@@ -252,6 +262,7 @@ public final class CameraEffectsService {
             current.effect = effect
             current.activated = false
             current.failed = false
+            current.substitution.end()
             let outgoing = current.adopt(processor)
             armApplyingDeadline(current)
             lock.unlock()
@@ -412,6 +423,7 @@ public final class CameraEffectsService {
         }
         switch outcome.outcome {
         case .composited:
+            record.substitution.end()
             guard !record.activated else {
                 lock.unlock()
                 return
@@ -429,7 +441,8 @@ public final class CameraEffectsService {
             deadline?.cancel()
             emit(active, to: observer)
         case .substituted:
-            guard record.activated, !record.failed else {
+            let sustained = record.substitution.extend(outcome.frame.timestampNs)
+            guard record.activated, !record.failed, sustained else {
                 lock.unlock()
                 return
             }
@@ -477,6 +490,28 @@ public final class CameraEffectsService {
         delivery.deliver { observer(status) }
     }
 
+    /// The unbroken run of substituted frames on one attachment, measured over
+    /// the capture timestamps of the frames that produced them.
+    private struct SubstitutionRun {
+        private var startTimestampNs: Int64?
+
+        /// Takes one substituted frame into the run, answering whether the run
+        /// now covers `sustainedSubstitution`.
+        mutating func extend(_ timestampNs: Int64) -> Bool {
+            guard let start = startTimestampNs else {
+                startTimestampNs = timestampNs
+                return false
+            }
+            return timestampNs - start >= Int64(
+                CameraEffectsService.sustainedSubstitution * 1_000_000_000
+            )
+        }
+
+        mutating func end() {
+            startTimestampNs = nil
+        }
+    }
+
     private struct Withheld {
         let record: Attached
         let deadline: CameraEffectsScheduledWork
@@ -484,9 +519,9 @@ public final class CameraEffectsService {
     }
 
     /// One track holding one processing callback. `effect`, `entered`,
-    /// `activated`, `failed`, `handle` and `applyingDeadline` are guarded by
-    /// the service's lock; the processor by this object's, which is the only
-    /// lock the capture thread takes.
+    /// `activated`, `failed`, `substitution`, `handle` and `applyingDeadline`
+    /// are guarded by the service's lock; the processor by this object's,
+    /// which is the only lock the capture thread takes.
     private final class Attached {
         init(trackId: String, effect: CameraEffect, processor: CameraEffectProcessor) {
             self.trackId = trackId
@@ -499,6 +534,7 @@ public final class CameraEffectsService {
         var entered = false
         var activated = false
         var failed = false
+        var substitution = SubstitutionRun()
         var handle: CameraTrackAttachment?
         var applyingDeadline: CameraEffectsScheduledWork?
 

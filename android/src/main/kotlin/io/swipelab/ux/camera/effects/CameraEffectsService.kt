@@ -26,6 +26,18 @@ class CameraEffectsService(
          * switch — to see a composited output.
          */
         const val COMMAND_DEADLINE_MILLIS = 750L
+
+        /**
+         * The span an unbroken run of substituted frames may cover before an
+         * active effect counts as failing. A pool exhausted behind a busy
+         * encoder answers with substitutes until any of its
+         * [FrameBufferPool.ALLOCATION_BOUND] buffers comes back, so isolated
+         * substitutions are backpressure; a run covering this span holds the
+         * whole pool for several times its own depth at capture rate. It is
+         * the window [COMMAND_DEADLINE_MILLIS] gives an applying effect to
+         * produce its first composite.
+         */
+        const val SUSTAINED_SUBSTITUTION_MILLIS = COMMAND_DEADLINE_MILLIS
     }
 
     private val lock = ReentrantLock()
@@ -279,6 +291,7 @@ class CameraEffectsService(
             current.effect = effect
             current.activated = false
             current.failed = false
+            current.substitution.end()
             val outgoing = current.adopt(processor)
             armApplyingDeadline(current)
             lock.unlock()
@@ -453,6 +466,7 @@ class CameraEffectsService(
         )
         when (outcome.outcome) {
             is CompositeOutcome.Composited -> {
+                record.substitution.end()
                 if (record.activated) {
                     lock.unlock()
                     return
@@ -470,7 +484,8 @@ class CameraEffectsService(
             }
 
             is CompositeOutcome.Substituted -> {
-                if (!record.activated || record.failed) {
+                val sustained = record.substitution.extend(outcome.frame.timestampNs)
+                if (!record.activated || record.failed || !sustained) {
                     lock.unlock()
                     return
                 }
@@ -512,6 +527,31 @@ class CameraEffectsService(
         delivery.deliver { observer(status) }
     }
 
+    /**
+     * The unbroken run of substituted frames on one attachment, measured over
+     * the capture timestamps of the frames that produced them.
+     */
+    private class SubstitutionRun {
+        private var startTimestampNs: Long? = null
+
+        /**
+         * Takes one substituted frame into the run, answering whether the run
+         * now covers [SUSTAINED_SUBSTITUTION_MILLIS].
+         */
+        fun extend(timestampNs: Long): Boolean {
+            val start = startTimestampNs
+            if (start == null) {
+                startTimestampNs = timestampNs
+                return false
+            }
+            return timestampNs - start >= SUSTAINED_SUBSTITUTION_MILLIS * NANOS_PER_MILLI
+        }
+
+        fun end() {
+            startTimestampNs = null
+        }
+    }
+
     private class Withheld(
         val record: Attached,
         val deadline: CameraEffectsScheduledWork,
@@ -520,9 +560,9 @@ class CameraEffectsService(
 
     /**
      * One track holding one processing callback. `effect`, `entered`,
-     * `activated`, `failed`, `handle` and `applyingDeadline` are guarded by
-     * the service's lock; the processor by this object's, which is the only
-     * lock the capture thread takes.
+     * `activated`, `failed`, `substitution`, `handle` and `applyingDeadline`
+     * are guarded by the service's lock; the processor by this object's, which
+     * is the only lock the capture thread takes.
      */
     private class Attached(
         val trackId: String,
@@ -532,6 +572,7 @@ class CameraEffectsService(
         var entered = false
         var activated = false
         var failed = false
+        val substitution = SubstitutionRun()
         var handle: CameraTrackAttachment? = null
         var applyingDeadline: CameraEffectsScheduledWork? = null
 
@@ -574,3 +615,5 @@ class CameraEffectsService(
 }
 
 typealias CameraEffectsCompletion = (CameraEffectsReply) -> Unit
+
+private const val NANOS_PER_MILLI = 1_000_000L
