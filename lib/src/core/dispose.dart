@@ -4,8 +4,10 @@ import 'functional.dart';
 
 /// Basic disposable contract.
 abstract class Disposable {
+  /// Whether [dispose] has already run.
   bool get disposed;
 
+  /// Releases whatever this object holds. Calling it twice is an error.
   void dispose();
 }
 
@@ -19,8 +21,8 @@ mixin class Dispose implements Disposable {
     assert(() {
       if (disposed) {
         throw FlutterError(
-          'A ${runtimeType} was used after being disposed.\n'
-          'Once you have called dispose() on a ${runtimeType}, it '
+          'A $runtimeType was used after being disposed.\n'
+          'Once you have called dispose() on a $runtimeType, it '
           'can no longer be used.',
         );
       }
@@ -52,6 +54,8 @@ mixin class Dispose implements Disposable {
   @override
   bool get disposed => _disposed;
 
+  /// Disposes [object] when it is a [Disposable] or a [ChangeNotifier],
+  /// and ignores it otherwise.
   static void object(Object? object) {
     if (object is Disposable) {
       object.dispose();
@@ -61,6 +65,7 @@ mixin class Dispose implements Disposable {
   }
 }
 
+/// Hands a [Disposable]'s lifetime over to a collector.
 extension DisposableDisposerExtension on Disposable {
   /// Adds this object's [dispose] to another [Dispose] collector.
   void disposeBy(Dispose disposer) => disposer.addDispose(dispose);

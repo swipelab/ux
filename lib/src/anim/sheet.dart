@@ -19,12 +19,15 @@ const Duration _kSheetAnimation = Duration(milliseconds: 300);
 class SheetController {
   ScrollController? _activeScrollController;
 
+  /// The registered scroll view, or `null` while none is attached.
   ScrollController? get activeScrollController => _activeScrollController;
 
   /// Whether scrolling should be enabled for the active scroll view.
   /// Sheet sets this to false while it's mid-pan from collapsed.
   bool scrollEnabled = true;
 
+  /// Physics to hand the active scroll view so it yields while the sheet
+  /// is consuming the gesture.
   ScrollPhysics get physics => SheetScrollPhysics(controller: this);
 
   Future<void> Function()? _dismissCallback;
@@ -43,11 +46,14 @@ class SheetController {
   /// Normalized velocity (units / second) when dismiss was triggered.
   double? dismissVelocity;
 
+  /// Records the gesture state a host route adapter continues the exit
+  /// animation from.
   void setDismissState(double position, double velocity) {
     dismissPosition = position;
     dismissVelocity = velocity;
   }
 
+  /// Drops the recorded gesture state, so an exit starts from rest.
   void clearDismissState() {
     dismissPosition = null;
     dismissVelocity = null;
@@ -61,16 +67,20 @@ class SheetController {
   /// the route animation for position rather than its own animator.
   bool isPopping = false;
 
+  /// Makes [controller] the scroll view the sheet coordinates with.
   void attach(ScrollController controller) {
     _activeScrollController = controller;
   }
 
+  /// Unregisters [controller], if it is the active one.
   void detach(ScrollController controller) {
     if (_activeScrollController == controller) {
       _activeScrollController = null;
     }
   }
 
+  /// Offset of the active scroll view; `0` when none is attached or it has
+  /// no clients.
   double get scrollOffset {
     final sc = _activeScrollController;
     if (sc == null || !sc.hasClients) return 0.0;
@@ -83,8 +93,10 @@ class SheetController {
 /// (the sheet itself is consuming the gesture). Clamping behavior —
 /// no overscroll bounce.
 class SheetScrollPhysics extends ScrollPhysics {
+  /// Binds the controller whose gesture state gates scrolling.
   const SheetScrollPhysics({required this.controller, super.parent});
 
+  /// The sheet whose drag state these physics defer to.
   final SheetController controller;
 
   @override
@@ -139,6 +151,7 @@ class SheetScrollPhysics extends ScrollPhysics {
 /// can hero-animate. With null [routeAnimation] the Sheet self-manages
 /// entry / exit via its own [AnimationController].
 class Sheet extends StatefulWidget {
+  /// Binds the sheet's content, its extents, and how it is dismissed.
   const Sheet({
     super.key,
     required this.child,
@@ -153,18 +166,33 @@ class Sheet extends StatefulWidget {
     this.borderRadius = 16.0,
   });
 
+  /// Content the sheet carries.
   final Widget child;
+
+  /// Coordinates the sheet with the content's active scroll view. Without
+  /// one the sheet drags on every gesture it receives.
   final SheetController? controller;
 
   /// When provided, the sheet position is driven by this animation.
   /// 0.0 = offscreen (bottom), 1.0 = collapsed.
   final Animation<double>? routeAnimation;
 
+  /// Fraction of the screen the sheet covers when collapsed.
   final double collapsedExtent;
+
+  /// Whether the sheet opens expanded to fullscreen rather than collapsed.
   final bool isFullSize;
+
+  /// Whether a drag past the threshold, or a barrier tap, dismisses.
   final bool isDismissible;
+
+  /// Called when the sheet asks to go away; the host performs the pop.
   final VoidCallback? onDismiss;
+
+  /// Scrim painted behind the sheet, at full opacity when collapsed.
   final Color barrierColor;
+
+  /// Sheet surface colour; the theme's canvas colour when omitted.
   final Color? backgroundColor;
 
   /// Corner radius of the sheet (top corners always; bottom corners
@@ -175,6 +203,7 @@ class Sheet extends StatefulWidget {
   State<Sheet> createState() => SheetState();
 }
 
+/// Drag, snap, and dismiss state of a [Sheet].
 class SheetState extends State<Sheet> with SingleTickerProviderStateMixin {
   late AnimationController _animController;
 
@@ -647,6 +676,7 @@ class _SheetPanRecognizer extends VerticalDragGestureRecognizer {
 
 /// Centered pill drag-handle. Default for the top edge of a [Sheet].
 class SheetThumb extends StatelessWidget {
+  /// Creates a drag handle.
   const SheetThumb({super.key});
 
   @override

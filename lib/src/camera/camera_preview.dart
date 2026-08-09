@@ -18,8 +18,10 @@ import 'camera.dart' show XCameraController, XCameraLens, XCameraValue;
 /// recorded MP4 + captured JPEG carry the raw sensor feed while the
 /// on-screen preview still reads as a natural mirror to the user.
 class XCameraPreview extends StatelessWidget {
+  /// Binds the session whose frames fill the preview.
   const XCameraPreview({super.key, required this.controller});
 
+  /// The session this preview renders.
   final XCameraController controller;
 
   @override

@@ -17,6 +17,8 @@ DynamicLibrary? _open() {
 /// `null` on web, unsupported platforms, or load failure.
 final DynamicLibrary? uxLib = _open();
 
+/// Binds the zero-arg double-returning native symbol [name], or `null`
+/// when it can't be resolved.
 double Function()? uxLookupDouble(String name) {
   final lib = uxLib;
   if (lib == null) return null;
@@ -27,6 +29,8 @@ double Function()? uxLookupDouble(String name) {
   }
 }
 
+/// Binds the zero-arg int32-returning native symbol [name], or `null`
+/// when it can't be resolved.
 int Function()? uxLookupInt32(String name) {
   final lib = uxLib;
   if (lib == null) return null;
@@ -37,6 +41,8 @@ int Function()? uxLookupInt32(String name) {
   }
 }
 
+/// Binds the zero-arg void native symbol [name], or `null` when it can't
+/// be resolved.
 void Function()? uxLookupVoid(String name) {
   final lib = uxLib;
   if (lib == null) return null;
@@ -47,6 +53,8 @@ void Function()? uxLookupVoid(String name) {
   }
 }
 
+/// Binds the double-taking void native symbol [name], or `null` when it
+/// can't be resolved.
 void Function(double)? uxLookupVoidDouble(String name) {
   final lib = uxLib;
   if (lib == null) return null;

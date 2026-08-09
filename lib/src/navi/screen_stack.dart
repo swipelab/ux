@@ -16,6 +16,7 @@ import 'package:ux/src/navi/screen.dart';
 /// - [stack] — `==`-based diff. Equal Screens reorder, distinct
 ///   Screens get new slots with enter transitions and pop animations.
 class ScreenStack extends StatefulWidget {
+  /// Binds the screen in the home slot and the screens stacked above it.
   const ScreenStack({
     super.key,
     required this.home,
@@ -23,25 +24,35 @@ class ScreenStack extends StatefulWidget {
     this.onRemoved,
   });
 
+  /// The screen at the bottom, matched by type and key.
   final Screen home;
+
+  /// Screens above [home], bottom to top, matched by `==`.
   final List<Screen> stack;
+
+  /// Called once a popped screen's exit animation has finished.
   final ValueChanged<Screen>? onRemoved;
 
   @override
   State<ScreenStack> createState() => ScreenStackState();
 
+  /// The enclosing stack's state. Throws where there is none.
   static ScreenStackState of(BuildContext context) {
     return context.findAncestorStateOfType<ScreenStackState>()!;
   }
 
+  /// The enclosing stack's state, or `null` where there is none.
   static ScreenStackState? maybeOf(BuildContext context) {
     return context.findAncestorStateOfType<ScreenStackState>();
   }
 }
 
+/// Slot bookkeeping and transition animations behind a [ScreenStack].
 class ScreenStackState extends State<ScreenStack> with TickerProviderStateMixin {
   late ScreenSlot _homeSlot;
   final List<ScreenSlot> _entries = [];
+
+  /// Matches heroes across the screens in this stack and flies them.
   final ScreenHeroController heroController = ScreenHeroController();
   final FocusScopeNode _outerScope = FocusScopeNode(debugLabel: 'ScreenStack');
 
@@ -271,22 +282,35 @@ class ScreenStackState extends State<ScreenStack> with TickerProviderStateMixin 
 /// A slot in the [ScreenStack] that holds a [Screen] and manages its
 /// transition animation.
 class ScreenSlot {
+  /// Binds the screen to the controller driving its transition.
   ScreenSlot({required this.page, required this.controller});
 
+  /// The screen this slot holds; reassigned when an equal screen updates it.
   Screen page;
+
+  /// Drives the enter and exit transitions; 1 when fully on screen.
   final AnimationController controller;
+
+  /// Identity of the slot itself, so reordering moves it rather than
+  /// rebuilding it.
   final key = GlobalKey();
+
+  /// Identity of the screen's content below the transition.
   final contentKey = GlobalKey();
-  // Each slot owns its own FocusScope so pushed pages start with a clean
-  // focus state — the outer ScreenStack scope calls `setFirstFocus` on this
-  // node when the slot becomes top, matching Navigator's per-route scope
-  // handoff. Without per-slot scopes, a new page's `autofocus: true`
-  // TextField silently no-ops (the outgoing page's focus still occupies the
-  // shared scope's `_focusedChildren`), and without `setFirstFocus` the
-  // keyboard token is never consumed so no keyboard appears.
+  /// Focus scope private to this slot, so a pushed screen starts with a
+  /// clean focus state. The outer [ScreenStack] scope calls `setFirstFocus`
+  /// on it when the slot becomes top, matching Navigator's per-route scope
+  /// handoff. Sharing one scope across slots makes a new screen's
+  /// `autofocus: true` field silently no-op — the outgoing screen's focus
+  /// still occupies `_focusedChildren` — and without `setFirstFocus` the
+  /// keyboard token is never consumed, so no keyboard appears.
   final focusScope = FocusScopeNode();
+
+  /// Whether this slot is playing its exit animation.
   bool removing = false;
 
+  /// Builds the screen under its transition, rebuilding it whenever the
+  /// screen itself emits.
   Widget build(BuildContext context) {
     final child = page is Listenable
         ? ListenableBuilder(
@@ -307,6 +331,7 @@ class ScreenSlot {
 /// Wraps the top screen entry and handles Android predictive back gestures.
 /// Drives the entry's [AnimationController] in response to gesture progress.
 class ScreenBackHandler extends StatefulWidget {
+  /// Binds the slot the gesture drags and the pop it commits to.
   const ScreenBackHandler({
     super.key,
     required this.entry,
@@ -314,14 +339,20 @@ class ScreenBackHandler extends StatefulWidget {
     required this.onPop,
   });
 
+  /// The slot whose controller the gesture drives.
   final ScreenSlot entry;
+
+  /// Whether the gesture is accepted at all.
   final bool enabled;
+
+  /// Called when the gesture commits rather than being cancelled.
   final VoidCallback onPop;
 
   @override
   State<ScreenBackHandler> createState() => ScreenBackHandlerState();
 }
 
+/// Predictive-back gesture state of a [ScreenBackHandler].
 class ScreenBackHandlerState extends State<ScreenBackHandler>
     with WidgetsBindingObserver {
   bool _gestureInProgress = false;

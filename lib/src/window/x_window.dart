@@ -11,6 +11,7 @@ final _log = Log.tag('window');
 /// hold. Future window-level state — minimized, occluded, screen — can land
 /// alongside them without disturbing call sites.
 abstract interface class XWindow {
+  /// The process-wide platform window.
   static final XWindow instance = MethodChannelXWindow();
 
   /// `true` when this app currently has user focus.
@@ -34,7 +35,9 @@ abstract interface class XWindow {
   Future<void> keepAwake(bool enabled);
 }
 
+/// Production [XWindow], over the `ux/window` channels.
 class MethodChannelXWindow implements XWindow {
+  /// Subscribes to the native event channel where one is registered.
   MethodChannelXWindow() {
     if (!_hasNativeHandler) return;
     _events.receiveBroadcastStream().listen(_onEvent, onError: (e, st) {

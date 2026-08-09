@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 /// One donated target — a conversation, a document, whatever the app wants
 /// the OS to offer in the share sheet.
 class XShortcutTarget {
+  /// Binds the target's routing id to what the share sheet shows.
   const XShortcutTarget({
     required this.id,
     required this.label,
@@ -24,6 +25,7 @@ class XShortcutTarget {
   /// launcher. A missing or undecodable file falls back to the app icon.
   final String? iconPath;
 
+  /// This target in the channel's wire shape.
   Map<String, Object?> toMap() => {
         'id': id,
         'label': label,
@@ -44,6 +46,7 @@ class XShortcuts {
 
   static const _channel = MethodChannel('ux/shortcuts');
 
+  /// Whether this platform offers per-conversation share targets.
   static bool get supported =>
       debugSupported ?? (Platform.isAndroid || Platform.isIOS);
 

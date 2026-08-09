@@ -26,8 +26,10 @@ import 'x_video_player.dart' show XVideoPlayerController, XVideoPlayerValue;
 /// sampler. Apple's `AVPlayerItemVideoOutput` is crop-correct by
 /// construction.
 class XVideoPlayerView extends StatelessWidget {
+  /// Binds the player whose frames fill the view.
   const XVideoPlayerView({super.key, required this.controller});
 
+  /// The player this view renders.
   final XVideoPlayerController controller;
 
   @override

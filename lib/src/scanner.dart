@@ -9,7 +9,10 @@ import 'package:flutter/widgets.dart';
 /// Barcode formats the platform decoder will look for. Today only QR is
 /// supported; the enum exists for forward-compatibility with the native
 /// channel arguments.
-enum BarcodeFormat { qr }
+enum BarcodeFormat {
+  /// QR code.
+  qr,
+}
 
 /// Static helpers exposed by the platform-side scanner plugin.
 class XScannerPermission {
@@ -42,13 +45,17 @@ class XScannerPermission {
 /// On platforms other than iOS / Android the widget renders an empty
 /// box.
 class XScanner extends StatefulWidget {
+  /// Binds the callback decoded payloads are delivered to.
   const XScanner({
     super.key,
     required this.onCode,
     this.formats = const [BarcodeFormat.qr],
   });
 
+  /// Called with each decoded payload, once per decode.
   final ValueChanged<String> onCode;
+
+  /// Formats the platform decoder looks for.
   final List<BarcodeFormat> formats;
 
   @override

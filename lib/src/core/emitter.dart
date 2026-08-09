@@ -87,6 +87,7 @@ mixin class Emitter implements Dispose, Listenable {
 /// Usage: enables notifications during a widget's `setState` without re-entrancy.
 /// Not generally recommended—prefer standard emit patterns unless necessary.
 class ScheduledEmitter with Emitter {
+  /// Creates an emitter whose notifications land after the current frame.
   ScheduledEmitter();
 
   late final VoidCallback _scheduledNotifyListeners =
@@ -111,7 +112,6 @@ class _ChangeNotifier extends ChangeNotifier {
 }
 
 /// Mutable value holder emitting when [value] changes (shallow equality).
-/// Mutable value holder emitting when [value] changes (shallow equality).
 ///
 /// {@tool snippet}
 /// ```dart
@@ -121,6 +121,7 @@ class _ChangeNotifier extends ChangeNotifier {
 /// ```
 /// {@end-tool}
 class ValueEmitter<T> with Emitter implements ValueNotifier<T> {
+  /// Starts holding the given value without emitting.
   ValueEmitter(this._value);
 
   T _value;
@@ -151,8 +152,10 @@ class ValueEmitter<T> with Emitter implements ValueNotifier<T> {
 /// ```
 /// {@end-tool}
 class LazyEmitter<T> with Emitter implements ValueListenable<T> {
+  /// Binds the computation behind [value].
   LazyEmitter(this.fn);
 
+  /// Computes the current value on demand.
   final ValueGetter<T> fn;
   T? _lastValue;
 
@@ -169,6 +172,7 @@ class LazyEmitter<T> with Emitter implements ValueListenable<T> {
   }
 }
 
+/// Listening expressed as a disposable handle rather than a pair of calls.
 extension ListenableExtension on Listenable {
   /// Adds [callback] as listener and returns a function to remove it.
   VoidCallback subscribe(VoidCallback callback) {
@@ -177,12 +181,15 @@ extension ListenableExtension on Listenable {
   }
 }
 
+/// Gives streams the same [subscribe] shape as [ListenableExtension].
 extension StreamSubscriptionExtension<T> on Stream<T> {
+  /// Listens with [callback] and returns a function that cancels it.
   VoidCallback subscribe(ValueChanged<T> callback) {
     return listen(callback).cancel;
   }
 }
 
+/// Hands a teardown callback's lifetime over to a collector.
 extension VoidCallbackExtension on VoidCallback {
   /// Adds this callback to a [Dispose] aggregator for later invocation.
   void disposeBy(Dispose disposer) => disposer.addDispose(this);

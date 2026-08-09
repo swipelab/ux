@@ -13,13 +13,15 @@ import 'package:ux/src/reactive/reactive.dart';
 /// ```
 /// {@end-tool}
 class FutureReactiveBuilder<T> extends StatefulWidget {
+  /// Binds the async factory to the builder its result drives.
   const FutureReactiveBuilder({
     required this.future,
     required this.builder,
     this.child,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
+  /// Subtree passed through to [builder] untouched by rebuilds.
   final Widget? child;
 
   /// Async factory returning a [Reactive] instance.

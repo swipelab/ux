@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 /// When a transition occurs, the hero "flies" from the old position
 /// to the new one inside an [Overlay].
 class ScreenHero extends StatefulWidget {
+  /// Binds the matching [tag] to the [child] that flies under it.
   const ScreenHero({
     super.key,
     required this.tag,
@@ -27,20 +28,25 @@ class ScreenHero extends StatefulWidget {
   State<ScreenHero> createState() => ScreenHeroState();
 }
 
+/// Flight state of a [ScreenHero]: it holds the child's place in the layout
+/// while the overlay copy is in the air.
 class ScreenHeroState extends State<ScreenHero> {
   Size? _placeholderSize;
 
+  /// Hands the child over to the overlay, leaving a gap of its last size.
   void startFlight() {
     final box = context.findRenderObject() as RenderBox?;
     if (box == null || !box.hasSize) return;
     setState(() => _placeholderSize = box.size);
   }
 
+  /// Takes the child back from the overlay and drops the gap.
   void endFlight() {
     if (!mounted) return;
     setState(() => _placeholderSize = null);
   }
 
+  /// Bounds in global coordinates, or `null` before the first layout.
   Rect? get globalRect {
     final box = context.findRenderObject() as RenderBox?;
     if (box == null || !box.hasSize) return null;
@@ -63,7 +69,10 @@ class ScreenHeroState extends State<ScreenHero> {
 class ScreenHeroController {
   final Map<Object, ScreenHeroState> _heroes = {};
 
+  /// Makes [state] the hero answering to [tag].
   void register(Object tag, ScreenHeroState state) => _heroes[tag] = state;
+
+  /// Drops [tag], if [state] is still the hero registered under it.
   void unregister(Object tag, ScreenHeroState state) {
     if (_heroes[tag] == state) _heroes.remove(tag);
   }

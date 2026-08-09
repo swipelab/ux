@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' show Size;
 
 import 'package:flutter/services.dart';
 
@@ -9,6 +8,7 @@ import 'x_video_player_backend.dart';
 /// Production [XVideoPlayerBackend]. Hand-rolled MethodChannel +
 /// EventChannel — matches the rest of `package:ux`, no pigeon.
 class MethodChannelXVideoPlayerBackend implements XVideoPlayerBackend {
+  /// Creates a backend bound to the `ux/video` channels.
   MethodChannelXVideoPlayerBackend();
 
   static const _channel = MethodChannel('ux/video');
