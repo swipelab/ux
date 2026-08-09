@@ -322,6 +322,19 @@ final class FakeEffectProcessors: CameraEffectProcessorFactory {
     }
 }
 
+/// Uninstalls the bridge while it builds, so the processor it vends reaches a
+/// service that no longer has one.
+final class DisappearingBridgeProcessors: CameraEffectProcessorFactory {
+    weak var service: CameraEffectsService?
+
+    let processor = FakeEffectProcessor()
+
+    func makeProcessor(for effect: CameraEffect) throws -> CameraEffectProcessor {
+        service?.uninstall()
+        return processor
+    }
+}
+
 /// Rebuilds every frame from its parts, so a field the frame type cannot carry
 /// does not survive processing.
 final class RebuildingEffectProcessor: CameraEffectProcessor {
