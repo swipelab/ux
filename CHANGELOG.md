@@ -1,12 +1,11 @@
 ### 0.10.0
 - **`Sheet` arbitrates drags against the attached scroll view by that
-  view's own axis.** The list scrolls while it has content left in the
-  drag direction — from every snap, not only when expanded — and the same
-  gesture hands off to sheet movement once the list reaches that edge. A
-  reversed list (a chat transcript) therefore scrolls toward older content
-  on a down-drag; a gesture that starts on sheet chrome moves the sheet
-  whatever the list is showing; and a sheet displaced mid-gesture keeps the
-  gesture until it is back at its snap.
+  view's own axis.** A down-drag scrolls a list with content left in that
+  direction from every snap, while an up-drag from a non-expanded snap
+  expands the sheet first. The same gesture hands off at an edge. A reversed
+  list (a chat transcript) scrolls toward older content on a down-drag;
+  sheet-chrome drags move the sheet; and a displaced sheet keeps the gesture
+  until it returns to its snap.
 - **Darwin sources unified and moved to Swift Package Manager.** iOS and macOS
   now build from one package at `darwin/ux/` (`sharedDarwinSource: true`);
   `ios/` and `macos/` are gone, as are both podspecs — the plugin no longer

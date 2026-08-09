@@ -6,6 +6,11 @@ import 'package:flutter/physics.dart';
 
 const Duration _kSheetAnimation = Duration(milliseconds: 300);
 
+typedef _SheetUserOffsetGate = bool Function(
+  ScrollMetrics position,
+  double offset,
+);
+
 /// Controller for coordinating scroll views with a [Sheet].
 ///
 /// Child scroll views should register their `ScrollController` using
@@ -18,6 +23,8 @@ const Duration _kSheetAnimation = Duration(milliseconds: 300);
 /// blocked while the sheet is mid-drag.
 class SheetController {
   ScrollController? _activeScrollController;
+  Object? _userOffsetGateOwner;
+  _SheetUserOffsetGate? _userOffsetGate;
 
   ScrollController? get activeScrollController => _activeScrollController;
 
@@ -26,6 +33,20 @@ class SheetController {
   bool scrollEnabled = true;
 
   ScrollPhysics get physics => SheetScrollPhysics(controller: this);
+
+  void _registerUserOffsetGate(
+    Object owner,
+    _SheetUserOffsetGate gate,
+  ) {
+    _userOffsetGateOwner = owner;
+    _userOffsetGate = gate;
+  }
+
+  void _unregisterUserOffsetGate(Object owner) {
+    if (!identical(_userOffsetGateOwner, owner)) return;
+    _userOffsetGateOwner = null;
+    _userOffsetGate = null;
+  }
 
   Future<void> Function()? _dismissCallback;
 
@@ -97,7 +118,10 @@ class SheetScrollPhysics extends ScrollPhysics {
 
   @override
   double applyPhysicsToUserOffset(ScrollMetrics position, double offset) {
-    if (!controller.scrollEnabled) return 0.0;
+    if (!(controller._userOffsetGate?.call(position, offset) ?? true) ||
+        !controller.scrollEnabled) {
+      return 0.0;
+    }
     return super.applyPhysicsToUserOffset(position, offset);
   }
 
@@ -130,9 +154,9 @@ class SheetScrollPhysics extends ScrollPhysics {
 /// - Drag up from collapsed → expands to fullscreen.
 /// - Drag down with the attached list at its edge → collapses.
 /// - Spring physics for snap (telegram damping ≈ 124 / 0.45s).
-/// - Scroll coordination via [SheetController]: the attached list
-///   scrolls while it has content left in the drag direction, and the
-///   same gesture moves the sheet once it doesn't.
+/// - Scroll coordination via [SheetController]: down-drags scroll an
+///   attached list with room from any snap, while up-drags expand a
+///   non-expanded sheet before scrolling the list.
 ///
 /// When [routeAnimation] is provided, the Sheet defers to it for the
 /// entry / exit position so the host's `Route` (or a `Screen`)
@@ -203,6 +227,8 @@ class SheetState extends State<Sheet> with SingleTickerProviderStateMixin {
   /// Scroll pixels of the attached list at the previous pan update.
   double _listPixels = 0.0;
 
+  SheetController? _gestureController;
+
   bool _expandedDuringPan = false;
 
   /// Last gesture velocity normalized to "screen heights / second".
@@ -257,6 +283,7 @@ class SheetState extends State<Sheet> with SingleTickerProviderStateMixin {
 
   @override
   void dispose() {
+    _releaseUserOffsetGate();
     widget.routeAnimation?.removeListener(_onRouteAnimationUpdate);
     widget.controller?._dismissCallback = null;
     widget.controller?.getCurrentPosition = null;
@@ -333,6 +360,14 @@ class SheetState extends State<Sheet> with SingleTickerProviderStateMixin {
     return _listHasRoom(dragDelta);
   }
 
+  bool _allowsListUserOffset(ScrollMetrics position, double offset) {
+    final dragDelta =
+        axisDirectionIsReversed(position.axisDirection) ? -offset : offset;
+    if (_chromeOrigin) return false;
+    if (!_sheetAtSnap) return false;
+    return dragDelta >= 0 || _isExpanded || _expandedDuringPan;
+  }
+
   /// Drag distance the attached list consumed since the previous pan
   /// update.
   double _drainListMovement() {
@@ -397,11 +432,10 @@ class SheetState extends State<Sheet> with SingleTickerProviderStateMixin {
     _panOffset = 0.0;
     _expandedDuringPan = false;
     _listPixels = _listPosition?.pixels ?? 0.0;
+    _gestureController = widget.controller;
+    _gestureController?._registerUserOffsetGate(this, _allowsListUserOffset);
 
-    // The drag direction is unknown at gesture start; from a
-    // non-expanded snap the sheet takes the first delta so that an
-    // up-drag expands instead of scrolling the list.
-    widget.controller?.scrollEnabled = _isExpanded && !_chromeOrigin;
+    widget.controller?.scrollEnabled = !_chromeOrigin;
   }
 
   void _onPanUpdate(DragUpdateDetails details) {
@@ -425,6 +459,7 @@ class SheetState extends State<Sheet> with SingleTickerProviderStateMixin {
     _panTopInset = null;
     _panOffset = 0.0;
     widget.controller?.scrollEnabled = true;
+    _releaseUserOffsetGate();
 
     final listAbsorbsDown = !_chromeOrigin && _listHasRoom(1.0);
     var velocity = details.velocity.pixelsPerSecond.dy;
@@ -500,6 +535,17 @@ class SheetState extends State<Sheet> with SingleTickerProviderStateMixin {
         _animateWithEaseInOut(targetTop: edgeTopInset, fromTop: currentTop);
       }
     }
+  }
+
+  void _onPanCancel() {
+    _panTopInset = null;
+    widget.controller?.scrollEnabled = true;
+    _releaseUserOffsetGate();
+  }
+
+  void _releaseUserOffsetGate() {
+    _gestureController?._unregisterUserOffsetGate(this);
+    _gestureController = null;
   }
 
   // ── Animations ─────────────────────────────────────────────────────
@@ -675,7 +721,8 @@ class SheetState extends State<Sheet> with SingleTickerProviderStateMixin {
                   ..onPointerDown = _latchGestureOrigin
                   ..onStart = _onPanStart
                   ..onUpdate = _onPanUpdate
-                  ..onEnd = _onPanEnd,
+                  ..onEnd = _onPanEnd
+                  ..onCancel = _onPanCancel,
               ),
             },
             child: Material(

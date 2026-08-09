@@ -101,6 +101,66 @@ void main() {
     );
 
     testWidgets(
+      'half snap takes an upward reversal after a forward list scrolls down',
+      (tester) async {
+        final sheet = SheetController();
+        final list = ScrollController();
+        addTearDown(list.dispose);
+        await _pumpSheet(tester, sheet: sheet, list: list);
+        list.jumpTo(300);
+        await tester.pump();
+
+        final gesture = await tester.startGesture(_inList(tester));
+        for (var i = 0; i < 4; i++) {
+          await _moveBy(tester, gesture, 24);
+        }
+
+        expect(list.offset, lessThan(280));
+        expect(_sheetTop(tester), _halfSnapTop);
+        final offsetAfterDownDrag = list.offset;
+
+        for (var i = 0; i < 3; i++) {
+          await _moveBy(tester, gesture, -24);
+        }
+
+        expect(list.offset, offsetAfterDownDrag);
+        expect(_sheetTop(tester), lessThan(_halfSnapTop - 20));
+
+        await gesture.up();
+        await tester.pumpAndSettle();
+      },
+    );
+
+    testWidgets(
+      'half snap takes an upward reversal after a reversed list scrolls down',
+      (tester) async {
+        final sheet = SheetController();
+        final list = ScrollController();
+        addTearDown(list.dispose);
+        await _pumpSheet(tester, sheet: sheet, list: list, reverse: true);
+
+        final gesture = await tester.startGesture(_inList(tester));
+        for (var i = 0; i < 4; i++) {
+          await _moveBy(tester, gesture, 24);
+        }
+
+        expect(list.offset, greaterThan(20));
+        expect(_sheetTop(tester), _halfSnapTop);
+        final offsetAfterDownDrag = list.offset;
+
+        for (var i = 0; i < 3; i++) {
+          await _moveBy(tester, gesture, -24);
+        }
+
+        expect(list.offset, offsetAfterDownDrag);
+        expect(_sheetTop(tester), lessThan(_halfSnapTop - 20));
+
+        await gesture.up();
+        await tester.pumpAndSettle();
+      },
+    );
+
+    testWidgets(
       'expanded reversed list at the newest end scrolls toward older content on a down-drag',
       (tester) async {
         final sheet = SheetController();
