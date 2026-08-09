@@ -19,11 +19,13 @@ T self<T>(T e) => e;
 /// Executes a zero‑arg [Callback].
 void call<T>(Callback<T> e) => e();
 
-/// Constant-true [Callback], for APIs that demand one.
-bool alwaysTrue() => true;
+/// Returns `true`.
+// ignore: non_constant_identifier_names
+bool True() => true;
 
-/// Constant-false [Callback], for APIs that demand one.
-bool alwaysFalse() => false;
+/// Returns `false`.
+// ignore: non_constant_identifier_names
+bool False() => false;
 
 /// Reverse counterpart to `firstWhere`-style lookups.
 extension IterableLastWhereOrNull<T> on Iterable<T> {
