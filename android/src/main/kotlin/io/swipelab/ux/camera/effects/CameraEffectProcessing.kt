@@ -7,7 +7,6 @@ enum class CameraCompositeSubstitution {
     RENDER_FAILED,
 }
 
-/** Which held frame a substitute published. */
 enum class CameraCompositeSubstitute {
     LAST_GOOD,
     BLACK,
@@ -73,12 +72,9 @@ sealed interface CompositeOutcome {
     ) : CompositeOutcome
 }
 
-/**
- * What a composite made of the mask it was handed, as one published frame's
- * telemetry reports it.
- */
+/** The processor's classification of its mask snapshot for one published frame. */
 sealed interface CameraCompositeUse {
-    /** The render blended under the mask. */
+    /** The snapshot passes the structural applicability predicate. */
     data object Used : CameraCompositeUse
 
     /** The mask is structurally inapplicable to the frame. */

@@ -1,9 +1,6 @@
 package io.swipelab.ux.camera.effects
 
-/**
- * One published frame's composite, keyed by the effect [generation] the
- * pipeline was serving and the timestamp of the frame it rendered.
- */
+/** One published-frame record keyed by [generation] and [frameTimestampNs]. */
 data class CameraCompositeRecord(
     val generation: Int,
     val frameTimestampNs: Long,
