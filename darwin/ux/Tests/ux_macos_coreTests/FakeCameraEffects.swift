@@ -322,8 +322,6 @@ final class FakeEffectProcessors: CameraEffectProcessorFactory {
     }
 }
 
-/// Uninstalls the bridge while it builds, so the processor it vends reaches a
-/// service that no longer has one.
 final class DisappearingBridgeProcessors: CameraEffectProcessorFactory {
     weak var service: CameraEffectsService?
 
