@@ -8,6 +8,12 @@ import org.junit.Before
 import org.junit.Test
 
 class CameraEffectsServiceTest {
+    private companion object {
+        const val FRAME_INTERVAL_NS = 1_000_000_000L / 30
+
+        const val WINDOW_NS = CameraEffectsService.SUSTAINED_SUBSTITUTION_MILLIS * 1_000_000L
+    }
+
     private lateinit var bridge: FakeCameraTrackBridge
     private lateinit var scheduler: FakeScheduler
     private lateinit var factory: RecordingProcessorFactory
@@ -44,6 +50,23 @@ class CameraEffectsServiceTest {
         val live = bridge.live
         assertEquals(1, live.size)
         return live.first()
+    }
+
+    /**
+     * Substituted frames at [FRAME_INTERVAL_NS], from [startNs] until the run
+     * covers [spanNs]; answers the timestamp the next frame takes.
+     */
+    private fun substitutedRun(startNs: Long, spanNs: Long): Long {
+        val processor = factory.made.last()
+        processor.substitute = true
+        var timestampNs = startNs
+        while (true) {
+            liveAttachment().deliverFrame(makeCameraFrame(timestampNs))?.close()
+            if (timestampNs - startNs >= spanNs) break
+            timestampNs += FRAME_INTERVAL_NS
+        }
+        processor.substitute = false
+        return timestampNs + FRAME_INTERVAL_NS
     }
 
     @Test
@@ -171,12 +194,28 @@ class CameraEffectsServiceTest {
     }
 
     @Test
-    fun aFailedCompositeAfterActivationEmitsProcessingFailedOnce() {
+    fun substitutionRunsInsideTheWindowKeepTheEffectActive() {
         setEffect()
-        liveAttachment().deliverFrame()?.close()
-        factory.made.first().substitute = true
-        liveAttachment().deliverFrame()?.close()
-        liveAttachment().deliverFrame()?.close()
+        liveAttachment().deliverFrame(makeCameraFrame(0))?.close()
+
+        var timestampNs = FRAME_INTERVAL_NS
+        repeat(3) {
+            timestampNs = substitutedRun(timestampNs, WINDOW_NS - FRAME_INTERVAL_NS)
+            liveAttachment().deliverFrame(makeCameraFrame(timestampNs))?.close()
+            timestampNs += FRAME_INTERVAL_NS
+        }
+
+        assertTrue(events.none { it.phase == CameraEffectPhase.FAILED })
+        assertEquals(CameraEffectStatus.active(CameraEffect.BLUR, 1), service.currentStatus)
+    }
+
+    @Test
+    fun aSubstitutionRunCoveringTheWindowEmitsProcessingFailedOnce() {
+        setEffect()
+        liveAttachment().deliverFrame(makeCameraFrame(0))?.close()
+
+        substitutedRun(FRAME_INTERVAL_NS, WINDOW_NS * 2)
+
         val failures = events.filter { it.phase == CameraEffectPhase.FAILED }
         assertEquals(1, failures.size)
         assertEquals(CameraEffectStatusCode.PROCESSING_FAILED, failures.first().code)

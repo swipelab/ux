@@ -403,10 +403,28 @@ final class CameraEffectsHarness {
         service.setStatusObserver(nil)
     }
 
+    /// 30 fps capture.
+    static let frameIntervalNs: Int64 = 33_333_333
+
+    private static let frameInterval = TimeInterval(frameIntervalNs) / 1_000_000_000
+
+    /// The longest run of frames that stays inside the sustained-substitution
+    /// window.
+    static let framesInsideWindow = Int(
+        (CameraEffectsService.sustainedSubstitution / frameInterval).rounded(.up)
+    )
+
+    /// The shortest run of frames that covers that window.
+    static let framesPastWindow = framesInsideWindow + 1
+
+    private var timestampNs: Int64 = 0
+
+    /// Frames on one capture clock that spans every call.
     func deliverFrame(count: Int = 1) {
         guard let attachment = bridge.live.last else { return }
-        for index in 0..<count {
-            attachment.deliverFrame(makeCameraFrame(timestampNs: Int64(index)))
+        for _ in 0..<count {
+            attachment.deliverFrame(makeCameraFrame(timestampNs: timestampNs))
+            timestampNs += Self.frameIntervalNs
         }
     }
 }
