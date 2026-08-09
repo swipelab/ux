@@ -264,14 +264,14 @@ class FlippableProcessor : CameraEffectProcessor {
 
     override fun process(frame: CameraFrame): CameraFrameOutcome = frame.use {
         beforeOutcome?.invoke()
-        val published = compositor.composite(frame, null).frame
+        val rendered = compositor.composite(frame, null) as CompositeOutcome.Composited
         CameraFrameOutcome(
             if (substitute) {
                 CompositeOutcome.Substituted(
-                    published, CameraCompositeSubstitution.RENDER_FAILED,
+                    rendered.frame, CameraCompositeSubstitution.RENDER_FAILED,
                 )
             } else {
-                CompositeOutcome.Composited(published)
+                rendered
             },
             this,
         )

@@ -56,7 +56,7 @@ class CameraEffectCompositor(
         val output = active.pool?.take()
             ?: return substitution(frame, CameraCompositeSubstitution.POOL_UNAVAILABLE)
         val assessed = assess(mask, frame)
-        try {
+        val background = try {
             render(planes, assessed.mask, assessed.confidence, active.scratch, output)
         } catch (_: Exception) {
             output.release()
@@ -71,7 +71,7 @@ class CameraEffectCompositor(
         } else {
             output.release()
         }
-        CompositeOutcome.Composited(published, assessed.rejection)
+        CompositeOutcome.Composited(published, background, assessed.rejection)
     }
 
     /** Gives up the fallback claim; later composites keep none. */
@@ -107,7 +107,7 @@ class CameraEffectCompositor(
         confidence: FloatBuffer?,
         scratch: RenderScratch,
         output: CameraEffectBuffer,
-    ) {
+    ): CameraBackgroundGrid {
         scratch.readInput(planes)
         when (effect) {
             CameraEffect.NONE -> scratch.copyInput()
@@ -117,8 +117,11 @@ class CameraEffectCompositor(
         if (mask != null) {
             scratch.prepareMask(mask, requireNotNull(confidence))
             scratch.blendPerson()
+        } else {
+            scratch.measureAllBackground()
         }
         scratch.writeInto(output)
+        return scratch.backgroundGrid()
     }
 
     private fun isWellFormed(frame: CameraFrame, planes: CameraFramePlanes): Boolean {
@@ -258,9 +261,25 @@ private class RenderScratch(val width: Int, val height: Int) {
     private val maskIndex1 = IntArray(width)
     private val maskFrac = IntArray(width)
 
+    private val columnEdges = IntArray(CameraBackgroundGrid.SIZE + 1)
+    private val rowEdges = IntArray(CameraBackgroundGrid.SIZE + 1)
+    private val cellPixels = IntArray(CameraBackgroundGrid.CELLS)
+    private val backgroundSums = IntArray(CameraBackgroundGrid.CELLS)
+
     init {
         fillMapping(width, smallWidth, lumaIndex0, lumaIndex1, lumaFrac)
         fillMapping(chromaWidth, smallWidth, chromaIndex0, chromaIndex1, chromaFrac)
+        for (index in 0..CameraBackgroundGrid.SIZE) {
+            columnEdges[index] = CameraBackgroundGrid.edge(index, width)
+            rowEdges[index] = CameraBackgroundGrid.edge(index, height)
+        }
+        for (row in 0 until CameraBackgroundGrid.SIZE) {
+            val rows = rowEdges[row + 1] - rowEdges[row]
+            for (column in 0 until CameraBackgroundGrid.SIZE) {
+                cellPixels[row * CameraBackgroundGrid.SIZE + column] =
+                    rows * (columnEdges[column + 1] - columnEdges[column])
+            }
+        }
     }
 
     fun readInput(planes: CameraFramePlanes) {
@@ -370,26 +389,53 @@ private class RenderScratch(val width: Int, val height: Int) {
         blendChroma(inV, outV)
     }
 
+    /** No person weight reaches the luma, so every pixel is background. */
+    fun measureAllBackground() {
+        for (cell in backgroundSums.indices) backgroundSums[cell] = cellPixels[cell] shl 8
+    }
+
+    fun backgroundGrid(): CameraBackgroundGrid {
+        val fractions = FloatArray(CameraBackgroundGrid.CELLS)
+        for (cell in fractions.indices) {
+            val pixels = cellPixels[cell]
+            if (pixels > 0) fractions[cell] = backgroundSums[cell] / (pixels * 256f)
+        }
+        return CameraBackgroundGrid(fractions)
+    }
+
     fun writeInto(output: CameraEffectBuffer) {
         output.write(outY, outU, outV)
     }
 
     private fun blendLuma(into: ByteArray) {
-        for (y in 0 until height) {
-            val vertical = verticalMapping(2 * y + 1, maskGridHeight, 2 * height)
-            val index = vertical shr 9
-            val weight = vertical and 511
-            val rowA = index * width
-            val rowB = min(index + 1, maskGridHeight - 1) * width
-            val base = y * width
-            for (x in 0 until width) {
+        backgroundSums.fill(0)
+        for (cellRow in 0 until CameraBackgroundGrid.SIZE) {
+            val cellBase = cellRow * CameraBackgroundGrid.SIZE
+            for (y in rowEdges[cellRow] until rowEdges[cellRow + 1]) {
+                blendLumaRow(into, y, cellBase)
+            }
+        }
+    }
+
+    private fun blendLumaRow(into: ByteArray, y: Int, cellBase: Int) {
+        val vertical = verticalMapping(2 * y + 1, maskGridHeight, 2 * height)
+        val index = vertical shr 9
+        val weight = vertical and 511
+        val rowA = index * width
+        val rowB = min(index + 1, maskGridHeight - 1) * width
+        val base = y * width
+        for (cell in 0 until CameraBackgroundGrid.SIZE) {
+            var backgroundWeight = 0
+            for (x in columnEdges[cell] until columnEdges[cell + 1]) {
                 val alpha =
                     (maskRows[rowA + x] * (256 - weight) + maskRows[rowB + x] * weight) shr 8
                 val person = inY[base + x].toInt() and 0xFF
                 val background = into[base + x].toInt() and 0xFF
                 into[base + x] =
                     ((person * alpha + background * (256 - alpha) + 128) shr 8).toByte()
+                backgroundWeight += 256 - alpha
             }
+            backgroundSums[cellBase + cell] += backgroundWeight
         }
     }
 

@@ -15,6 +15,33 @@ enum class CameraMaskRejection {
     SOURCE_RECT_MISMATCH,
 }
 
+/**
+ * How much of the composite each cell of a [SIZE]-square grid over the frame
+ * took from the effect: the mean, over the cell's luma pixels, of the
+ * background weight the blend applied — 1 where the effect covered the cell
+ * whole and 0 where the person did.
+ *
+ * Cells are half-open pixel rectangles that partition the frame; a cell no
+ * pixel falls in holds 0.
+ */
+class CameraBackgroundGrid(fractions: FloatArray) {
+    companion object {
+        const val SIZE = 16
+        const val CELLS = SIZE * SIZE
+
+        /** The first pixel of cell [index] along an axis [extent] pixels long. */
+        fun edge(index: Int, extent: Int): Int = index * extent / SIZE
+    }
+
+    private val cells = fractions.copyOf()
+
+    init {
+        require(cells.size == CELLS)
+    }
+
+    fun fraction(column: Int, row: Int): Float = cells[row * SIZE + column]
+}
+
 /** One frame's result: the frame the track publishes and how it was produced. */
 sealed interface CompositeOutcome {
     val frame: PublishedFrame
@@ -25,6 +52,7 @@ sealed interface CompositeOutcome {
      */
     data class Composited(
         override val frame: PublishedFrame,
+        val background: CameraBackgroundGrid,
         val maskRejection: CameraMaskRejection? = null,
     ) : CompositeOutcome
 
