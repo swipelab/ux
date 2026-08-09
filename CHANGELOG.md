@@ -4,8 +4,9 @@
   direction from every snap, while an up-drag from a non-expanded snap
   expands the sheet first. The same gesture hands off at an edge. A reversed
   list (a chat transcript) scrolls toward older content on a down-drag;
-  sheet-chrome drags move the sheet; and a displaced sheet keeps the gesture
-  until it returns to its snap.
+  sheet-chrome drags move the sheet, decided by the pointer that opens the
+  gesture; and a displaced sheet keeps the gesture until it returns to its
+  snap.
 - **Darwin sources unified and moved to Swift Package Manager.** iOS and macOS
   now build from one package at `darwin/ux/` (`sharedDarwinSource: true`);
   `ios/` and `macos/` are gone, as are both podspecs — the plugin no longer

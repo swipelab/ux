@@ -308,6 +308,37 @@ void main() {
     );
 
     testWidgets(
+      'a second pointer landing on the thumb leaves the drag with the list',
+      (tester) async {
+        final sheet = SheetController();
+        final list = ScrollController();
+        addTearDown(list.dispose);
+        await _pumpSheet(tester, sheet: sheet, list: list);
+        list.jumpTo(300);
+        await tester.pump();
+
+        final gesture = await tester.startGesture(_inList(tester), pointer: 1);
+        for (var i = 0; i < 2; i++) {
+          await _moveBy(tester, gesture, 24);
+        }
+        final offsetBeforeSecondPointer = list.offset;
+        expect(offsetBeforeSecondPointer, lessThan(300));
+
+        final second = await tester.startGesture(_onThumb(tester), pointer: 2);
+        for (var i = 0; i < 3; i++) {
+          await _moveBy(tester, gesture, 24);
+        }
+
+        expect(list.offset, lessThan(offsetBeforeSecondPointer));
+        expect(_sheetTop(tester), _halfSnapTop);
+
+        await second.up();
+        await gesture.up();
+        await tester.pumpAndSettle();
+      },
+    );
+
+    testWidgets(
       'the sheet keeps the gesture through a reversal at the half snap',
       (tester) async {
         final sheet = SheetController();

@@ -352,7 +352,7 @@ class SheetState extends State<Sheet> with SingleTickerProviderStateMixin {
   }
 
   /// Whether the attached list, rather than the sheet, consumes a drag
-  /// of [dragDelta].
+  /// of [dragDelta] logical pixels.
   bool _listOwnsDrag(double dragDelta) {
     if (_chromeOrigin) return false;
     if (!_sheetAtSnap) return false;
@@ -361,11 +361,9 @@ class SheetState extends State<Sheet> with SingleTickerProviderStateMixin {
   }
 
   bool _allowsListUserOffset(ScrollMetrics position, double offset) {
-    final dragDelta =
-        axisDirectionIsReversed(position.axisDirection) ? -offset : offset;
-    if (_chromeOrigin) return false;
-    if (!_sheetAtSnap) return false;
-    return dragDelta >= 0 || _isExpanded || _expandedDuringPan;
+    return _listOwnsDrag(
+      axisDirectionIsReversed(position.axisDirection) ? -offset : offset,
+    );
   }
 
   /// Drag distance the attached list consumed since the previous pan
@@ -422,7 +420,10 @@ class SheetState extends State<Sheet> with SingleTickerProviderStateMixin {
 
   // ── Pan handlers ───────────────────────────────────────────────────
 
+  /// Latches the origin from the pointer that opens the gesture. Runs for
+  /// every pointer-down on the sheet, including ones landing mid-drag.
   void _latchGestureOrigin(Offset globalPosition) {
+    if (_panTopInset != null) return;
     _chromeOrigin = _isOnChrome(globalPosition);
   }
 
@@ -461,7 +462,7 @@ class SheetState extends State<Sheet> with SingleTickerProviderStateMixin {
     widget.controller?.scrollEnabled = true;
     _releaseUserOffsetGate();
 
-    final listAbsorbsDown = !_chromeOrigin && _listHasRoom(1.0);
+    final listAbsorbsDown = _listOwnsDrag(1.0);
     var velocity = details.velocity.pixelsPerSecond.dy;
 
     if ((_isExpanded || _expandedDuringPan) && listAbsorbsDown) {
