@@ -182,6 +182,7 @@ class CameraBackgroundGridTest {
             width = upright.width,
             height = upright.height,
             sourceRect = CameraFrameRect(0, 0, 320, 180),
+            sourceTimestampNs = 0,
             generation = 0,
         )
 

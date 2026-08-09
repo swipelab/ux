@@ -37,7 +37,9 @@ class CameraTrackBridgeContractTest {
     fun setUp() {
         bridge = CountingTrackBridge()
         factory = CountingProcessorFactory()
-        service = CameraEffectsService(factory, FakeScheduler(), ImmediateDelivery())
+        service = CameraEffectsService(
+            factory, FakeScheduler(), ImmediateDelivery(), CameraCompositeLog(exposes = false),
+        )
         service.install(bridge)
     }
 

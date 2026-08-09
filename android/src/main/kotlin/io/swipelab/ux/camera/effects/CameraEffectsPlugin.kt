@@ -4,6 +4,7 @@ import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import io.swipelab.ux.BuildConfig
 import io.swipelab.ux.NativePlugin
 
 /**
@@ -30,10 +31,13 @@ object CameraEffects {
 
     internal val processors = CameraEffectProcessors()
 
+    internal val composites = CameraCompositeLog(exposes = BuildConfig.DEBUG)
+
     internal val service = CameraEffectsService(
         processors = processors,
         scheduler = MainLooperScheduler(),
         delivery = MainLooperDelivery(),
+        composites = composites,
     )
 }
 

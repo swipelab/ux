@@ -139,7 +139,7 @@ class PersonMaskProducer(
                 it.input.rotation = frame.rotation
                 copy(planes, it.input)
                 val sourceRect = CameraFrameRect(0, 0, planes.width, planes.height)
-                val submission = stamp(sourceRect, it) ?: return
+                val submission = stamp(sourceRect, frame.timestampNs, it) ?: return
                 if (enqueue(submission)) it.commit()
             }
         } catch (_: Exception) {
@@ -181,6 +181,7 @@ class PersonMaskProducer(
     private class Submission(
         val generation: Int,
         val sourceRect: CameraFrameRect,
+        val sourceTimestampNs: Long,
         val input: PersonMaskInput,
         val submittedAt: Long,
     )
@@ -236,10 +237,13 @@ class PersonMaskProducer(
 
     private fun stamp(
         sourceRect: CameraFrameRect,
+        sourceTimestampNs: Long,
         claim: MaskClaim,
     ): Submission? = synchronized(lock) {
         if (closed || claim.generation != generation) return null
-        Submission(claim.generation, sourceRect, claim.input, clock.nowNanos)
+        Submission(
+            claim.generation, sourceRect, sourceTimestampNs, claim.input, clock.nowNanos,
+        )
     }
 
     private fun enqueue(submission: Submission): Boolean = synchronized(lock) {
@@ -272,6 +276,7 @@ class PersonMaskProducer(
                 width = pixels.width,
                 height = pixels.height,
                 sourceRect = submission.sourceRect,
+                sourceTimestampNs = submission.sourceTimestampNs,
                 generation = submission.generation,
             )
             publications += 1

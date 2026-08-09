@@ -15,7 +15,7 @@ import kotlin.math.roundToInt
 class CameraEffectCompositor(
     private val effect: CameraEffect,
     private val pools: CameraEffectBufferPools = FrameBufferPools(),
-) {
+) : CameraCompositing {
     companion object {
         const val DIM_FACTOR = 0.5
     }
@@ -36,7 +36,10 @@ class CameraEffectCompositor(
     private var black: CameraEffectBuffer? = null
     private var holdsFallback = true
 
-    fun composite(frame: CameraFrame, mask: CameraMask?): CompositeOutcome = synchronized(lock) {
+    override fun composite(
+        frame: CameraFrame,
+        mask: CameraMask?,
+    ): CompositeOutcome = synchronized(lock) {
         if (frame.width <= 0 || frame.height <= 0) {
             return substitution(frame, CameraCompositeSubstitution.MALFORMED_FRAME)
         }
@@ -75,7 +78,7 @@ class CameraEffectCompositor(
     }
 
     /** Gives up the fallback claim; later composites keep none. */
-    fun retire() {
+    override fun retire() {
         synchronized(lock) {
             holdsFallback = false
             lastGood?.release()
@@ -166,11 +169,15 @@ class CameraEffectCompositor(
             val substitute = makeBlackBuffer(width, height)
             val publication = published(substitute, frame)
             substitute.release()
-            return CompositeOutcome.Substituted(publication, reason)
+            return CompositeOutcome.Substituted(
+                publication, reason, CameraCompositeSubstitute.BLACK,
+            )
         }
         val good = lastGood
         if (good != null && good.width == width && good.height == height) {
-            return CompositeOutcome.Substituted(published(good, frame), reason)
+            return CompositeOutcome.Substituted(
+                published(good, frame), reason, CameraCompositeSubstitute.LAST_GOOD,
+            )
         }
         val current = black
         val substitute = if (current != null && current.width == width && current.height == height) {
@@ -181,7 +188,9 @@ class CameraEffectCompositor(
                 black = it
             }
         }
-        return CompositeOutcome.Substituted(published(substitute, frame), reason)
+        return CompositeOutcome.Substituted(
+            published(substitute, frame), reason, CameraCompositeSubstitute.BLACK,
+        )
     }
 
     /** Poolless, so a pool failure can always be answered. */

@@ -253,6 +253,7 @@ class CameraEffectCompositorTest {
             width = 32,
             height = 24,
             sourceRect = CameraFrameRect(0, 0, 64, 36),
+            sourceTimestampNs = 0,
             generation = 0,
         )
 
@@ -272,6 +273,7 @@ class CameraEffectCompositorTest {
             width = 32,
             height = 24,
             sourceRect = CameraFrameRect(0, 0, 64, 36),
+            sourceTimestampNs = 0,
             generation = 0,
         )
 
@@ -290,6 +292,7 @@ class CameraEffectCompositorTest {
             width = Int.MAX_VALUE,
             height = 2,
             sourceRect = CameraFrameRect(0, 0, 64, 36),
+            sourceTimestampNs = 0,
             generation = 0,
         )
 
@@ -311,6 +314,7 @@ class CameraEffectCompositorTest {
             width = 32,
             height = 24,
             sourceRect = CameraFrameRect(0, 0, 64, 36),
+            sourceTimestampNs = 0,
             generation = 0,
         )
         confidence.limit(1)

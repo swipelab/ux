@@ -268,12 +268,23 @@ class FlippableProcessor : CameraEffectProcessor {
         CameraFrameOutcome(
             if (substitute) {
                 CompositeOutcome.Substituted(
-                    rendered.frame, CameraCompositeSubstitution.RENDER_FAILED,
+                    rendered.frame,
+                    CameraCompositeSubstitution.RENDER_FAILED,
+                    CameraCompositeSubstitute.LAST_GOOD,
                 )
             } else {
                 rendered
             },
             this,
+            null,
+            if (substitute) {
+                CameraCompositeUse.Substituted(
+                    CameraCompositeSubstitution.RENDER_FAILED,
+                    CameraCompositeSubstitute.LAST_GOOD,
+                )
+            } else {
+                CameraCompositeUse.Maskless
+            },
         )
     }
 

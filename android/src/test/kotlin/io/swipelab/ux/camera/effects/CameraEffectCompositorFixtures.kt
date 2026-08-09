@@ -82,6 +82,7 @@ fun makeEffectMask(
     person: CameraFrameRect? = null,
     declaredWidth: Int = width,
     declaredHeight: Int = height,
+    sourceTimestampNs: Long = 0,
 ): CameraMask {
     val confidence = FloatBuffer.allocate(width * height)
     if (person != null) {
@@ -96,6 +97,7 @@ fun makeEffectMask(
         width = declaredWidth,
         height = declaredHeight,
         sourceRect = sourceRect,
+        sourceTimestampNs = sourceTimestampNs,
         generation = 0,
     )
 }

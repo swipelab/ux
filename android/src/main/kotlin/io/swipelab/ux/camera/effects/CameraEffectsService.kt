@@ -17,6 +17,7 @@ class CameraEffectsService(
     private val processors: CameraEffectProcessorFactory?,
     private val scheduler: CameraEffectsScheduling,
     private val delivery: CameraEffectsDelivering,
+    private val composites: CameraCompositeLog,
 ) {
     companion object {
         /**
@@ -441,6 +442,15 @@ class CameraEffectsService(
             lock.unlock()
             return
         }
+        composites.record(
+            CameraCompositeRecord(
+                generation = lastGeneration,
+                frameTimestampNs = outcome.frame.timestampNs,
+                maskFrameTimestampNs = outcome.mask?.sourceTimestampNs,
+                use = outcome.use,
+                background = (outcome.outcome as? CompositeOutcome.Composited)?.background,
+            )
+        )
         when (outcome.outcome) {
             is CompositeOutcome.Composited -> {
                 if (record.activated) {

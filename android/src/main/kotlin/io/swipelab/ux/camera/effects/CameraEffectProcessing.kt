@@ -7,6 +7,12 @@ enum class CameraCompositeSubstitution {
     RENDER_FAILED,
 }
 
+/** Which held frame a substitute published. */
+enum class CameraCompositeSubstitute {
+    LAST_GOOD,
+    BLACK,
+}
+
 /** Why a mask was set aside and the whole frame took the effect. */
 enum class CameraMaskRejection {
     EMPTY,
@@ -63,18 +69,53 @@ sealed interface CompositeOutcome {
     data class Substituted(
         override val frame: PublishedFrame,
         val reason: CameraCompositeSubstitution,
+        val substitute: CameraCompositeSubstitute,
     ) : CompositeOutcome
+}
+
+/**
+ * What a composite made of the mask it was handed, as one published frame's
+ * telemetry reports it.
+ */
+sealed interface CameraCompositeUse {
+    /** The render blended under the mask. */
+    data object Used : CameraCompositeUse
+
+    /** The mask is structurally inapplicable to the frame. */
+    data class Rejected(val reason: CameraMaskRejection) : CameraCompositeUse
+
+    /** No render happened; the frame published a substitute. */
+    data class Substituted(
+        val reason: CameraCompositeSubstitution,
+        val substitute: CameraCompositeSubstitute,
+    ) : CameraCompositeUse
+
+    /** The processor held no mask when the frame arrived. */
+    data object Maskless : CameraCompositeUse
 }
 
 /**
  * One frame's result together with the processor that produced it, so the
  * service can drop outcomes arriving from a processor it no longer holds.
+ * [mask] is the object the processor snapshotted for this frame, which [use]
+ * describes the fate of.
  */
 class CameraFrameOutcome(
     val outcome: CompositeOutcome,
     val processor: CameraEffectProcessor,
+    val mask: CameraMask?,
+    val use: CameraCompositeUse,
 ) {
     val frame: PublishedFrame get() = outcome.frame
+}
+
+/**
+ * The render a processor drives. Injected so a test sees the exact mask object
+ * a composite was handed.
+ */
+interface CameraCompositing {
+    fun composite(frame: CameraFrame, mask: CameraMask?): CompositeOutcome
+    fun retire()
 }
 
 /**

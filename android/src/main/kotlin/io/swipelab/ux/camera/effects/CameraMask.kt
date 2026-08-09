@@ -68,6 +68,9 @@ class CameraMask(
     /** The region of the frame's planes the mask was produced against. */
     val sourceRect: CameraFrameRect,
 
+    /** The timestamp of the frame the inference ran on. */
+    val sourceTimestampNs: Long,
+
     /** The producer generation the inference was submitted under. */
     val generation: Int,
 ) {

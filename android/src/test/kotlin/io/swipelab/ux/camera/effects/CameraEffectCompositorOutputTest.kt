@@ -49,6 +49,7 @@ class CameraEffectCompositorOutputTest {
             width = upright.width,
             height = upright.height,
             sourceRect = CameraFrameRect(0, 0, width, height),
+            sourceTimestampNs = 0,
             generation = 0,
         )
     }

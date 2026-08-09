@@ -20,7 +20,9 @@ class CameraEffectsServiceTest {
         bridge = FakeCameraTrackBridge()
         scheduler = FakeScheduler()
         factory = RecordingProcessorFactory()
-        service = CameraEffectsService(factory, scheduler, ImmediateDelivery())
+        service = CameraEffectsService(
+            factory, scheduler, ImmediateDelivery(), CameraCompositeLog(exposes = false),
+        )
         service.install(bridge)
         replies = mutableListOf()
         events = mutableListOf()
@@ -198,7 +200,9 @@ class CameraEffectsServiceTest {
         service.reply(CameraEffectsRequest.Available) {
             flags.add((it as CameraEffectsReply.Flag).value)
         }
-        val floorless = CameraEffectsService(null, scheduler, ImmediateDelivery())
+        val floorless = CameraEffectsService(
+            null, scheduler, ImmediateDelivery(), CameraCompositeLog(exposes = false),
+        )
         floorless.install(FakeCameraTrackBridge())
         floorless.reply(CameraEffectsRequest.Available) {
             flags.add((it as CameraEffectsReply.Flag).value)
@@ -208,7 +212,9 @@ class CameraEffectsServiceTest {
 
     @Test
     fun anUnsupportedHostFailsSetEffect() {
-        val floorless = CameraEffectsService(null, scheduler, ImmediateDelivery())
+        val floorless = CameraEffectsService(
+            null, scheduler, ImmediateDelivery(), CameraCompositeLog(exposes = false),
+        )
         floorless.install(FakeCameraTrackBridge())
         val got = mutableListOf<CameraEffectsReply>()
         floorless.reply(CameraEffectsRequest.SetEffect("t1", CameraEffect.BLUR, 1)) {
@@ -248,7 +254,10 @@ class CameraEffectsServiceTest {
             }
         }
         disappearingService = CameraEffectsService(
-            disappearingFactory, scheduler, ImmediateDelivery(),
+            disappearingFactory,
+            scheduler,
+            ImmediateDelivery(),
+            CameraCompositeLog(exposes = false),
         )
         disappearingService.install(FakeCameraTrackBridge())
         val got = mutableListOf<CameraEffectsReply>()
