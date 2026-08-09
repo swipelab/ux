@@ -80,6 +80,28 @@ class CameraMask(
     internal fun confidenceView(): FloatBuffer = samples.asReadOnlyBuffer()
 }
 
+/**
+ * Why the mask cannot be applied over a [frameWidth]×[frameHeight] frame, or
+ * `null` when it can.
+ */
+internal fun CameraMask.rejectionOver(frameWidth: Int, frameHeight: Int): CameraMaskRejection? {
+    if (width <= 0 || height <= 0) return CameraMaskRejection.ZERO_DIMENSIONED
+    if (sourceRect != CameraFrameRect(0, 0, frameWidth, frameHeight)) {
+        return CameraMaskRejection.SOURCE_RECT_MISMATCH
+    }
+    if (!hasValidStorage) return CameraMaskRejection.INVALID_STORAGE
+    if (isAllZero()) return CameraMaskRejection.EMPTY
+    return null
+}
+
+private fun CameraMask.isAllZero(): Boolean {
+    val confidence = confidenceView()
+    for (index in 0 until width * height) {
+        if (confidence.get(index) != 0f) return false
+    }
+    return true
+}
+
 private fun hasMaskStorage(width: Int, height: Int, confidence: FloatBuffer): Boolean {
     if (width <= 0 || height <= 0) return true
     val samples = width.toLong() * height.toLong()

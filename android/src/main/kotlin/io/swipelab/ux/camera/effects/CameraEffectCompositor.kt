@@ -147,27 +147,9 @@ class CameraEffectCompositor(
 
     private fun assess(mask: CameraMask?, frame: CameraFrame): AssessedMask {
         if (mask == null) return AssessedMask(null, null, null)
-        if (mask.width <= 0 || mask.height <= 0) {
-            return AssessedMask(null, null, CameraMaskRejection.ZERO_DIMENSIONED)
-        }
-        if (mask.sourceRect != CameraFrameRect(0, 0, frame.width, frame.height)) {
-            return AssessedMask(null, null, CameraMaskRejection.SOURCE_RECT_MISMATCH)
-        }
-        if (!mask.hasValidStorage) {
-            return AssessedMask(null, null, CameraMaskRejection.INVALID_STORAGE)
-        }
-        val confidence = mask.confidenceView()
-        if (isAllZero(mask, confidence)) {
-            return AssessedMask(null, null, CameraMaskRejection.EMPTY)
-        }
-        return AssessedMask(mask, confidence, null)
-    }
-
-    private fun isAllZero(mask: CameraMask, confidence: FloatBuffer): Boolean {
-        for (index in 0 until mask.width * mask.height) {
-            if (confidence.get(index) != 0f) return false
-        }
-        return true
+        val rejection = mask.rejectionOver(frame.width, frame.height)
+        if (rejection != null) return AssessedMask(null, null, rejection)
+        return AssessedMask(mask, mask.confidenceView(), null)
     }
 
     /** Fills the frame it was asked for, so a preserved other-sized fallback stays put. */

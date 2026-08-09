@@ -3,6 +3,7 @@ package io.swipelab.ux.camera.effects
 import java.nio.FloatBuffer
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Test
 
@@ -105,5 +106,92 @@ class CameraMaskTest {
         assertThrows(IllegalArgumentException::class.java) {
             PersonMaskPixels(Int.MAX_VALUE, 2, FloatBuffer.allocate(1))
         }
+    }
+
+    @Test
+    fun aMaskOverItsOwnFrameWithAPersonIsNotRejected() {
+        val mask = makeEffectMask(
+            width = 32,
+            height = 24,
+            sourceRect = CameraFrameRect(0, 0, 64, 36),
+            person = CameraFrameRect(8, 6, 16, 12),
+        )
+
+        assertNull(mask.rejectionOver(64, 36))
+    }
+
+    @Test
+    fun aMaskDeclaringNoGridIsRejectedAsZeroDimensioned() {
+        val mask = makeEffectMask(
+            width = 32,
+            height = 24,
+            sourceRect = CameraFrameRect(0, 0, 64, 36),
+            person = CameraFrameRect(8, 6, 16, 12),
+            declaredWidth = 0,
+            declaredHeight = 0,
+        )
+
+        assertEquals(CameraMaskRejection.ZERO_DIMENSIONED, mask.rejectionOver(64, 36))
+    }
+
+    @Test
+    fun aMaskTakenOverAnotherRegionIsRejectedAsSourceRectMismatch() {
+        val mask = makeEffectMask(
+            width = 32,
+            height = 24,
+            sourceRect = CameraFrameRect(10, 0, 64, 36),
+            person = CameraFrameRect(8, 6, 16, 12),
+        )
+
+        assertEquals(CameraMaskRejection.SOURCE_RECT_MISMATCH, mask.rejectionOver(64, 36))
+    }
+
+    @Test
+    fun aMaskOverAFrameOfAnotherSizeIsRejectedAsSourceRectMismatch() {
+        val mask = makeEffectMask(
+            width = 32,
+            height = 24,
+            sourceRect = CameraFrameRect(0, 0, 64, 36),
+            person = CameraFrameRect(8, 6, 16, 12),
+        )
+
+        assertEquals(CameraMaskRejection.SOURCE_RECT_MISMATCH, mask.rejectionOver(320, 180))
+    }
+
+    @Test
+    fun aMaskShorterThanItsGridIsRejectedAsInvalidStorage() {
+        val mask = CameraMask(
+            confidence = FloatBuffer.allocate(32 * 24 - 1),
+            width = 32,
+            height = 24,
+            sourceRect = CameraFrameRect(0, 0, 64, 36),
+            generation = 0,
+        )
+
+        assertEquals(CameraMaskRejection.INVALID_STORAGE, mask.rejectionOver(64, 36))
+    }
+
+    @Test
+    fun aMaskWhoseGridOverflowsIsRejectedAsInvalidStorage() {
+        val mask = CameraMask(
+            confidence = FloatBuffer.allocate(1),
+            width = Int.MAX_VALUE,
+            height = 2,
+            sourceRect = CameraFrameRect(0, 0, 64, 36),
+            generation = 0,
+        )
+
+        assertEquals(CameraMaskRejection.INVALID_STORAGE, mask.rejectionOver(64, 36))
+    }
+
+    @Test
+    fun aMaskWithNoPersonAnywhereIsRejectedAsEmpty() {
+        val mask = makeEffectMask(
+            width = 32,
+            height = 24,
+            sourceRect = CameraFrameRect(0, 0, 64, 36),
+        )
+
+        assertEquals(CameraMaskRejection.EMPTY, mask.rejectionOver(64, 36))
     }
 }
