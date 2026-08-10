@@ -37,6 +37,7 @@ void main() {
 
     for (final platform in const [
       TargetPlatform.macOS,
+      TargetPlatform.iOS,
       TargetPlatform.android,
     ]) {
       test('$platform is supported', () {
@@ -47,7 +48,6 @@ void main() {
     }
 
     for (final platform in const [
-      TargetPlatform.iOS,
       TargetPlatform.linux,
       TargetPlatform.windows,
       TargetPlatform.fuchsia,

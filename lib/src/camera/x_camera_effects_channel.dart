@@ -36,6 +36,7 @@ class MethodChannelXCameraEffectsBackend implements XCameraEffectsBackend {
   bool get supported =>
       !kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.macOS ||
+          defaultTargetPlatform == TargetPlatform.iOS ||
           defaultTargetPlatform == TargetPlatform.android);
 
   @override

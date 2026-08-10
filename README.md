@@ -123,10 +123,11 @@ tests without a host.
 
 None, blur or dim behind the person on the outgoing camera track.
 
-macOS only, macOS 12 and up. `supported` is the platform family; `available()`
-adds the OS version and whether the host installed its bridge. Needs the camera
-grant the host already holds for capture — `NSCameraUsageDescription`, plus
-`com.apple.security.device.camera` for a sandboxed macOS app.
+macOS 12 and up, iOS 15 and up, and Android. `supported` is the platform
+family; `available()` adds the OS version and whether the host installed its
+bridge. Needs the camera grant the host already holds for capture —
+`NSCameraUsageDescription`, plus `com.apple.security.device.camera` for a
+sandboxed macOS app.
 
 `ux` owns the effect, not the camera: the host app supplies the seam to its own
 video stack by conforming to `CameraEffectsBridge` and installing one instance.
