@@ -330,7 +330,6 @@ final class XCameraFrameProcessorTests: XCTestCase {
         XCTAssertFalse(first.producer === second.producer)
     }
 
-    // MARK: - Staged processors
 
     func testThePassthroughStageCopiesTheFrameAndRunsNoInference() {
         let processor = StagedFrameProcessor(
