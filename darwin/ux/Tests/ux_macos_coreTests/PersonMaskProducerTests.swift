@@ -367,8 +367,8 @@ final class PersonMaskProducerTests: XCTestCase {
     }
 
     func testTheVisionSegmenterRunsAtTheFastQualityLevel() throws {
-        guard #available(macOS 12, *) else {
-            throw XCTSkip("person segmentation needs macOS 12")
+        guard #available(macOS 12, iOS 15, *) else {
+            throw XCTSkip("person segmentation needs \(CameraEffectHost.requirement)")
         }
         XCTAssertEqual(VisionPersonSegmenter().quality, .fast)
     }

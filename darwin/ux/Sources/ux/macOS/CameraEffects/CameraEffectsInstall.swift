@@ -26,14 +26,9 @@ public enum CameraEffects {
     public static var isInstalled: Bool { service.isBridgeInstalled }
 
     static let service = CameraEffectsService(
-        processors: hostProcessors(),
+        processors: CameraEffectHost.processors(),
         scheduler: MainQueueScheduler()
     )
-
-    private static func hostProcessors() -> CameraEffectProcessorFactory? {
-        guard #available(macOS 12.0, *) else { return nil }
-        return XCameraFrameProcessors()
-    }
 }
 
 /// Presents ``CameraEffectsBridge`` as the seam the effects core owns.
