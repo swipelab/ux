@@ -1,5 +1,3 @@
-#if os(macOS)
-
 import CoreGraphics
 import CoreVideo
 import Foundation
@@ -96,5 +94,3 @@ public protocol CameraEffectsBridge: AnyObject {
     /// ``CameraEffects/uninstall()``, after detaching a live attachment.
     func teardown()
 }
-
-#endif
