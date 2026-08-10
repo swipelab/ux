@@ -21,6 +21,7 @@ Future<void> _pumpSheet(
   bool reverse = false,
   bool attach = true,
   int itemCount = 40,
+  VoidCallback? onDismiss,
 }) async {
   if (attach) sheet.attach(list);
   await tester.pumpWidget(
@@ -28,6 +29,7 @@ Future<void> _pumpSheet(
       home: Sheet(
         controller: sheet,
         collapsedExtent: _collapsedExtent,
+        onDismiss: onDismiss,
         child: ListView.builder(
           controller: list,
           physics: sheet.physics,
@@ -50,6 +52,30 @@ Future<void> _expandSheet(WidgetTester tester) async {
 Future<void> _moveBy(WidgetTester tester, TestGesture gesture, double dy) async {
   await gesture.moveBy(Offset(0, dy));
   await tester.pump();
+}
+
+const Duration _frame = Duration(milliseconds: 16);
+
+/// Pans from [start] through each `(velocity, frames)` phase — one pointer
+/// move per frame, timestamped so the recognizer reads the phase velocity in
+/// pixels per second — then lifts and settles.
+Future<void> _panAndRelease(
+  WidgetTester tester,
+  Offset start,
+  List<(double, int)> phases,
+) async {
+  final gesture = await tester.startGesture(start);
+  var elapsed = Duration.zero;
+  for (final (velocity, frames) in phases) {
+    final dy = velocity * _frame.inMilliseconds / 1000.0;
+    for (var i = 0; i < frames; i++) {
+      elapsed += _frame;
+      await gesture.moveBy(Offset(0, dy), timeStamp: elapsed);
+      await tester.pump(_frame);
+    }
+  }
+  await gesture.up();
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -494,5 +520,117 @@ void main() {
         await tester.pumpAndSettle();
       },
     );
+  });
+
+  group('Sheet dismiss decision', () {
+    testWidgets(
+      'a drag past the dismiss line settles when the release moves upward',
+      (tester) async {
+        final sheet = SheetController();
+        final list = ScrollController();
+        addTearDown(list.dispose);
+        var dismissed = false;
+        await _pumpSheet(
+          tester,
+          sheet: sheet,
+          list: list,
+          onDismiss: () => dismissed = true,
+        );
+
+        await _panAndRelease(tester, _onThumb(tester), const [
+          (625.0, 12),
+          (-250.0, 6),
+        ]);
+
+        expect(dismissed, isFalse);
+        expect(_sheetTop(tester), _halfSnapTop);
+      },
+    );
+
+    testWidgets(
+      'a moderate downward fling short of the dismiss line dismisses',
+      (tester) async {
+        final sheet = SheetController();
+        final list = ScrollController();
+        addTearDown(list.dispose);
+        var dismissed = false;
+        await _pumpSheet(
+          tester,
+          sheet: sheet,
+          list: list,
+          onDismiss: () => dismissed = true,
+        );
+
+        await _panAndRelease(tester, _onThumb(tester), const [(250.0, 10)]);
+
+        expect(dismissed, isTrue);
+      },
+    );
+
+    testWidgets('a release at rest past the dismiss line dismisses',
+        (tester) async {
+      final sheet = SheetController();
+      final list = ScrollController();
+      addTearDown(list.dispose);
+      var dismissed = false;
+      await _pumpSheet(
+        tester,
+        sheet: sheet,
+        list: list,
+        onDismiss: () => dismissed = true,
+      );
+
+      await _panAndRelease(tester, _onThumb(tester), const [
+        (500.0, 10),
+        (0.0, 8),
+      ]);
+
+      expect(dismissed, isTrue);
+    });
+
+    testWidgets(
+      'a fast fling from expanded with the list at its edge dismisses',
+      (tester) async {
+        final sheet = SheetController();
+        final list = ScrollController();
+        addTearDown(list.dispose);
+        var dismissed = false;
+        await _pumpSheet(
+          tester,
+          sheet: sheet,
+          list: list,
+          onDismiss: () => dismissed = true,
+        );
+        await _expandSheet(tester);
+
+        expect(list.offset, 0);
+
+        await _panAndRelease(tester, _inList(tester), const [(2000.0, 8)]);
+
+        expect(dismissed, isTrue);
+      },
+    );
+
+    testWidgets('a fling on a list with room scrolls and never dismisses',
+        (tester) async {
+      final sheet = SheetController();
+      final list = ScrollController();
+      addTearDown(list.dispose);
+      var dismissed = false;
+      await _pumpSheet(
+        tester,
+        sheet: sheet,
+        list: list,
+        onDismiss: () => dismissed = true,
+      );
+      list.jumpTo(300);
+      await tester.pump();
+
+      await _panAndRelease(tester, _inList(tester), const [(750.0, 8)]);
+
+      expect(dismissed, isFalse);
+      expect(_sheetTop(tester), _halfSnapTop);
+      expect(list.offset, lessThan(300));
+    });
   });
 }

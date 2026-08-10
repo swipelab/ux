@@ -482,6 +482,46 @@ class SheetState extends State<Sheet> with SingleTickerProviderStateMixin {
     _moveSheet(delta - consumedByList);
   }
 
+  // ── Dismiss decision ───────────────────────────────────────────────
+
+  /// Seconds of coast the release velocity is projected over to find the
+  /// position the gesture is headed for.
+  static const double _kProjectionHorizon = 0.25;
+
+  /// Distance past the collapsed edge a projected landing dismisses at.
+  static const double _kDismissLanding = 60.0;
+
+  static const double _kFullSizeDismissLanding = 180.0;
+
+  /// Upward release speed (pixels / second) that reads as a pull back:
+  /// the sheet returns however far down it sits.
+  static const double _kPullBackVelocity = 50.0;
+
+  /// Downward release speed (pixels / second) that dismisses an expanded
+  /// sheet whatever its projected landing.
+  static const double _kExpandedFlingVelocity = 1800.0;
+
+  /// Whether a release at [currentTop] carrying [velocity] pixels / second
+  /// lands far enough down the screen to dismiss the sheet.
+  bool _releaseDismisses({
+    required double currentTop,
+    required double velocity,
+    required bool fromExpanded,
+    required bool listAbsorbsDown,
+  }) {
+    if (!widget.isDismissible) return false;
+
+    if (fromExpanded && !listAbsorbsDown && velocity > _kExpandedFlingVelocity) {
+      return true;
+    }
+    if (velocity < -_kPullBackVelocity) return false;
+
+    final landing = currentTop + velocity * _kProjectionHorizon;
+    final threshold =
+        widget.isFullSize ? _kFullSizeDismissLanding : _kDismissLanding;
+    return landing > _edgeTopInset + threshold;
+  }
+
   void _onPanEnd(DragEndDetails details) {
     final topInset = _panTopInset;
     if (topInset == null) return;
@@ -494,7 +534,7 @@ class SheetState extends State<Sheet> with SingleTickerProviderStateMixin {
     final listAbsorbsDown = _listOwnsDrag(1.0);
     var velocity = details.velocity.pixelsPerSecond.dy;
 
-    if ((_isExpanded || _expandedDuringPan) && listAbsorbsDown) {
+    if (listAbsorbsDown && velocity > 0.0) {
       velocity = 0.0;
     }
 
@@ -503,20 +543,15 @@ class SheetState extends State<Sheet> with SingleTickerProviderStateMixin {
     final edgeTopInset = _edgeTopInset;
     final currentTop = _animatedTop ?? (_restTopOffset - _boundsOriginY);
 
-    final thresholdOffset = widget.isFullSize ? 180.0 : 60.0;
-    if (widget.isDismissible) {
-      final pastThreshold = currentTop > edgeTopInset + thresholdOffset;
-      final pastCollapsedWithVelocity =
-          currentTop > edgeTopInset && velocity > 300.0;
-      final fastFlingFromExpanded = (_isExpanded || _expandedDuringPan) &&
-          !listAbsorbsDown &&
-          velocity > 1800.0;
-
-      if (pastThreshold || pastCollapsedWithVelocity || fastFlingFromExpanded) {
-        _expandedDuringPan = false;
-        _dismiss();
-        return;
-      }
+    if (_releaseDismisses(
+      currentTop: currentTop,
+      velocity: velocity,
+      fromExpanded: _isExpanded || _expandedDuringPan,
+      listAbsorbsDown: listAbsorbsDown,
+    )) {
+      _expandedDuringPan = false;
+      _dismiss();
+      return;
     }
 
     if (_isExpanded || _expandedDuringPan) {
