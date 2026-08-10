@@ -8,6 +8,7 @@
 build/
 .cxx/
 
-.swiftpm/
+**/.swiftpm/configuration/
+**/.swiftpm/xcode/**/xcuserdata/
 .build/
 Package.resolved

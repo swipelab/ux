@@ -1,5 +1,3 @@
-#if os(macOS)
-
 import CoreVideo
 import Foundation
 import Vision
@@ -10,7 +8,7 @@ public enum PersonSegmentationFailure: Error, Equatable {
 }
 
 /// ``PersonSegmenting`` over Vision's person segmentation.
-@available(macOS 12, *)
+@available(macOS 12, iOS 15, *)
 public final class VisionPersonSegmenter: PersonSegmenting {
     public init() {
         request = VNGeneratePersonSegmentationRequest()
@@ -39,5 +37,3 @@ public final class VisionPersonSegmenter: PersonSegmenting {
         }
     }
 }
-
-#endif

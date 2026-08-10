@@ -1,7 +1,9 @@
-#if os(macOS)
-
 import Foundation
+#if os(iOS)
+import Flutter
+#else
 import FlutterMacOS
+#endif
 import ux_macos_core
 
 /// `ux/camera_effects` + `ux/camera_effects/events`. Carries commands and
@@ -80,5 +82,3 @@ public class CameraEffectsPlugin: NSObject, NativePlugin, FlutterStreamHandler {
         FlutterError(code: failure.code, message: failure.message, details: nil)
     }
 }
-
-#endif

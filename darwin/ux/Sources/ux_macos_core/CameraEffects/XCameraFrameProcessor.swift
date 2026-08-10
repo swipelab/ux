@@ -1,3 +1,4 @@
+import CoreGraphics
 import CoreVideo
 import Foundation
 import os
@@ -29,6 +30,18 @@ public final class CameraEffectSignposts: CameraEffectSignposting {
     public func compositeEnded(_ token: UInt64) {
         os_signpost(.end, log: log, name: "composite", signpostID: OSSignpostID(token))
     }
+}
+
+/// How much of the pipeline a processor runs.
+public enum CameraEffectStage: String, Equatable, Sendable {
+    /// The frame crosses the bridge and is copied; no mask, no effect.
+    case passthrough
+
+    /// The mask producer runs and the copy ignores what it publishes.
+    case maskOnly = "mask-only"
+
+    /// The effect renders under the mask.
+    case composite
 }
 
 /// The production frame processor: every frame feeds the mask producer it
@@ -68,15 +81,30 @@ public final class XCameraFrameProcessor: CameraEffectProcessor {
 
     public func process(_ frame: CameraFrame) -> CameraFrameOutcome {
         producer.consider(frame)
+        let mask = producer.mask
         let token = signposts.compositeBegan()
-        let outcome = compositor.composite(frame: frame, mask: producer.mask)
+        let outcome = compositor.composite(frame: frame, mask: mask)
         signposts.compositeEnded(token)
-        if case .composited(_, let maskRejection) = outcome {
+        if case .composited(_, _, let maskRejection) = outcome {
             os_unfair_lock_lock(lock)
             rejection = maskRejection
             os_unfair_lock_unlock(lock)
         }
-        return CameraFrameOutcome(outcome: outcome, processor: self)
+        return CameraFrameOutcome(
+            outcome: outcome, processor: self, mask: mask, use: Self.use(of: outcome, mask: mask)
+        )
+    }
+
+    private static func use(
+        of outcome: CompositeOutcome, mask: CameraMask?
+    ) -> CameraCompositeUse {
+        switch outcome {
+        case .substituted(_, let reason):
+            return .substituted(reason)
+        case .composited(_, _, let rejection):
+            if let rejection { return .rejected(rejection) }
+            return mask == nil ? .maskless : .used
+        }
     }
 
     public func retire() {
@@ -84,20 +112,88 @@ public final class XCameraFrameProcessor: CameraEffectProcessor {
     }
 }
 
-#if os(macOS)
+/// A processor stopping short of the production path: the composite takes no
+/// mask, and a mask producer runs only when one is given — the published frame
+/// is a copy whatever that producer publishes. The snapshot the composite is
+/// denied still goes to the mask's own structural predicate, so the frame
+/// reports the use the production path would have made of it.
+public final class StagedFrameProcessor: CameraEffectProcessor {
+    public init(compositor: CameraEffectCompositor, producer: PersonMaskProducer?) {
+        self.compositor = compositor
+        self.producer = producer
+    }
 
-/// Builds the host's processors: one compositor and one Vision-backed mask
-/// producer per effect.
-@available(macOS 12, *)
-public final class XCameraFrameProcessors: CameraEffectProcessorFactory {
-    public init() {}
+    private let compositor: CameraEffectCompositor
+    let producer: PersonMaskProducer?
 
-    public func makeProcessor(for effect: CameraEffect) throws -> CameraEffectProcessor {
-        XCameraFrameProcessor(
-            compositor: CameraEffectCompositor(effect: effect),
-            producer: PersonMaskProducer(segmenter: VisionPersonSegmenter())
+    public func process(_ frame: CameraFrame) -> CameraFrameOutcome {
+        producer?.consider(frame)
+        let mask = producer?.mask
+        let outcome = compositor.composite(frame: frame, mask: nil)
+        return CameraFrameOutcome(
+            outcome: outcome,
+            processor: self,
+            mask: mask,
+            use: Self.use(of: outcome, mask: mask, over: frame.crop)
         )
+    }
+
+    private static func use(
+        of outcome: CompositeOutcome, mask: CameraMask?, over crop: CGRect
+    ) -> CameraCompositeUse {
+        if case .substituted(_, let reason) = outcome { return .substituted(reason) }
+        guard let mask else { return .maskless }
+        if let rejection = mask.rejection(over: crop) { return .rejected(rejection) }
+        return .used
+    }
+
+    public func retire() {
+        producer?.reset()
     }
 }
 
-#endif
+/// Builds the host's processors: one compositor and one Vision-backed mask
+/// producer per effect. `stage` is what ``CameraEffectsRig`` moves to price one
+/// part of the pipeline at a time; every processor built after it changes runs
+/// that much.
+@available(macOS 12, iOS 15, *)
+public final class XCameraFrameProcessors: CameraEffectProcessorFactory {
+    public init() {}
+
+    private let lock = NSLock()
+    private var staged = CameraEffectStage.composite
+
+    var stage: CameraEffectStage {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return staged
+        }
+        set {
+            lock.lock()
+            staged = newValue
+            lock.unlock()
+        }
+    }
+
+    public func makeProcessor(for effect: CameraEffect) throws -> CameraEffectProcessor {
+        let measures = CameraEffectHost.composites.exposes
+        switch stage {
+        case .composite:
+            return XCameraFrameProcessor(
+                compositor: CameraEffectCompositor(effect: effect, measures: measures),
+                producer: PersonMaskProducer(segmenter: VisionPersonSegmenter())
+            )
+        case .maskOnly:
+            return StagedFrameProcessor(
+                compositor: CameraEffectCompositor(effect: .none, measures: measures),
+                producer: PersonMaskProducer(segmenter: VisionPersonSegmenter())
+            )
+        case .passthrough:
+            return StagedFrameProcessor(
+                compositor: CameraEffectCompositor(effect: .none, measures: measures),
+                producer: nil
+            )
+        }
+    }
+}
