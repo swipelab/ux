@@ -107,6 +107,7 @@ func makeEffectMask(
     person: CGRect? = nil,
     declaredWidth: Int? = nil,
     declaredHeight: Int? = nil,
+    rotation: CameraFrameRotation = .degrees0,
     sourceTimestampNs: Int64 = 0
 ) -> CameraMask {
     CameraMask(
@@ -114,6 +115,7 @@ func makeEffectMask(
         width: declaredWidth ?? width,
         height: declaredHeight ?? height,
         sourceRect: sourceRect,
+        rotation: rotation,
         sourceTimestampNs: sourceTimestampNs
     )
 }

@@ -10,6 +10,19 @@ public enum CameraFrameRotation: Int, Equatable, Sendable {
     case degrees270 = 270
 }
 
+extension CameraFrameRotation {
+    /// Takes the upright image back to the buffer's own space. Core Image's
+    /// y-up axes run the named clockwise turn the other way.
+    var unturning: CGAffineTransform {
+        switch self {
+        case .degrees0: return .identity
+        case .degrees90: return CGAffineTransform(a: 0, b: 1, c: -1, d: 0, tx: 0, ty: 0)
+        case .degrees180: return CGAffineTransform(a: -1, b: 0, c: 0, d: -1, tx: 0, ty: 0)
+        case .degrees270: return CGAffineTransform(a: 0, b: -1, c: 1, d: 0, tx: 0, ty: 0)
+        }
+    }
+}
+
 /// One camera frame as it crosses the bridge, carrying everything the host
 /// needs to publish a processed frame in the shape the camera's own frame had.
 public struct CameraFrame {

@@ -20,8 +20,11 @@ public protocol PersonSegmenting: AnyObject {
     var quality: PersonMaskQuality { get }
 
     /// Called on the producer's serial queue, one submission at a time.
+    /// `rotation` is the clockwise turn that stands `input` upright, and the
+    /// mask answers in that upright space.
     func submit(
         _ input: CVPixelBuffer,
+        rotation: CameraFrameRotation,
         completion: @escaping (Result<CVPixelBuffer, Error>) -> Void
     )
 }
@@ -109,7 +112,7 @@ public final class PersonMaskProducer {
         else { return release(claimed) }
         guard let submission = stamp(frame, claimed) else { return }
         queue.async { [segmenter, weak self] in
-            segmenter.submit(destination) { result in
+            segmenter.submit(destination, rotation: submission.rotation) { result in
                 self?.complete(result, submission)
             }
         }
@@ -130,6 +133,7 @@ public final class PersonMaskProducer {
     private struct Submission {
         let generation: Int
         let crop: CGRect
+        let rotation: CameraFrameRotation
         let timestampNs: Int64
     }
 
@@ -158,7 +162,10 @@ public final class PersonMaskProducer {
         submittedAt = clock.now
         lastSubmissionAt = submittedAt
         return Submission(
-            generation: claimed, crop: frame.crop, timestampNs: frame.timestampNs
+            generation: claimed,
+            crop: frame.crop,
+            rotation: frame.rotation,
+            timestampNs: frame.timestampNs
         )
     }
 
@@ -175,6 +182,7 @@ public final class PersonMaskProducer {
             width: CVPixelBufferGetWidth(buffer),
             height: CVPixelBufferGetHeight(buffer),
             sourceRect: submission.crop,
+            rotation: submission.rotation,
             sourceTimestampNs: submission.timestampNs
         )
         publications += 1
