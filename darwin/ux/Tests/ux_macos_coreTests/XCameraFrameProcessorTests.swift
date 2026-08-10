@@ -330,6 +330,49 @@ final class XCameraFrameProcessorTests: XCTestCase {
         XCTAssertFalse(first.producer === second.producer)
     }
 
+    // MARK: - Staged processors
+
+    func testThePassthroughStageCopiesTheFrameAndRunsNoInference() {
+        let processor = StagedFrameProcessor(
+            compositor: CameraEffectCompositor(effect: .none), producer: nil
+        )
+        let raw = rawFrame(person: true)
+
+        let outcome = processor.process(raw)
+
+        guard case .composited(_, let rejection) = outcome.outcome else {
+            return XCTFail("expected a composited frame")
+        }
+        XCTAssertNil(rejection)
+        XCTAssertFalse(outcome.frame.pixelBuffer === raw.pixelBuffer)
+        XCTAssertEqual(grayValue(outcome.frame.pixelBuffer, 16, 16), Int(personLevel))
+        XCTAssertEqual(grayValue(outcome.frame.pixelBuffer, 2, 2), Int(rawLevel))
+    }
+
+    func testTheMaskOnlyStageRunsTheInferenceAndCopiesTheFrameAnyway() {
+        let segmenter = maskedSegmenter()
+        let producer = PersonMaskProducer(segmenter: segmenter, clock: TestClock())
+        let processor = StagedFrameProcessor(
+            compositor: CameraEffectCompositor(effect: .none), producer: producer
+        )
+        _ = processor.process(rawFrame(person: true))
+        producer.queue.sync {}
+        XCTAssertNotNil(producer.mask)
+
+        let outcome = processor.process(rawFrame(person: true))
+
+        guard case .composited = outcome.outcome else {
+            return XCTFail("expected a composited frame")
+        }
+        XCTAssertEqual(segmenter.submits, 1)
+        XCTAssertEqual(grayValue(outcome.frame.pixelBuffer, 16, 16), Int(personLevel))
+        XCTAssertEqual(grayValue(outcome.frame.pixelBuffer, 2, 2), Int(rawLevel))
+
+        processor.retire()
+
+        XCTAssertNil(producer.mask)
+    }
+
     // MARK: - Signposts
 
     func testSignpostsBracketEveryComposite() {

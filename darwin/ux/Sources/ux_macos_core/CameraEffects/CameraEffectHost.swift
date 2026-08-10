@@ -22,8 +22,12 @@ public enum CameraEffectHost {
         "\(family) \(floor.majorVersion) or newer"
     }
 
-    /// `nil` below ``floor``, where every command answers `unsupported`.
-    public static func processors() -> CameraEffectProcessorFactory? {
+    /// The one factory the process serves every effect from, and the one
+    /// ``CameraEffectsRig`` moves. `nil` below ``floor``, where every command
+    /// answers `unsupported`.
+    public static let processors: CameraEffectProcessorFactory? = makeProcessors()
+
+    private static func makeProcessors() -> CameraEffectProcessorFactory? {
         guard #available(macOS 12, iOS 15, *) else { return nil }
         return XCameraFrameProcessors()
     }
