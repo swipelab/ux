@@ -1,0 +1,30 @@
+import Foundation
+
+/// The person segmentation this platform family carries: the OS Vision first
+/// ships it in, the requirement an `unsupported` reply names, and the
+/// processor factory that exists only at or above that OS.
+public enum CameraEffectHost {
+    #if os(macOS)
+        public static let family = "macOS"
+
+        public static let floor = OperatingSystemVersion(
+            majorVersion: 12, minorVersion: 0, patchVersion: 0
+        )
+    #else
+        public static let family = "iOS"
+
+        public static let floor = OperatingSystemVersion(
+            majorVersion: 15, minorVersion: 0, patchVersion: 0
+        )
+    #endif
+
+    public static var requirement: String {
+        "\(family) \(floor.majorVersion) or newer"
+    }
+
+    /// `nil` below ``floor``, where every command answers `unsupported`.
+    public static func processors() -> CameraEffectProcessorFactory? {
+        guard #available(macOS 12, iOS 15, *) else { return nil }
+        return XCameraFrameProcessors()
+    }
+}

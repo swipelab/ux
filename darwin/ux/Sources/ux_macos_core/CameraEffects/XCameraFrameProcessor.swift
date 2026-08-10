@@ -84,11 +84,9 @@ public final class XCameraFrameProcessor: CameraEffectProcessor {
     }
 }
 
-#if os(macOS)
-
 /// Builds the host's processors: one compositor and one Vision-backed mask
 /// producer per effect.
-@available(macOS 12, *)
+@available(macOS 12, iOS 15, *)
 public final class XCameraFrameProcessors: CameraEffectProcessorFactory {
     public init() {}
 
@@ -99,5 +97,3 @@ public final class XCameraFrameProcessors: CameraEffectProcessorFactory {
         )
     }
 }
-
-#endif

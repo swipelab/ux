@@ -321,7 +321,7 @@ final class XCameraFrameProcessorTests: XCTestCase {
     }
 
     func testTheFactoryBuildsOneProducerPerProcessor() throws {
-        guard #available(macOS 12, *) else { return }
+        guard #available(macOS 12, iOS 15, *) else { return }
         let factory = XCameraFrameProcessors()
 
         let first = try factory.makeProcessor(for: .blur) as! XCameraFrameProcessor

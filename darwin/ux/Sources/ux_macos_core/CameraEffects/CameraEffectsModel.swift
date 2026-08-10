@@ -85,7 +85,7 @@ public struct CameraEffectsFailure: Error, Equatable, Sendable {
 
 extension CameraEffectsFailure {
     static let unsupported = CameraEffectsFailure(
-        code: "unsupported", message: "macOS 12 or newer"
+        code: "unsupported", message: CameraEffectHost.requirement
     )
 
     static let integrationUnavailable = CameraEffectsFailure(
