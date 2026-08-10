@@ -31,4 +31,15 @@ public enum CameraEffectHost {
         guard #available(macOS 12, iOS 15, *) else { return nil }
         return XCameraFrameProcessors()
     }
+
+    /// The one log the process records its composites into and
+    /// ``CameraEffectsRig`` reads. A release build neither fills nor measures
+    /// for it.
+    public static let composites: CameraCompositeLog = {
+        #if DEBUG
+            return CameraCompositeLog(exposes: true)
+        #else
+            return CameraCompositeLog(exposes: false)
+        #endif
+    }()
 }

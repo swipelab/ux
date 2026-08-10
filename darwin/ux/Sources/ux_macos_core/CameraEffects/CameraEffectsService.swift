@@ -12,11 +12,13 @@ public final class CameraEffectsService {
     public init(
         processors: CameraEffectProcessorFactory?,
         scheduler: CameraEffectsScheduling,
-        delivery: CameraEffectsDelivering = MainQueueDelivery()
+        delivery: CameraEffectsDelivering = MainQueueDelivery(),
+        composites: CameraCompositeLog
     ) {
         self.processors = processors
         self.scheduler = scheduler
         self.delivery = delivery
+        self.composites = composites
     }
 
     /// The window an attach has to see its first frame, and the window
@@ -37,6 +39,7 @@ public final class CameraEffectsService {
     private let processors: CameraEffectProcessorFactory?
     private let scheduler: CameraEffectsScheduling
     private let delivery: CameraEffectsDelivering
+    private let composites: CameraCompositeLog
 
     private let lock = NSLock()
     private var bridge: CameraTrackBridging?
@@ -421,6 +424,15 @@ public final class CameraEffectsService {
             lock.unlock()
             return
         }
+        composites.record(
+            CameraCompositeRecord(
+                generation: lastGeneration,
+                frameTimestampNs: outcome.frame.timestampNs,
+                maskFrameTimestampNs: outcome.mask?.sourceTimestampNs,
+                use: outcome.use,
+                background: outcome.outcome.background
+            )
+        )
         switch outcome.outcome {
         case .composited:
             record.substitution.end()

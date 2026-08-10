@@ -16,7 +16,6 @@ final class CameraEffectsRigTests: XCTestCase {
         return processors
     }
 
-
     func testEveryStageAnswersToItsWireName() {
         XCTAssertEqual(CameraEffectStage(rawValue: "mask-only"), .maskOnly)
         XCTAssertEqual(CameraEffectStage(rawValue: "passthrough"), .passthrough)
@@ -28,7 +27,6 @@ final class CameraEffectsRigTests: XCTestCase {
         XCTAssertNil(CameraEffectStage(rawValue: "mask_only"))
         XCTAssertNil(CameraEffectStage(rawValue: ""))
     }
-
 
     func testEngageMovesTheFactoryUnderTheProcessorsBuiltAfterIt() throws {
         let processors = try hostProcessors()

@@ -25,7 +25,8 @@ public enum CameraEffects {
 
     static let service = CameraEffectsService(
         processors: CameraEffectHost.processors,
-        scheduler: MainQueueScheduler()
+        scheduler: MainQueueScheduler(),
+        composites: CameraEffectHost.composites
     )
 }
 

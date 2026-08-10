@@ -106,13 +106,15 @@ func makeEffectMask(
     sourceRect: CGRect,
     person: CGRect? = nil,
     declaredWidth: Int? = nil,
-    declaredHeight: Int? = nil
+    declaredHeight: Int? = nil,
+    sourceTimestampNs: Int64 = 0
 ) -> CameraMask {
     CameraMask(
         pixelBuffer: makeMaskBuffer(width: width, height: height, person: person),
         width: declaredWidth ?? width,
         height: declaredHeight ?? height,
-        sourceRect: sourceRect
+        sourceRect: sourceRect,
+        sourceTimestampNs: sourceTimestampNs
     )
 }
 

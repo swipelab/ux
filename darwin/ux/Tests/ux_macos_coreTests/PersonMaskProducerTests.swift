@@ -179,7 +179,7 @@ final class PersonMaskProducerTests: XCTestCase {
         guard let mask = producer.mask else { return XCTFail("expected a mask") }
         XCTAssertEqual(mask.sourceRect, wide.crop)
 
-        guard case .composited(let output, let rejection) =
+        guard case .composited(let output, _, let rejection) =
             compositor.composite(frame: wide, mask: mask)
         else { return XCTFail("expected a composited frame") }
         XCTAssertNil(rejection)
@@ -191,7 +191,7 @@ final class PersonMaskProducerTests: XCTestCase {
             crop: CGRect(x: 0, y: 0, width: 160, height: 90),
             adaptedWidth: 160, adaptedHeight: 90
         )
-        guard case .composited(let whole, let stale) =
+        guard case .composited(let whole, _, let stale) =
             compositor.composite(frame: cropped, mask: producer.mask)
         else { return XCTFail("expected a composited frame") }
         XCTAssertEqual(stale, .sourceRectMismatch)
@@ -221,7 +221,7 @@ final class PersonMaskProducerTests: XCTestCase {
         producer.queue.sync {}
 
         guard let mask = producer.mask else { return XCTFail("expected a mask") }
-        guard case .composited(let output, let rejection) =
+        guard case .composited(let output, _, let rejection) =
             compositor.composite(frame: camera, mask: mask)
         else { return XCTFail("expected a composited frame") }
         XCTAssertEqual(rejection, .empty)

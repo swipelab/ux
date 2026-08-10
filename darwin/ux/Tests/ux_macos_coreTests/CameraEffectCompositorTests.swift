@@ -43,7 +43,7 @@ final class CameraEffectCompositorTests: XCTestCase {
 
         let outcome = compositor.composite(frame: frame, mask: personMask(for: frame))
 
-        guard case .composited(let output, let rejection) = outcome else {
+        guard case .composited(let output, _, let rejection) = outcome else {
             return XCTFail("expected a composited frame")
         }
         XCTAssertNil(rejection)
@@ -62,7 +62,7 @@ final class CameraEffectCompositorTests: XCTestCase {
 
         let outcome = compositor.composite(frame: frame, mask: personMask(for: frame))
 
-        guard case .composited(let output, let rejection) = outcome else {
+        guard case .composited(let output, _, let rejection) = outcome else {
             return XCTFail("expected a composited frame")
         }
         XCTAssertNil(rejection)
@@ -79,7 +79,7 @@ final class CameraEffectCompositorTests: XCTestCase {
 
         let outcome = compositor.composite(frame: frame, mask: nil)
 
-        guard case .composited(let output, let rejection) = outcome else {
+        guard case .composited(let output, _, let rejection) = outcome else {
             return XCTFail("expected a composited frame")
         }
         XCTAssertNil(rejection)
@@ -98,7 +98,7 @@ final class CameraEffectCompositorTests: XCTestCase {
 
         let outcome = compositor.composite(frame: frame, mask: nil)
 
-        guard case .composited(let output, _) = outcome else {
+        guard case .composited(let output, _, _) = outcome else {
             return XCTFail("expected a composited frame")
         }
         assertGray(output.pixelBuffer, 160, 90, 100)
@@ -112,7 +112,7 @@ final class CameraEffectCompositorTests: XCTestCase {
 
         let outcome = compositor.composite(frame: frame, mask: nil)
 
-        guard case .composited(let output, _) = outcome else {
+        guard case .composited(let output, _, _) = outcome else {
             return XCTFail("expected a composited frame")
         }
         assertGray(output.pixelBuffer, 160, 90, 255)
@@ -135,7 +135,7 @@ final class CameraEffectCompositorTests: XCTestCase {
 
         let outcome = compositor.composite(frame: frame, mask: mask)
 
-        guard case .composited(let output, let rejection) = outcome else {
+        guard case .composited(let output, _, let rejection) = outcome else {
             return XCTFail("expected a composited frame")
         }
         XCTAssertNil(rejection)
@@ -153,7 +153,7 @@ final class CameraEffectCompositorTests: XCTestCase {
 
         let outcome = compositor.composite(frame: frame, mask: mask)
 
-        guard case .composited(let output, let rejection) = outcome else {
+        guard case .composited(let output, _, let rejection) = outcome else {
             return XCTFail("expected a composited frame")
         }
         XCTAssertEqual(rejection, .empty)
@@ -173,7 +173,7 @@ final class CameraEffectCompositorTests: XCTestCase {
 
         let outcome = compositor.composite(frame: frame, mask: mask)
 
-        guard case .composited(let output, let rejection) = outcome else {
+        guard case .composited(let output, _, let rejection) = outcome else {
             return XCTFail("expected a composited frame")
         }
         XCTAssertEqual(rejection, .zeroDimensioned)
@@ -191,7 +191,7 @@ final class CameraEffectCompositorTests: XCTestCase {
 
         let outcome = compositor.composite(frame: frame, mask: mask)
 
-        guard case .composited(let output, let rejection) = outcome else {
+        guard case .composited(let output, _, let rejection) = outcome else {
             return XCTFail("expected a composited frame")
         }
         XCTAssertEqual(rejection, .sourceRectMismatch)
@@ -215,7 +215,7 @@ final class CameraEffectCompositorTests: XCTestCase {
 
         let outcome = compositor.composite(frame: frame, mask: nil)
 
-        guard case .composited(let output, _) = outcome else {
+        guard case .composited(let output, _, _) = outcome else {
             return XCTFail("expected a composited frame")
         }
         XCTAssertEqual(output.crop, CGRect(x: 0, y: 0, width: 640, height: 480))
@@ -243,7 +243,7 @@ final class CameraEffectCompositorTests: XCTestCase {
 
             let outcome = compositor.composite(frame: frame, mask: nil)
 
-            guard case .composited(let output, _) = outcome else {
+            guard case .composited(let output, _, _) = outcome else {
                 return XCTFail("expected a composited frame for format \(format)")
             }
             let value = grayValue(output.pixelBuffer, 32, 18)
@@ -258,7 +258,7 @@ final class CameraEffectCompositorTests: XCTestCase {
         let pools = ScriptedPools()
         let compositor = CameraEffectCompositor(effect: .dim, pools: pools)
         let good = makeEffectFrame(width: 64, height: 36, timestampNs: 1) { _, _ in 200 }
-        guard case .composited(let effected, _) =
+        guard case .composited(let effected, _, _) =
             compositor.composite(frame: good, mask: nil)
         else {
             return XCTFail("expected a composited frame")
@@ -317,7 +317,7 @@ final class CameraEffectCompositorTests: XCTestCase {
         let pools = ScriptedPools()
         let compositor = CameraEffectCompositor(effect: .dim, pools: pools)
         let good = makeEffectFrame(width: 64, height: 36, timestampNs: 5) { _, _ in 200 }
-        guard case .composited(let effected, _) =
+        guard case .composited(let effected, _, _) =
             compositor.composite(frame: good, mask: nil)
         else {
             return XCTFail("expected a composited frame")

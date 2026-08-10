@@ -1,3 +1,4 @@
+import CoreGraphics
 import CoreVideo
 import Foundation
 import os
@@ -80,15 +81,30 @@ public final class XCameraFrameProcessor: CameraEffectProcessor {
 
     public func process(_ frame: CameraFrame) -> CameraFrameOutcome {
         producer.consider(frame)
+        let mask = producer.mask
         let token = signposts.compositeBegan()
-        let outcome = compositor.composite(frame: frame, mask: producer.mask)
+        let outcome = compositor.composite(frame: frame, mask: mask)
         signposts.compositeEnded(token)
-        if case .composited(_, let maskRejection) = outcome {
+        if case .composited(_, _, let maskRejection) = outcome {
             os_unfair_lock_lock(lock)
             rejection = maskRejection
             os_unfair_lock_unlock(lock)
         }
-        return CameraFrameOutcome(outcome: outcome, processor: self)
+        return CameraFrameOutcome(
+            outcome: outcome, processor: self, mask: mask, use: Self.use(of: outcome, mask: mask)
+        )
+    }
+
+    private static func use(
+        of outcome: CompositeOutcome, mask: CameraMask?
+    ) -> CameraCompositeUse {
+        switch outcome {
+        case .substituted(_, let reason):
+            return .substituted(reason)
+        case .composited(_, _, let rejection):
+            if let rejection { return .rejected(rejection) }
+            return mask == nil ? .maskless : .used
+        }
     }
 
     public func retire() {
@@ -98,7 +114,9 @@ public final class XCameraFrameProcessor: CameraEffectProcessor {
 
 /// A processor stopping short of the production path: the composite takes no
 /// mask, and a mask producer runs only when one is given — the published frame
-/// is a copy whatever that producer publishes.
+/// is a copy whatever that producer publishes. The snapshot the composite is
+/// denied still goes to the mask's own structural predicate, so the frame
+/// reports the use the production path would have made of it.
 public final class StagedFrameProcessor: CameraEffectProcessor {
     public init(compositor: CameraEffectCompositor, producer: PersonMaskProducer?) {
         self.compositor = compositor
@@ -110,9 +128,23 @@ public final class StagedFrameProcessor: CameraEffectProcessor {
 
     public func process(_ frame: CameraFrame) -> CameraFrameOutcome {
         producer?.consider(frame)
+        let mask = producer?.mask
+        let outcome = compositor.composite(frame: frame, mask: nil)
         return CameraFrameOutcome(
-            outcome: compositor.composite(frame: frame, mask: nil), processor: self
+            outcome: outcome,
+            processor: self,
+            mask: mask,
+            use: Self.use(of: outcome, mask: mask, over: frame.crop)
         )
+    }
+
+    private static func use(
+        of outcome: CompositeOutcome, mask: CameraMask?, over crop: CGRect
+    ) -> CameraCompositeUse {
+        if case .substituted(_, let reason) = outcome { return .substituted(reason) }
+        guard let mask else { return .maskless }
+        if let rejection = mask.rejection(over: crop) { return .rejected(rejection) }
+        return .used
     }
 
     public func retire() {
@@ -145,20 +177,22 @@ public final class XCameraFrameProcessors: CameraEffectProcessorFactory {
     }
 
     public func makeProcessor(for effect: CameraEffect) throws -> CameraEffectProcessor {
+        let measures = CameraEffectHost.composites.exposes
         switch stage {
         case .composite:
             return XCameraFrameProcessor(
-                compositor: CameraEffectCompositor(effect: effect),
+                compositor: CameraEffectCompositor(effect: effect, measures: measures),
                 producer: PersonMaskProducer(segmenter: VisionPersonSegmenter())
             )
         case .maskOnly:
             return StagedFrameProcessor(
-                compositor: CameraEffectCompositor(effect: .none),
+                compositor: CameraEffectCompositor(effect: .none, measures: measures),
                 producer: PersonMaskProducer(segmenter: VisionPersonSegmenter())
             )
         case .passthrough:
             return StagedFrameProcessor(
-                compositor: CameraEffectCompositor(effect: .none), producer: nil
+                compositor: CameraEffectCompositor(effect: .none, measures: measures),
+                producer: nil
             )
         }
     }

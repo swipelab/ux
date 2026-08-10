@@ -285,11 +285,17 @@ final class FakeEffectProcessor: CameraEffectProcessor {
         switch answer {
         case .composite:
             return CameraFrameOutcome(
-                outcome: .composited(frame, maskRejection: nil), processor: self
+                outcome: .composited(frame, background: nil, maskRejection: nil),
+                processor: self,
+                mask: nil,
+                use: .maskless
             )
         case .substitute:
             return CameraFrameOutcome(
-                outcome: .substituted(frame, reason: .renderFailed), processor: self
+                outcome: .substituted(frame, reason: .renderFailed),
+                processor: self,
+                mask: nil,
+                use: .substituted(.renderFailed)
             )
         }
     }
@@ -336,7 +342,10 @@ final class RebuildingEffectProcessor: CameraEffectProcessor {
             timestamp90kHz: frame.timestamp90kHz
         )
         return CameraFrameOutcome(
-            outcome: .composited(rebuilt, maskRejection: nil), processor: self
+            outcome: .composited(rebuilt, background: nil, maskRejection: nil),
+            processor: self,
+            mask: nil,
+            use: .maskless
         )
     }
 
@@ -358,15 +367,18 @@ final class CameraEffectsHarness {
     init(
         processors: CameraEffectProcessorFactory? = FakeEffectProcessors(),
         installed: Bool = true,
-        world: FakeTrackWorld = FakeTrackWorld()
+        world: FakeTrackWorld = FakeTrackWorld(),
+        composites: CameraCompositeLog = CameraCompositeLog(exposes: true)
     ) {
         self.processors = processors
         self.world = world
+        self.composites = composites
         bridge = FakeCameraTrackBridge(world: world)
         service = CameraEffectsService(
             processors: processors,
             scheduler: scheduler,
-            delivery: ImmediateDelivery()
+            delivery: ImmediateDelivery(),
+            composites: composites
         )
         if installed { service.install(bridge) }
     }
@@ -375,6 +387,7 @@ final class CameraEffectsHarness {
     let bridge: FakeCameraTrackBridge
     let scheduler = FakeCameraEffectsScheduler()
     let processors: CameraEffectProcessorFactory?
+    let composites: CameraCompositeLog
     let service: CameraEffectsService
 
     private(set) var events: [CameraEffectStatus] = []
