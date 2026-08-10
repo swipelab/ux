@@ -1,5 +1,3 @@
-#if os(macOS)
-
 import Foundation
 import ux_macos_core
 
@@ -121,5 +119,3 @@ final class CameraEffectsBridgeAdapter: CameraTrackBridging {
         var trackId: String { attachment.trackId }
     }
 }
-
-#endif
