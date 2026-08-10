@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' show Size;
 
 import 'package:flutter/services.dart';
 import 'package:ux/src/camera/camera.dart';
@@ -15,6 +14,8 @@ import 'package:ux/src/file.dart' show XFile;
 /// tests drive events deterministically via [emitOrientationChanged]
 /// and friends.
 class FakeXCameraBackend implements XCameraBackend {
+  /// Binds the cameras this backend reports and the canned results its
+  /// capture calls return.
   FakeXCameraBackend({
     List<XCameraDescription> cameras = const [],
     this.previewSize = const Size(1920, 1080),
@@ -24,20 +25,41 @@ class FakeXCameraBackend implements XCameraBackend {
 
   // ---- captured calls ---------------------------------------------
 
+  /// Arguments of every [create] call, in order.
   final List<({String cameraId, bool enableAudio, XResolutionPreset preset})>
       createCalls = [];
+
+  /// Handles passed to [initialize], in order.
   final List<int> initializeCalls = [];
+
+  /// Handles passed to [disposeInstance], in order.
   final List<int> disposeCalls = [];
+
+  /// Arguments of every [setDescription] call, in order.
   final List<({int handle, String cameraId})> setDescriptionCalls = [];
+
+  /// Arguments of every [setFlashMode] call, in order.
   final List<({int handle, XFlashMode mode})> setFlashModeCalls = [];
+
+  /// Arguments of every [lockCaptureOrientation] call, in order.
   final List<({int handle, DeviceOrientation orientation})>
       lockCaptureOrientationCalls = [];
+
+  /// Handles passed to [unlockCaptureOrientation], in order.
   final List<int> unlockCaptureOrientationCalls = [];
+
+  /// Arguments of every [takePicture] call, in order.
   final List<({int handle, DeviceOrientation snapshotOrientation})>
       takePictureCalls = [];
+
+  /// Arguments of every [startVideoRecording] call, in order.
   final List<({int handle, DeviceOrientation snapshotOrientation})>
       startVideoRecordingCalls = [];
+
+  /// Handles passed to [stopVideoRecording], in order.
   final List<int> stopVideoRecordingCalls = [];
+
+  /// How many times [availableCameras] has been called.
   int availableCamerasCalls = 0;
 
   // ---- configurable returns ---------------------------------------
@@ -45,8 +67,13 @@ class FakeXCameraBackend implements XCameraBackend {
   /// Cameras returned by [availableCameras]. Mutable so tests can swap
   /// the set between assertions.
   List<XCameraDescription> cameras;
+  /// Preview size every [create] reports.
   Size previewSize;
+
+  /// Path every [takePicture] resolves to.
   String picturePath;
+
+  /// Path every [stopVideoRecording] resolves to.
   String videoPath;
 
   /// If non-null, [create] throws this exception instead of returning
@@ -56,15 +83,26 @@ class FakeXCameraBackend implements XCameraBackend {
   /// Optional override; set to throw on any particular method to
   /// drive failure paths.
   XCameraException? initializeError;
+
+  /// If non-null, [takePicture] throws this instead of returning a file.
   XCameraException? takePictureError;
+
+  /// If non-null, [startVideoRecording] throws this.
   XCameraException? startVideoRecordingError;
+
+  /// If non-null, [stopVideoRecording] throws this.
   XCameraException? stopVideoRecordingError;
 
   /// Audio permission state returned by [audioPermissionGranted].
   /// Tests mutate this to drive the mic-permission UI banner.
   bool audioPermission = true;
+  /// How many times [audioPermissionGranted] has been called.
   int audioPermissionCalls = 0;
+
+  /// How many times [openSettings] has been called.
   int openSettingsCalls = 0;
+
+  /// How many times [requestAudioPermission] has been called.
   int requestAudioPermissionCalls = 0;
 
   /// Result returned by [requestAudioPermission]. Tests mutate to
@@ -93,18 +131,22 @@ class FakeXCameraBackend implements XCameraBackend {
         .add(XCameraDeviceOrientationChanged(handle, orientation));
   }
 
+  /// Pushes a session error for [handle].
   void emitSessionError(int handle, String code, [String? description]) {
     _controllerFor(handle).add(XCameraSessionError(handle, code, description));
   }
 
+  /// Pushes a session interruption for [handle].
   void emitSessionInterrupted(int handle, String reason) {
     _controllerFor(handle).add(XCameraSessionInterrupted(handle, reason));
   }
 
+  /// Pushes a session resume for [handle].
   void emitSessionResumed(int handle) {
     _controllerFor(handle).add(XCameraSessionResumed(handle));
   }
 
+  /// Pushes a recorder diagnostic for [handle].
   void emitDiagnostic(int handle, String message) {
     _controllerFor(handle).add(XCameraDiagnostic(handle, message));
   }

@@ -18,6 +18,7 @@ final _log = Log.tag('camera');
 /// Production [XCameraBackend]. Hand-rolled MethodChannel +
 /// EventChannel — matches the rest of `package:ux`, no pigeon.
 class MethodChannelXCameraBackend implements XCameraBackend {
+  /// Creates a backend bound to the `ux/camera` channels.
   MethodChannelXCameraBackend();
 
   static const _channel = MethodChannel('ux/camera');

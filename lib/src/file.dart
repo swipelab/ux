@@ -1,6 +1,4 @@
 import 'dart:io' show Platform;
-import 'dart:typed_data';
-import 'dart:ui' show Rect;
 
 import 'package:flutter/services.dart';
 
@@ -9,14 +7,20 @@ import 'package:flutter/services.dart';
 /// [width] / [height] describe the encoded image, which may be smaller
 /// than the source video due to the `maxWidth` constraint at extraction.
 class XVideoThumbnail {
+  /// Binds the encoded frame to the size it decodes at.
   const XVideoThumbnail({
     required this.pngBytes,
     required this.width,
     required this.height,
   });
 
+  /// Encoded PNG of the frame.
   final Uint8List pngBytes;
+
+  /// Pixel width of the encoded image.
   final int width;
+
+  /// Pixel height of the encoded image.
   final int height;
 }
 
@@ -24,6 +28,7 @@ class XVideoThumbnail {
 /// guaranteed field. Returned from anything in `package:ux` that produces
 /// a file (camera capture today; future writers).
 class XFile {
+  /// Binds the handle to a path on local disk.
   const XFile(this.path);
 
   /// Absolute path on local disk. Readable through `dart:io File`. Lifetime
@@ -43,6 +48,7 @@ class XFile {
 /// `dart:io` can't open content URIs); [bookmark] holds the source URI
 /// as UTF-8 bytes for symmetry but isn't required for reads.
 class XPickedFile {
+  /// Binds the readable path to whatever metadata the picker supplied.
   const XPickedFile({
     required this.path,
     this.name,
@@ -52,9 +58,16 @@ class XPickedFile {
     this.isTemporaryCopy = false,
   });
 
+  /// Absolute path on local disk, readable while the grant is active.
   final String path;
+
+  /// Display name the picker reported, where it reported one.
   final String? name;
+
+  /// Media type the picker reported, where it reported one.
   final String? mimeType;
+
+  /// Size in bytes the picker reported, where it reported one.
   final int? size;
 
   /// macOS / iOS scoped bookmark, or Android URI bytes. Persist alongside
@@ -77,29 +90,24 @@ class XPickedFile {
 /// storage permission (Android API <29 only) — the save can't proceed.
 /// [cancelled] means the user dismissed the export picker (iOS). Hard
 /// failures (unreadable source, write error) throw a `PlatformException`.
-enum XFileSaveStatus { saved, cancelled, denied }
+enum XFileSaveStatus {
+  /// The copy reached the destination.
+  saved,
 
+  /// The user dismissed the export picker.
+  cancelled,
+
+  /// Storage permission was refused.
+  denied,
+}
+
+/// Static facade over the platform's file services — sharing, picking,
+/// saving, and scoped access.
 class XFiles {
   XFiles._();
 
   static const _channel = MethodChannel('ux/file');
 
-  /// Present the native share sheet for a file on disk.
-  ///
-  /// [sourceRect] is the originating widget's rect in Flutter logical
-  /// pixels (global coordinates). Required on iPad and macOS (anchor for
-  /// the popover); ignored on iPhone and Android. Pass null on iPad/macOS
-  /// to center the popover — typical fallback when the originating widget
-  /// has been disposed by the time bytes are ready.
-  ///
-  /// [mimeType] hints `Intent.setType` on Android. Ignored on Apple
-  /// platforms (the share sheet infers from the file extension).
-  ///
-  /// [title] populates the subject hint (Mail subject on iOS/macOS,
-  /// chooser title on Android).
-  ///
-  /// Returns true if the sheet was presented. Returns false if the host
-  /// couldn't present it (no activity on Android, no window on macOS).
   /// Run [body] with scoped access to a file. On macOS / iOS, when
   /// [bookmark] is non-null, the plugin resolves the bookmark into a
   /// security-scoped URL, starts access, hands the resolved path to
@@ -135,6 +143,22 @@ class XFiles {
   static bool get supportsShare =>
       Platform.isIOS || Platform.isAndroid || Platform.isMacOS;
 
+  /// Present the native share sheet for a file on disk.
+  ///
+  /// [sourceRect] is the originating widget's rect in Flutter logical
+  /// pixels (global coordinates). Required on iPad and macOS (anchor for
+  /// the popover); ignored on iPhone and Android. Pass null on iPad/macOS
+  /// to center the popover — typical fallback when the originating widget
+  /// has been disposed by the time bytes are ready.
+  ///
+  /// [mimeType] hints `Intent.setType` on Android. Ignored on Apple
+  /// platforms (the share sheet infers from the file extension).
+  ///
+  /// [title] populates the subject hint (Mail subject on iOS/macOS,
+  /// chooser title on Android).
+  ///
+  /// Returns true if the sheet was presented. Returns false if the host
+  /// couldn't present it (no activity on Android, no window on macOS).
   static Future<bool> share({
     required String path,
     String? title,

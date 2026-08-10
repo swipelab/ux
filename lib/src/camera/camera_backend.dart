@@ -114,6 +114,7 @@ abstract class XCameraBackend {
 /// controller needs to start serving the preview widget and routing
 /// subsequent calls.
 class XCameraCreateResult {
+  /// Binds the native session handle to the preview it serves.
   const XCameraCreateResult({
     required this.handle,
     required this.textureId,
@@ -121,7 +122,10 @@ class XCameraCreateResult {
     this.previewRotationQuarterTurns = 0,
   });
 
+  /// Identifies the native session in every subsequent call.
   final int handle;
+
+  /// Texture the preview widget renders.
   final int textureId;
 
   /// Initial preview size; may be `Size.zero` when the native side
@@ -138,27 +142,47 @@ class XCameraCreateResult {
 /// Events pushed by the native side over `ux/camera/events`. Sealed —
 /// new variants land here as the contract grows.
 sealed class XCameraEvent {
+  /// Tags the event with the session it came from.
   const XCameraEvent(this.handle);
+
+  /// The session that emitted this event.
   final int handle;
 }
 
+/// Fired when the device's physical orientation changes.
 class XCameraDeviceOrientationChanged extends XCameraEvent {
+  /// Carries the orientation the device has moved to.
   const XCameraDeviceOrientationChanged(super.handle, this.orientation);
+
+  /// How the device is now held.
   final DeviceOrientation orientation;
 }
 
+/// Fired when the native session fails.
 class XCameraSessionError extends XCameraEvent {
+  /// Carries the failure's code and message.
   const XCameraSessionError(super.handle, this.code, this.description);
+
+  /// Stable identifier of the failure.
   final String code;
+
+  /// Human-readable detail, where the native side supplied one.
   final String? description;
 }
 
+/// Fired when the OS takes the camera away — a call, another app, or a
+/// system alert.
 class XCameraSessionInterrupted extends XCameraEvent {
+  /// Carries why the session was interrupted.
   const XCameraSessionInterrupted(super.handle, this.reason);
+
+  /// What the OS gave as the cause.
   final String reason;
 }
 
+/// Fired when the session gets the camera back after an interruption.
 class XCameraSessionResumed extends XCameraEvent {
+  /// Marks the session as running again.
   const XCameraSessionResumed(super.handle);
 }
 
@@ -168,7 +192,10 @@ class XCameraSessionResumed extends XCameraEvent {
 /// iOS doesn't emit it (the size lands in the `create` result
 /// synchronously from `device.activeFormat`).
 class XCameraPreviewSizeChanged extends XCameraEvent {
+  /// Carries the preview's revised pixel dimensions.
   const XCameraPreviewSizeChanged(super.handle, this.previewSize);
+
+  /// Preview dimensions in the sensor's natural orientation.
   final Size previewSize;
 }
 
@@ -176,6 +203,9 @@ class XCameraPreviewSizeChanged extends XCameraEvent {
 /// the controller to `Log.tag('camera').i(...)` so it lands in the
 /// log_server pipeline (`~/banlu/tools/log_server/data/banlu.jsonl`).
 class XCameraDiagnostic extends XCameraEvent {
+  /// Carries the recorder's message.
   const XCameraDiagnostic(super.handle, this.message);
+
+  /// What the native recorder reported.
   final String message;
 }

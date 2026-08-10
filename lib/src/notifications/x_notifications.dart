@@ -27,6 +27,8 @@ abstract interface class XNotifications {
   /// Tap events. Payload is the `data` Map supplied to [show].
   Stream<Map<String, String>> get onTap;
 
+  /// Prompts for notification authorization and reports whether it was
+  /// granted.
   Future<bool> requestPermission();
 
   /// Posts (or replaces) a system notification. Same [XNotification.id]
@@ -34,11 +36,16 @@ abstract interface class XNotifications {
   /// groups multiple notifications in the OS's notification UI.
   Future<void> show(XNotification n);
 
+  /// Withdraws every posted notification sharing [threadId].
   Future<void> cancelByThread(String threadId);
+
+  /// Withdraws every notification this app has posted.
   Future<void> cancelAll();
 }
 
+/// Production [XNotifications], over the `ux/notifications` channels.
 class MethodChannelXNotifications implements XNotifications {
+  /// Subscribes to the native event channel where one is registered.
   MethodChannelXNotifications() {
     if (!_hasNativeHandler) return;
     _eventsChannel.receiveBroadcastStream().listen(_onEvent, onError: (e, st) {
@@ -138,7 +145,9 @@ class MethodChannelXNotifications implements XNotifications {
   }
 }
 
+/// One system notification to post through [XNotifications.show].
 class XNotification {
+  /// Binds the notification's identity to the text the OS displays.
   XNotification({
     required this.id,
     required this.title,
@@ -152,7 +161,10 @@ class XNotification {
   /// latest preview from a chat replaces the older toast).
   final String id;
 
+  /// Headline the OS displays.
   final String title;
+
+  /// Body text below [title].
   final String body;
 
   /// Groups notifications in the OS UI (macOS Notification Center

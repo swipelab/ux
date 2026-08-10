@@ -1,9 +1,8 @@
-import 'dart:typed_data';
-
 import 'package:flutter/services.dart';
 
 /// What [XVideoProbe.probe] reports about one video file.
 class XVideoProbeResult {
+  /// Binds the reported dimensions, length, and poster frame.
   const XVideoProbeResult({
     required this.width,
     required this.height,
@@ -14,8 +13,11 @@ class XVideoProbeResult {
   /// Display dimensions — the track's natural size with its preferred
   /// transform applied, so a portrait recording reports portrait.
   final int width;
+
+  /// Display height, alongside [width].
   final int height;
 
+  /// Track length in milliseconds.
   final int durationMs;
 
   /// PNG of the requested frame, or null when the decode failed (an

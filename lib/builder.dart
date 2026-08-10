@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:build/build.dart';
 
+/// `build_runner` entry point that emits `lib/app_info.g.dart`.
 Builder appInfoBuilder(BuilderOptions options) => _AppInfoBuilder();
 
 class _AppInfoBuilder implements Builder {

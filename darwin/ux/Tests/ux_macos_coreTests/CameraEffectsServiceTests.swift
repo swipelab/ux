@@ -278,6 +278,26 @@ final class CameraEffectsServiceTests: XCTestCase {
 
     // MARK: - Lifecycle edges
 
+    func testAMissingBridgeBuildsNoProcessor() {
+        let harness = CameraEffectsHarness(installed: false)
+
+        let reply = harness.send(.setEffect(trackId: "a", effect: .blur, generation: 1))
+
+        XCTAssertEqual(reply.value, .failure(.integrationUnavailable))
+        XCTAssertEqual(harness.fakeProcessors?.requested, [])
+    }
+
+    func testAProcessorBuiltWhileTheBridgeDisappearsIsRetired() {
+        let processors = DisappearingBridgeProcessors()
+        let harness = CameraEffectsHarness(processors: processors)
+        processors.service = harness.service
+
+        let reply = harness.send(.setEffect(trackId: "a", effect: .blur, generation: 1))
+
+        XCTAssertEqual(reply.value, .failure(.integrationUnavailable))
+        XCTAssertEqual(processors.processor.retireCount, 1)
+    }
+
     func testUninstallingUnderALiveAttachmentFailsOnceAndLeavesTheNextCommandClean() {
         let harness = CameraEffectsHarness()
         harness.send(.setEffect(trackId: "a", effect: .blur, generation: 1))

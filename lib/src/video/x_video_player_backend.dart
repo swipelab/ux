@@ -34,11 +34,22 @@ abstract class XVideoPlayerBackend {
   /// texture. Safe to call repeatedly; no-op once disposed.
   Future<void> disposeInstance(int handle);
 
+  /// Start or resume playback.
   Future<void> play(int handle);
+
+  /// Halt playback, leaving the playhead where it is.
   Future<void> pause(int handle);
+
+  /// Move the playhead to [position].
   Future<void> seekTo(int handle, Duration position);
+
+  /// Set whether the track restarts on reaching its end.
   Future<void> setLooping(int handle, bool loop);
+
+  /// Set playback gain, from 0 to 1.
   Future<void> setVolume(int handle, double volume);
+
+  /// Set playback rate, where 1 is real time.
   Future<void> setPlaybackSpeed(int handle, double rate);
 
   /// Live event stream for [handle]. The controller subscribes during
@@ -49,11 +60,13 @@ abstract class XVideoPlayerBackend {
 /// The tuple returned by [XVideoPlayerBackend.create] — everything the
 /// controller needs to start the load + route subsequent calls.
 class XVideoPlayerCreateResult {
+  /// Binds the native session handle to the texture it renders through.
   const XVideoPlayerCreateResult({
     required this.handle,
     this.textureId,
   });
 
+  /// Identifies the native session in every subsequent call.
   final int handle;
 
   /// Apple-platform Flutter texture id, or null on Android (which uses
@@ -64,13 +77,17 @@ class XVideoPlayerCreateResult {
 /// Media metadata returned by [XVideoPlayerBackend.initialize] once the
 /// codec is ready.
 class XVideoPlayerMetadata {
+  /// Binds the track's dimensions, length, and display rotation.
   const XVideoPlayerMetadata({
     required this.size,
     required this.duration,
     this.rotationQuarterTurns = 0,
   });
 
+  /// Natural pixel dimensions of a video frame.
   final Size size;
+
+  /// Total length of the media.
   final Duration duration;
 
   /// Number of 90° clockwise rotations the Flutter `Texture` widget
@@ -86,7 +103,10 @@ class XVideoPlayerMetadata {
 /// Events pushed by the native side over `ux/video/events`. Sealed —
 /// new variants land here as the contract grows.
 sealed class XVideoPlayerEvent {
+  /// Tags the event with the session it came from.
   const XVideoPlayerEvent(this.handle);
+
+  /// The session that emitted this event.
   final int handle;
 }
 
@@ -94,6 +114,7 @@ sealed class XVideoPlayerEvent {
 /// meaning "no change since the last snapshot." Position is included
 /// on every emit; the rest are emitted on transition.
 class XVideoPlayerStateChanged extends XVideoPlayerEvent {
+  /// Carries whichever fields changed; the rest stay null.
   const XVideoPlayerStateChanged(
     super.handle, {
     this.isPlaying,
@@ -102,9 +123,16 @@ class XVideoPlayerStateChanged extends XVideoPlayerEvent {
     this.buffered,
   });
 
+  /// Whether the playhead is advancing.
   final bool? isPlaying;
+
+  /// Whether playback is stalled waiting on data.
   final bool? isBuffering;
+
+  /// Where the playhead now sits.
   final Duration? position;
+
+  /// Contiguous buffered spans.
   final List<XDurationRange>? buffered;
 }
 
@@ -113,7 +141,10 @@ class XVideoPlayerStateChanged extends XVideoPlayerEvent {
 /// streams emit it on resolution changes (not in scope for the
 /// file-only constructor today but the event remains valid).
 class XVideoPlayerSizeChanged extends XVideoPlayerEvent {
+  /// Carries the codec's revised frame dimensions.
   const XVideoPlayerSizeChanged(super.handle, this.size);
+
+  /// Natural pixel dimensions of a video frame.
   final Size size;
 }
 
@@ -121,13 +152,19 @@ class XVideoPlayerSizeChanged extends XVideoPlayerEvent {
 /// observed natively, so the controller only sees this event when
 /// playback truly stops at the tail.
 class XVideoPlayerCompleted extends XVideoPlayerEvent {
+  /// Marks playback as finished at the tail.
   const XVideoPlayerCompleted(super.handle);
 }
 
 /// Terminal error. The controller marks the value as `hasError = true`
 /// and stops emitting state updates until [XVideoPlayerBackend.disposeInstance].
 class XVideoPlayerError extends XVideoPlayerEvent {
+  /// Carries the failure's code and message.
   const XVideoPlayerError(super.handle, this.code, this.description);
+
+  /// Stable identifier of the failure.
   final String code;
+
+  /// Human-readable detail, where the native side supplied one.
   final String? description;
 }

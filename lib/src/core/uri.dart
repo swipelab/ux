@@ -20,12 +20,18 @@ typedef UriCanonicalConverter = String? Function(String slug);
 /// ```
 /// {@end-tool}
 class UriParser<Out, State> {
+  /// Binds the routes to try, in order, and the canonicalizers applied to
+  /// their captured fields.
   UriParser({
     this.routes = const [],
     this.canonical = const {},
   });
 
+  /// Tried in order; the first route whose builder yields non-null wins.
   final List<UriMap> routes;
+
+  /// Converters keyed by field name. A field with a converter only matches
+  /// when the converter recognizes its captured value.
   final Map<String, UriCanonicalConverter> canonical;
 
   /// Returns parsed domain object or `null` if no route matches.
@@ -69,31 +75,42 @@ UriParser.parse failed to build:
   }
 }
 
+/// Turns a matched URI into the domain object a route stands for. Returning
+/// `null` — or throwing — makes the route decline the match.
 typedef UriMapBuilder<Out, State> = Out? Function(UriMatch<State> match);
 
 /// Matched values & context provided to a [UriMapBuilder].
 class UriMatch<State> {
+  /// Binds the matched URI to its captured fields and the parse-time state.
   UriMatch(
     this.uri,
     this.pathParameters,
     this.state,
   );
 
+  /// The URI that matched, whole.
   final Uri uri;
+
+  /// Captured named fields, canonicalized where a converter applied.
   final Map<String, String> pathParameters;
+
+  /// Whatever the caller handed [UriParser.parse].
   final State state;
 
+  /// Query string of [uri], parsed.
   Map<String, String> get queryParameters => uri.queryParameters;
 }
 
 /// Associates one (or many) path patterns with a builder.
 class UriMap<Out, State> {
+  /// Associates a single [pattern] with [builder].
   UriMap(
     String pattern,
     this.builder, {
     bool matchEnd = true,
   }) : matchers = [PathMatcher(pattern, matchEnd: matchEnd)];
 
+  /// Associates several [patterns] — aliases of one route — with [builder].
   UriMap.many(
     List<String> patterns,
     this.builder, {
@@ -101,7 +118,10 @@ class UriMap<Out, State> {
   }) : matchers =
             patterns.map((e) => PathMatcher(e, matchEnd: matchEnd)).toList();
 
+  /// The compiled patterns this route answers to.
   final List<PathMatcher> matchers;
+
+  /// Builds the result once one of [matchers] matches.
   final UriMapBuilder builder;
 }
 
@@ -115,9 +135,10 @@ class UriMap<Out, State> {
 /// * - anything
 /// Compiles a path pattern with named fields into a matching regex.
 class PathMatcher {
+  /// Compiles [pattern]. With [matchEnd] the regex is anchored at the end, so
+  /// the pattern must consume the whole path.
   PathMatcher(
     this.pattern, {
-    // match end [$]
     bool matchEnd = true,
   }) {
     var index = 0;
@@ -189,8 +210,13 @@ class PathMatcher {
     return fields.every(map.containsKey) ? map : null;
   }
 
+  /// [pattern] compiled to a regex with one named group per field.
   late final RegExp pathTemplate;
+
+  /// The path pattern in source form.
   final String pattern;
+
+  /// Field names [pattern] declares, in declaration order.
   final Set<String> fields = {};
 
   @override

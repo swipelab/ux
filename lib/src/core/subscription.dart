@@ -54,6 +54,7 @@ class Subscription with Emitter {
 ///
 /// The [register] callback is used to specify the listenables to subscribe to.
 class SubscriptionBuilder extends StatefulWidget {
+  /// Binds the listenables to watch and the builder they drive.
   const SubscriptionBuilder({
     required this.register,
     required this.builder,
@@ -63,7 +64,10 @@ class SubscriptionBuilder extends StatefulWidget {
 
   /// Registers listenables given a [Subscription]
   final ValueSetter<Subscription> register;
+  /// Rebuilt whenever a registered listenable fires, and handed [child].
   final TransitionBuilder builder;
+
+  /// Subtree passed through to [builder] untouched by rebuilds.
   final Widget? child;
 
   @override

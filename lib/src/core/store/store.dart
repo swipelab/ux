@@ -8,8 +8,13 @@ export 'package:ux/src/core/store/factory/lazy_store_factory.dart';
 export 'package:ux/src/core/store/factory/store_factory.dart';
 export 'package:ux/src/core/store/factory/transient_store_factory.dart';
 
+/// Builds a [T] from whatever the [Locator] already holds.
 typedef LocatorCreateDelegate<T> = T Function(Locator e);
+
+/// Builds a [T] asynchronously, resolving dependencies through the [Resolver].
 typedef ResolverCreateDelegate<T> = Future<T> Function(Resolver e);
+
+/// Builds the [StoreFactory] a registration installs.
 typedef FactoryDelegate<T> = StoreFactory<T> Function(Resolver e);
 
 /// Sync locator
@@ -25,7 +30,9 @@ mixin Resolver {
   Future<T> resolve<T>();
 }
 
+/// Registration side of a store: what can be looked up, and how it is built.
 mixin Register on Resolver, Locator {
+  /// Registered factories, keyed by the type they produce.
   Map<Type, StoreFactory> registry = {};
 
   /// Activates registered factories (except [TransientFactory])
@@ -88,6 +95,7 @@ class Store with Locator, Resolver, Register {
     return entry.instance as T;
   }
 
+  /// [get] narrowed to `null` when the type is unregistered or unresolved.
   T? tryGet<T>() {
     try {
       return get<T>();
@@ -97,9 +105,13 @@ class Store with Locator, Resolver, Register {
   }
 }
 
+/// Locator that shadows a parent with its own overrides, leaving the parent
+/// untouched.
 class ScopedLocator with Locator {
+  /// Falls back to [parent] for anything this scope does not hold.
   ScopedLocator(this.parent);
 
+  /// Consulted whenever this scope has no entry for the requested type.
   Locator parent;
 
   final Map<Type, StoreFactory> _registry = {};
@@ -107,11 +119,14 @@ class ScopedLocator with Locator {
   @override
   T get<T>() => _registry[T]?.instance ?? parent.get<T>();
 
+  /// Shadows [T] within this scope with [instance].
   void add<T>(T instance) {
     _registry[T] = InstanceStoreFactory(instance);
   }
 }
 
+/// Opens override scopes over an existing locator.
 extension LocatorExtension on Locator {
+  /// A fresh [ScopedLocator] backed by this one.
   ScopedLocator scoped() => ScopedLocator(this);
 }

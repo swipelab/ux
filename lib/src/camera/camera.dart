@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' show Size;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -17,6 +16,7 @@ final _log = Log.tag('camera');
 /// [uxAvailableCameras]; passed to [XCameraController] to bind a
 /// specific lens.
 class XCameraDescription {
+  /// Binds a platform camera id to the lens it drives.
   const XCameraDescription({
     required this.id,
     required this.lens,
@@ -28,6 +28,7 @@ class XCameraDescription {
   /// interprets it.
   final String id;
 
+  /// Side of the device this camera faces.
   final XCameraLens lens;
 
   /// Clockwise rotation in degrees (0/90/180/270) from the camera
@@ -48,21 +49,39 @@ class XCameraDescription {
   int get hashCode => Object.hash(id, lens, sensorOrientation);
 }
 
-enum XCameraLens { front, back }
+/// Which way a camera faces.
+enum XCameraLens {
+  /// User-facing camera.
+  front,
+
+  /// World-facing camera.
+  back,
+}
 
 /// Resolution preset for both photo and video. Single value today
 /// (`high`); the enum exists so future presets can land without
 /// breaking call sites.
-enum XResolutionPreset { high }
+enum XResolutionPreset {
+  /// Highest preset the device offers for both photo and video.
+  high,
+}
 
 /// Flash mode applied to the next still capture. Only the two values
 /// the chat composer actually uses today.
-enum XFlashMode { off, always }
+enum XFlashMode {
+  /// The flash never fires.
+  off,
+
+  /// The flash fires on every capture.
+  always,
+}
 
 /// Immutable snapshot of a [XCameraController]'s state, broadcast to
 /// listeners. Updated on lifecycle transitions and on device-
 /// orientation events from the native side.
 class XCameraValue {
+  /// Binds a full state snapshot; every field but [description] defaults to
+  /// the uninitialized value.
   const XCameraValue({
     required this.description,
     this.previewSize,
@@ -75,9 +94,11 @@ class XCameraValue {
     this.errorDescription,
   });
 
+  /// State of a camera bound but not yet initialized.
   factory XCameraValue.uninitialized(XCameraDescription d) =>
       XCameraValue(description: d);
 
+  /// The camera this state describes.
   final XCameraDescription description;
 
   /// Pixel dimensions of the active video format, in the camera
@@ -85,7 +106,10 @@ class XCameraValue {
   /// is landscape — `1920×1080` etc.). Null until [isInitialized].
   final Size? previewSize;
 
+  /// Whether the native session is configured and streaming preview frames.
   final bool isInitialized;
+
+  /// Whether a video recording is in flight.
   final bool isRecordingVideo;
 
   /// Physical orientation reported by the native side's orientation
@@ -94,6 +118,7 @@ class XCameraValue {
   /// portrait.
   final DeviceOrientation deviceOrientation;
 
+  /// Whether the session was asked to capture audio alongside video.
   final bool enableAudio;
 
   /// True iff the user has granted microphone access. Updated when
@@ -118,8 +143,12 @@ class XCameraValue {
   /// Cleared on the next successful state transition.
   final String? errorDescription;
 
+  /// Whether [errorDescription] is set.
   bool get hasError => errorDescription != null;
 
+  /// This snapshot with the given fields replaced. Passing
+  /// `errorDescription: null` clears the error; omitting it keeps the
+  /// current one.
   XCameraValue copyWith({
     XCameraDescription? description,
     Size? previewSize,
@@ -153,9 +182,13 @@ class XCameraValue {
 /// Maps from native `FlutterError` codes; see the table in
 /// `~/banlu/plans/ux_camera.md` §error-model for the full set.
 class XCameraException implements Exception {
+  /// Binds the native error [code] and its optional message.
   const XCameraException(this.code, [this.description]);
 
+  /// Stable identifier of the failure, e.g. `disposed`.
   final String code;
+
+  /// Human-readable detail, where the native side supplied one.
   final String? description;
 
   @override
@@ -176,6 +209,8 @@ Future<List<XCameraDescription>> uxAvailableCameras() =>
 /// Lifecycle: [initialize] → use → [dispose]. After [dispose] every
 /// other method throws `XCameraException("disposed")`.
 class XCameraController extends ValueNotifier<XCameraValue> {
+  /// Binds a camera and its preset without touching the device; call
+  /// [initialize] to open the session.
   XCameraController(
     XCameraDescription description,
     this.resolutionPreset, {
@@ -185,6 +220,7 @@ class XCameraController extends ValueNotifier<XCameraValue> {
           enableAudio: enableAudio,
         ));
 
+  /// Resolution the session is opened at.
   final XResolutionPreset resolutionPreset;
 
   int? _handle;
@@ -192,7 +228,10 @@ class XCameraController extends ValueNotifier<XCameraValue> {
   StreamSubscription<XCameraEvent>? _eventsSub;
   bool _disposed = false;
 
+  /// The camera currently bound; changes with [setDescription].
   XCameraDescription get description => value.description;
+
+  /// Whether this session was opened asking for audio.
   bool get enableAudio => value.enableAudio;
 
   /// Texture id once the session has been created (during [initialize]).
@@ -282,16 +321,19 @@ class XCameraController extends ValueNotifier<XCameraValue> {
     );
   }
 
+  /// Sets the flash mode applied to the next still capture.
   Future<void> setFlashMode(XFlashMode mode) async {
     final handle = _requireHandle('setFlashMode');
     await XCameraBackend.instance.setFlashMode(handle, mode);
   }
 
+  /// Pins captures to [orientation], ignoring how the device is held.
   Future<void> lockCaptureOrientation(DeviceOrientation orientation) async {
     final handle = _requireHandle('lockCaptureOrientation');
     await XCameraBackend.instance.lockCaptureOrientation(handle, orientation);
   }
 
+  /// Returns captures to following the device orientation.
   Future<void> unlockCaptureOrientation() async {
     final handle = _requireHandle('unlockCaptureOrientation');
     await XCameraBackend.instance.unlockCaptureOrientation(handle);
@@ -320,6 +362,7 @@ class XCameraController extends ValueNotifier<XCameraValue> {
     value = value.copyWith(isRecordingVideo: true);
   }
 
+  /// Ends the recording and yields the finished file.
   Future<XFile> stopVideoRecording() async {
     final handle = _requireHandle('stopVideoRecording');
     final file = await XCameraBackend.instance.stopVideoRecording(handle);

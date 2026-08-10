@@ -245,6 +245,9 @@ public final class CameraEffectsService {
         guard let processors else {
             return finish(.failure(.unsupported), completion)
         }
+        guard isBridgeInstalled else {
+            return finish(.failure(.integrationUnavailable), completion)
+        }
         let processor: CameraEffectProcessor
         do {
             processor = try processors.makeProcessor(for: effect)
@@ -255,6 +258,7 @@ public final class CameraEffectsService {
         lock.lock()
         guard let bridge else {
             lock.unlock()
+            processor.retire()
             return finish(.failure(.integrationUnavailable), completion)
         }
         let observer = self.observer

@@ -7,6 +7,8 @@ import 'package:ux/src/_ffi.dart';
 
 final _uxDeviceOrientation = uxLookupInt32('ux_device_orientation');
 
+/// Device sensors read straight from native, bypassing the framework's
+/// orientation plumbing.
 class XSensor {
   XSensor._();
 
