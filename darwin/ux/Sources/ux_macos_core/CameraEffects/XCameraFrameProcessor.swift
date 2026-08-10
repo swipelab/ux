@@ -31,6 +31,18 @@ public final class CameraEffectSignposts: CameraEffectSignposting {
     }
 }
 
+/// How much of the pipeline a processor runs.
+public enum CameraEffectStage: String, Equatable, Sendable {
+    /// The frame crosses the bridge and is copied; no mask, no effect.
+    case passthrough
+
+    /// The mask producer runs and the copy ignores what it publishes.
+    case maskOnly = "mask-only"
+
+    /// The effect renders under the mask.
+    case composite
+}
+
 /// The production frame processor: every frame feeds the mask producer it
 /// owns, is composited with the newest published mask, and reports its
 /// outcome. Nothing it returns is the raw input.
@@ -84,16 +96,70 @@ public final class XCameraFrameProcessor: CameraEffectProcessor {
     }
 }
 
+/// A processor stopping short of the production path: the composite takes no
+/// mask, and a mask producer runs only when one is given — the published frame
+/// is a copy whatever that producer publishes.
+public final class StagedFrameProcessor: CameraEffectProcessor {
+    public init(compositor: CameraEffectCompositor, producer: PersonMaskProducer?) {
+        self.compositor = compositor
+        self.producer = producer
+    }
+
+    private let compositor: CameraEffectCompositor
+    let producer: PersonMaskProducer?
+
+    public func process(_ frame: CameraFrame) -> CameraFrameOutcome {
+        producer?.consider(frame)
+        return CameraFrameOutcome(
+            outcome: compositor.composite(frame: frame, mask: nil), processor: self
+        )
+    }
+
+    public func retire() {
+        producer?.reset()
+    }
+}
+
 /// Builds the host's processors: one compositor and one Vision-backed mask
-/// producer per effect.
+/// producer per effect. `stage` is what ``CameraEffectsRig`` moves to price one
+/// part of the pipeline at a time; every processor built after it changes runs
+/// that much.
 @available(macOS 12, iOS 15, *)
 public final class XCameraFrameProcessors: CameraEffectProcessorFactory {
     public init() {}
 
+    private let lock = NSLock()
+    private var staged = CameraEffectStage.composite
+
+    var stage: CameraEffectStage {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return staged
+        }
+        set {
+            lock.lock()
+            staged = newValue
+            lock.unlock()
+        }
+    }
+
     public func makeProcessor(for effect: CameraEffect) throws -> CameraEffectProcessor {
-        XCameraFrameProcessor(
-            compositor: CameraEffectCompositor(effect: effect),
-            producer: PersonMaskProducer(segmenter: VisionPersonSegmenter())
-        )
+        switch stage {
+        case .composite:
+            return XCameraFrameProcessor(
+                compositor: CameraEffectCompositor(effect: effect),
+                producer: PersonMaskProducer(segmenter: VisionPersonSegmenter())
+            )
+        case .maskOnly:
+            return StagedFrameProcessor(
+                compositor: CameraEffectCompositor(effect: .none),
+                producer: PersonMaskProducer(segmenter: VisionPersonSegmenter())
+            )
+        case .passthrough:
+            return StagedFrameProcessor(
+                compositor: CameraEffectCompositor(effect: .none), producer: nil
+            )
+        }
     }
 }

@@ -16,13 +16,13 @@ final class CameraEffectHostTests: XCTestCase {
 
     func testTheProcessorFactoryIsThereExactlyWhenTheHostMeetsTheFloor() {
         XCTAssertEqual(
-            CameraEffectHost.processors() != nil,
+            CameraEffectHost.processors != nil,
             ProcessInfo.processInfo.isOperatingSystemAtLeast(CameraEffectHost.floor)
         )
     }
 
     func testTheHostFactoryBuildsTheVisionBackedProcessor() throws {
-        guard let processors = CameraEffectHost.processors() else {
+        guard let processors = CameraEffectHost.processors else {
             throw XCTSkip("this host is below \(CameraEffectHost.requirement)")
         }
 

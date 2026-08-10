@@ -24,7 +24,7 @@ public enum CameraEffects {
     public static var isInstalled: Bool { service.isBridgeInstalled }
 
     static let service = CameraEffectsService(
-        processors: CameraEffectHost.processors(),
+        processors: CameraEffectHost.processors,
         scheduler: MainQueueScheduler()
     )
 }
