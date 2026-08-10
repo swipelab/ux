@@ -2,15 +2,25 @@ import Foundation
 
 /// One frame's result: the frame the track publishes, how it was produced,
 /// and the processor that produced it, so the service can drop outcomes
-/// arriving from a processor it no longer holds.
+/// arriving from a processor it no longer holds. `mask` is the object the
+/// processor snapshotted for this frame, which `use` describes the fate of.
 public struct CameraFrameOutcome {
-    public init(outcome: CompositeOutcome, processor: CameraEffectProcessor) {
+    public init(
+        outcome: CompositeOutcome,
+        processor: CameraEffectProcessor,
+        mask: CameraMask?,
+        use: CameraCompositeUse
+    ) {
         self.outcome = outcome
         self.processor = processor
+        self.mask = mask
+        self.use = use
     }
 
     public let outcome: CompositeOutcome
     public let processor: CameraEffectProcessor
+    public let mask: CameraMask?
+    public let use: CameraCompositeUse
 
     public var frame: CameraFrame { outcome.frame }
 }
@@ -35,7 +45,10 @@ public final class PassthroughEffectProcessor: CameraEffectProcessor {
 
     public func process(_ frame: CameraFrame) -> CameraFrameOutcome {
         CameraFrameOutcome(
-            outcome: .composited(frame, maskRejection: nil), processor: self
+            outcome: .composited(frame, background: nil, maskRejection: nil),
+            processor: self,
+            mask: nil,
+            use: .maskless
         )
     }
 

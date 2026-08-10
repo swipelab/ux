@@ -849,7 +849,8 @@ final class CameraEffectsServiceTests: XCTestCase {
         let service = CameraEffectsService(
             processors: PassthroughEffectProcessors(),
             scheduler: FakeCameraEffectsScheduler(),
-            delivery: MainQueueDelivery()
+            delivery: MainQueueDelivery(),
+            composites: CameraCompositeLog(exposes: true)
         )
         service.install(bridge)
 

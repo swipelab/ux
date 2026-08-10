@@ -23,7 +23,11 @@ public enum CameraCompositeSubstitution: String, Equatable, Sendable {
 public enum CompositeOutcome {
     /// A rendered frame; a set-aside mask records why the whole frame took
     /// the effect.
-    case composited(CameraFrame, maskRejection: CameraMaskRejection?)
+    case composited(
+        CameraFrame,
+        background: CameraBackgroundGrid?,
+        maskRejection: CameraMaskRejection?
+    )
 
     /// A fail-closed substitute — the last-good effected frame or black,
     /// never the input.
@@ -31,8 +35,15 @@ public enum CompositeOutcome {
 
     public var frame: CameraFrame {
         switch self {
-        case .composited(let frame, _): return frame
+        case .composited(let frame, _, _): return frame
         case .substituted(let frame, _): return frame
+        }
+    }
+
+    public var background: CameraBackgroundGrid? {
+        switch self {
+        case .composited(_, let background, _): return background
+        case .substituted: return nil
         }
     }
 }
@@ -45,10 +56,12 @@ public final class CameraEffectCompositor {
 
     public init(
         effect: CameraEffect,
-        pools: CameraEffectBufferPools = PixelBufferPools()
+        pools: CameraEffectBufferPools = PixelBufferPools(),
+        measures: Bool = false
     ) {
         self.effect = effect
         self.pools = pools
+        self.measures = measures
         // Color management off: under the managed default the working space
         // is extended-linear sRGB and the declared factors are not the bytes
         // that land.
@@ -70,6 +83,11 @@ public final class CameraEffectCompositor {
 
     private let effect: CameraEffect
     private let pools: CameraEffectBufferPools
+
+    /// Whether a composite reads back the background weight it applied. The
+    /// measurement is a render of its own, outside the published frame's path.
+    private let measures: Bool
+
     private let context: CIContext
     private let lock: UnsafeMutablePointer<os_unfair_lock>
 
@@ -82,6 +100,7 @@ public final class CameraEffectCompositor {
     private var pool: CameraEffectBufferPool?
     private var lastGood: CVPixelBuffer?
     private var black: CVPixelBuffer?
+    private var measurement: CVPixelBuffer?
 
     public func composite(frame: CameraFrame, mask: CameraMask?) -> CompositeOutcome {
         os_unfair_lock_lock(lock)
@@ -96,6 +115,10 @@ public final class CameraEffectCompositor {
             pool = pools.makePool(width: incoming.width, height: incoming.height)
             lastGood = nil
             black = Self.makeBlackBuffer(width: incoming.width, height: incoming.height)
+            measurement =
+                measures
+                ? Self.makeBuffer(width: incoming.width, height: incoming.height)
+                : nil
         }
         guard let pool, let output = pool.takeBuffer() else {
             return substitution(for: frame, reason: .poolUnavailable)
@@ -120,7 +143,9 @@ public final class CameraEffectCompositor {
         }
         lastGood = output
         return .composited(
-            published(output, from: frame), maskRejection: assessed.rejection
+            published(output, from: frame),
+            background: measured(assessed.image, for: frame),
+            maskRejection: assessed.rejection
         )
     }
 
@@ -150,59 +175,58 @@ public final class CameraEffectCompositor {
         _ mask: CameraMask?, against crop: CGRect
     ) -> (image: CIImage?, rejection: CameraMaskRejection?) {
         guard let mask else { return (nil, nil) }
-        guard mask.width > 0, mask.height > 0 else { return (nil, .zeroDimensioned) }
-        guard mask.sourceRect == crop else { return (nil, .sourceRectMismatch) }
-        guard !Self.isAllZero(mask.pixelBuffer) else { return (nil, .empty) }
+        if let rejection = mask.rejection(over: crop) { return (nil, rejection) }
         return (CIImage(cvPixelBuffer: mask.pixelBuffer), nil)
-    }
-
-    private static func isAllZero(_ buffer: CVPixelBuffer) -> Bool {
-        CVPixelBufferLockBaseAddress(buffer, .readOnly)
-        defer { CVPixelBufferUnlockBaseAddress(buffer, .readOnly) }
-        guard let base = CVPixelBufferGetBaseAddress(buffer) else { return true }
-        let width = CVPixelBufferGetWidth(buffer)
-        let height = CVPixelBufferGetHeight(buffer)
-        let bytesPerRow = CVPixelBufferGetBytesPerRow(buffer)
-        for row in 0..<height {
-            let bytes = (base + row * bytesPerRow).assumingMemoryBound(to: UInt8.self)
-            for column in 0..<width where bytes[column] != 0 { return false }
-        }
-        return true
     }
 
     private func graph(for frame: CameraFrame, mask: CIImage?) -> CIImage {
         let input = CIImage(cvPixelBuffer: frame.pixelBuffer)
-        // Crop arrives in the buffer's top-left-origin space; Core Image works
-        // bottom-left.
-        let cropRect = CGRect(
+        let cropRect = cropRect(of: frame)
+        let person = input.cropped(to: cropRect)
+        let background = background(of: person, in: cropRect)
+        let composed: CIImage
+        if let mask {
+            composed = blended(
+                person, over: background, mask: stretched(mask, onto: cropRect)
+            ).cropped(to: cropRect)
+        } else {
+            composed = background
+        }
+        return adapted(composed, from: cropRect, to: frame)
+    }
+
+    /// The crop in Core Image's bottom-left-origin space; it arrives in the
+    /// buffer's top-left-origin space.
+    private func cropRect(of frame: CameraFrame) -> CGRect {
+        CGRect(
             x: frame.crop.minX,
             y: CGFloat(CVPixelBufferGetHeight(frame.pixelBuffer)) - frame.crop.maxY,
             width: frame.crop.width,
             height: frame.crop.height
         )
-        let person = input.cropped(to: cropRect)
-        let background = background(of: person, in: cropRect)
-        let composed: CIImage
-        if let mask {
-            let extent = mask.extent
-            let stretched = mask
-                .transformed(
-                    by: CGAffineTransform(
-                        scaleX: cropRect.width / extent.width,
-                        y: cropRect.height / extent.height
-                    )
+    }
+
+    private func stretched(_ mask: CIImage, onto cropRect: CGRect) -> CIImage {
+        let extent = mask.extent
+        return
+            mask
+            .transformed(
+                by: CGAffineTransform(
+                    scaleX: cropRect.width / extent.width,
+                    y: cropRect.height / extent.height
                 )
-                .transformed(
-                    by: CGAffineTransform(
-                        translationX: cropRect.minX, y: cropRect.minY
-                    )
+            )
+            .transformed(
+                by: CGAffineTransform(
+                    translationX: cropRect.minX, y: cropRect.minY
                 )
-            composed = blended(person, over: background, mask: stretched)
-                .cropped(to: cropRect)
-        } else {
-            composed = background
-        }
-        return composed
+            )
+    }
+
+    private func adapted(
+        _ image: CIImage, from cropRect: CGRect, to frame: CameraFrame
+    ) -> CIImage {
+        image
             .transformed(
                 by: CGAffineTransform(
                     translationX: -cropRect.minX, y: -cropRect.minY
@@ -214,6 +238,80 @@ public final class CameraEffectCompositor {
                     y: CGFloat(frame.adaptedHeight) / cropRect.height
                 )
             )
+    }
+
+    /// The share of each cell the effect covers, read back from the composite's
+    /// own blend run over white on black, so the grid carries the alpha the
+    /// published frame took. A composite no mask reached covers every cell
+    /// whole.
+    private func measured(
+        _ mask: CIImage?, for frame: CameraFrame
+    ) -> CameraBackgroundGrid? {
+        guard measures else { return nil }
+        guard let mask else { return CameraBackgroundGrid(repeating: 1) }
+        guard let measurement else { return nil }
+        let cropRect = cropRect(of: frame)
+        let alpha = adapted(
+            blended(
+                CIImage(color: .white),
+                over: CIImage(color: .black),
+                mask: stretched(mask, onto: cropRect)
+            ).cropped(to: cropRect),
+            from: cropRect,
+            to: frame
+        )
+        do {
+            let destination = CIRenderDestination(pixelBuffer: measurement)
+            destination.colorSpace = nil
+            let task = try context.startTask(
+                toRender: alpha,
+                from: CGRect(
+                    x: 0, y: 0,
+                    width: frame.adaptedWidth, height: frame.adaptedHeight
+                ),
+                to: destination,
+                at: .zero
+            )
+            try task.waitUntilCompleted()
+        } catch {
+            return nil
+        }
+        return Self.grid(
+            over: measurement, width: frame.adaptedWidth, height: frame.adaptedHeight
+        )
+    }
+
+    private static func grid(
+        over buffer: CVPixelBuffer, width: Int, height: Int
+    ) -> CameraBackgroundGrid? {
+        CVPixelBufferLockBaseAddress(buffer, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(buffer, .readOnly) }
+        guard let base = CVPixelBufferGetBaseAddress(buffer) else { return nil }
+        let bytesPerRow = CVPixelBufferGetBytesPerRow(buffer)
+        let size = CameraBackgroundGrid.size
+        var fractions = [Float](repeating: 0, count: CameraBackgroundGrid.cells)
+        for row in 0..<size {
+            let top = CameraBackgroundGrid.edge(row, over: height)
+            let bottom = CameraBackgroundGrid.edge(row + 1, over: height)
+            for column in 0..<size {
+                let left = CameraBackgroundGrid.edge(column, over: width)
+                let right = CameraBackgroundGrid.edge(column + 1, over: width)
+                var sum = 0
+                var pixels = 0
+                for y in top..<bottom {
+                    let scan = (base + y * bytesPerRow)
+                        .assumingMemoryBound(to: UInt8.self)
+                    for x in left..<right {
+                        sum += 255 - Int(scan[x * 4])
+                        pixels += 1
+                    }
+                }
+                if pixels > 0 {
+                    fractions[row * size + column] = Float(sum) / Float(pixels * 255)
+                }
+            }
+        }
+        return CameraBackgroundGrid(fractions)
     }
 
     private func background(of image: CIImage, in rect: CGRect) -> CIImage {
@@ -286,9 +384,7 @@ public final class CameraEffectCompositor {
         )
     }
 
-    /// Allocated outside the bounded pool, so a pool failure can always be
-    /// answered.
-    private static func makeBlackBuffer(width: Int, height: Int) -> CVPixelBuffer {
+    private static func makeBuffer(width: Int, height: Int) -> CVPixelBuffer? {
         let attributes: [CFString: Any] = [
             kCVPixelBufferIOSurfacePropertiesKey: [:] as CFDictionary,
             kCVPixelBufferMetalCompatibilityKey: true,
@@ -298,8 +394,15 @@ public final class CameraEffectCompositor {
             kCFAllocatorDefault, width, height, kCVPixelFormatType_32BGRA,
             attributes as CFDictionary, &made
         )
-        guard result == kCVReturnSuccess, let buffer = made else {
-            preconditionFailure("black substitute allocation failed: \(result)")
+        guard result == kCVReturnSuccess else { return nil }
+        return made
+    }
+
+    /// Allocated outside the bounded pool, so a pool failure can always be
+    /// answered.
+    private static func makeBlackBuffer(width: Int, height: Int) -> CVPixelBuffer {
+        guard let buffer = makeBuffer(width: width, height: height) else {
+            preconditionFailure("black substitute allocation failed")
         }
         CVPixelBufferLockBaseAddress(buffer, [])
         if let base = CVPixelBufferGetBaseAddress(buffer) {

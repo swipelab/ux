@@ -107,7 +107,7 @@ public final class PersonMaskProducer {
             let pool, let destination = pool.takeBuffer(),
             copy(frame, into: destination)
         else { return release(claimed) }
-        guard let submission = stamp(frame.crop, claimed) else { return }
+        guard let submission = stamp(frame, claimed) else { return }
         queue.async { [segmenter, weak self] in
             segmenter.submit(destination) { result in
                 self?.complete(result, submission)
@@ -130,6 +130,7 @@ public final class PersonMaskProducer {
     private struct Submission {
         let generation: Int
         let crop: CGRect
+        let timestampNs: Int64
     }
 
     /// The generation the caller may submit under, or `nil` when an inference
@@ -150,13 +151,15 @@ public final class PersonMaskProducer {
         inFlight = false
     }
 
-    private func stamp(_ crop: CGRect, _ claimed: Int) -> Submission? {
+    private func stamp(_ frame: CameraFrame, _ claimed: Int) -> Submission? {
         os_unfair_lock_lock(lock)
         defer { os_unfair_lock_unlock(lock) }
         guard claimed == generation else { return nil }
         submittedAt = clock.now
         lastSubmissionAt = submittedAt
-        return Submission(generation: claimed, crop: crop)
+        return Submission(
+            generation: claimed, crop: frame.crop, timestampNs: frame.timestampNs
+        )
     }
 
     private func complete(
@@ -171,7 +174,8 @@ public final class PersonMaskProducer {
             pixelBuffer: buffer,
             width: CVPixelBufferGetWidth(buffer),
             height: CVPixelBufferGetHeight(buffer),
-            sourceRect: submission.crop
+            sourceRect: submission.crop,
+            sourceTimestampNs: submission.timestampNs
         )
         publications += 1
         // The first inference of a producer carries the model load, which is

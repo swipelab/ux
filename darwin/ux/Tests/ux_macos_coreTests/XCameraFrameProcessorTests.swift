@@ -136,7 +136,7 @@ final class XCameraFrameProcessorTests: XCTestCase {
 
         let outcome = processor.process(raw)
 
-        guard case .composited(_, let rejection) = outcome.outcome else {
+        guard case .composited(_, _, let rejection) = outcome.outcome else {
             return XCTFail("expected a composited frame")
         }
         XCTAssertNil(rejection)
@@ -330,7 +330,6 @@ final class XCameraFrameProcessorTests: XCTestCase {
         XCTAssertFalse(first.producer === second.producer)
     }
 
-
     func testThePassthroughStageCopiesTheFrameAndRunsNoInference() {
         let processor = StagedFrameProcessor(
             compositor: CameraEffectCompositor(effect: .none), producer: nil
@@ -339,7 +338,7 @@ final class XCameraFrameProcessorTests: XCTestCase {
 
         let outcome = processor.process(raw)
 
-        guard case .composited(_, let rejection) = outcome.outcome else {
+        guard case .composited(_, _, let rejection) = outcome.outcome else {
             return XCTFail("expected a composited frame")
         }
         XCTAssertNil(rejection)
@@ -370,6 +369,70 @@ final class XCameraFrameProcessorTests: XCTestCase {
         processor.retire()
 
         XCTAssertNil(producer.mask)
+    }
+
+    func testTheMaskOnlyStageReportsAnApplicableSnapshotUsedOverAWholeBackground() {
+        let producer = PersonMaskProducer(segmenter: maskedSegmenter(), clock: TestClock())
+        let processor = StagedFrameProcessor(
+            compositor: CameraEffectCompositor(effect: .none, measures: true),
+            producer: producer
+        )
+        _ = processor.process(rawFrame(person: true))
+        producer.queue.sync {}
+
+        let outcome = processor.process(rawFrame(person: true))
+
+        XCTAssertEqual(outcome.use, .used)
+        XCTAssertEqual(outcome.mask?.sourceTimestampNs, 0)
+        XCTAssertEqual(outcome.outcome.background?.fraction(column: 4, row: 8), 1)
+    }
+
+    func testTheMaskOnlyStageReportsAnInapplicableSnapshotRejected() {
+        let producer = PersonMaskProducer(
+            segmenter: ScriptedSegmenter(
+                .immediate, mask: { makeMaskBuffer(width: 32, height: 32) }
+            ),
+            clock: TestClock()
+        )
+        let processor = StagedFrameProcessor(
+            compositor: CameraEffectCompositor(effect: .none), producer: producer
+        )
+        _ = processor.process(rawFrame(person: true))
+        producer.queue.sync {}
+
+        let outcome = processor.process(rawFrame(person: true))
+
+        XCTAssertEqual(outcome.use, .rejected(.empty))
+    }
+
+    func testThePassthroughStageReportsEveryFrameMaskless() {
+        let processor = StagedFrameProcessor(
+            compositor: CameraEffectCompositor(effect: .none), producer: nil
+        )
+
+        let outcome = processor.process(rawFrame(person: true))
+
+        XCTAssertEqual(outcome.use, .maskless)
+        XCTAssertNil(outcome.mask)
+    }
+
+    func testAGoodMaskIsReportedUsedWithTheFrameItWasInferredFrom() {
+        let producer = PersonMaskProducer(segmenter: maskedSegmenter(), clock: TestClock())
+        let processor = XCameraFrameProcessor(
+            compositor: CameraEffectCompositor(effect: .dim),
+            producer: producer,
+            signposts: ScriptedSignposts()
+        )
+        let inferredFrom = makeEffectFrame(width: 32, height: 32, timestampNs: 41) { x, y in
+            (8..<24).contains(x) && (8..<24).contains(y) ? personLevel : rawLevel
+        }
+        _ = processor.process(inferredFrom)
+        producer.queue.sync {}
+
+        let outcome = processor.process(rawFrame(person: true))
+
+        XCTAssertEqual(outcome.use, .used)
+        XCTAssertEqual(outcome.mask?.sourceTimestampNs, 41)
     }
 
     // MARK: - Signposts
