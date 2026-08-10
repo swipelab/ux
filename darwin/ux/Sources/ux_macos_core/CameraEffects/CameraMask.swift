@@ -9,26 +9,33 @@ public struct CameraMask {
         width: Int,
         height: Int,
         sourceRect: CGRect,
+        rotation: CameraFrameRotation,
         sourceTimestampNs: Int64
     ) {
         self.pixelBuffer = pixelBuffer
         self.width = width
         self.height = height
         self.sourceRect = sourceRect
+        self.rotation = rotation
         self.sourceTimestampNs = sourceTimestampNs
     }
 
     public let pixelBuffer: CVPixelBuffer
 
     /// The mask's own grid, whose aspect does not track the frame's: the
-    /// whole buffer stretches onto `sourceRect` with independent x and y
-    /// scales.
+    /// whole buffer, turned back by `rotation`, stretches onto `sourceRect`
+    /// with independent x and y scales.
     public let width: Int
     public let height: Int
 
     /// The region of the frame's pixel buffer the mask was produced against,
     /// in pixels, top-left origin, pre-rotation. It equals the frame's crop.
     public let sourceRect: CGRect
+
+    /// The quarter turn from `sourceRect` to the mask's own grid: segmentation
+    /// answers in the upright space, which is that region turned clockwise by
+    /// this much.
+    public let rotation: CameraFrameRotation
 
     /// The timestamp of the frame the mask was inferred from.
     public let sourceTimestampNs: Int64

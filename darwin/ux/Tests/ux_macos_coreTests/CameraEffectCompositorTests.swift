@@ -146,6 +146,35 @@ final class CameraEffectCompositorTests: XCTestCase {
         assertGray(output.pixelBuffer, 100, 100, 50)
     }
 
+    /// The buffer holds the person on their side and the frame's quarter turn
+    /// stands them up; the mask covers that standing shape.
+    func testAQuarterTurnedFrameKeepsThePersonSharpWhereItsBufferHoldsThem() throws {
+        let compositor = CameraEffectCompositor(effect: .dim, measures: true)
+        let frame = makeEffectFrame(width: 320, height: 180, rotation: .degrees90) {
+            x, y in
+            (20..<100).contains(x) && (40..<140).contains(y) ? 40 : 220
+        }
+        let mask = makeEffectMask(
+            width: 180, height: 320,
+            sourceRect: frame.crop,
+            person: CGRect(x: 40, y: 20, width: 100, height: 80),
+            rotation: .degrees90
+        )
+
+        let outcome = compositor.composite(frame: frame, mask: mask)
+
+        guard case .composited(let output, let background, let rejection) = outcome
+        else { return XCTFail("expected a composited frame") }
+        XCTAssertNil(rejection)
+        assertGray(output.pixelBuffer, 60, 90, 40)
+        assertGray(output.pixelBuffer, 30, 50, 40)
+        assertGray(output.pixelBuffer, 160, 30, 110)
+        assertGray(output.pixelBuffer, 280, 150, 110)
+        let grid = try XCTUnwrap(background)
+        XCTAssertEqual(grid.fraction(column: 2, row: 6), 0, accuracy: 0.02)
+        XCTAssertEqual(grid.fraction(column: 14, row: 2), 1, accuracy: 0.02)
+    }
+
     func testAnAllZeroMaskRecordsItsRejectionAndTheWholeFrameTakesTheEffect() {
         let compositor = CameraEffectCompositor(effect: .dim)
         let frame = makeEffectFrame(width: 64, height: 36) { _, _ in 200 }

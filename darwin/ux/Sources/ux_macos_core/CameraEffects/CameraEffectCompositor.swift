@@ -124,7 +124,7 @@ public final class CameraEffectCompositor {
             return substitution(for: frame, reason: .poolUnavailable)
         }
         let assessed = assess(mask, against: frame.crop)
-        let image = graph(for: frame, mask: assessed.image)
+        let image = graph(for: frame, mask: assessed.selection)
         do {
             let destination = CIRenderDestination(pixelBuffer: output)
             destination.colorSpace = nil
@@ -144,7 +144,7 @@ public final class CameraEffectCompositor {
         lastGood = output
         return .composited(
             published(output, from: frame),
-            background: measured(assessed.image, for: frame),
+            background: measured(assessed.selection, for: frame),
             maskRejection: assessed.rejection
         )
     }
@@ -171,15 +171,28 @@ public final class CameraEffectCompositor {
         return bounds.contains(frame.crop)
     }
 
-    private func assess(
-        _ mask: CameraMask?, against crop: CGRect
-    ) -> (image: CIImage?, rejection: CameraMaskRejection?) {
-        guard let mask else { return (nil, nil) }
-        if let rejection = mask.rejection(over: crop) { return (nil, rejection) }
-        return (CIImage(cvPixelBuffer: mask.pixelBuffer), nil)
+    /// The mask as the graph applies it: its own image and the turn that puts
+    /// it back over the frame's buffer.
+    private struct Selection {
+        let image: CIImage
+        let rotation: CameraFrameRotation
     }
 
-    private func graph(for frame: CameraFrame, mask: CIImage?) -> CIImage {
+    private func assess(
+        _ mask: CameraMask?, against crop: CGRect
+    ) -> (selection: Selection?, rejection: CameraMaskRejection?) {
+        guard let mask else { return (nil, nil) }
+        if let rejection = mask.rejection(over: crop) { return (nil, rejection) }
+        return (
+            Selection(
+                image: CIImage(cvPixelBuffer: mask.pixelBuffer),
+                rotation: mask.rotation
+            ),
+            nil
+        )
+    }
+
+    private func graph(for frame: CameraFrame, mask: Selection?) -> CIImage {
         let input = CIImage(cvPixelBuffer: frame.pixelBuffer)
         let cropRect = cropRect(of: frame)
         let person = input.cropped(to: cropRect)
@@ -206,10 +219,16 @@ public final class CameraEffectCompositor {
         )
     }
 
-    private func stretched(_ mask: CIImage, onto cropRect: CGRect) -> CIImage {
-        let extent = mask.extent
+    private func stretched(_ mask: Selection, onto cropRect: CGRect) -> CIImage {
+        let unturned = mask.image.transformed(by: mask.rotation.unturning)
+        let extent = unturned.extent
         return
-            mask
+            unturned
+            .transformed(
+                by: CGAffineTransform(
+                    translationX: -extent.minX, y: -extent.minY
+                )
+            )
             .transformed(
                 by: CGAffineTransform(
                     scaleX: cropRect.width / extent.width,
@@ -245,7 +264,7 @@ public final class CameraEffectCompositor {
     /// published frame took. A composite no mask reached covers every cell
     /// whole.
     private func measured(
-        _ mask: CIImage?, for frame: CameraFrame
+        _ mask: Selection?, for frame: CameraFrame
     ) -> CameraBackgroundGrid? {
         guard measures else { return nil }
         guard let mask else { return CameraBackgroundGrid(repeating: 1) }

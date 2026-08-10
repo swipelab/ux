@@ -60,6 +60,7 @@ final class ScriptedSegmenter: PersonSegmenting {
     /// Sizes, not buffers: holding the inputs would keep the producer's whole
     /// pool checked out.
     private var inputSizes: [(width: Int, height: Int)] = []
+    private var inputRotations: [CameraFrameRotation] = []
     private var releasing = false
     private var held: [(Result<CVPixelBuffer, Error>) -> Void] = []
 
@@ -88,8 +89,15 @@ final class ScriptedSegmenter: PersonSegmenting {
         return inputSizes
     }
 
+    var rotations: [CameraFrameRotation] {
+        state.lock()
+        defer { state.unlock() }
+        return inputRotations
+    }
+
     func submit(
         _ input: CVPixelBuffer,
+        rotation: CameraFrameRotation,
         completion: @escaping (Result<CVPixelBuffer, Error>) -> Void
     ) {
         state.lock()
@@ -97,6 +105,7 @@ final class ScriptedSegmenter: PersonSegmenting {
         inputSizes.append(
             (CVPixelBufferGetWidth(input), CVPixelBufferGetHeight(input))
         )
+        inputRotations.append(rotation)
         let behavior = stored
         state.broadcast()
         state.unlock()

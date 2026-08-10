@@ -208,6 +208,46 @@ final class PersonMaskProducerTests: XCTestCase {
         assertGray(published.frame.pixelBuffer, 10, 10, 100)
     }
 
+    func testTheInferenceRunsUnderTheFrameRotationAndTheMaskCarriesIt() {
+        let clock = TestClock()
+        let segmenter = ScriptedSegmenter(
+            .immediate,
+            mask: {
+                makeMaskBuffer(
+                    width: gridWidth, height: gridHeight,
+                    person: CGRect(x: 32, y: 24, width: 96, height: 72)
+                )
+            }
+        )
+        let producer = makeProducer(segmenter, clock: clock)
+        let compositor = CameraEffectCompositor(effect: .dim)
+        let turned = makeEffectFrame(width: 320, height: 180, rotation: .degrees90)
+
+        producer.consider(turned)
+        producer.queue.sync {}
+
+        XCTAssertEqual(segmenter.rotations, [.degrees90])
+        guard let mask = producer.mask else { return XCTFail("expected a mask") }
+        XCTAssertEqual(mask.rotation, .degrees90)
+
+        guard case .composited(let output, _, let rejection) =
+            compositor.composite(frame: turned, mask: mask)
+        else { return XCTFail("expected a composited frame") }
+        XCTAssertNil(rejection)
+        assertGray(output.pixelBuffer, 100, 120, 128)
+        assertGray(output.pixelBuffer, 100, 50, 64)
+    }
+
+    func testTheVisionSegmenterStandsTheInferenceUpByTheFrameRotation() throws {
+        guard #available(macOS 12, iOS 15, *) else {
+            throw XCTSkip("person segmentation needs macOS 12")
+        }
+        XCTAssertEqual(VisionPersonSegmenter.orientation(.degrees0), .up)
+        XCTAssertEqual(VisionPersonSegmenter.orientation(.degrees90), .right)
+        XCTAssertEqual(VisionPersonSegmenter.orientation(.degrees180), .down)
+        XCTAssertEqual(VisionPersonSegmenter.orientation(.degrees270), .left)
+    }
+
     func testAnAllZeroMaskIsPublishedAndTheCompositorTakesTheWholeFramePath() {
         let clock = TestClock()
         let segmenter = ScriptedSegmenter(

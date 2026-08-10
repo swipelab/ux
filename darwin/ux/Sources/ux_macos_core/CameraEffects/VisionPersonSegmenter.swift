@@ -1,5 +1,6 @@
 import CoreVideo
 import Foundation
+import ImageIO
 import Vision
 
 /// Why an inference produced no mask.
@@ -24,16 +25,30 @@ public final class VisionPersonSegmenter: PersonSegmenting {
 
     public func submit(
         _ input: CVPixelBuffer,
+        rotation: CameraFrameRotation,
         completion: @escaping (Result<CVPixelBuffer, Error>) -> Void
     ) {
         do {
-            try VNImageRequestHandler(cvPixelBuffer: input).perform([request])
+            try VNImageRequestHandler(
+                cvPixelBuffer: input, orientation: Self.orientation(rotation)
+            ).perform([request])
             guard let mask = request.results?.first?.pixelBuffer else {
                 return completion(.failure(PersonSegmentationFailure.noObservation))
             }
             completion(.success(mask))
         } catch {
             completion(.failure(error))
+        }
+    }
+
+    static func orientation(
+        _ rotation: CameraFrameRotation
+    ) -> CGImagePropertyOrientation {
+        switch rotation {
+        case .degrees0: return .up
+        case .degrees90: return .right
+        case .degrees180: return .down
+        case .degrees270: return .left
         }
     }
 }
