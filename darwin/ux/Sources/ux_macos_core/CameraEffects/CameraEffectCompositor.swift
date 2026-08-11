@@ -1,3 +1,4 @@
+import Accelerate
 import CoreGraphics
 import CoreImage
 import CoreVideo
@@ -300,6 +301,12 @@ public final class CameraEffectCompositor {
         )
     }
 
+    /// The reduction runs on the frame-publishing thread, so each cell is
+    /// summed in two separable vectorised passes: its rows into one
+    /// accumulator, then that accumulator across the cell's columns.
+    ///
+    /// A cell's sum never reaches 2^24, so the `Float` accumulation carries
+    /// each integer exactly and answers the fractions an integer sum would.
     private static func grid(
         over buffer: CVPixelBuffer, width: Int, height: Int
     ) -> CameraBackgroundGrid? {
@@ -308,26 +315,33 @@ public final class CameraEffectCompositor {
         guard let base = CVPixelBufferGetBaseAddress(buffer) else { return nil }
         let bytesPerRow = CVPixelBufferGetBytesPerRow(buffer)
         let size = CameraBackgroundGrid.size
+        let span = vDSP_Length(width)
         var fractions = [Float](repeating: 0, count: CameraBackgroundGrid.cells)
+        let band = UnsafeMutablePointer<Float>.allocate(capacity: width)
+        let line = UnsafeMutablePointer<Float>.allocate(capacity: width)
+        defer {
+            band.deallocate()
+            line.deallocate()
+        }
         for row in 0..<size {
             let top = CameraBackgroundGrid.edge(row, over: height)
             let bottom = CameraBackgroundGrid.edge(row + 1, over: height)
+            vDSP_vclr(band, 1, span)
+            for y in top..<bottom {
+                let scan = (base + y * bytesPerRow)
+                    .assumingMemoryBound(to: UInt8.self)
+                vDSP_vfltu8(scan, 4, line, 1, span)
+                vDSP_vadd(band, 1, line, 1, band, 1, span)
+            }
             for column in 0..<size {
                 let left = CameraBackgroundGrid.edge(column, over: width)
                 let right = CameraBackgroundGrid.edge(column + 1, over: width)
-                var sum = 0
-                var pixels = 0
-                for y in top..<bottom {
-                    let scan = (base + y * bytesPerRow)
-                        .assumingMemoryBound(to: UInt8.self)
-                    for x in left..<right {
-                        sum += 255 - Int(scan[x * 4])
-                        pixels += 1
-                    }
-                }
-                if pixels > 0 {
-                    fractions[row * size + column] = Float(sum) / Float(pixels * 255)
-                }
+                let pixels = (bottom - top) * (right - left)
+                guard pixels > 0 else { continue }
+                var sum: Float = 0
+                vDSP_sve(band + left, 1, &sum, vDSP_Length(right - left))
+                let whole = Float(pixels) * 255
+                fractions[row * size + column] = (whole - sum) / whole
             }
         }
         return CameraBackgroundGrid(fractions)
