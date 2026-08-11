@@ -12,7 +12,6 @@ fun interface MaskCadence {
 
 /**
  * The host's thermal status on [PowerManager]'s ladder, reported as it moves.
- * Injected so a test drives pressure without heat.
  */
 interface CameraThermalSource : AutoCloseable {
     fun observe(listener: (Int) -> Unit)
