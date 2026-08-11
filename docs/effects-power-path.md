@@ -81,31 +81,30 @@ composite render entirely leaves 51% of the added heat in place.
 
 ### Where the render's work is
 
-`CameraEffectCompositor.render` runs five full-resolution passes per frame for
-`DIM` at 1280x720 I420 (1.38 MB/frame): **[code]**
+`CameraEffectCompositor.render` runs four passes per frame for `DIM` at
+1280x720 I420 (1.38 MB/frame), three of them over every sample: **[code]**
 
 1. `RenderScratch.readInput` — three `copyPlane` loops pull the planes row by
    row out of the host's `ByteBuffer` into heap `ByteArray`s.
-2. `dim` — per-pixel multiply-and-shift over Y, U and V, source arrays to
-   destination arrays.
-3. `prepareMask` — the mask grid's 144 rows stretched to the frame's width,
+2. `prepareMask` — the mask grid's 144 rows stretched to the frame's width,
    two `FloatBuffer.get` calls per output sample: 184k samples per frame.
-4. `blendPerson` — `blendLuma` reads `inY` and `outY` and rewrites `outY` with a
-   per-pixel interpolation between two mask rows, accumulating the background
-   grid; `blendChroma` does the same over both chroma planes.
-5. `writeInto` — the three destination arrays copied into the output buffer's
+3. `composeOverPerson` — two walks over the three planes. `scaledLumaRow` scales
+   a source sample to its background and interpolates the person over it into
+   the same store, accumulating the background grid; `scaledChromaRow` carries
+   both chroma planes under one alpha.
+4. `writeInto` — the three destination arrays copied into the output buffer's
    direct `ByteBuffer`s.
 
-That is roughly 8 MB of memory traffic and 2.6M per-pixel operations per frame,
-190 MB/s and 62M ops/s at 24 fps. The `NONE` compositor the `passthrough` and
-`mask-only` rungs run does passes 1, 5 and a bulk `copyInput` — about 5.5 MB per
-frame and no per-pixel arithmetic. The render's measured +0.34 C/min therefore
-buys ~2.5 MB/frame of extra traffic and the arithmetic on top of it. **[code]**
+Counting a read and a write of the frame per full-resolution pass, that is
+8.3 MB of array traffic and 1.4M per-pixel blends per frame, 200 MB/s and
+33M ops/s at 24 fps. The `NONE` compositor the `passthrough` and `mask-only`
+rungs run moves the same 8.3 MB — `readInput`, a bulk `arraycopy`, `writeInto` —
+with no per-pixel arithmetic. What the render's measured +0.34 C/min buys over
+it is the mask stretch and the blend arithmetic, not extra traffic. **[code]**
 
-The intermediates are what the traffic is made of. `inY`/`outY` exist so that
-`dim` can write a background the blend then reads back; a single pass computing
-`(person·α + dim(source)·(256−α)) >> 8` straight from `planes.dataY` into the
-output buffer carries the same arithmetic over ~2.8 MB/frame. **[code]**
+`BLUR` is the one effect that stages a background: `blurPlane` writes the
+upscaled grid into the destination arrays and the walk reads it back, one
+full-resolution pass more than `DIM`. **[code]**
 
 ### Where the mask producer's work is
 
@@ -192,7 +191,7 @@ ladder and is carried only as a sign, not a magnitude.
 
 ### What moves
 
-The compositor's five CPU passes become one fragment shader over the camera
+The compositor's four CPU passes become one fragment shader over the camera
 texture: sample the source, apply dim or a separable blur, blend against the
 mask sampled as a texture, render to an output texture the publication wraps.
 The mask producer's full-resolution `copy` becomes a 256x144 downscale rendered
@@ -229,11 +228,11 @@ make one.
   `retire()`, which is not the thread that called it. A context outliving a
   camera restart is a leak the current CPU path cannot have.
 * **The background grid.** `CameraBackgroundGrid` is accumulated inside
-  `blendLumaRow` as a by-product of the CPU blend, and `CameraCompositeRecord`
-  carries it to `CameraEffectsRig.composites()`. babylon's
-  `phone-effects-band.mjs` and `phone-effects-report.mjs` calibrate on it. A GPU
-  blend must produce the same 16x16 reduction on the GPU and read it back, or
-  the frozen rig contracts lose their input.
+  the compose walk's luma rows as a by-product of the CPU blend, and
+  `CameraCompositeRecord` carries it to `CameraEffectsRig.composites()`.
+  babylon's `phone-effects-band.mjs` and `phone-effects-report.mjs` calibrate
+  on it. A GPU blend must produce the same 16x16 reduction on the GPU and read
+  it back, or the frozen rig contracts lose their input.
 
 ### Regression risk
 
@@ -257,7 +256,7 @@ make one.
 | knob | what it changes | measured anchor | what it costs the user |
 |---|---|---|---|
 | mask cadence | `PersonMaskProducer.TARGET_SUBMISSIONS_PER_SECOND`, 15 | ≤0.20 C/min, the whole producer rung; the inference share scales with cadence, the per-frame gate check does not | the silhouette trails motion; already a named rig verdict (`mask-stale`) |
-| blend resolution | `blendLuma` on a half-res luma grid with α upscaled | none | a softer silhouette edge, ~2 px |
+| blend resolution | the luma blend on a half-res grid with α upscaled | none | a softer silhouette edge, ~2 px |
 | effect grid | `LUMA_DOWNSCALE` above 8 for blur | none | a coarser blur, no change to dim, which has no grid |
 | published resolution | the track's capture format | none | not this package's — the host owns the format, so this is a request to the host, not a knob here |
 | retract to none | publish the frame unchanged | the full +0.69 C/min | the effect disappears without the user asking, and `status` is the processor's account of the frames — an autonomous retraction has no authored `idle` behind it and contradicts the contract as written |
