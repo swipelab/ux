@@ -29,6 +29,7 @@ private fun personMaskPixels(): PersonMaskPixels {
 class CameraEffectProcessorsTest {
     private val executor = ManualExecutor()
     private val clock = TestClock()
+    private val cadence = CameraThermalCadence(clock)
     private val segmenter = ScriptedSegmenter(mask = ::personMaskPixels)
 
     private fun makeProducer() = PersonMaskProducer(
@@ -238,7 +239,7 @@ class CameraEffectProcessorsTest {
     @Test
     fun thePassthroughStageCopiesTheFrameAndRunsNoInference() {
         val made = mutableListOf<ScriptedSegmenter>()
-        val factory = CameraEffectProcessors { ScriptedSegmenter().also { made.add(it) } }
+        val factory = CameraEffectProcessors(cadence) { ScriptedSegmenter().also { made.add(it) } }
         factory.stage = CameraEffectStage.PASSTHROUGH
 
         val processor = factory.makeProcessor(CameraEffect.BLUR)
@@ -276,7 +277,7 @@ class CameraEffectProcessorsTest {
 
     @Test
     fun theCompositeStageIsWhatTheFactoryHolds() {
-        val factory = CameraEffectProcessors { ScriptedSegmenter() }
+        val factory = CameraEffectProcessors(cadence) { ScriptedSegmenter() }
 
         val processor = factory.makeProcessor(CameraEffect.DIM)
 
@@ -288,7 +289,7 @@ class CameraEffectProcessorsTest {
     @Test
     fun theFactoryBuildsOneProducerPerProcessor() {
         val made = mutableListOf<ScriptedSegmenter>()
-        val factory = CameraEffectProcessors { ScriptedSegmenter().also { made.add(it) } }
+        val factory = CameraEffectProcessors(cadence) { ScriptedSegmenter().also { made.add(it) } }
 
         val first = factory.makeProcessor(CameraEffect.BLUR)
         val second = factory.makeProcessor(CameraEffect.DIM)

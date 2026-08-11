@@ -95,6 +95,7 @@ class PersonMaskProducer(
     ),
     private val clock: CameraEffectsClock = MonotonicClock(),
     private val executor: PersonMaskExecutor = SerialPersonMaskExecutor(),
+    private val cadence: MaskCadence = MaskCadence { TARGET_SUBMISSION_INTERVAL_NANOS },
 ) : AutoCloseable {
     companion object {
         /** The inference input's size, in the frame's unrotated pixel space. */
@@ -119,12 +120,12 @@ class PersonMaskProducer(
     private var inFlight = false
     private var generation = 0
     private var lastSubmissionAt: Long? = null
-    private var interval = TARGET_SUBMISSION_INTERVAL_NANOS
+    private var latencyNanos = 0L
     private var publications = 0
 
     val mask: CameraMask? get() = synchronized(lock) { published }
 
-    val submissionIntervalNanos: Long get() = synchronized(lock) { interval }
+    val submissionIntervalNanos: Long get() = synchronized(lock) { interval() }
 
     /**
      * Takes what this frame owes the next mask and returns; it never waits on
@@ -156,7 +157,7 @@ class PersonMaskProducer(
         published = null
         inFlight = false
         lastSubmissionAt = null
-        interval = TARGET_SUBMISSION_INTERVAL_NANOS
+        latencyNanos = 0
     }
 
     override fun close() {
@@ -167,7 +168,7 @@ class PersonMaskProducer(
             published = null
             inFlight = false
             lastSubmissionAt = null
-            interval = TARGET_SUBMISSION_INTERVAL_NANOS
+            latencyNanos = 0
             true
         }
         if (!closesResources) return
@@ -226,10 +227,12 @@ class PersonMaskProducer(
         if (closed) return null
         if (inFlight) return null
         val last = lastSubmissionAt
-        if (last != null && clock.nowNanos - last < interval) return null
+        if (last != null && clock.nowNanos - last < interval()) return null
         inFlight = true
         generation
     }
+
+    private fun interval(): Long = maxOf(cadence.intervalNanos(), latencyNanos)
 
     private fun release(claimed: Int) = synchronized(lock) {
         if (claimed == generation) inFlight = false
@@ -283,9 +286,7 @@ class PersonMaskProducer(
             // The first inference of a producer carries the model load, which
             // is two orders of magnitude slower than a warm one.
             if (publications <= 1) return
-            interval = maxOf(
-                TARGET_SUBMISSION_INTERVAL_NANOS, clock.nowNanos - submission.submittedAt,
-            )
+            latencyNanos = clock.nowNanos - submission.submittedAt
         }
     }
 

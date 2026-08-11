@@ -97,6 +97,7 @@ class StagedEffectProcessor(
  * that much.
  */
 class CameraEffectProcessors(
+    private val cadence: MaskCadence,
     private val segmenters: () -> PersonSegmenting = { MlKitPersonSegmenter() },
 ) : CameraEffectProcessorFactory {
     internal var stage: CameraEffectStage = CameraEffectStage.COMPOSITE
@@ -104,12 +105,12 @@ class CameraEffectProcessors(
     override fun makeProcessor(effect: CameraEffect): CameraEffectProcessor = when (stage) {
         CameraEffectStage.COMPOSITE -> CompositingEffectProcessor(
             compositor = CameraEffectCompositor(effect),
-            producer = PersonMaskProducer(segmenters()),
+            producer = makeProducer(),
         )
 
         CameraEffectStage.MASK_ONLY -> StagedEffectProcessor(
             compositor = CameraEffectCompositor(CameraEffect.NONE),
-            producer = PersonMaskProducer(segmenters()),
+            producer = makeProducer(),
         )
 
         CameraEffectStage.PASSTHROUGH -> StagedEffectProcessor(
@@ -117,4 +118,6 @@ class CameraEffectProcessors(
             producer = null,
         )
     }
+
+    private fun makeProducer() = PersonMaskProducer(segmenters(), cadence = cadence)
 }
