@@ -94,7 +94,10 @@ class CameraEffectCompositor(
             return current
         }
         val replacement = Geometry(
-            width, height, pools.makePool(width, height), RenderScratch(width, height),
+            width,
+            height,
+            pools.makePool(width, height),
+            RenderScratch(width, height, effect, dimNumerator),
         )
         geometry = replacement
         lastGood?.release()
@@ -112,16 +115,11 @@ class CameraEffectCompositor(
         output: CameraEffectBuffer,
     ): CameraBackgroundGrid {
         scratch.readInput(planes)
-        when (effect) {
-            CameraEffect.NONE -> scratch.copyInput()
-            CameraEffect.BLUR -> scratch.blur()
-            CameraEffect.DIM -> scratch.dim(dimNumerator)
-        }
         if (mask != null) {
             scratch.prepareMask(mask, requireNotNull(confidence))
-            scratch.blendPerson()
+            scratch.composeOverPerson()
         } else {
-            scratch.measureAllBackground()
+            scratch.composeBackground()
         }
         scratch.writeInto(output)
         return scratch.backgroundGrid()
@@ -236,9 +234,17 @@ private const val CHROMA_DOWNSCALE = 4
 private val BOX_RADII = intArrayOf(2, 2, 1)
 
 /** Per-geometry working memory, reused across composites one at a time. */
-private class RenderScratch(val width: Int, val height: Int) {
+private class RenderScratch(
+    val width: Int,
+    val height: Int,
+    private val effect: CameraEffect,
+    private val dimNumerator: Int,
+) {
     val chromaWidth = (width + 1) / 2
     val chromaHeight = (height + 1) / 2
+
+    /** 256 is the identity scale, so `NONE` is `DIM` without a reduction. */
+    private val scale = if (effect == CameraEffect.DIM) dimNumerator else 256
 
     private val inY = ByteArray(width * height)
     private val inU = ByteArray(chromaWidth * chromaHeight)
@@ -253,8 +259,9 @@ private class RenderScratch(val width: Int, val height: Int) {
     private val smallA = IntArray(smallWidth * smallHeight)
     private val smallB = IntArray(smallWidth * smallHeight)
 
-    private val lumaRows = IntArray(smallHeight * width)
-    private val chromaRows = IntArray(smallHeight * chromaWidth)
+    private var nearRow = IntArray(width)
+    private var farRow = IntArray(width)
+    private var nearIndex = -1
 
     private val lumaIndex0 = IntArray(width)
     private val lumaIndex1 = IntArray(width)
@@ -297,77 +304,120 @@ private class RenderScratch(val width: Int, val height: Int) {
         copyPlane(planes.dataV, planes.strideV, chromaWidth, chromaHeight, inV)
     }
 
-    fun copyInput() {
-        System.arraycopy(inY, 0, outY, 0, inY.size)
-        System.arraycopy(inU, 0, outU, 0, inU.size)
-        System.arraycopy(inV, 0, outV, 0, inV.size)
-    }
+    fun composeBackground() {
+        when (effect) {
+            CameraEffect.NONE -> {
+                System.arraycopy(inY, 0, outY, 0, inY.size)
+                System.arraycopy(inU, 0, outU, 0, inU.size)
+                System.arraycopy(inV, 0, outV, 0, inV.size)
+            }
 
-    fun dim(numerator: Int) {
-        for (index in inY.indices) {
-            outY[index] = (((inY[index].toInt() and 0xFF) * numerator) shr 8).toByte()
+            CameraEffect.DIM -> {
+                for (index in inY.indices) {
+                    outY[index] = (((inY[index].toInt() and 0xFF) * scale) shr 8).toByte()
+                }
+                scaleChroma(inU, outU)
+                scaleChroma(inV, outV)
+            }
+
+            CameraEffect.BLUR -> {
+                blurLuma()
+                blurChroma(inU, outU)
+                blurChroma(inV, outV)
+            }
         }
-        dimChroma(inU, outU, numerator)
-        dimChroma(inV, outV, numerator)
+        measureAllBackground()
     }
 
-    private fun dimChroma(source: ByteArray, into: ByteArray, numerator: Int) {
+    fun composeOverPerson() {
+        backgroundSums.fill(0)
+        val blurred = effect == CameraEffect.BLUR
+        if (blurred) {
+            blurLuma()
+            blurChroma(inU, outU)
+            blurChroma(inV, outV)
+        }
+        for (cellRow in 0 until CameraBackgroundGrid.SIZE) {
+            val cellBase = cellRow * CameraBackgroundGrid.SIZE
+            for (y in rowEdges[cellRow] until rowEdges[cellRow + 1]) {
+                if (blurred) blurredLumaRow(y, cellBase) else scaledLumaRow(y, cellBase)
+            }
+        }
+        for (y in 0 until chromaHeight) {
+            if (blurred) blurredChromaRow(y) else scaledChromaRow(y)
+        }
+    }
+
+    private fun scaleChroma(source: ByteArray, into: ByteArray) {
         for (index in source.indices) {
             val offset = (source[index].toInt() and 0xFF) - 128
-            into[index] = (128 + ((offset * numerator) shr 8)).toByte()
+            into[index] = (128 + ((offset * scale) shr 8)).toByte()
         }
     }
 
-    fun blur() {
+    private fun blurLuma() {
         blurPlane(
-            inY, width, height, LUMA_DOWNSCALE,
-            lumaRows, lumaIndex0, lumaIndex1, lumaFrac, outY,
+            inY, outY, width, height, LUMA_DOWNSCALE,
+            lumaIndex0, lumaIndex1, lumaFrac,
         )
+    }
+
+    private fun blurChroma(source: ByteArray, into: ByteArray) {
         blurPlane(
-            inU, chromaWidth, chromaHeight, CHROMA_DOWNSCALE,
-            chromaRows, chromaIndex0, chromaIndex1, chromaFrac, outU,
-        )
-        blurPlane(
-            inV, chromaWidth, chromaHeight, CHROMA_DOWNSCALE,
-            chromaRows, chromaIndex0, chromaIndex1, chromaFrac, outV,
+            source, into, chromaWidth, chromaHeight, CHROMA_DOWNSCALE,
+            chromaIndex0, chromaIndex1, chromaFrac,
         )
     }
 
     private fun blurPlane(
         source: ByteArray,
+        into: ByteArray,
         planeWidth: Int,
         planeHeight: Int,
         factor: Int,
-        rows: IntArray,
         index0: IntArray,
         index1: IntArray,
         frac: IntArray,
-        into: ByteArray,
     ) {
         downscale(source, planeWidth, planeHeight, factor, smallA, smallWidth, smallHeight)
         for (radius in BOX_RADII) {
             boxRows(smallA, smallB, smallWidth, smallHeight, radius)
             boxColumns(smallB, smallA, smallWidth, smallHeight, radius)
         }
-        for (row in 0 until smallHeight) {
-            stretchRow(
-                smallA, row * smallWidth,
-                rows, row * planeWidth,
-                index0, index1, frac, planeWidth,
-            )
-        }
+        nearIndex = -1
         for (y in 0 until planeHeight) {
-            val vertical = verticalMapping(2 * y + 1, smallHeight, 2 * planeHeight)
-            val index = vertical shr 9
-            val weight = vertical and 511
-            val rowA = index * planeWidth
-            val rowB = min(index + 1, smallHeight - 1) * planeWidth
+            val gridRow = verticalMapping(2 * y + 1, smallHeight, 2 * planeHeight)
+            holdGridRows(gridRow shr 9, planeWidth, index0, index1, frac)
+            val weight = gridRow and 511
             val base = y * planeWidth
             for (x in 0 until planeWidth) {
-                val value = rows[rowA + x] * (256 - weight) + rows[rowB + x] * weight
-                into[base + x] = ((value + 128) shr 8).toByte()
+                into[base + x] =
+                    ((nearRow[x] * (256 - weight) + farRow[x] * weight + 128) shr 8).toByte()
             }
         }
+    }
+
+    /** A plane's rows walk the grid upwards, so each far row is the next near row. */
+    private fun holdGridRows(
+        index: Int,
+        planeWidth: Int,
+        index0: IntArray,
+        index1: IntArray,
+        frac: IntArray,
+    ) {
+        if (index == nearIndex) return
+        if (nearIndex >= 0 && index == nearIndex + 1) {
+            val carried = nearRow
+            nearRow = farRow
+            farRow = carried
+        } else {
+            stretchRow(smallA, index * smallWidth, nearRow, 0, index0, index1, frac, planeWidth)
+        }
+        stretchRow(
+            smallA, min(index + 1, smallHeight - 1) * smallWidth,
+            farRow, 0, index0, index1, frac, planeWidth,
+        )
+        nearIndex = index
     }
 
     /** Stretches the mask's grid across the frame's width, one row per grid row. */
@@ -392,14 +442,8 @@ private class RenderScratch(val width: Int, val height: Int) {
         }
     }
 
-    fun blendPerson() {
-        blendLuma(outY)
-        blendChroma(inU, outU)
-        blendChroma(inV, outV)
-    }
-
     /** No person weight reaches the luma, so every pixel is background. */
-    fun measureAllBackground() {
+    private fun measureAllBackground() {
         for (cell in backgroundSums.indices) backgroundSums[cell] = cellPixels[cell] shl 8
     }
 
@@ -416,58 +460,90 @@ private class RenderScratch(val width: Int, val height: Int) {
         output.write(outY, outU, outV)
     }
 
-    private fun blendLuma(into: ByteArray) {
-        backgroundSums.fill(0)
-        for (cellRow in 0 until CameraBackgroundGrid.SIZE) {
-            val cellBase = cellRow * CameraBackgroundGrid.SIZE
-            for (y in rowEdges[cellRow] until rowEdges[cellRow + 1]) {
-                blendLumaRow(into, y, cellBase)
-            }
-        }
-    }
-
-    private fun blendLumaRow(into: ByteArray, y: Int, cellBase: Int) {
+    private fun scaledLumaRow(y: Int, cellBase: Int) {
         val vertical = verticalMapping(2 * y + 1, maskGridHeight, 2 * height)
-        val index = vertical shr 9
+        val rowA = (vertical shr 9) * width
+        val rowB = min((vertical shr 9) + 1, maskGridHeight - 1) * width
         val weight = vertical and 511
-        val rowA = index * width
-        val rowB = min(index + 1, maskGridHeight - 1) * width
         val base = y * width
         for (cell in 0 until CameraBackgroundGrid.SIZE) {
             var backgroundWeight = 0
             for (x in columnEdges[cell] until columnEdges[cell + 1]) {
                 val alpha =
                     (maskRows[rowA + x] * (256 - weight) + maskRows[rowB + x] * weight) shr 8
-                val person = inY[base + x].toInt() and 0xFF
-                val background = into[base + x].toInt() and 0xFF
-                into[base + x] =
-                    ((person * alpha + background * (256 - alpha) + 128) shr 8).toByte()
+                outY[base + x] = scaledLumaOverPerson(inY[base + x], alpha)
                 backgroundWeight += 256 - alpha
             }
             backgroundSums[cellBase + cell] += backgroundWeight
         }
     }
 
-    private fun blendChroma(person: ByteArray, into: ByteArray) {
-        for (y in 0 until chromaHeight) {
-            val vertical = verticalMapping(4 * y + 2, maskGridHeight, 2 * height)
-            val index = vertical shr 9
-            val weight = vertical and 511
-            val rowA = index * width
-            val rowB = min(index + 1, maskGridHeight - 1) * width
-            val base = y * chromaWidth
-            for (x in 0 until chromaWidth) {
-                val column = min(2 * x, width - 1)
+    private fun blurredLumaRow(y: Int, cellBase: Int) {
+        val vertical = verticalMapping(2 * y + 1, maskGridHeight, 2 * height)
+        val rowA = (vertical shr 9) * width
+        val rowB = min((vertical shr 9) + 1, maskGridHeight - 1) * width
+        val weight = vertical and 511
+        val base = y * width
+        for (cell in 0 until CameraBackgroundGrid.SIZE) {
+            var backgroundWeight = 0
+            for (x in columnEdges[cell] until columnEdges[cell + 1]) {
                 val alpha =
-                    (maskRows[rowA + column] * (256 - weight) +
-                        maskRows[rowB + column] * weight) shr 8
-                val sample = person[base + x].toInt() and 0xFF
-                val background = into[base + x].toInt() and 0xFF
-                into[base + x] =
-                    ((sample * alpha + background * (256 - alpha) + 128) shr 8).toByte()
+                    (maskRows[rowA + x] * (256 - weight) + maskRows[rowB + x] * weight) shr 8
+                outY[base + x] = stagedOverPerson(inY[base + x], outY[base + x], alpha)
+                backgroundWeight += 256 - alpha
             }
+            backgroundSums[cellBase + cell] += backgroundWeight
         }
     }
+
+    /** Both chroma planes take the same alpha, so one walk carries them together. */
+    private fun scaledChromaRow(y: Int) {
+        val vertical = verticalMapping(4 * y + 2, maskGridHeight, 2 * height)
+        val rowA = (vertical shr 9) * width
+        val rowB = min((vertical shr 9) + 1, maskGridHeight - 1) * width
+        val weight = vertical and 511
+        val base = y * chromaWidth
+        for (x in 0 until chromaWidth) {
+            val column = min(2 * x, width - 1)
+            val alpha =
+                (maskRows[rowA + column] * (256 - weight) +
+                    maskRows[rowB + column] * weight) shr 8
+            outU[base + x] = scaledChromaOverPerson(inU[base + x], alpha)
+            outV[base + x] = scaledChromaOverPerson(inV[base + x], alpha)
+        }
+    }
+
+    private fun blurredChromaRow(y: Int) {
+        val vertical = verticalMapping(4 * y + 2, maskGridHeight, 2 * height)
+        val rowA = (vertical shr 9) * width
+        val rowB = min((vertical shr 9) + 1, maskGridHeight - 1) * width
+        val weight = vertical and 511
+        val base = y * chromaWidth
+        for (x in 0 until chromaWidth) {
+            val column = min(2 * x, width - 1)
+            val alpha =
+                (maskRows[rowA + column] * (256 - weight) +
+                    maskRows[rowB + column] * weight) shr 8
+            outU[base + x] = stagedOverPerson(inU[base + x], outU[base + x], alpha)
+            outV[base + x] = stagedOverPerson(inV[base + x], outV[base + x], alpha)
+        }
+    }
+
+    private fun scaledLumaOverPerson(sample: Byte, alpha: Int): Byte {
+        val person = sample.toInt() and 0xFF
+        return blend(person, (person * scale) shr 8, alpha)
+    }
+
+    private fun scaledChromaOverPerson(sample: Byte, alpha: Int): Byte {
+        val person = sample.toInt() and 0xFF
+        return blend(person, 128 + (((person - 128) * scale) shr 8), alpha)
+    }
+
+    private fun stagedOverPerson(sample: Byte, background: Byte, alpha: Int): Byte =
+        blend(sample.toInt() and 0xFF, background.toInt() and 0xFF, alpha)
+
+    private fun blend(person: Int, background: Int, alpha: Int): Byte =
+        ((person * alpha + background * (256 - alpha) + 128) shr 8).toByte()
 
     private fun copyPlane(
         source: ByteBuffer,
