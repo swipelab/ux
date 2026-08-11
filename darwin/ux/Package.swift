@@ -25,8 +25,10 @@ import PackageDescription
 // SwiftPM: `swift test --package-path darwin/ux --test-product uxPackageTests`
 // builds that product's graph alone, leaving the Flutter-importing targets —
 // which have no module to import outside an Xcode-driven Flutter build —
-// uncompiled. The `ux_macos_coreTests` shared scheme under `.swiftpm` builds
-// that same graph for an Xcode destination — an iOS simulator among them.
+// uncompiled. The `ux_macos_coreTests` shared scheme under `.swiftpm` runs
+// that same graph on a Mac or an iOS simulator. A device destination is
+// refused: tool-hosted testing needs a host application, which no target
+// here provides.
 let package = Package(
   name: "ux",
   platforms: [
