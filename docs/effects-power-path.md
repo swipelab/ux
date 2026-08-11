@@ -88,10 +88,10 @@ composite render entirely leaves 51% of the added heat in place.
    row out of the host's `ByteBuffer` into heap `ByteArray`s.
 2. `prepareMask` — the mask grid's 144 rows stretched to the frame's width,
    two `FloatBuffer.get` calls per output sample: 184k samples per frame.
-3. `composeOverPerson` — one walk per plane. `scaledLumaRow` scales a source
-   sample to its background and interpolates the person over it into the same
-   store, accumulating the background grid; `scaledChromaRow` carries both
-   chroma planes under one alpha.
+3. `composeOverPerson` — two walks over the three planes. `scaledLumaRow` scales
+   a source sample to its background and interpolates the person over it into
+   the same store, accumulating the background grid; `scaledChromaRow` carries
+   both chroma planes under one alpha.
 4. `writeInto` — the three destination arrays copied into the output buffer's
    direct `ByteBuffer`s.
 
@@ -102,7 +102,7 @@ rungs run moves the same 8.3 MB — `readInput`, a bulk `arraycopy`, `writeInto`
 with no per-pixel arithmetic. What the render's measured +0.34 C/min buys over
 it is the mask stretch and the blend arithmetic, not extra traffic. **[code]**
 
-`BLUR` is the one effect that still stages a background: `blurPlane` writes the
+`BLUR` is the one effect that stages a background: `blurPlane` writes the
 upscaled grid into the destination arrays and the walk reads it back, one
 full-resolution pass more than `DIM`. **[code]**
 

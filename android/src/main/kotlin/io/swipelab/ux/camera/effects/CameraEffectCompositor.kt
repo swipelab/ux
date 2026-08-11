@@ -513,6 +513,7 @@ private class RenderScratch(
         }
     }
 
+    /** Both chroma planes take the same alpha, so one walk carries them together. */
     private fun blurredChromaRow(y: Int) {
         val vertical = verticalMapping(4 * y + 2, maskGridHeight, 2 * height)
         val rowA = (vertical shr 9) * width
