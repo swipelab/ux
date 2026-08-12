@@ -30,17 +30,63 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
-  test('macOS is supported and picker-driven', () {
-    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+  group('${TargetPlatform.macOS}', () {
+    late MethodChannelXScreenSourcesBackend backend;
 
-    final backend = MethodChannelXScreenSourcesBackend();
-    expect(backend.supported, isTrue);
-    expect(backend.captureMode, XScreenCaptureMode.pickerDriven);
+    setUp(() {
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      backend = MethodChannelXScreenSourcesBackend();
+    });
+
+    test('is supported and picker-driven', () {
+      expect(backend.supported, isTrue);
+      expect(backend.captureMode, XScreenCaptureMode.pickerDriven);
+    });
+
+    test('the share bracket is unsupported and touches no channel', () async {
+      await expectLater(
+        backend.startShare(notificationTitle: 'Sharing your screen'),
+        _unsupported,
+      );
+      await expectLater(backend.stopShare(), _unsupported);
+      expect(calls, isEmpty);
+    });
+  });
+
+  group('${TargetPlatform.android}', () {
+    late MethodChannelXScreenSourcesBackend backend;
+
+    setUp(() {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      backend = MethodChannelXScreenSourcesBackend();
+    });
+
+    test('is supported and consent-driven', () {
+      expect(backend.supported, isTrue);
+      expect(backend.captureMode, XScreenCaptureMode.consentDriven);
+      expect(calls, isEmpty);
+    });
+
+    test('the picker calls are unsupported and touch no channel', () async {
+      await expectLater(backend.hasPermission(), _unsupported);
+      await expectLater(backend.requestPermission(), _unsupported);
+      await expectLater(
+        backend.list(allowedDisplayIds: const {}, allowedWindowIds: const {}),
+        _unsupported,
+      );
+      expect(calls, isEmpty);
+    });
+
+    test('the share bracket reaches the channel', () async {
+      await backend.startShare(notificationTitle: 'Sharing your screen');
+      await backend.stopShare();
+
+      expect(calls.map((c) => c.method), ['startShare', 'stopShare']);
+    });
   });
 
   for (final (platform, mode) in const <(TargetPlatform, XScreenCaptureMode?)>[
     (TargetPlatform.iOS, XScreenCaptureMode.consentDriven),
-    (TargetPlatform.android, XScreenCaptureMode.consentDriven),
     (TargetPlatform.linux, null),
     (TargetPlatform.windows, null),
     (TargetPlatform.fuchsia, null),
@@ -70,6 +116,11 @@ void main() {
           backend.list(allowedDisplayIds: const {}, allowedWindowIds: const {}),
           _unsupported,
         );
+        await expectLater(
+          backend.startShare(notificationTitle: 'Sharing your screen'),
+          _unsupported,
+        );
+        await expectLater(backend.stopShare(), _unsupported);
         expect(calls, isEmpty);
       });
 
@@ -81,6 +132,14 @@ void main() {
             thumbnailWidth: 0,
             thumbnailHeight: 99999,
           ),
+          _unsupported,
+        );
+        expect(calls, isEmpty);
+      });
+
+      test('unsupported wins over an empty notification title', () async {
+        await expectLater(
+          backend.startShare(notificationTitle: ''),
           _unsupported,
         );
         expect(calls, isEmpty);

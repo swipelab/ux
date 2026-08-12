@@ -36,11 +36,6 @@ class NotificationsPlugin :
         private const val CHANNEL_NAME = "Messages"
         private const val PERMISSION_REQUEST_CODE = 0xC3A0
 
-        /// Host app points this at a white-silhouette status drawable
-        /// (a coloured launcher icon renders as a white square). Falls
-        /// back to the launcher icon when absent.
-        private const val ICON_META = "io.swipelab.ux.notification_icon"
-
         /// Tap payload is carried back on the launch intent: a boolean
         /// marker plus one string extra per `data` entry, namespaced so it
         /// can't collide with the host app's own extras.
@@ -223,7 +218,7 @@ class NotificationsPlugin :
         )
 
         val builder = NotificationCompat.Builder(ctx, CHANNEL_ID)
-            .setSmallIcon(smallIcon(ctx))
+            .setSmallIcon(notificationIcon(ctx))
             .setContentTitle(title)
             .setContentText(body)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -296,14 +291,6 @@ class NotificationsPlugin :
         mgr.createNotificationChannel(
             NotificationChannel(CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_HIGH),
         )
-    }
-
-    private fun smallIcon(ctx: Context): Int {
-        val ai = ctx.packageManager.getApplicationInfo(
-            ctx.packageName, PackageManager.GET_META_DATA,
-        )
-        val meta = ai.metaData?.getInt(ICON_META, 0) ?: 0
-        return if (meta != 0) meta else ai.icon
     }
 
     private fun emitTap(data: Map<String, String>) {
