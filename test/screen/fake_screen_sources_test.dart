@@ -137,6 +137,40 @@ void main() {
     );
   });
 
+  test('the share bracket is recorded', () async {
+    final fake = FakeXScreenSourcesBackend();
+
+    await fake.startShare(
+      notificationTitle: 'Sharing your screen',
+      notificationText: 'Tap to return',
+    );
+    await fake.stopShare();
+
+    expect(
+        fake.startShareCalls.single.notificationTitle, 'Sharing your screen');
+    expect(fake.startShareCalls.single.notificationText, 'Tap to return');
+    expect(fake.stopShareCalls, 1);
+  });
+
+  test('scripted bracket errors are thrown and still recorded', () async {
+    final fake = FakeXScreenSourcesBackend()
+      ..startShareError = const XScreenSourcesException('permission_denied')
+      ..stopShareError = const XScreenSourcesException('service_start_failed');
+
+    await expectLater(
+      fake.startShare(notificationTitle: 'Sharing your screen'),
+      throwsA(isA<XScreenSourcesException>()
+          .having((e) => e.code, 'code', 'permission_denied')),
+    );
+    await expectLater(
+      fake.stopShare(),
+      throwsA(isA<XScreenSourcesException>()
+          .having((e) => e.code, 'code', 'service_start_failed')),
+    );
+    expect(fake.startShareCalls, hasLength(1));
+    expect(fake.stopShareCalls, 1);
+  });
+
   test('an unsupported fake throws unsupported everywhere', () async {
     final fake = FakeXScreenSourcesBackend(supported: false);
     Matcher unsupported() => throwsA(
@@ -152,7 +186,14 @@ void main() {
       fake.list(allowedDisplayIds: const {}, allowedWindowIds: const {}),
       unsupported(),
     );
+    await expectLater(
+      fake.startShare(notificationTitle: 'Sharing your screen'),
+      unsupported(),
+    );
+    await expectLater(fake.stopShare(), unsupported());
     expect(fake.listCalls, isEmpty);
+    expect(fake.startShareCalls, isEmpty);
+    expect(fake.stopShareCalls, 0);
   });
 
   test('it substitutes for the process-wide backend', () async {

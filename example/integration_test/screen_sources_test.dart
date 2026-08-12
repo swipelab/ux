@@ -46,6 +46,19 @@ class _RecordingBackend implements XScreenSourcesBackend {
   Future<bool> requestPermission() => inner.requestPermission();
 
   @override
+  Future<void> startShare({
+    required String notificationTitle,
+    String? notificationText,
+  }) =>
+      inner.startShare(
+        notificationTitle: notificationTitle,
+        notificationText: notificationText,
+      );
+
+  @override
+  Future<void> stopShare() => inner.stopShare();
+
+  @override
   Future<List<XScreenSource>> list({
     required Set<String> allowedDisplayIds,
     required Set<String> allowedWindowIds,

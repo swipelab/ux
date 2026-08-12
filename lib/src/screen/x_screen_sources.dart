@@ -19,7 +19,8 @@ enum XScreenCaptureMode {
   pickerDriven,
 
   /// The system's own consent surface both asks and chooses; nothing is
-  /// enumerated and [XScreenSourcesBackend.list] has no role.
+  /// enumerated, [XScreenSourcesBackend.list] has no role, and a capture runs
+  /// inside the [XScreenSourcesBackend.startShare] bracket.
   consentDriven,
 }
 
@@ -64,9 +65,9 @@ final class XScreenSource {
 /// Thrown by [XScreenSourcesBackend] when a call cannot be served.
 ///
 /// [code] is one of `unsupported`, `permission_denied`, `enumeration_failed`,
-/// `thumbnail_failed`, or the Dart-owned `invalid_response` — a native reply
-/// that does not match the wire contract, whose [message] names the offending
-/// field.
+/// `thumbnail_failed`, `service_start_failed`, or the Dart-owned
+/// `invalid_response` — a native reply that does not match the wire contract,
+/// whose [message] names the offending field.
 class XScreenSourcesException implements Exception {
   /// Creates an exception with a wire [code] and an optional [message].
   const XScreenSourcesException(this.code, [this.message]);
@@ -81,8 +82,10 @@ class XScreenSourcesException implements Exception {
   String toString() => 'XScreenSourcesException($code, $message)';
 }
 
-/// The displays and windows a screen-share picker can offer, each with a
-/// rendered thumbnail, taken as one snapshot.
+/// What a screen share needs from the platform, which [captureMode] splits in
+/// two: the displays and windows a picker can offer, each with a rendered
+/// thumbnail, taken as one snapshot — or the bracket a consent-driven capture
+/// runs inside.
 ///
 /// ```dart
 /// final backend = XScreenSourcesBackend.instance;
@@ -109,11 +112,14 @@ abstract interface class XScreenSourcesBackend {
 
   /// Whether this platform family serves these calls. Elsewhere every method
   /// throws [XScreenSourcesException] with code `unsupported`, before it looks
-  /// at its arguments.
+  /// at its arguments — and so does every call the family's [captureMode] has
+  /// no role for: [list] and the permission pair off
+  /// [XScreenCaptureMode.pickerDriven], [startShare] and [stopShare] off
+  /// [XScreenCaptureMode.consentDriven].
   bool get supported;
 
-  /// Whether this host can serve a snapshot — the OS version as well as the
-  /// platform family.
+  /// Whether this host can serve its [captureMode] — the OS version as well as
+  /// the platform family.
   Future<bool> available();
 
   /// Whether screen recording is granted. Never prompts.
@@ -138,4 +144,23 @@ abstract interface class XScreenSourcesBackend {
     int thumbnailWidth = 320,
     int thumbnailHeight = 180,
   });
+
+  /// Takes the hold a consent-driven capture runs inside, showing an ongoing
+  /// notification titled [notificationTitle] with [notificationText] under it.
+  ///
+  /// It belongs between the system's consent and the capture start: the hold
+  /// is granted only once consent is, and the capture only succeeds while the
+  /// hold is up.
+  ///
+  /// Throws [XScreenSourcesException] with `permission_denied` when the
+  /// platform refuses the hold for want of consent, `service_start_failed`
+  /// when it refuses for anything else. An empty [notificationTitle] throws
+  /// [ArgumentError] without reaching the platform.
+  Future<void> startShare({
+    required String notificationTitle,
+    String? notificationText,
+  });
+
+  /// Drops the hold [startShare] took. Dropping one nobody holds succeeds.
+  Future<void> stopShare();
 }

@@ -86,14 +86,23 @@ Scaffold(
 
 ## XScreenSources
 
-The displays and windows a screen-share picker offers, taken as one snapshot.
+What a screen share needs from the platform, which `captureMode` splits in two:
+`pickerDriven` on macOS, where the app enumerates the displays and windows and
+draws the picker itself, and `consentDriven` on Android and iOS, where the
+system's own consent surface both asks and chooses. It reads independently of
+`supported`, so a consumer builds the right flow per family without platform
+checks of its own.
 
-macOS only, macOS 14 and up. `supported` is the platform family; `available()`
-adds the OS version. Needs the screen-recording grant, which the app drives
-itself: `list` never prompts, `hasPermission` answers without prompting and
-`requestPermission` asks. Nothing to install on the host side.
+macOS 14 and up, Android 10 and up. `supported` is the platform family;
+`available()` adds the OS version. A call the family's mode has no role for
+throws `unsupported`: `list`, `hasPermission` and `requestPermission` off
+`pickerDriven`, `startShare` and `stopShare` off `consentDriven`.
 
-### Quick start
+### macOS — the picker
+
+Needs the screen-recording grant, which the app drives itself: `list` never
+prompts, `hasPermission` answers without prompting and `requestPermission`
+asks. Nothing to install on the host side.
 
 ```dart
 final sources = XScreenSourcesBackend.instance;
@@ -118,6 +127,35 @@ window never costs the picker its list; the call throws `thumbnail_failed` only
 when no requested source rendered at all. `XScreenSourcesBackend.instance` is
 settable, and `package:ux/testing.dart` vends `FakeXScreenSourcesBackend` for
 tests without a host.
+
+### Android — the share bracket
+
+Android grants a capture only while a `mediaProjection` foreground service
+runs, and grants that service only once the projection consent is held, so the
+bracket goes between the two:
+
+```dart
+final sources = XScreenSourcesBackend.instance;
+if (!await sources.available()) return;
+
+await captureStack.requestConsent();
+await sources.startShare(
+  notificationTitle: 'Sharing your screen',
+  notificationText: 'Tap to return to the call',
+);
+await captureStack.startCapture();
+// … and on teardown:
+await sources.stopShare();
+```
+
+Consent and capture are the consumer's own capture stack; `ux` supplies the
+service between them. It is declared, with `FOREGROUND_SERVICE` and
+`FOREGROUND_SERVICE_MEDIA_PROJECTION`, in `ux`'s own manifest, which merges
+into the host app — nothing to add there. A start the platform refuses for want
+of consent throws `permission_denied`, any other refusal
+`service_start_failed`. The ongoing notification takes the host's
+`io.swipelab.ux.notification_icon` meta-data icon, the one `XNotifications`
+uses.
 
 ## XCameraEffects
 

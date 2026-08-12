@@ -36,16 +36,54 @@ class MethodChannelXScreenSourcesBackend implements XScreenSourcesBackend {
 
   @override
   bool get supported =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
+      !kIsWeb &&
+      switch (defaultTargetPlatform) {
+        TargetPlatform.macOS || TargetPlatform.android => true,
+        _ => false,
+      };
 
   @override
-  Future<bool> available() => _bool('available');
+  Future<bool> available() async {
+    _requireSupported();
+    return _invoke<bool>('available');
+  }
 
   @override
-  Future<bool> hasPermission() => _bool('hasPermission');
+  Future<bool> hasPermission() async {
+    _requireMode(XScreenCaptureMode.pickerDriven);
+    return _invoke<bool>('hasPermission');
+  }
 
   @override
-  Future<bool> requestPermission() => _bool('requestPermission');
+  Future<bool> requestPermission() async {
+    _requireMode(XScreenCaptureMode.pickerDriven);
+    return _invoke<bool>('requestPermission');
+  }
+
+  @override
+  Future<void> startShare({
+    required String notificationTitle,
+    String? notificationText,
+  }) async {
+    _requireMode(XScreenCaptureMode.consentDriven);
+    if (notificationTitle.isEmpty) {
+      throw ArgumentError.value(
+        notificationTitle,
+        'notificationTitle',
+        'must not be empty',
+      );
+    }
+    await _call('startShare', {
+      'notificationTitle': notificationTitle,
+      'notificationText': notificationText,
+    });
+  }
+
+  @override
+  Future<void> stopShare() async {
+    _requireMode(XScreenCaptureMode.consentDriven);
+    await _call('stopShare');
+  }
 
   @override
   Future<List<XScreenSource>> list({
@@ -54,7 +92,7 @@ class MethodChannelXScreenSourcesBackend implements XScreenSourcesBackend {
     int thumbnailWidth = 320,
     int thumbnailHeight = 180,
   }) async {
-    _requireSupported();
+    _requireMode(XScreenCaptureMode.pickerDriven);
     _requireEdge(thumbnailWidth, 'thumbnailWidth');
     _requireEdge(thumbnailHeight, 'thumbnailHeight');
     final raw = await _invoke<List<Object?>>('list', {
@@ -66,18 +104,17 @@ class MethodChannelXScreenSourcesBackend implements XScreenSourcesBackend {
     return raw.map(_decodeSource).toList(growable: false);
   }
 
-  Future<bool> _bool(String method) async {
-    _requireSupported();
-    return _invoke<bool>(method);
-  }
-
-  Future<T> _invoke<T>(String method, [Map<String, Object?>? arguments]) async {
-    final Object? result;
+  Future<Object?> _call(String method,
+      [Map<String, Object?>? arguments]) async {
     try {
-      result = await _channel.invokeMethod<Object?>(method, arguments);
+      return await _channel.invokeMethod<Object?>(method, arguments);
     } on PlatformException catch (e) {
       throw XScreenSourcesException(e.code, e.message);
     }
+  }
+
+  Future<T> _invoke<T>(String method, [Map<String, Object?>? arguments]) async {
+    final result = await _call(method, arguments);
     if (result is! T) {
       throw _invalid('result', 'expected $T, got ${result.runtimeType}');
     }
@@ -87,6 +124,15 @@ class MethodChannelXScreenSourcesBackend implements XScreenSourcesBackend {
   void _requireSupported() {
     if (supported) return;
     throw XScreenSourcesException('unsupported', '$defaultTargetPlatform');
+  }
+
+  void _requireMode(XScreenCaptureMode mode) {
+    _requireSupported();
+    if (captureMode == mode) return;
+    throw XScreenSourcesException(
+      'unsupported',
+      '$defaultTargetPlatform is ${captureMode?.name}',
+    );
   }
 
   static void _requireEdge(int value, String name) {
