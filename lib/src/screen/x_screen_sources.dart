@@ -120,8 +120,9 @@ abstract interface class XScreenSourcesBackend {
 
   /// Whether this host can serve its [captureMode] — the platform family and
   /// the OS version, plus whatever else the platform makes a capture depend
-  /// on: on iOS this is ReplayKit's own answer, false while a mirrored display
-  /// or another recorder holds the screen.
+  /// on: on iOS this is ReplayKit's own answer, false while the app is not in
+  /// front, a mirrored display is attached, or another recorder holds the
+  /// screen.
   Future<bool> available();
 
   /// Whether screen recording is granted. Never prompts.

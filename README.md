@@ -165,8 +165,12 @@ uses.
 
 The same three calls, over ReplayKit's in-app recorder: the consumer's capture
 stack starts `RPScreenRecorder`, which raises the consent alert itself and
-delivers the frames in-process. No broadcast upload extension is involved, and
-there is nothing to add to the host's `Info.plist` or entitlements.
+delivers the frames in-process. The recorder captures the host app's own
+display, and only while it is in front — a participant sees this app, not the
+device, and the frames stop when the user leaves it. Capturing past the app is
+a broadcast upload extension's job, which `getDisplayMedia` selects by a
+`broadcast`-prefixed `deviceId` and this arm does not build; nothing here needs
+an entry in the host's `Info.plist` or entitlements.
 
 iOS asks for no hold around that capture, so what `startShare` carries is the
 recorder's own arbitration — it refuses while a mirrored display or another
