@@ -31,6 +31,9 @@ class _RecordingBackend implements XScreenSourcesBackend {
   final List<_RecordedList> calls = [];
 
   @override
+  XScreenCaptureMode? get captureMode => inner.captureMode;
+
+  @override
   bool get supported => inner.supported;
 
   @override

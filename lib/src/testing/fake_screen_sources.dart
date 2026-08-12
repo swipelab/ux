@@ -9,10 +9,11 @@ import 'package:ux/src/screen/x_screen_sources.dart';
 /// [permission] and the `…Error` fields between assertions to drive the
 /// picker's success, denial and failure paths.
 class FakeXScreenSourcesBackend implements XScreenSourcesBackend {
-  /// Creates a fake that starts out supported, available, and not yet
-  /// granted.
+  /// Creates a fake that starts out picker-driven, supported, available, and
+  /// not yet granted.
   FakeXScreenSourcesBackend({
     List<XScreenSource> sources = const [],
+    this.captureMode = XScreenCaptureMode.pickerDriven,
     this.supported = true,
     this.availableResult = true,
     this.permission = false,
@@ -39,6 +40,9 @@ class FakeXScreenSourcesBackend implements XScreenSourcesBackend {
 
   /// Snapshot returned by [list].
   List<XScreenSource> sources;
+
+  @override
+  XScreenCaptureMode? captureMode;
 
   @override
   bool supported;
