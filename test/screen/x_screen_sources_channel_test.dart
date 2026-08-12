@@ -350,8 +350,8 @@ void main() {
       'unsupported',
     ]) {
       test('a start refused with $code passes it through', () async {
-        handler =
-            (_) async => throw PlatformException(code: code, message: 'detail');
+        handler = (_) async =>
+            throw PlatformException(code: code, message: 'detail');
 
         await expectLater(
           backend.startShare(notificationTitle: 'Sharing your screen'),

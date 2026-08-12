@@ -38,7 +38,10 @@ class MethodChannelXScreenSourcesBackend implements XScreenSourcesBackend {
   bool get supported =>
       !kIsWeb &&
       switch (defaultTargetPlatform) {
-        TargetPlatform.macOS || TargetPlatform.android => true,
+        TargetPlatform.macOS ||
+        TargetPlatform.android ||
+        TargetPlatform.iOS =>
+          true,
         _ => false,
       };
 

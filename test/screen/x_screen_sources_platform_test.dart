@@ -53,40 +53,41 @@ void main() {
     });
   });
 
-  group('${TargetPlatform.android}', () {
-    late MethodChannelXScreenSourcesBackend backend;
+  for (final platform in const [TargetPlatform.android, TargetPlatform.iOS]) {
+    group('$platform', () {
+      late MethodChannelXScreenSourcesBackend backend;
 
-    setUp(() {
-      debugDefaultTargetPlatformOverride = TargetPlatform.android;
-      backend = MethodChannelXScreenSourcesBackend();
+      setUp(() {
+        debugDefaultTargetPlatformOverride = platform;
+        backend = MethodChannelXScreenSourcesBackend();
+      });
+
+      test('is supported and consent-driven', () {
+        expect(backend.supported, isTrue);
+        expect(backend.captureMode, XScreenCaptureMode.consentDriven);
+        expect(calls, isEmpty);
+      });
+
+      test('the picker calls are unsupported and touch no channel', () async {
+        await expectLater(backend.hasPermission(), _unsupported);
+        await expectLater(backend.requestPermission(), _unsupported);
+        await expectLater(
+          backend.list(allowedDisplayIds: const {}, allowedWindowIds: const {}),
+          _unsupported,
+        );
+        expect(calls, isEmpty);
+      });
+
+      test('the share bracket reaches the channel', () async {
+        await backend.startShare(notificationTitle: 'Sharing your screen');
+        await backend.stopShare();
+
+        expect(calls.map((c) => c.method), ['startShare', 'stopShare']);
+      });
     });
-
-    test('is supported and consent-driven', () {
-      expect(backend.supported, isTrue);
-      expect(backend.captureMode, XScreenCaptureMode.consentDriven);
-      expect(calls, isEmpty);
-    });
-
-    test('the picker calls are unsupported and touch no channel', () async {
-      await expectLater(backend.hasPermission(), _unsupported);
-      await expectLater(backend.requestPermission(), _unsupported);
-      await expectLater(
-        backend.list(allowedDisplayIds: const {}, allowedWindowIds: const {}),
-        _unsupported,
-      );
-      expect(calls, isEmpty);
-    });
-
-    test('the share bracket reaches the channel', () async {
-      await backend.startShare(notificationTitle: 'Sharing your screen');
-      await backend.stopShare();
-
-      expect(calls.map((c) => c.method), ['startShare', 'stopShare']);
-    });
-  });
+  }
 
   for (final (platform, mode) in const <(TargetPlatform, XScreenCaptureMode?)>[
-    (TargetPlatform.iOS, XScreenCaptureMode.consentDriven),
     (TargetPlatform.linux, null),
     (TargetPlatform.windows, null),
     (TargetPlatform.fuchsia, null),

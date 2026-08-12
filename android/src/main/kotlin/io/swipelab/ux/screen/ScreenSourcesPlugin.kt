@@ -10,8 +10,8 @@ import io.swipelab.ux.NativePlugin
 /// `ux/screen_sources` on Android, where a capture is consent-driven: the
 /// system surface both asks and chooses, so nothing is enumerated and the
 /// channel serves the OS floor plus the [ScreenShareService] bracket. The
-/// Apple counterpart is `ScreenSourcesPlugin.swift`, which serves the picker
-/// snapshot instead.
+/// iOS counterpart is `ScreenSourcesPlugin+iOS.swift`, which brackets
+/// ReplayKit's in-app recorder.
 class ScreenSourcesPlugin : NativePlugin {
     private var channel: MethodChannel? = null
 
