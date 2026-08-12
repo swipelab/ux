@@ -36,6 +36,25 @@ void main() {
     expect(fake.listCalls.single.thumbnailHeight, 360);
   });
 
+  test('is picker-driven until scripted otherwise', () {
+    final fake = FakeXScreenSourcesBackend();
+
+    expect(fake.captureMode, XScreenCaptureMode.pickerDriven);
+
+    fake.captureMode = XScreenCaptureMode.consentDriven;
+
+    expect(fake.captureMode, XScreenCaptureMode.consentDriven);
+  });
+
+  test('an unsupported fake still names its capture mode', () {
+    final fake = FakeXScreenSourcesBackend(
+      captureMode: XScreenCaptureMode.consentDriven,
+      supported: false,
+    );
+
+    expect(fake.captureMode, XScreenCaptureMode.consentDriven);
+  });
+
   test('records the default thumbnail size', () async {
     final fake = FakeXScreenSourcesBackend();
 

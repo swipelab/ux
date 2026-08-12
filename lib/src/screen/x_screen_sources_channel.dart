@@ -24,6 +24,17 @@ class MethodChannelXScreenSourcesBackend implements XScreenSourcesBackend {
   };
 
   @override
+  XScreenCaptureMode? get captureMode => kIsWeb
+      ? null
+      : switch (defaultTargetPlatform) {
+          TargetPlatform.macOS => XScreenCaptureMode.pickerDriven,
+          TargetPlatform.android ||
+          TargetPlatform.iOS =>
+            XScreenCaptureMode.consentDriven,
+          _ => null,
+        };
+
+  @override
   bool get supported =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
 

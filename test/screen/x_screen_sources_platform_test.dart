@@ -30,18 +30,20 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
-  test('macOS is supported', () {
+  test('macOS is supported and picker-driven', () {
     debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
 
-    expect(MethodChannelXScreenSourcesBackend().supported, isTrue);
+    final backend = MethodChannelXScreenSourcesBackend();
+    expect(backend.supported, isTrue);
+    expect(backend.captureMode, XScreenCaptureMode.pickerDriven);
   });
 
-  for (final platform in const [
-    TargetPlatform.iOS,
-    TargetPlatform.android,
-    TargetPlatform.linux,
-    TargetPlatform.windows,
-    TargetPlatform.fuchsia,
+  for (final (platform, mode) in const <(TargetPlatform, XScreenCaptureMode?)>[
+    (TargetPlatform.iOS, XScreenCaptureMode.consentDriven),
+    (TargetPlatform.android, XScreenCaptureMode.consentDriven),
+    (TargetPlatform.linux, null),
+    (TargetPlatform.windows, null),
+    (TargetPlatform.fuchsia, null),
   ]) {
     group('$platform', () {
       late MethodChannelXScreenSourcesBackend backend;
@@ -53,6 +55,11 @@ void main() {
 
       test('is not supported', () {
         expect(backend.supported, isFalse);
+      });
+
+      test('reports $mode without touching the channel', () {
+        expect(backend.captureMode, mode);
+        expect(calls, isEmpty);
       });
 
       test('every method throws unsupported and touches no channel', () async {

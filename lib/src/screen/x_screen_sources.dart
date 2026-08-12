@@ -12,6 +12,17 @@ enum XScreenSourceKind {
   window,
 }
 
+/// How a platform decides what a screen share captures.
+enum XScreenCaptureMode {
+  /// The app enumerates the capturable surfaces, draws them, and hands the
+  /// chosen id back — [XScreenSourcesBackend.list] and a picker.
+  pickerDriven,
+
+  /// The system's own consent surface both asks and chooses; nothing is
+  /// enumerated and [XScreenSourcesBackend.list] has no role.
+  consentDriven,
+}
+
 /// One capturable surface — a display or a window — with the preview the
 /// picker draws for it.
 final class XScreenSource {
@@ -91,9 +102,14 @@ abstract interface class XScreenSourcesBackend {
   /// runs.
   static XScreenSourcesBackend instance = MethodChannelXScreenSourcesBackend();
 
-  /// Whether this platform family has a native picker. Elsewhere every
-  /// method throws [XScreenSourcesException] with code `unsupported`, before
-  /// it looks at its arguments.
+  /// How this platform family shares a screen, or `null` where it shares none
+  /// at all. Independent of [supported]: a family names its mode even where no
+  /// capture ships for it.
+  XScreenCaptureMode? get captureMode;
+
+  /// Whether this platform family serves these calls. Elsewhere every method
+  /// throws [XScreenSourcesException] with code `unsupported`, before it looks
+  /// at its arguments.
   bool get supported;
 
   /// Whether this host can serve a snapshot — the OS version as well as the
