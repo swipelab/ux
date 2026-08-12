@@ -153,9 +153,10 @@ abstract interface class XScreenSourcesBackend {
   /// hold is up.
   ///
   /// Throws [XScreenSourcesException] with `permission_denied` when the
-  /// platform refuses the hold for want of consent, `service_start_failed`
-  /// when it refuses for anything else. An empty [notificationTitle] throws
-  /// [ArgumentError] without reaching the platform.
+  /// platform refuses the hold for want of consent, and `service_start_failed`
+  /// when it refuses for anything else or when a later [startShare] or a
+  /// [stopShare] settles this one before the hold is up. An empty
+  /// [notificationTitle] throws [ArgumentError] without reaching the platform.
   Future<void> startShare({
     required String notificationTitle,
     String? notificationText,

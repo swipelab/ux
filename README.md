@@ -153,7 +153,9 @@ service between them. It is declared, with `FOREGROUND_SERVICE` and
 `FOREGROUND_SERVICE_MEDIA_PROJECTION`, in `ux`'s own manifest, which merges
 into the host app — nothing to add there. A start the platform refuses for want
 of consent throws `permission_denied`, any other refusal
-`service_start_failed`. The ongoing notification takes the host's
+`service_start_failed` — as does a start a later `startShare` or a `stopShare`
+settles before the hold is up. The hold also drops when the Flutter engine
+detaches. The ongoing notification takes the host's
 `io.swipelab.ux.notification_icon` meta-data icon, the one `XNotifications`
 uses.
 

@@ -23,6 +23,9 @@ class ScreenSourcesPlugin : NativePlugin {
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ScreenShareService.stop(binding.applicationContext)
+        }
         channel?.setMethodCallHandler(null)
         channel = null
     }
@@ -45,17 +48,9 @@ class ScreenSourcesPlugin : NativePlugin {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             return result.error("unsupported", "Android 10 or newer", null)
         }
-        val title = call.argument<String>("notificationTitle")
-        if (title.isNullOrEmpty()) {
-            return result.error(
-                "invalid_response",
-                "notificationTitle: expected a non-empty String",
-                null,
-            )
-        }
         ScreenShareService.start(
             context,
-            title,
+            call.argument<String>("notificationTitle"),
             call.argument<String>("notificationText"),
         ) { failure ->
             if (failure == null) result.success(null)

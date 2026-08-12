@@ -35,7 +35,7 @@ class ScreenShareService : Service() {
 
         internal fun start(
             context: Context,
-            title: String,
+            title: String?,
             text: String?,
             onStarted: (ScreenShareFailure?) -> Unit,
         ) {
@@ -54,6 +54,7 @@ class ScreenShareService : Service() {
         }
 
         internal fun stop(context: Context) {
+            settle(ScreenShareFailure("service_start_failed", "stopped"))
             context.stopService(Intent(context, ScreenShareService::class.java))
         }
 
