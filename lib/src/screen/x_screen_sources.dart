@@ -118,8 +118,10 @@ abstract interface class XScreenSourcesBackend {
   /// [XScreenCaptureMode.consentDriven].
   bool get supported;
 
-  /// Whether this host can serve its [captureMode] — the OS version as well as
-  /// the platform family.
+  /// Whether this host can serve its [captureMode] — the platform family and
+  /// the OS version, plus whatever else the platform makes a capture depend
+  /// on: on iOS this is ReplayKit's own answer, false while a mirrored display
+  /// or another recorder holds the screen.
   Future<bool> available();
 
   /// Whether screen recording is granted. Never prompts.
@@ -150,7 +152,9 @@ abstract interface class XScreenSourcesBackend {
   ///
   /// It belongs between the system's consent and the capture start: the hold
   /// is granted only once consent is, and the capture only succeeds while the
-  /// hold is up.
+  /// hold is up. A platform that asks for no hold answers here anyway, with
+  /// whether it would serve a capture right now, and has no role for the
+  /// notification arguments.
   ///
   /// Throws [XScreenSourcesException] with `permission_denied` when the
   /// platform refuses the hold for want of consent, and `service_start_failed`

@@ -298,83 +298,85 @@ void main() {
     });
   });
 
-  group('share bracket', () {
-    setUp(() {
-      debugDefaultTargetPlatformOverride = TargetPlatform.android;
-      backend = MethodChannelXScreenSourcesBackend();
-    });
+  for (final platform in const [TargetPlatform.android, TargetPlatform.iOS]) {
+    group('share bracket on $platform', () {
+      setUp(() {
+        debugDefaultTargetPlatformOverride = platform;
+        backend = MethodChannelXScreenSourcesBackend();
+      });
 
-    Map<Object?, Object?> argumentsOf(MethodCall call) =>
-        (call.arguments as Map).cast<Object?, Object?>();
+      Map<Object?, Object?> argumentsOf(MethodCall call) =>
+          (call.arguments as Map).cast<Object?, Object?>();
 
-    test('available carries its name and no arguments', () async {
-      handler = (_) async => true;
+      test('available carries its name and no arguments', () async {
+        handler = (_) async => true;
 
-      expect(await backend.available(), isTrue);
-      expect(calls.single.method, 'available');
-      expect(calls.single.arguments, isNull);
-    });
+        expect(await backend.available(), isTrue);
+        expect(calls.single.method, 'available');
+        expect(calls.single.arguments, isNull);
+      });
 
-    test('start carries the notification and stop carries nothing', () async {
-      await backend.startShare(
-        notificationTitle: 'Sharing your screen',
-        notificationText: 'Tap to return',
-      );
-      await backend.stopShare();
+      test('start carries the notification and stop carries nothing', () async {
+        await backend.startShare(
+          notificationTitle: 'Sharing your screen',
+          notificationText: 'Tap to return',
+        );
+        await backend.stopShare();
 
-      expect(calls.map((c) => c.method), ['startShare', 'stopShare']);
-      final args = argumentsOf(calls.first);
-      expect(args.keys.toSet(), {'notificationTitle', 'notificationText'});
-      expect(args['notificationTitle'], 'Sharing your screen');
-      expect(args['notificationText'], 'Tap to return');
-      expect(calls.last.arguments, isNull);
-    });
+        expect(calls.map((c) => c.method), ['startShare', 'stopShare']);
+        final args = argumentsOf(calls.first);
+        expect(args.keys.toSet(), {'notificationTitle', 'notificationText'});
+        expect(args['notificationTitle'], 'Sharing your screen');
+        expect(args['notificationText'], 'Tap to return');
+        expect(calls.last.arguments, isNull);
+      });
 
-    test('an omitted text is sent as null', () async {
-      await backend.startShare(notificationTitle: 'Sharing your screen');
+      test('an omitted text is sent as null', () async {
+        await backend.startShare(notificationTitle: 'Sharing your screen');
 
-      expect(argumentsOf(calls.single)['notificationText'], isNull);
-    });
+        expect(argumentsOf(calls.single)['notificationText'], isNull);
+      });
 
-    test('an empty title throws before the channel', () async {
-      await expectLater(
-        backend.startShare(notificationTitle: ''),
-        throwsArgumentError,
-      );
-      expect(calls, isEmpty);
-    });
+      test('an empty title throws before the channel', () async {
+        await expectLater(
+          backend.startShare(notificationTitle: ''),
+          throwsArgumentError,
+        );
+        expect(calls, isEmpty);
+      });
 
-    for (final code in const [
-      'permission_denied',
-      'service_start_failed',
-      'unsupported',
-    ]) {
-      test('a start refused with $code passes it through', () async {
+      for (final code in const [
+        'permission_denied',
+        'service_start_failed',
+        'unsupported',
+      ]) {
+        test('a start refused with $code passes it through', () async {
+          handler = (_) async =>
+              throw PlatformException(code: code, message: 'detail');
+
+          await expectLater(
+            backend.startShare(notificationTitle: 'Sharing your screen'),
+            throwsA(
+              isA<XScreenSourcesException>()
+                  .having((e) => e.code, 'code', code)
+                  .having((e) => e.message, 'message', 'detail'),
+            ),
+          );
+        });
+      }
+
+      test('a stop failure surfaces the same way', () async {
         handler =
-            (_) async => throw PlatformException(code: code, message: 'detail');
+            (_) async => throw PlatformException(code: 'service_start_failed');
 
         await expectLater(
-          backend.startShare(notificationTitle: 'Sharing your screen'),
+          backend.stopShare(),
           throwsA(
             isA<XScreenSourcesException>()
-                .having((e) => e.code, 'code', code)
-                .having((e) => e.message, 'message', 'detail'),
+                .having((e) => e.code, 'code', 'service_start_failed'),
           ),
         );
       });
-    }
-
-    test('a stop failure surfaces the same way', () async {
-      handler =
-          (_) async => throw PlatformException(code: 'service_start_failed');
-
-      await expectLater(
-        backend.stopShare(),
-        throwsA(
-          isA<XScreenSourcesException>()
-              .having((e) => e.code, 'code', 'service_start_failed'),
-        ),
-      );
     });
-  });
+  }
 }

@@ -93,10 +93,12 @@ system's own consent surface both asks and chooses. It reads independently of
 `supported`, so a consumer builds the right flow per family without platform
 checks of its own.
 
-macOS 14 and up, Android 10 and up. `supported` is the platform family;
-`available()` adds the OS version. A call the family's mode has no role for
-throws `unsupported`: `list`, `hasPermission` and `requestPermission` off
-`pickerDriven`, `startShare` and `stopShare` off `consentDriven`.
+macOS 14 and up, Android 10 and up, iOS 13 and up. `supported` is the platform
+family; `available()` adds the OS version, and on iOS ReplayKit's own answer,
+which is false while a mirrored display or another recorder holds the screen. A
+call the family's mode has no role for throws `unsupported`: `list`,
+`hasPermission` and `requestPermission` off `pickerDriven`, `startShare` and
+`stopShare` off `consentDriven`.
 
 ### macOS — the picker
 
@@ -158,6 +160,37 @@ settles before the hold is up. The hold also drops when the Flutter engine
 detaches. The ongoing notification takes the host's
 `io.swipelab.ux.notification_icon` meta-data icon, the one `XNotifications`
 uses.
+
+### iOS — the share bracket
+
+The same three calls, over ReplayKit's in-app recorder: the consumer's capture
+stack starts `RPScreenRecorder`, which raises the consent alert itself and
+delivers the frames in-process. No broadcast upload extension is involved, and
+there is nothing to add to the host's `Info.plist` or entitlements.
+
+iOS asks for no hold around that capture, so what `startShare` carries is the
+recorder's own arbitration — it refuses while a mirrored display or another
+recorder owns the screen — raised as `service_start_failed` before the consumer
+asks for a track that would never produce a frame. The notification arguments
+have no iOS role: the system's red recording indicator is the ongoing surface.
+`stopShare` holds nothing to drop and succeeds, so the same consumer code
+brackets both consent-driven families:
+
+```dart
+final sources = XScreenSourcesBackend.instance;
+if (!await sources.available()) return;
+
+await sources.startShare(
+  notificationTitle: 'Sharing your screen',
+  notificationText: 'Tap to return to the call',
+);
+await captureStack.startCapture();
+// … and on teardown:
+await sources.stopShare();
+```
+
+Consent itself lives inside that capture start, so `startShare` never raises
+`permission_denied` on iOS.
 
 ## XCameraEffects
 
