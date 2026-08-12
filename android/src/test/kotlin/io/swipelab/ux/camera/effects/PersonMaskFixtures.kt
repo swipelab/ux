@@ -17,6 +17,29 @@ class TestClock : CameraEffectsClock {
     fun advance(nanos: Long) = synchronized(this) { value += nanos }
 }
 
+/** A thermal status stream the test moves by hand. */
+class TestThermalSource : CameraThermalSource {
+    private var listener: ((Int) -> Unit)? = null
+
+    var closes = 0
+        private set
+
+    val observed: Boolean get() = listener != null
+
+    override fun observe(listener: (Int) -> Unit) {
+        this.listener = listener
+    }
+
+    fun report(status: Int) {
+        listener?.invoke(status)
+    }
+
+    override fun close() {
+        closes += 1
+        listener = null
+    }
+}
+
 fun makeMaskPixels(width: Int = 256, height: Int = 144): PersonMaskPixels =
     PersonMaskPixels(width, height, FloatBuffer.allocate(width * height))
 

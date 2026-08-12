@@ -29,7 +29,9 @@ object CameraEffects {
 
     val isInstalled: Boolean get() = service.isBridgeInstalled
 
-    internal val processors = CameraEffectProcessors()
+    internal val cadence = CameraThermalCadence()
+
+    internal val processors = CameraEffectProcessors(cadence)
 
     internal val composites = CameraCompositeLog(exposes = BuildConfig.DEBUG)
 
@@ -55,6 +57,7 @@ class CameraEffectsPlugin :
     private var eventChannel: EventChannel? = null
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
+        CameraEffects.cadence.observe(PowerManagerThermalSource(binding.applicationContext))
         methodChannel = MethodChannel(binding.binaryMessenger, "ux/camera_effects")
             .also { it.setMethodCallHandler(this) }
         eventChannel = EventChannel(binding.binaryMessenger, "ux/camera_effects/events")
@@ -63,6 +66,7 @@ class CameraEffectsPlugin :
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         CameraEffects.service.teardown()
+        CameraEffects.cadence.stop()
         methodChannel?.setMethodCallHandler(null)
         methodChannel = null
         eventChannel?.setStreamHandler(null)

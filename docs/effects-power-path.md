@@ -134,9 +134,9 @@ cover the −2.2pp:
   cluster whose frequency it raised. A jiffy-based busy fraction falls while
   energy rises. **[assumed]** — nothing in the artifacts records per-core
   residency or time-in-state.
-* **The mask cadence backs off under load.** `PersonMaskProducer.complete`
-  widens the submission interval to the last observed inference latency
-  (`interval = max(66.7 ms, latency)`). A hotter, busier SoC raises ML Kit's
+* **The mask cadence backs off under load.** The producer submits no faster
+  than `max(cadence floor, last observed inference latency)`, and the floor is
+  66.7 ms under no thermal pressure. A hotter, busier SoC raises ML Kit's
   latency past 66.7 ms, the interval widens, and submissions per second fall —
   removing the per-frame `copy` and the inference CPU that the `mask-only` rung
   spends in full. The `mask-only` rung prices that whole term at +3.4pp, so a
