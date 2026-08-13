@@ -9,10 +9,11 @@ import 'package:ux/src/screen/x_screen_sources.dart';
 /// [permission] and the `…Error` fields between assertions to drive the
 /// picker's success, denial and failure paths.
 class FakeXScreenSourcesBackend implements XScreenSourcesBackend {
-  /// Creates a fake that starts out supported, available, and not yet
-  /// granted.
+  /// Creates a fake that starts out picker-driven, supported, available, and
+  /// not yet granted.
   FakeXScreenSourcesBackend({
     List<XScreenSource> sources = const [],
+    this.captureMode = XScreenCaptureMode.pickerDriven,
     this.supported = true,
     this.availableResult = true,
     this.permission = false,
@@ -28,8 +29,15 @@ class FakeXScreenSourcesBackend implements XScreenSourcesBackend {
         int thumbnailHeight,
       })> listCalls = [];
 
+  /// Every [startShare] call, in order, with the notification it was given.
+  final List<({String notificationTitle, String? notificationText})>
+      startShareCalls = [];
+
   /// Number of [available] calls.
   int availableCalls = 0;
+
+  /// Number of [stopShare] calls.
+  int stopShareCalls = 0;
 
   /// Number of [hasPermission] calls.
   int hasPermissionCalls = 0;
@@ -39,6 +47,9 @@ class FakeXScreenSourcesBackend implements XScreenSourcesBackend {
 
   /// Snapshot returned by [list].
   List<XScreenSource> sources;
+
+  @override
+  XScreenCaptureMode? captureMode;
 
   @override
   bool supported;
@@ -63,6 +74,12 @@ class FakeXScreenSourcesBackend implements XScreenSourcesBackend {
 
   /// If non-null, thrown by [requestPermission].
   XScreenSourcesException? requestPermissionError;
+
+  /// If non-null, thrown by [startShare] instead of taking the hold.
+  XScreenSourcesException? startShareError;
+
+  /// If non-null, thrown by [stopShare].
+  XScreenSourcesException? stopShareError;
 
   @override
   Future<bool> available() async {
@@ -109,6 +126,28 @@ class FakeXScreenSourcesBackend implements XScreenSourcesBackend {
     final err = listError;
     if (err != null) throw err;
     return List.unmodifiable(sources);
+  }
+
+  @override
+  Future<void> startShare({
+    required String notificationTitle,
+    String? notificationText,
+  }) async {
+    _requireSupported();
+    startShareCalls.add((
+      notificationTitle: notificationTitle,
+      notificationText: notificationText,
+    ));
+    final err = startShareError;
+    if (err != null) throw err;
+  }
+
+  @override
+  Future<void> stopShare() async {
+    _requireSupported();
+    stopShareCalls += 1;
+    final err = stopShareError;
+    if (err != null) throw err;
   }
 
   void _requireSupported() {

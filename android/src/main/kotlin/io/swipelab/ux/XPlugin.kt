@@ -5,6 +5,7 @@ import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.swipelab.ux.camera.CameraPlugin
 import io.swipelab.ux.camera.effects.CameraEffectsPlugin
+import io.swipelab.ux.screen.ScreenSourcesPlugin
 import io.swipelab.ux.video.VideoExporterPlugin
 import io.swipelab.ux.video.VideoPlayerPlugin
 
@@ -32,6 +33,7 @@ class XPlugin : FlutterPlugin, ActivityAware {
         NotificationsPlugin(),
         WindowPlugin(),
         SecureStorePlugin(),
+        ScreenSourcesPlugin(),
     )
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) =
