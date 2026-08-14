@@ -13,6 +13,11 @@ import FlutterMacOS
 /// A tap reads the input node without owning the capture graph, so another
 /// module holding the microphone (a call, a recorder) keeps it.
 ///
+/// The input runs under the platform voice processing where the host offers
+/// it: the tap feeds live transcription while the same device plays the
+/// room's audio, and playback (remote voices, dubs) must not re-enter as
+/// local speech. The Android counterpart is `AudioCapturePlugin.kt`.
+///
 /// Interruption reporting differs per platform: iOS has
 /// `AVAudioSession` interruption and route-change notifications, macOS has
 /// neither — there the engine's configuration-change notification (default
@@ -98,20 +103,27 @@ public class AudioCapturePlugin: NSObject, NativePlugin, FlutterStreamHandler {
             AudioSession.upgradeForRecording()
 
             let input = self.engine.inputNode
-            let inputFormat = input.outputFormat(forBus: 0)
             // A host with no usable input reports a zero-rate format —
-            // installing a tap against it traps.
-            guard inputFormat.sampleRate > 0 else {
+            // installing a tap against it traps, and so does toggling
+            // voice processing.
+            guard input.outputFormat(forBus: 0).sampleRate > 0 else {
                 return result(FlutterError(
                     code: "no_input_device",
                     message: "no microphone input",
                     details: nil
                 ))
             }
+            // Voice processing rebuilds the engine's IO unit and changes
+            // the input format, so it toggles only while the engine is
+            // stopped, and the format feeding the converter is read after
+            // it. A host that refuses it captures raw.
+            try? input.setVoiceProcessingEnabled(true)
+            let inputFormat = input.outputFormat(forBus: 0)
             guard let converter = AVAudioConverter(
                 from: inputFormat,
                 to: self.outputFormat
             ) else {
+                try? input.setVoiceProcessingEnabled(false)
                 return result(FlutterError(
                     code: "start_failed",
                     message: "cannot convert \(inputFormat) to 16 kHz Int16",
@@ -136,6 +148,7 @@ public class AudioCapturePlugin: NSObject, NativePlugin, FlutterStreamHandler {
                 try self.engine.start()
             } catch {
                 input.removeTap(onBus: 0)
+                try? input.setVoiceProcessingEnabled(false)
                 self.converter = nil
                 return result(FlutterError(
                     code: "start_failed",
@@ -154,6 +167,7 @@ public class AudioCapturePlugin: NSObject, NativePlugin, FlutterStreamHandler {
         running = false
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
+        try? engine.inputNode.setVoiceProcessingEnabled(false)
         converter = nil
         pending.removeAll(keepingCapacity: false)
     }
