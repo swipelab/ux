@@ -9,6 +9,7 @@ import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.AudioRecordingConfiguration
 import android.media.MediaRecorder
+import android.media.audiofx.AcousticEchoCanceler
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -28,9 +29,10 @@ import java.nio.ByteOrder
 /// `XAudioCapture` publishes — and pushes fixed-size frames to Dart.
 /// The Apple counterpart is `AudioCapturePlugin.swift`.
 ///
-/// `VOICE_RECOGNITION` is the source: it asks for the speech-tuned input
-/// chain (noise suppression where the device offers it, no AGC surprises)
-/// and does not claim the communication route a call already holds.
+/// `VOICE_COMMUNICATION` is the source, with the platform echo canceller
+/// attached to the session where the device offers one: the tap feeds live
+/// transcription while the same device plays the room's audio, and playback
+/// (remote voices, dubs) must not re-enter as local speech.
 class AudioCapturePlugin :
     NativePlugin,
     MethodChannel.MethodCallHandler,
@@ -55,6 +57,7 @@ class AudioCapturePlugin :
     private var pending: ((Boolean) -> Unit)? = null
 
     private var record: AudioRecord? = null
+    private var echoCanceler: AcousticEchoCanceler? = null
     private var reader: Thread? = null
 
     @Volatile
@@ -161,7 +164,7 @@ class AudioCapturePlugin :
                 )
             }
             val rec = AudioRecord(
-                MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                MediaRecorder.AudioSource.VOICE_COMMUNICATION,
                 SAMPLE_RATE,
                 AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_16BIT,
@@ -181,6 +184,11 @@ class AudioCapturePlugin :
                 return@requestPermission result.error(
                     "start_failed", "AudioRecord did not start", null,
                 )
+            }
+            if (AcousticEchoCanceler.isAvailable()) {
+                echoCanceler = AcousticEchoCanceler.create(rec.audioSessionId)?.apply {
+                    enabled = true
+                }
             }
             record = rec
             running = true
@@ -215,6 +223,8 @@ class AudioCapturePlugin :
         record?.stop()
         reader?.join()
         reader = null
+        echoCanceler?.release()
+        echoCanceler = null
         record?.release()
         record = null
     }
