@@ -9,7 +9,8 @@ import Foundation
 /// ```
 ///
 /// A release build holds ``CameraEffectStage/composite`` and records nothing:
-/// `engage` answers false and moves nothing, `composites` answers empty.
+/// `engage` answers false and moves nothing, `composites` and `masks` answer
+/// empty.
 public enum CameraEffectsRig {
     @discardableResult
     public static func engage(_ stage: CameraEffectStage) -> Bool {
@@ -27,5 +28,10 @@ public enum CameraEffectsRig {
     /// Every composite the log still holds, oldest first.
     public static func composites() -> [CameraCompositeRecord] {
         CameraEffectHost.composites.records()
+    }
+
+    /// What the process's mask producers made of the frames they were given.
+    public static func masks() -> CameraMaskTelemetry {
+        CameraEffectHost.masks.telemetry(at: UptimeClock().now)
     }
 }

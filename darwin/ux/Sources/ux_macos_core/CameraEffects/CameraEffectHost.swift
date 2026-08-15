@@ -42,4 +42,15 @@ public enum CameraEffectHost {
             return CameraCompositeLog(exposes: false)
         #endif
     }()
+
+    /// The one log every mask producer in the process accounts to and
+    /// ``CameraEffectsRig`` reads. A release build neither fills nor measures
+    /// for it.
+    public static let masks: CameraMaskLog = {
+        #if DEBUG
+            return CameraMaskLog(exposes: true)
+        #else
+            return CameraMaskLog(exposes: false)
+        #endif
+    }()
 }

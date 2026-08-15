@@ -182,12 +182,16 @@ public final class XCameraFrameProcessors: CameraEffectProcessorFactory {
         case .composite:
             return XCameraFrameProcessor(
                 compositor: CameraEffectCompositor(effect: effect, measures: measures),
-                producer: PersonMaskProducer(segmenter: VisionPersonSegmenter())
+                producer: PersonMaskProducer(
+                    segmenter: VisionPersonSegmenter(), log: CameraEffectHost.masks
+                )
             )
         case .maskOnly:
             return StagedFrameProcessor(
                 compositor: CameraEffectCompositor(effect: .none, measures: measures),
-                producer: PersonMaskProducer(segmenter: VisionPersonSegmenter())
+                producer: PersonMaskProducer(
+                    segmenter: VisionPersonSegmenter(), log: CameraEffectHost.masks
+                )
             )
         case .passthrough:
             return StagedFrameProcessor(
