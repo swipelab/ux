@@ -265,7 +265,8 @@ class CameraEffectsService(
         }
         val processor: CameraEffectProcessor = try {
             processors.makeProcessor(effect)
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            android.util.Log.e("camera-effects", "makeProcessor($effect)", e)
             return finish(
                 CameraEffectsReply.Failure(CameraEffectsFailure.initializationFailed),
                 completion,
