@@ -49,10 +49,12 @@ public final class PersonMaskProducer {
         pools: CameraEffectBufferPools = PixelBufferPools(
             threshold: PersonMaskProducer.inputBufferCount
         ),
-        clock: CameraEffectsClock = UptimeClock()
+        clock: CameraEffectsClock = UptimeClock(),
+        log: CameraMaskLog = CameraMaskLog(exposes: false)
     ) {
         self.segmenter = segmenter
         self.clock = clock
+        self.log = log
         pool = pools.makePool(width: Self.inputWidth, height: Self.inputHeight)
         // Caching intermediates would hold the camera's buffer past the frame
         // callback that lent it.
@@ -74,6 +76,7 @@ public final class PersonMaskProducer {
 
     private let segmenter: PersonSegmenting
     private let clock: CameraEffectsClock
+    private let log: CameraMaskLog
     private let pool: CameraEffectBufferPool?
     private let context: CIContext
     let queue = DispatchQueue(
@@ -104,14 +107,15 @@ public final class PersonMaskProducer {
     /// Takes what this frame owes the next mask and returns; it never waits on
     /// an inference and never retains the frame's buffer.
     public func consider(_ frame: CameraFrame) {
-        guard let claimed = claim() else { return }
+        guard let claimed = claim(frame) else { return }
         guard
             frame.crop.width > 0, frame.crop.height > 0,
             let pool, let destination = pool.takeBuffer(),
             copy(frame, into: destination)
         else { return release(claimed) }
         guard let submission = stamp(frame, claimed) else { return }
-        queue.async { [segmenter, weak self] in
+        queue.async { [segmenter, log, clock, weak self] in
+            log.entered(submission.sequence, at: clock.now)
             segmenter.submit(destination, rotation: submission.rotation) { result in
                 self?.complete(result, submission)
             }
@@ -130,39 +134,64 @@ public final class PersonMaskProducer {
         interval = Self.targetSubmissionInterval
     }
 
+    private struct Claim {
+        let generation: Int
+        let sequence: Int
+    }
+
     private struct Submission {
         let generation: Int
+        let sequence: Int
         let crop: CGRect
         let rotation: CameraFrameRotation
         let timestampNs: Int64
     }
 
-    /// The generation the caller may submit under, or `nil` when an inference
-    /// is in flight or the cadence gate has not opened.
-    private func claim() -> Int? {
+    /// The claim the caller may submit under, or `nil` when an inference is in
+    /// flight or the cadence gate has not opened.
+    private func claim(_ frame: CameraFrame) -> Claim? {
         os_unfair_lock_lock(lock)
         defer { os_unfair_lock_unlock(lock) }
-        guard !inFlight else { return nil }
-        if let lastSubmissionAt, clock.now - lastSubmissionAt < interval { return nil }
+        let now = clock.now
+        log.considered(at: now)
+        guard !inFlight else {
+            log.refused(.inFlight)
+            return nil
+        }
+        if let lastSubmissionAt, now - lastSubmissionAt < interval {
+            log.refused(.cadence)
+            return nil
+        }
         inFlight = true
-        return generation
+        return Claim(
+            generation: generation,
+            sequence: log.claimed(
+                frameTimestampNs: frame.timestampNs, interval: interval, at: now
+            )
+        )
     }
 
-    private func release(_ claimed: Int) {
+    private func release(_ claimed: Claim) {
         os_unfair_lock_lock(lock)
         defer { os_unfair_lock_unlock(lock) }
-        guard claimed == generation else { return }
+        log.closed(claimed.sequence, .input, at: clock.now)
+        guard claimed.generation == generation else { return }
         inFlight = false
     }
 
-    private func stamp(_ frame: CameraFrame, _ claimed: Int) -> Submission? {
+    private func stamp(_ frame: CameraFrame, _ claimed: Claim) -> Submission? {
         os_unfair_lock_lock(lock)
         defer { os_unfair_lock_unlock(lock) }
-        guard claimed == generation else { return nil }
+        guard claimed.generation == generation else {
+            log.closed(claimed.sequence, .retired, at: clock.now)
+            return nil
+        }
         submittedAt = clock.now
         lastSubmissionAt = submittedAt
+        log.submitted(claimed.sequence, at: submittedAt)
         return Submission(
-            generation: claimed,
+            generation: claimed.generation,
+            sequence: claimed.sequence,
             crop: frame.crop,
             rotation: frame.rotation,
             timestampNs: frame.timestampNs
@@ -174,9 +203,16 @@ public final class PersonMaskProducer {
     ) {
         os_unfair_lock_lock(lock)
         defer { os_unfair_lock_unlock(lock) }
-        guard submission.generation == generation else { return }
+        let now = clock.now
+        guard submission.generation == generation else {
+            log.closed(submission.sequence, .retired, at: now)
+            return
+        }
         inFlight = false
-        guard case .success(let buffer) = result else { return }
+        guard case .success(let buffer) = result else {
+            log.closed(submission.sequence, .inference(Self.text(of: result)), at: now)
+            return
+        }
         published = CameraMask(
             pixelBuffer: buffer,
             width: CVPixelBufferGetWidth(buffer),
@@ -186,10 +222,16 @@ public final class PersonMaskProducer {
             sourceTimestampNs: submission.timestampNs
         )
         publications += 1
+        log.published(submission.sequence, at: now)
         // The first inference of a producer carries the model load, which is
         // two orders of magnitude slower than a warm one.
         guard publications > 1 else { return }
-        interval = max(Self.targetSubmissionInterval, clock.now - submittedAt)
+        interval = max(Self.targetSubmissionInterval, now - submittedAt)
+    }
+
+    private static func text(of result: Result<CVPixelBuffer, Error>) -> String {
+        guard case .failure(let error) = result else { return "" }
+        return String(describing: error)
     }
 
     private func copy(_ frame: CameraFrame, into destination: CVPixelBuffer) -> Bool {
