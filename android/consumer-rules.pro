@@ -41,16 +41,12 @@
 # reachable from XVideoExporter.
 -keep class androidx.media3.transformer.** { *; }
 
-# ML Kit wires itself through a reflective registry: registrar class names
-# live as manifest <meta-data> strings, ComponentDiscovery instantiates them
-# through their no-arg constructors, and components are fetched from
-# MlKitContext at use time. R8 sees none of the string references — the
-# upstream rules keep the registrar TYPES but not their members — so the
-# constructors are stripped as unused, nothing registers, and
-# Segmentation.getClient NPEs inside SegmenterImpl on the missing component:
-# background effects dead in minified (release) builds while debug (no R8)
-# works. The registry reaches ML Kit internals at runtime, so the keep is
-# the whole surface rather than a per-internal whack-a-mole.
+# ML Kit registrar class names live as manifest <meta-data> strings.
+# ComponentDiscovery instantiates them through their no-arg constructors
+# and components are fetched from MlKitContext at use time. R8 sees none
+# of the string references; the upstream rules keep the registrar types
+# but not their members. The registry reaches ML Kit internals at runtime,
+# so the keep is the whole surface.
 -keep class com.google.mlkit.** { *; }
 -keep class com.google.firebase.components.** { *; }
 -keep class com.google.android.gms.internal.mlkit_vision_segmentation** { *; }
