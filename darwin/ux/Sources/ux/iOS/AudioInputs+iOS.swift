@@ -7,13 +7,21 @@ import ux_macos_core
 /// routes capture to one of them.
 ///
 /// A port is identified by its `uid`. The session only enumerates inputs
-/// under a recording category, so both calls widen it first. The macOS
-/// counterpart is `AudioInputs+macOS.swift`.
+/// under a recording category. The macOS counterpart is
+/// `AudioInputs+macOS.swift`.
 enum AudioInputs {
+    /// Hardware inputs the session names. When the category does not
+    /// expose inputs, the category becomes `.playAndRecord` under the
+    /// current options without activating.
     static func list() -> [AudioInput] {
-        AudioSession.upgradeForRecording()
-        let ports = AVAudioSession.sharedInstance().availableInputs ?? []
-        return ports.map { AudioInput(id: $0.uid, label: $0.portName) }
+        let session = AVAudioSession.sharedInstance()
+        if let ports = session.availableInputs {
+            return ports.map { AudioInput(id: $0.uid, label: $0.portName) }
+        }
+        try? session.setCategory(.playAndRecord, options: session.categoryOptions)
+        return (session.availableInputs ?? []).map {
+            AudioInput(id: $0.uid, label: $0.portName)
+        }
     }
 
     /// Routes capture to [input]. `engine` has no role: the session owns the

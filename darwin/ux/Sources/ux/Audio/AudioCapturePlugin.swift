@@ -137,13 +137,6 @@ public class AudioCapturePlugin: NSObject, NativePlugin, FlutterStreamHandler {
             AudioSession.upgradeForRecording()
 
             let node = self.engine.inputNode
-            if let input, !AudioInputs.select(input, engine: self.engine) {
-                return result(FlutterError(
-                    code: "no_input_device",
-                    message: input.id,
-                    details: nil
-                ))
-            }
             // A host with no usable input reports a zero-rate format —
             // installing a tap against it traps, and so does toggling
             // voice processing.
@@ -154,11 +147,19 @@ public class AudioCapturePlugin: NSObject, NativePlugin, FlutterStreamHandler {
                     details: nil
                 ))
             }
-            // Voice processing rebuilds the engine's IO unit and changes
-            // the input format, so it toggles only while the engine is
-            // stopped, and the format feeding the converter is read after
-            // it. A host that refuses it captures raw.
+            // Voice processing replaces the I/O unit and the input format
+            // while the engine is stopped. A named input is selected on
+            // that unit, then the converter format is read. A host that
+            // refuses it captures raw.
             try? node.setVoiceProcessingEnabled(true)
+            if let input, !AudioInputs.select(input, engine: self.engine) {
+                try? node.setVoiceProcessingEnabled(false)
+                return result(FlutterError(
+                    code: "no_input_device",
+                    message: input.id,
+                    details: nil
+                ))
+            }
             let inputFormat = node.outputFormat(forBus: 0)
             guard self.converter(for: inputFormat) != nil else {
                 try? node.setVoiceProcessingEnabled(false)
@@ -213,25 +214,28 @@ public class AudioCapturePlugin: NSObject, NativePlugin, FlutterStreamHandler {
         }
         converter = nil
         pending.removeAll(keepingCapacity: true)
+        // ScreenCaptureKit delivers this completion off the platform thread.
         tap.start { [weak self] failure in
-            guard let self else {
-                return result(FlutterError(
-                    code: "start_failed",
-                    message: "plugin released",
-                    details: nil
-                ))
+            DispatchQueue.main.async {
+                guard let self else {
+                    return result(FlutterError(
+                        code: "start_failed",
+                        message: "plugin released",
+                        details: nil
+                    ))
+                }
+                if let failure {
+                    return result(FlutterError(
+                        code: "start_failed",
+                        message: failure,
+                        details: nil
+                    ))
+                }
+                self.playbackTap = tap
+                self.running = true
+                self.emitState("running", reason: nil)
+                result(nil)
             }
-            if let failure {
-                return result(FlutterError(
-                    code: "start_failed",
-                    message: failure,
-                    details: nil
-                ))
-            }
-            self.playbackTap = tap
-            self.running = true
-            self.emitState("running", reason: nil)
-            result(nil)
         }
     }
 

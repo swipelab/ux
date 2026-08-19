@@ -25,21 +25,41 @@ enum AudioInputs {
         devices().map { AudioInput(id: $0.uid, label: $0.name) }
     }
 
-    /// Points the engine's input unit at [input]. Takes effect while the
-    /// engine is stopped, and changes the input node's format.
+    /// Points the engine's input unit at [input]. Voice processing
+    /// replaces that unit and keeps the microphone on element 1 (element
+    /// 0 is the echo-cancellation output), so this writes that element
+    /// when voice processing is on, otherwise the AUHAL current device.
+    /// Takes effect while the engine is stopped, and changes the input
+    /// node's format.
     static func select(_ input: AudioInput, engine: AVAudioEngine) -> Bool {
         guard let device = devices().first(where: { $0.uid == input.id }),
               let unit = engine.inputNode.audioUnit
         else { return false }
         var id = device.id
-        return AudioUnitSetProperty(
+        let voiceProcessing = engine.inputNode.isVoiceProcessingEnabled
+        let scope: AudioUnitScope = voiceProcessing
+            ? kAudioUnitScope_Input
+            : kAudioUnitScope_Global
+        let element: AudioUnitElement = voiceProcessing ? 1 : 0
+        guard AudioUnitSetProperty(
             unit,
             kAudioOutputUnitProperty_CurrentDevice,
-            kAudioUnitScope_Global,
-            0,
+            scope,
+            element,
             &id,
             UInt32(MemoryLayout<AudioDeviceID>.size)
-        ) == noErr
+        ) == noErr else { return false }
+        var current: AudioDeviceID = 0
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        guard AudioUnitGetProperty(
+            unit,
+            kAudioOutputUnitProperty_CurrentDevice,
+            scope,
+            element,
+            &current,
+            &size
+        ) == noErr else { return false }
+        return current == device.id
     }
 
     private static func devices() -> [Device] {

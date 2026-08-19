@@ -152,9 +152,10 @@ class XAudioCaptureException implements Exception {
 ///
 /// Android hosts must declare `android.permission.RECORD_AUDIO`; Apple hosts
 /// need `NSMicrophoneUsageDescription`, and a sandboxed macOS host also needs
-/// the `com.apple.security.device.audio-input` entitlement. Capturing
-/// playback asks once more at [start]: macOS through the screen-recording
-/// grant, Android through the media-projection consent.
+/// `com.apple.security.device.audio-input` and, for a playback tap,
+/// `com.apple.security.screen-capture`. Capturing playback asks once more
+/// at [start]: macOS through the screen-recording grant, Android through
+/// the media-projection consent.
 abstract interface class XAudioCapture {
   /// The process-wide tap. One source at a time, one instance.
   static final XAudioCapture instance = MethodChannelXAudioCapture();
