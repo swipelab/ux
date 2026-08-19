@@ -59,11 +59,14 @@ void main() {
 
   group('MethodChannelXAudioCapture', () {
     final calls = <String>[];
+    final arguments = <String, Object?>{};
 
     setUp(() {
       calls.clear();
+      arguments.clear();
       messenger.setMockMethodCallHandler(methods, (call) async {
         calls.add(call.method);
+        arguments[call.method] = call.arguments;
         return null;
       });
       messenger.setMockMethodCallHandler(events, (call) async {
@@ -137,6 +140,111 @@ void main() {
       await capture.start();
       await capture.stop();
       expect(calls, containsAllInOrder(['start', 'stop']));
+    });
+
+    test('start without a source carries no arguments', () async {
+      final capture = MethodChannelXAudioCapture();
+      await pumpEventQueue();
+
+      await capture.start();
+
+      expect(arguments['start'], isNull);
+    });
+
+    test('start with a source carries its id', () async {
+      final capture = MethodChannelXAudioCapture();
+      await pumpEventQueue();
+
+      await capture.start(sourceId: 'mic:7');
+
+      expect(arguments['start'], {'sourceId': 'mic:7'});
+    });
+
+    test('an unknown source fails with its code', () async {
+      messenger.setMockMethodCallHandler(methods, (call) async {
+        throw PlatformException(code: 'unknown_source', message: 'mic:99');
+      });
+      final capture = MethodChannelXAudioCapture();
+      await pumpEventQueue();
+
+      await expectLater(
+        capture.start(sourceId: 'mic:99'),
+        throwsA(isA<XAudioCaptureException>()
+            .having((e) => e.code, 'code', 'unknown_source')
+            .having((e) => e.message, 'message', 'mic:99')),
+      );
+    });
+
+    test('sources decodes the platform list in order', () async {
+      messenger.setMockMethodCallHandler(methods, (call) async {
+        calls.add(call.method);
+        return const [
+          {'id': 'mic:1', 'label': 'Built-in microphone', 'kind': 'microphone'},
+          {'id': 'playback', 'label': 'Device playback', 'kind': 'playback'},
+        ];
+      });
+      final capture = MethodChannelXAudioCapture();
+      await pumpEventQueue();
+
+      expect(await capture.sources(), [
+        const XAudioSource(
+          id: 'mic:1',
+          label: 'Built-in microphone',
+          kind: XAudioSourceKind.microphone,
+        ),
+        const XAudioSource(
+          id: 'playback',
+          label: 'Device playback',
+          kind: XAudioSourceKind.playback,
+        ),
+      ]);
+      expect(calls, contains('sources'));
+    });
+
+    test('a source with an unknown kind is an invalid response', () async {
+      messenger.setMockMethodCallHandler(methods, (call) async {
+        return const [
+          {'id': 'mic:1', 'label': 'Built-in', 'kind': 'telepathy'},
+        ];
+      });
+      final capture = MethodChannelXAudioCapture();
+      await pumpEventQueue();
+
+      await expectLater(
+        capture.sources(),
+        throwsA(isA<XAudioCaptureException>()
+            .having((e) => e.code, 'code', 'invalid_response')),
+      );
+    });
+
+    test('a source missing a field is an invalid response', () async {
+      messenger.setMockMethodCallHandler(methods, (call) async {
+        return const [
+          {'id': 'mic:1', 'kind': 'microphone'},
+        ];
+      });
+      final capture = MethodChannelXAudioCapture();
+      await pumpEventQueue();
+
+      await expectLater(
+        capture.sources(),
+        throwsA(isA<XAudioCaptureException>()
+            .having((e) => e.code, 'code', 'invalid_response')),
+      );
+    });
+
+    test('a platform failure on sources surfaces as an exception', () async {
+      messenger.setMockMethodCallHandler(methods, (call) async {
+        throw PlatformException(code: 'unsupported', message: 'no tap');
+      });
+      final capture = MethodChannelXAudioCapture();
+      await pumpEventQueue();
+
+      await expectLater(
+        capture.sources(),
+        throwsA(isA<XAudioCaptureException>()
+            .having((e) => e.code, 'code', 'unsupported')),
+      );
     });
 
     test('concurrent starts reach the platform one at a time', () async {
@@ -241,6 +349,8 @@ void main() {
             .having((e) => e.code, 'code', 'unsupported')),
       );
       await capture.stop();
+      expect(calls, isEmpty);
+      expect(await capture.sources(), isEmpty);
       expect(calls, isEmpty);
     });
   });
