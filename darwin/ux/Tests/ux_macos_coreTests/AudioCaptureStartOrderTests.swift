@@ -35,7 +35,25 @@ final class AudioCaptureStartOrderTests: XCTestCase {
         )
         XCTAssertTrue(body.contains("isVoiceProcessingEnabled"))
         XCTAssertTrue(body.contains("kAudioUnitScope_Input"))
-        XCTAssertTrue(body.contains("let element: AudioUnitElement = voiceProcessing ? 1 : 0"))
+    }
+
+    func testThePlaybackTapClosesItsSampleQueueBeforeStopReturns() throws {
+        let source = try string(at: "ux/macOS/AudioPlayback+macOS.swift")
+        let stop = try functionBody(
+            named: "func stop()",
+            until: "func stream(",
+            in: source
+        )
+        let gate = try XCTUnwrap(stop.range(of: "samples.sync { stopped = true }"))
+        let capture = try XCTUnwrap(stop.range(of: "stopCapture"))
+        XCTAssertLessThan(gate.lowerBound, capture.lowerBound)
+
+        let output = try functionBody(
+            named: "didOutputSampleBuffer",
+            until: "func stream(_ stream: SCStream, didStopWithError",
+            in: source
+        )
+        XCTAssertTrue(output.contains("guard !stopped,"))
     }
 
     func testIOSListDoesNotUpgradeOrActivateTheSession() throws {

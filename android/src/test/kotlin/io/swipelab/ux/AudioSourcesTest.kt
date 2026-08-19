@@ -94,6 +94,8 @@ class AudioSourcesTest {
         assertTrue(AudioSources.isMicrophone(AudioDeviceInfo.TYPE_WIRED_HEADSET))
         assertTrue(AudioSources.isMicrophone(AudioDeviceInfo.TYPE_BLUETOOTH_SCO))
         assertTrue(AudioSources.isMicrophone(AudioDeviceInfo.TYPE_USB_HEADSET))
+        assertTrue(AudioSources.isMicrophone(AudioDeviceInfo.TYPE_USB_ACCESSORY))
+        assertTrue(AudioSources.isMicrophone(AudioDeviceInfo.TYPE_BLE_HEADSET))
         assertFalse(AudioSources.isMicrophone(AudioDeviceInfo.TYPE_FM_TUNER))
         assertFalse(AudioSources.isMicrophone(AudioDeviceInfo.TYPE_TELEPHONY))
     }
@@ -109,8 +111,16 @@ class AudioSourcesTest {
             AudioSources.label(AudioDeviceInfo.TYPE_BLUETOOTH_SCO, "Jabra Talk"),
         )
         assertEquals(
+            "Bluetooth (Pixel Buds Pro)",
+            AudioSources.label(AudioDeviceInfo.TYPE_BLE_HEADSET, "Pixel Buds Pro"),
+        )
+        assertEquals(
             "USB audio (Scarlett Solo)",
             AudioSources.label(AudioDeviceInfo.TYPE_USB_DEVICE, "Scarlett Solo"),
+        )
+        assertEquals(
+            "USB audio (Zoom H6)",
+            AudioSources.label(AudioDeviceInfo.TYPE_USB_ACCESSORY, "Zoom H6"),
         )
         assertEquals(
             "Microphone",

@@ -65,7 +65,9 @@ internal object AudioSources {
         AudioDeviceInfo.TYPE_WIRED_HEADSET,
         AudioDeviceInfo.TYPE_USB_DEVICE,
         AudioDeviceInfo.TYPE_USB_HEADSET,
+        AudioDeviceInfo.TYPE_USB_ACCESSORY,
         AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+        AudioDeviceInfo.TYPE_BLE_HEADSET,
         -> true
 
         else -> false
@@ -77,8 +79,12 @@ internal object AudioSources {
         val kind = when (type) {
             AudioDeviceInfo.TYPE_BUILTIN_MIC -> "Built-in microphone"
             AudioDeviceInfo.TYPE_WIRED_HEADSET -> "Wired headset"
-            AudioDeviceInfo.TYPE_USB_DEVICE, AudioDeviceInfo.TYPE_USB_HEADSET -> "USB audio"
-            AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> "Bluetooth"
+            AudioDeviceInfo.TYPE_USB_DEVICE,
+            AudioDeviceInfo.TYPE_USB_HEADSET,
+            AudioDeviceInfo.TYPE_USB_ACCESSORY,
+            -> "USB audio"
+
+            AudioDeviceInfo.TYPE_BLUETOOTH_SCO, AudioDeviceInfo.TYPE_BLE_HEADSET -> "Bluetooth"
             else -> "Microphone"
         }
         val product = productName.trim()

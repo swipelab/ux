@@ -120,11 +120,12 @@ enum AudioInputs {
             mScope: kAudioObjectPropertyScopeGlobal,
             mElement: mainElement
         )
-        var size = UInt32(MemoryLayout<CFString?>.size)
-        var value: CFString?
-        guard AudioObjectGetPropertyData(id, &address, 0, nil, &size, &value) == noErr
+        var size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+        var value: Unmanaged<CFString>?
+        guard AudioObjectGetPropertyData(id, &address, 0, nil, &size, &value) == noErr,
+              let value
         else { return nil }
-        return value as String?
+        return value.takeRetainedValue() as String
     }
 }
 

@@ -45,6 +45,11 @@ private final class ScreenCaptureAudioTap: NSObject, AudioPlaybackCapturing,
     private let onBuffer: (AVAudioPCMBuffer) -> Void
     private let onStop: () -> Void
     private let samples = DispatchQueue(label: "io.swipelab.ux.audio-playback")
+    /// Read and written on [samples] alone: the `sync` write in [stop] closes
+    /// the gate and drains the buffers already queued behind it.
+    private var stopped = false
+    /// Read and written on the main queue alone, where the plugin calls
+    /// [start] and [stop].
     private var stream: SCStream?
 
     func start(completion: @escaping (String?) -> Void) {
@@ -72,13 +77,16 @@ private final class ScreenCaptureAudioTap: NSObject, AudioPlaybackCapturing,
             }
             stream.startCapture { error in
                 if let error { return completion(error.localizedDescription) }
-                self.stream = stream
-                completion(nil)
+                DispatchQueue.main.async {
+                    self.stream = stream
+                    completion(nil)
+                }
             }
         }
     }
 
     func stop() {
+        samples.sync { stopped = true }
         stream?.stopCapture { _ in }
         stream = nil
     }
@@ -88,7 +96,7 @@ private final class ScreenCaptureAudioTap: NSObject, AudioPlaybackCapturing,
         didOutputSampleBuffer sampleBuffer: CMSampleBuffer,
         of type: SCStreamOutputType
     ) {
-        guard type == .audio, sampleBuffer.isValid else { return }
+        guard !stopped, type == .audio, sampleBuffer.isValid else { return }
         try? sampleBuffer.withAudioBufferList { list, _ in
             guard let description = sampleBuffer.formatDescription else { return }
             guard let buffer = AVAudioPCMBuffer(
@@ -100,7 +108,8 @@ private final class ScreenCaptureAudioTap: NSObject, AudioPlaybackCapturing,
     }
 
     func stream(_ stream: SCStream, didStopWithError error: Error) {
-        self.stream = nil
+        samples.async { self.stopped = true }
+        DispatchQueue.main.async { self.stream = nil }
         onStop()
     }
 
