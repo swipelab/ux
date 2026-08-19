@@ -135,9 +135,10 @@ class XAudioCaptureException implements Exception {
 /// and delivered to Dart as [XAudioFrame]s of mono 16 kHz Int16 samples.
 ///
 /// The microphone tap is a *reader* of the input, not an owner of the capture
-/// graph: Apple installs it on the `AVAudioEngine` input node, Android reads
-/// an `AudioRecord` opened on `VOICE_COMMUNICATION`. Consumers feed it to
-/// speech recognition and level meters.
+/// graph: Apple installs it on the `AVAudioEngine` input node; Android reads
+/// an `AudioRecord` on `VOICE_COMMUNICATION` when voice processing is on, and
+/// on `MIC` when it is off. Consumers feed it to speech recognition and
+/// level meters.
 ///
 /// ```dart
 /// final capture = XAudioCapture.instance;
@@ -189,16 +190,18 @@ abstract interface class XAudioCapture {
   /// [sourceId] it names.
   ///
   /// The default and an [XAudioSourceKind.microphone] id capture under the
-  /// platform's voice processing, so what the device plays does not re-enter
-  /// as local speech. An [XAudioSourceKind.playback] id taps that output
-  /// instead, and runs without voice processing.
+  /// platform's voice processing when [voiceProcessing] is true (the default),
+  /// so what the device plays does not re-enter as local speech. False leaves
+  /// the microphone raw — no echo cancellation and no output ducking. An
+  /// [XAudioSourceKind.playback] id taps that output instead, and runs
+  /// without voice processing.
   ///
   /// Changing source is [stop] then [start]: one tap runs at a time and
   /// nothing is mixed.
   ///
   /// Throws [XAudioCaptureException] when the tap cannot open — `unknown_source`
   /// when [sourceId] names nothing [sources] lists.
-  Future<void> start({String? sourceId});
+  Future<void> start({String? sourceId, bool voiceProcessing = true});
 
   /// Closes the tap. Does nothing when already idle. [state] settles to
   /// [XAudioCaptureState.idle] behind the frames already in flight, so it
@@ -259,19 +262,39 @@ class MethodChannelXAudioCapture implements XAudioCapture {
   }
 
   @override
-  Future<void> start({String? sourceId}) => _enqueue(() async {
+  Future<void> start({
+    String? sourceId,
+    bool voiceProcessing = true,
+  }) =>
+      _enqueue(() async {
         if (!supported) {
           throw XAudioCaptureException('unsupported', '$defaultTargetPlatform');
         }
         try {
           await _methods.invokeMethod<void>(
             'start',
-            sourceId == null ? null : {'sourceId': sourceId},
+            _startArguments(
+              sourceId: sourceId,
+              voiceProcessing: voiceProcessing,
+            ),
           );
         } on PlatformException catch (e) {
           throw XAudioCaptureException(e.code, e.message);
         }
       });
+
+  /// The default microphone with voice processing is the argument-free
+  /// start: the plugins treat a null arguments map as that tap.
+  static Object? _startArguments({
+    required String? sourceId,
+    required bool voiceProcessing,
+  }) {
+    if (sourceId == null && voiceProcessing) return null;
+    return {
+      if (sourceId != null) 'sourceId': sourceId,
+      if (!voiceProcessing) 'voiceProcessing': false,
+    };
+  }
 
   @override
   Future<void> stop() => _enqueue(() async {

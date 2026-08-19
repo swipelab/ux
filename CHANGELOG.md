@@ -9,6 +9,12 @@
   plugin asks for itself. iOS lists no playback source. Frames stay mono
   16 kHz Int16 of 320 samples, one source at a time: changing source is `stop`
   then `start`, and an id naming nothing throws `unknown_source`.
+- **`XAudioCapture.start({voiceProcessing})`.** The default microphone and a
+  microphone id capture under the platform voice processing when
+  `voiceProcessing` is true (the default): Apple enables the voice-processing
+  I/O unit, Android records `VOICE_COMMUNICATION` with echo cancellation.
+  False leaves the microphone raw — no echo cancellation and no output
+  ducking. A playback tap stays raw.
 - **`Sheet` arbitrates drags against the attached scroll view by that
   view's own axis.** A down-drag scrolls a list with content left in that
   direction from every snap, while an up-drag from a non-expanded snap

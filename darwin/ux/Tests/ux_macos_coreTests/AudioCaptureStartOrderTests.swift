@@ -14,6 +14,19 @@ final class AudioCaptureStartOrderTests: XCTestCase {
         XCTAssertLessThan(voiceProcessing.lowerBound, select.lowerBound)
     }
 
+    func testStartMicrophoneEnablesVoiceProcessingOnlyWhenAsked() throws {
+        let body = try functionBody(
+            named: "private func startMicrophone",
+            until: "private func startPlayback",
+            in: pluginSource()
+        )
+        let gate = try XCTUnwrap(body.range(of: "if voiceProcessing"))
+        let afterGate = body[gate.upperBound...]
+        let enable = try XCTUnwrap(afterGate.range(of: "setVoiceProcessingEnabled(true)"))
+        let close = try XCTUnwrap(afterGate.range(of: "}"))
+        XCTAssertLessThan(enable.lowerBound, close.lowerBound)
+    }
+
     func testPlaybackStartHopsTheCompletionOntoTheMainQueue() throws {
         let body = try functionBody(
             named: "private func startPlayback",

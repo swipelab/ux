@@ -39,12 +39,14 @@ private data class ProjectionFailure(val code: String, val message: String?)
 /// format Dart's `XAudioCapture` publishes — and pushes fixed-size frames to
 /// Dart. The Apple counterpart is `AudioCapturePlugin.swift`.
 ///
-/// A microphone reads `VOICE_COMMUNICATION`, with the platform echo canceller
-/// attached to the session where the device offers one: the tap feeds live
-/// transcription while the same device plays the room's audio, and playback
-/// (remote voices, dubs) must not re-enter as local speech. A playback tap is
-/// that output, so it reads it raw — no `VOICE_COMMUNICATION`, no canceller —
-/// through the media projection [AudioProjectionService] holds.
+/// A microphone with voice processing on reads `VOICE_COMMUNICATION`, with
+/// the platform echo canceller attached where the device offers one, so
+/// playback (remote voices, dubs) does not re-enter as local speech. With
+/// voice processing off it reads `MIC` and leaves the canceller off — the
+/// device's output is not ducked, and what plays can re-enter the tap. A
+/// playback tap is that output, so it reads it raw — no
+/// `VOICE_COMMUNICATION`, no canceller — through the media projection
+/// [AudioProjectionService] holds.
 class AudioCapturePlugin :
     NativePlugin,
     MethodChannel.MethodCallHandler,
@@ -162,7 +164,11 @@ class AudioCapturePlugin :
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
             "sources" -> result.success(AudioSources.wire(inputs(), playbackReady()))
-            "start" -> start(call.argument<String>("sourceId"), result)
+            "start" -> start(
+                call.argument<String>("sourceId"),
+                call.argument<Boolean>("voiceProcessing") ?: true,
+                result,
+            )
             "stop" -> {
                 stopRecord()
                 emitState("idle", null)
@@ -172,18 +178,28 @@ class AudioCapturePlugin :
         }
     }
 
-    private fun start(sourceId: String?, result: MethodChannel.Result) {
+    private fun start(
+        sourceId: String?,
+        voiceProcessing: Boolean,
+        result: MethodChannel.Result,
+    ) {
         if (running) return result.success(null)
         when (val selection = AudioSources.select(sourceId, inputs(), playbackReady())) {
-            AudioSelection.DefaultInput -> startMicrophone(null, result)
-            is AudioSelection.Microphone -> startMicrophone(selection.deviceId, result)
+            AudioSelection.DefaultInput ->
+                startMicrophone(null, voiceProcessing, result)
+            is AudioSelection.Microphone ->
+                startMicrophone(selection.deviceId, voiceProcessing, result)
             AudioSelection.Playback -> startPlayback(result)
             AudioSelection.Unknown -> result.error("unknown_source", sourceId, null)
         }
     }
 
     /// A `null` [deviceId] is the system's own choice of input.
-    private fun startMicrophone(deviceId: Int?, result: MethodChannel.Result) {
+    private fun startMicrophone(
+        deviceId: Int?,
+        voiceProcessing: Boolean,
+        result: MethodChannel.Result,
+    ) {
         requestPermission { granted ->
             if (!granted) {
                 return@requestPermission result.error(
@@ -197,7 +213,11 @@ class AudioCapturePlugin :
                 )
             }
             val rec = AudioRecord(
-                MediaRecorder.AudioSource.VOICE_COMMUNICATION,
+                if (voiceProcessing) {
+                    MediaRecorder.AudioSource.VOICE_COMMUNICATION
+                } else {
+                    MediaRecorder.AudioSource.MIC
+                },
                 SAMPLE_RATE,
                 AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_16BIT,
@@ -215,7 +235,7 @@ class AudioCapturePlugin :
                     "no_input_device", "device $deviceId", null,
                 )
             }
-            if (!begin(rec, cancelEcho = true)) {
+            if (!begin(rec, cancelEcho = voiceProcessing)) {
                 return@requestPermission result.error(
                     "start_failed", "AudioRecord did not start", null,
                 )

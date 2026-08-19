@@ -160,6 +160,27 @@ void main() {
       expect(arguments['start'], {'sourceId': 'mic:7'});
     });
 
+    test('start with voice processing off sends the flag', () async {
+      final capture = MethodChannelXAudioCapture();
+      await pumpEventQueue();
+
+      await capture.start(voiceProcessing: false);
+
+      expect(arguments['start'], {'voiceProcessing': false});
+    });
+
+    test('start with a source and voice processing off sends both', () async {
+      final capture = MethodChannelXAudioCapture();
+      await pumpEventQueue();
+
+      await capture.start(sourceId: 'mic:7', voiceProcessing: false);
+
+      expect(arguments['start'], {
+        'sourceId': 'mic:7',
+        'voiceProcessing': false,
+      });
+    });
+
     test('an unknown source fails with its code', () async {
       messenger.setMockMethodCallHandler(methods, (call) async {
         throw PlatformException(code: 'unknown_source', message: 'mic:99');

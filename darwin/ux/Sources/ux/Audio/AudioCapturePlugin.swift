@@ -91,7 +91,11 @@ public class AudioCapturePlugin: NSObject, NativePlugin, FlutterStreamHandler {
             result(catalog.sources(inputs: AudioInputs.list()).map(\.wire))
         case "start":
             let arguments = call.arguments as? [String: Any]
-            start(sourceId: arguments?["sourceId"] as? String, result: result)
+            start(
+                sourceId: arguments?["sourceId"] as? String,
+                voiceProcessing: arguments?["voiceProcessing"] as? Bool ?? true,
+                result: result
+            )
         case "stop":
             stopCapture()
             emitState("idle", reason: nil)
@@ -100,13 +104,17 @@ public class AudioCapturePlugin: NSObject, NativePlugin, FlutterStreamHandler {
         }
     }
 
-    private func start(sourceId: String?, result: @escaping FlutterResult) {
+    private func start(
+        sourceId: String?,
+        voiceProcessing: Bool,
+        result: @escaping FlutterResult
+    ) {
         guard !running else { return result(nil) }
         switch catalog.selection(for: sourceId, inputs: AudioInputs.list) {
         case .defaultInput:
-            startMicrophone(nil, result: result)
+            startMicrophone(nil, voiceProcessing: voiceProcessing, result: result)
         case .microphone(let input):
-            startMicrophone(input, result: result)
+            startMicrophone(input, voiceProcessing: voiceProcessing, result: result)
         case .playback:
             startPlayback(result: result)
         case .unknown:
@@ -121,6 +129,7 @@ public class AudioCapturePlugin: NSObject, NativePlugin, FlutterStreamHandler {
     /// A `nil` [input] is the system's own choice of default.
     private func startMicrophone(
         _ input: AudioInput?,
+        voiceProcessing: Bool,
         result: @escaping FlutterResult
     ) {
         requestMicrophoneAccess { [weak self] granted in
@@ -147,11 +156,12 @@ public class AudioCapturePlugin: NSObject, NativePlugin, FlutterStreamHandler {
                     details: nil
                 ))
             }
-            // Voice processing replaces the I/O unit and the input format
-            // while the engine is stopped. A named input is selected on
-            // that unit, then the converter format is read. A host that
-            // refuses it captures raw.
-            try? node.setVoiceProcessingEnabled(true)
+            // Voice processing replaces the I/O unit and ducks output.
+            // A named input is selected on that unit, then the converter
+            // format is read. A host that refuses it captures raw.
+            if voiceProcessing {
+                try? node.setVoiceProcessingEnabled(true)
+            }
             if let input, !AudioInputs.select(input, engine: self.engine) {
                 try? node.setVoiceProcessingEnabled(false)
                 return result(FlutterError(
