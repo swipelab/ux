@@ -55,7 +55,48 @@ class XAudioFrame {
   }
 }
 
-/// Lifecycle of the microphone tap.
+/// What an [XAudioSource] taps.
+enum XAudioSourceKind {
+  /// A hardware input: the built-in microphone, a headset, a USB interface.
+  microphone,
+
+  /// What the device itself plays.
+  playback,
+}
+
+/// An input [XAudioCapture.start] can open, as the OS names it.
+final class XAudioSource {
+  /// Creates a source description.
+  const XAudioSource({
+    required this.id,
+    required this.label,
+    required this.kind,
+  });
+
+  /// Identifier handed back to [XAudioCapture.start].
+  final String id;
+
+  /// Name to show, from the platform.
+  final String label;
+
+  /// What [id] taps.
+  final XAudioSourceKind kind;
+
+  @override
+  bool operator ==(Object other) =>
+      other is XAudioSource &&
+      other.id == id &&
+      other.label == label &&
+      other.kind == kind;
+
+  @override
+  int get hashCode => Object.hash(id, label, kind);
+
+  @override
+  String toString() => 'XAudioSource($id, $label, ${kind.name})';
+}
+
+/// Lifecycle of the tap.
 enum XAudioCaptureState {
   /// Not capturing.
   idle,
@@ -63,16 +104,19 @@ enum XAudioCaptureState {
   /// Delivering frames.
   running,
 
-  /// The OS took the microphone away — a phone call, Siri, another app
-  /// claiming the input, or the input device disappearing. Capture has
-  /// stopped; the caller decides when to [XAudioCapture.start] again.
+  /// The OS took the input away — a phone call, Siri, another app claiming
+  /// the microphone, the input device disappearing, or the system ending a
+  /// playback tap. Capture has stopped; the caller decides when to
+  /// [XAudioCapture.start] again.
   interrupted,
 }
 
-/// Thrown by [XAudioCapture.start] when the tap cannot open.
+/// Thrown by [XAudioCapture.start] when the tap cannot open, and by
+/// [XAudioCapture.sources] when the platform reply breaks the wire contract.
 ///
-/// [code] is one of `permission_denied`, `no_input_device`, `start_failed`,
-/// or `unsupported`.
+/// [code] is one of `permission_denied`, `no_input_device`, `unknown_source`,
+/// `start_failed`, `unsupported`, or the Dart-owned `invalid_response`, whose
+/// [message] names the offending field.
 class XAudioCaptureException implements Exception {
   /// Creates an exception with a wire [code] and an optional [message].
   const XAudioCaptureException(this.code, [this.message]);
@@ -87,13 +131,13 @@ class XAudioCaptureException implements Exception {
   String toString() => 'XAudioCaptureException($code, $message)';
 }
 
-/// Live microphone PCM, tapped natively and delivered to Dart as
-/// [XAudioFrame]s of mono 16 kHz Int16 samples.
+/// Live PCM from a microphone or from what the device plays, tapped natively
+/// and delivered to Dart as [XAudioFrame]s of mono 16 kHz Int16 samples.
 ///
-/// The tap is a *reader* of the input, not an owner of the capture graph:
-/// Apple installs it on the `AVAudioEngine` input node, Android reads an
-/// `AudioRecord` opened on `VOICE_RECOGNITION`. Consumers feed it to speech
-/// recognition and level meters.
+/// The microphone tap is a *reader* of the input, not an owner of the capture
+/// graph: Apple installs it on the `AVAudioEngine` input node, Android reads
+/// an `AudioRecord` opened on `VOICE_COMMUNICATION`. Consumers feed it to
+/// speech recognition and level meters.
 ///
 /// ```dart
 /// final capture = XAudioCapture.instance;
@@ -108,9 +152,12 @@ class XAudioCaptureException implements Exception {
 ///
 /// Android hosts must declare `android.permission.RECORD_AUDIO`; Apple hosts
 /// need `NSMicrophoneUsageDescription`, and a sandboxed macOS host also needs
-/// the `com.apple.security.device.audio-input` entitlement.
+/// `com.apple.security.device.audio-input` and, for a playback tap,
+/// `com.apple.security.screen-capture`. Capturing playback asks once more
+/// at [start]: macOS through the screen-recording grant, Android through
+/// the media-projection consent.
 abstract interface class XAudioCapture {
-  /// The process-wide tap. One microphone, one instance.
+  /// The process-wide tap. One source at a time, one instance.
   static final XAudioCapture instance = MethodChannelXAudioCapture();
 
   /// Sample rate of every delivered frame.
@@ -130,15 +177,31 @@ abstract interface class XAudioCapture {
   /// Current lifecycle state, driven by the native tap.
   ValueListenable<XAudioCaptureState> get state;
 
-  /// Opens the microphone, requesting permission if it has not been granted.
-  /// Returns once frames are flowing; a second call while running does
-  /// nothing.
-  ///
-  /// Throws [XAudioCaptureException] when the tap cannot open.
-  Future<void> start();
+  /// What this host can tap right now: the hardware inputs the OS names,
+  /// plus device playback where the platform taps it — macOS, and Android 10
+  /// and newer. iOS lists microphones alone. Empty where [supported] is
+  /// false.
+  Future<List<XAudioSource>> sources();
 
-  /// Closes the microphone. Does nothing when already idle. [state] settles
-  /// to [XAudioCaptureState.idle] behind the frames already in flight, so it
+  /// Opens [sourceId], or the system's default microphone when it is null,
+  /// requesting permission if it has not been granted. Returns once frames
+  /// are flowing; a second call while running does nothing, whatever
+  /// [sourceId] it names.
+  ///
+  /// The default and an [XAudioSourceKind.microphone] id capture under the
+  /// platform's voice processing, so what the device plays does not re-enter
+  /// as local speech. An [XAudioSourceKind.playback] id taps that output
+  /// instead, and runs without voice processing.
+  ///
+  /// Changing source is [stop] then [start]: one tap runs at a time and
+  /// nothing is mixed.
+  ///
+  /// Throws [XAudioCaptureException] when the tap cannot open — `unknown_source`
+  /// when [sourceId] names nothing [sources] lists.
+  Future<void> start({String? sourceId});
+
+  /// Closes the tap. Does nothing when already idle. [state] settles to
+  /// [XAudioCaptureState.idle] behind the frames already in flight, so it
   /// can still read [XAudioCaptureState.running] as this returns.
   Future<void> stop();
 }
@@ -181,12 +244,30 @@ class MethodChannelXAudioCapture implements XAudioCapture {
       ValueEmitter(XAudioCaptureState.idle);
 
   @override
-  Future<void> start() => _enqueue(() async {
+  Future<List<XAudioSource>> sources() async {
+    if (!supported) return const [];
+    final List<Object?>? raw;
+    try {
+      raw = await _methods.invokeListMethod<Object?>('sources');
+    } on PlatformException catch (e) {
+      throw XAudioCaptureException(e.code, e.message);
+    }
+    if (raw == null) {
+      throw const XAudioCaptureException('invalid_response', 'sources: null');
+    }
+    return raw.map(_decodeSource).toList(growable: false);
+  }
+
+  @override
+  Future<void> start({String? sourceId}) => _enqueue(() async {
         if (!supported) {
           throw XAudioCaptureException('unsupported', '$defaultTargetPlatform');
         }
         try {
-          await _methods.invokeMethod<void>('start');
+          await _methods.invokeMethod<void>(
+            'start',
+            sourceId == null ? null : {'sourceId': sourceId},
+          );
         } on PlatformException catch (e) {
           throw XAudioCaptureException(e.code, e.message);
         }
@@ -229,6 +310,29 @@ class MethodChannelXAudioCapture implements XAudioCapture {
         if (next != null) state.value = next;
     }
   }
+
+  static XAudioSource _decodeSource(Object? raw) {
+    if (raw is! Map) {
+      throw XAudioCaptureException(
+        'invalid_response',
+        'source: expected a map, got ${raw.runtimeType}',
+      );
+    }
+    final m = raw.cast<Object?, Object?>();
+    final id = m['id'];
+    final label = m['label'];
+    final kind = _parseKind(m['kind']);
+    if (id is! String || label is! String || kind == null) {
+      throw XAudioCaptureException('invalid_response', 'source: $m');
+    }
+    return XAudioSource(id: id, label: label, kind: kind);
+  }
+
+  static XAudioSourceKind? _parseKind(Object? raw) => switch (raw) {
+        'microphone' => XAudioSourceKind.microphone,
+        'playback' => XAudioSourceKind.playback,
+        _ => null,
+      };
 
   static XAudioCaptureState? _parseState(String? raw) => switch (raw) {
         'idle' => XAudioCaptureState.idle,

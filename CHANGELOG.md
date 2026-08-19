@@ -1,4 +1,14 @@
 ### 0.10.0
+- **`XAudioCapture` picks its source.** `sources()` lists the hardware inputs
+  the OS names plus, on macOS and Android 10+, one `playback` source for what
+  the device plays; `start({sourceId})` opens it. Omitting `sourceId` is the
+  default microphone under the platform voice processing. A
+  microphone id opens that input, also under voice processing; the playback id
+  taps the output raw — macOS through an audio-only `SCStream` under the
+  screen-recording grant, Android through a media-projection consent the
+  plugin asks for itself. iOS lists no playback source. Frames stay mono
+  16 kHz Int16 of 320 samples, one source at a time: changing source is `stop`
+  then `start`, and an id naming nothing throws `unknown_source`.
 - **`Sheet` arbitrates drags against the attached scroll view by that
   view's own axis.** A down-drag scrolls a list with content left in that
   direction from every snap, while an up-drag from a non-expanded snap

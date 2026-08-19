@@ -5,14 +5,20 @@
   <!-- NotificationsPlugin posts notifications on Android 13+. -->
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-  <!-- ScreenShareService: a screen capture is granted only while a
-       mediaProjection foreground service runs. -->
+  <!-- ScreenShareService and AudioProjectionService: a media projection is
+       granted only while a mediaProjection foreground service runs. -->
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
 
   <application>
     <service
       android:name="io.swipelab.ux.screen.ScreenShareService"
+      android:exported="false"
+      android:foregroundServiceType="mediaProjection"
+      tools:targetApi="q" />
+
+    <service
+      android:name="io.swipelab.ux.AudioProjectionService"
       android:exported="false"
       android:foregroundServiceType="mediaProjection"
       tools:targetApi="q" />

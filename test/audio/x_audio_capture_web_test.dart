@@ -15,6 +15,7 @@ void main() {
     final capture = MethodChannelXAudioCapture();
 
     expect(capture.supported, isFalse);
+    expect(await capture.sources(), isEmpty);
     await expectLater(
       capture.start(),
       throwsA(
