@@ -72,7 +72,7 @@ void main() {
       }
     });
 
-    test('the settle frame publishes the native rest reading', () {
+    test('a rise settles on the curve target, not the native excess', () {
       var gen = 0;
       var tracking = 0;
       final kb = XKeyboard.test(
@@ -87,22 +87,21 @@ void main() {
       kb.addListener(() => notified++);
       gen = 1;
       // The generation lands at 16ms, so the 256ms frame is the first with
-      // curve t >= 1 — the assertion must hit that exact frame: one frame
-      // later the plain native read masks a settle on the curve target.
+      // curve t >= 1 — the settle frame under test.
       for (var t = 16; t <= 256; t += 16) {
         kb.debugFrame(Duration(milliseconds: t));
       }
-      expect(kb.height, closeTo(1009 / 3, 1e-9));
+      expect(kb.height, closeTo(336.0, 1e-9));
       final settled = notified;
       tracking = 1;
       kb.debugFrame(const Duration(milliseconds: 272));
-      expect(kb.height, closeTo(1009 / 3, 1e-9));
+      expect(kb.height, closeTo(336.0, 1e-9));
       expect(notified, settled);
     });
 
     test('the rest reading and the tracking base collapse to one pixel', () {
-      // The native tracking base is sampled from the same presentation-frame
-      // reader as the rest reading; snapping makes offset 0 publish nothing.
+      // The native tracking base is sampled from the same reader as the
+      // rest reading; snapping makes offset 0 publish nothing.
       var native = 336.33;
       var tracking = 0;
       final kb = XKeyboard.test(

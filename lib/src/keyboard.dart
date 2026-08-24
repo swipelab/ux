@@ -217,6 +217,11 @@ class XKeyboard with ChangeNotifier {
   double _animStartTime = 0; // seconds, from frame timestamp
   bool _isAnimating = false;
 
+  /// Caps idle and tracking readings after a settled rise — the presented
+  /// frame can rest a fraction of a point above the announced target, and
+  /// that excess must not publish. Cleared when a new animation is announced.
+  double? _restCeiling;
+
   // Adaptive LUT state.
   late final List<double> _samples = List.of(
       Platform.isIOS ? _kIOSKeyboardSamples : _kAndroidKeyboardSamples);
@@ -236,6 +241,7 @@ class XKeyboard with ChangeNotifier {
       _lastAnimGen = gen;
       final target = _readAnimTarget?.call() ?? 0;
       final duration = _readAnimDuration?.call() ?? 0;
+      _restCeiling = null;
       if (duration > 0) {
         _obs.clear(); // discard interrupted observations
         _animFrom = _height;
@@ -282,14 +288,23 @@ class XKeyboard with ChangeNotifier {
       }
 
       if (t >= 1.0) {
-        // Settle on the native reading — the notification target can sit a
-        // fraction of a point off the presented frame.
-        h = native;
+        if (_animTo > _animFrom) {
+          h = _animTo;
+          _restCeiling = _animTo;
+        } else {
+          // A close settles on the native reading — the real keyboard can
+          // lag the announced duration.
+          h = native;
+        }
         _isAnimating = false;
         _finishLearning();
       }
     } else {
       h = _readHeight!();
+      final ceiling = _restCeiling;
+      if (ceiling != null && h > ceiling) {
+        h = ceiling;
+      }
     }
 
     final snapped = snapToPixelGrid(h, _devicePixelRatio);
