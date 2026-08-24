@@ -15,28 +15,10 @@ public func ux_keyboard_height() -> Double {
 
     // During interactive pan, we track the offset ourselves
     if plugin.isTracking {
-        return max(0, Double(plugin.keyboardFullHeight - plugin.interactiveOffset))
+        return max(0, Double(plugin.trackingBase - plugin.interactiveOffset))
     }
 
-    // During dismiss or snap-back animation, read bounds offset from presentation layer
-    // (frame is unaffected by bounds.origin, so the normal path would report full height)
-    if plugin.isDismissing || plugin.snapBackAnimator != nil {
-        guard let kbView = plugin.keyboardView else { return 0 }
-        let boundsY = kbView.layer.presentation()?.bounds.origin.y ?? kbView.layer.bounds.origin.y
-        return max(0, Double(plugin.keyboardFullHeight + Double(boundsY)))
-    }
-
-    // Otherwise read the actual keyboard view position
-    guard let kbView = plugin.keyboardView else {
-        return Double(plugin.keyboardFullHeight)
-    }
-
-    let screenHeight = UIScreen.main.bounds.height
-    // presentation() gives the interpolated value during CoreAnimation
-    if let presentation = kbView.layer.presentation() {
-        return max(0, Double(screenHeight - presentation.frame.origin.y))
-    }
-    return max(0, Double(screenHeight - kbView.frame.origin.y))
+    return Double(plugin.presentedHeight())
 }
 
 /// Returns true when interactive dismiss pan is active.
@@ -105,6 +87,7 @@ public class KeyboardPlugin: NSObject, NativePlugin {
 
     // Pan gesture
     private var keyboardOriginY: CGFloat = 0
+    fileprivate var trackingBase: CGFloat = 0
     fileprivate var snapBackAnimator: UIViewPropertyAnimator?
     private var dismissAnimator: UIViewPropertyAnimator?
     private var trackingInset: CGFloat = 0
@@ -123,6 +106,26 @@ public class KeyboardPlugin: NSObject, NativePlugin {
     /// Wake Dart so it reads the height on its next frame
     private func wake() {
         wakeCallback?()
+    }
+
+    /// The height outside interactive tracking. Every branch bases on the
+    /// keyboard view's live presentation frame — never on the notification's
+    /// `keyboardFullHeight`, which can differ from the frame by a fraction of
+    /// a point — so rest, bounds-shifted and settled readings are continuous.
+    fileprivate func presentedHeight() -> CGFloat {
+        guard let kbView = keyboardView else {
+            return isDismissing || snapBackAnimator != nil ? 0 : keyboardFullHeight
+        }
+        // presentation() gives the interpolated value during CoreAnimation
+        let layer = kbView.layer.presentation() ?? kbView.layer
+        let frameHeight = max(0, UIScreen.main.bounds.height - layer.frame.origin.y)
+        if isDismissing || snapBackAnimator != nil {
+            // The dismiss shift lives in bounds.origin.y (≤ 0); the frame is
+            // unaffected by it, so the frame reading alone would report full
+            // height.
+            return max(0, frameHeight + layer.bounds.origin.y)
+        }
+        return frameHeight
     }
 
     // MARK: - Keyboard Notifications
@@ -339,6 +342,10 @@ public class KeyboardPlugin: NSObject, NativePlugin {
 
                 let keyboardTop = screenHeight - keyboardFullHeight - trackingInset
                 guard location.y > keyboardTop else { return }
+
+                // Sampled before the animator is niled so a mid-snap-back
+                // grab starts from the currently displayed height.
+                trackingBase = presentedHeight()
 
                 snapBackAnimator?.stopAnimation(true)
                 snapBackAnimator = nil

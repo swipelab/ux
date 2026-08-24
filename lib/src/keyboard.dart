@@ -104,13 +104,54 @@ double _inverseLerp(List<double> samples, double value) {
 /// binding, so touch it only after `runApp` (or an explicit
 /// `WidgetsFlutterBinding.ensureInitialized()`).
 class XKeyboard with ChangeNotifier {
-  XKeyboard._() {
+  XKeyboard._()
+      : _readHeight = _uxKeyboardHeight,
+        _readIsTracking = _uxIsTracking,
+        _readAnimTarget = _uxAnimTarget,
+        _readAnimDuration = _uxAnimDuration,
+        _readAnimGen = _uxAnimGen,
+        _debugDevicePixelRatio = null {
     if (Platform.isAndroid) {
       _channel.setMethodCallHandler(_onMethodCall);
     }
     if (uxLib == null) return;
     SchedulerBinding.instance.addPersistentFrameCallback(_onFrame);
   }
+
+  /// A keyboard with injected native readers — under `flutter test` the FFI
+  /// symbols never resolve, so [instance] cannot exercise the frame loop.
+  /// Registers no frame callback; drive it with [debugFrame].
+  @visibleForTesting
+  XKeyboard.test({
+    required double Function() nativeHeight,
+    int Function()? isTracking,
+    double Function()? animTarget,
+    double Function()? animDuration,
+    int Function()? animGen,
+    double devicePixelRatio = 1.0,
+  })  : _readHeight = nativeHeight,
+        _readIsTracking = isTracking,
+        _readAnimTarget = animTarget,
+        _readAnimDuration = animDuration,
+        _readAnimGen = animGen,
+        _debugDevicePixelRatio = devicePixelRatio;
+
+  final double Function()? _readHeight;
+  final int Function()? _readIsTracking;
+  final double Function()? _readAnimTarget;
+  final double Function()? _readAnimDuration;
+  final int Function()? _readAnimGen;
+  final double? _debugDevicePixelRatio;
+
+  double get _devicePixelRatio =>
+      _debugDevicePixelRatio ??
+      SchedulerBinding
+          .instance.platformDispatcher.implicitView?.devicePixelRatio ??
+      1.0;
+
+  /// Runs one frame of the reader loop.
+  @visibleForTesting
+  void debugFrame(Duration timestamp) => _onFrame(timestamp);
 
   /// The singleton instance.
   static final XKeyboard instance = XKeyboard._();
@@ -137,11 +178,21 @@ class XKeyboard with ChangeNotifier {
 
   double _height = 0;
 
-  /// The current keyboard height in logical pixels.
+  /// The current keyboard height in logical pixels, snapped to the physical
+  /// pixel grid.
   ///
   /// Updated every frame while the keyboard is animating or open.
   /// Returns 0 when the keyboard is fully closed.
   double get height => _height;
+
+  /// [h] on the physical-pixel grid of [devicePixelRatio]. Readings within
+  /// the same physical pixel collapse to one published value, so listeners
+  /// never see sub-pixel churn.
+  @visibleForTesting
+  static double snapToPixelGrid(double h, double devicePixelRatio) =>
+      devicePixelRatio > 0
+          ? (h * devicePixelRatio).roundToDouble() / devicePixelRatio
+          : h;
 
   /// The last system-reported keyboard height.
   ///
@@ -156,7 +207,7 @@ class XKeyboard with ChangeNotifier {
   ///
   /// When true, the user is dragging the keyboard down. Use this to freeze
   /// scroll views so they don't fight the pan gesture.
-  bool get isTracking => (_uxIsTracking?.call() ?? 0) > 0;
+  bool get isTracking => (_readIsTracking?.call() ?? 0) > 0;
 
   // Animation state — replays the keyboard's own animation inside Flutter.
   int _lastAnimGen = 0;
@@ -175,16 +226,16 @@ class XKeyboard with ChangeNotifier {
   final List<({double t, double p})> _obs = [];
 
   void _onFrame(Duration timestamp) {
-    if (_uxKeyboardHeight == null) return;
+    if (_readHeight == null) return;
 
     final ts = timestamp.inMicroseconds / Duration.microsecondsPerSecond;
 
     // Detect new animation generation (both platforms).
-    final gen = _uxAnimGen?.call() ?? 0;
+    final gen = _readAnimGen?.call() ?? 0;
     if (gen != _lastAnimGen) {
       _lastAnimGen = gen;
-      final target = _uxAnimTarget?.call() ?? 0;
-      final duration = _uxAnimDuration?.call() ?? 0;
+      final target = _readAnimTarget?.call() ?? 0;
+      final duration = _readAnimDuration?.call() ?? 0;
       if (duration > 0) {
         _obs.clear(); // discard interrupted observations
         _animFrom = _height;
@@ -195,13 +246,13 @@ class XKeyboard with ChangeNotifier {
       } else {
         // Instant change (duration == 0) — snap immediately.
         _isAnimating = false;
-        _height = target;
+        _height = snapToPixelGrid(target, _devicePixelRatio);
         notifyListeners();
       }
     }
 
     // Abort animation if interactive tracking started.
-    if (_isAnimating && (_uxIsTracking?.call() ?? 0) > 0) {
+    if (_isAnimating && (_readIsTracking?.call() ?? 0) > 0) {
       _isAnimating = false;
       _obs.clear();
     }
@@ -212,7 +263,7 @@ class XKeyboard with ChangeNotifier {
       final t = (elapsed / _animDuration).clamp(0.0, 1.0);
       h = _animFrom + (_animTo - _animFrom) * _lerpSamples(_samples, t);
 
-      final native = _uxKeyboardHeight!();
+      final native = _readHeight!();
       h = clampPrediction(
         h: h,
         native: native,
@@ -236,11 +287,12 @@ class XKeyboard with ChangeNotifier {
         _finishLearning();
       }
     } else {
-      h = _uxKeyboardHeight!();
+      h = _readHeight!();
     }
 
-    if ((h - _height).abs() > 0.5) {
-      _height = h;
+    final snapped = snapToPixelGrid(h, _devicePixelRatio);
+    if (snapped != _height) {
+      _height = snapped;
       notifyListeners();
       // Close-edge flush: when _height transitions to 0, the steady-state
       // pump below (h>0 || _height>0) stops scheduling, and
