@@ -395,7 +395,9 @@ public class KeyboardPlugin: NSObject, NativePlugin {
 
     private func dismissKeyboard() {
         isDismissing = true
-        let fullHeight = keyboardFullHeight
+        // The bounds shift must cancel the frame reading for presentedHeight
+        // to end at 0; trackingBase holds that reading from the pan start.
+        let travel = trackingBase
 
         // Tell Dart to start close animation immediately
         animTarget = 0
@@ -409,7 +411,7 @@ public class KeyboardPlugin: NSObject, NativePlugin {
         let animator = UIViewPropertyAnimator(duration: 0.25, dampingRatio: 0.9) { [weak self] in
             guard let kbView = self?.keyboardView else { return }
             kbView.layer.bounds = CGRect(
-                origin: CGPoint(x: 0, y: -fullHeight),
+                origin: CGPoint(x: 0, y: -travel),
                 size: kbView.layer.bounds.size
             )
         }

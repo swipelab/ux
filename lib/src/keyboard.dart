@@ -282,8 +282,10 @@ class XKeyboard with ChangeNotifier {
       }
 
       if (t >= 1.0) {
-        h = _animTo;
-        if (!Platform.isIOS) _isAnimating = false;
+        // Settle on the native reading — the notification target can sit a
+        // fraction of a point off the presented frame.
+        h = native;
+        _isAnimating = false;
         _finishLearning();
       }
     } else {
