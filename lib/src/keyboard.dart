@@ -217,9 +217,10 @@ class XKeyboard with ChangeNotifier {
   double _animStartTime = 0; // seconds, from frame timestamp
   bool _isAnimating = false;
 
-  /// Caps idle and tracking readings after a settled rise — the presented
-  /// frame can rest a fraction of a point above the announced target, and
-  /// that excess must not publish. Cleared when a new animation is announced.
+  /// Caps idle and tracking readings at the announced target — the presented
+  /// frame can rest a fraction of a point above it, and that excess must not
+  /// publish. An announced close clears it: a close settles on the native
+  /// reading.
   double? _restCeiling;
 
   // Adaptive LUT state.
@@ -241,7 +242,7 @@ class XKeyboard with ChangeNotifier {
       _lastAnimGen = gen;
       final target = _readAnimTarget?.call() ?? 0;
       final duration = _readAnimDuration?.call() ?? 0;
-      _restCeiling = null;
+      _restCeiling = target < _height ? null : target;
       if (duration > 0) {
         _obs.clear(); // discard interrupted observations
         _animFrom = _height;
@@ -288,13 +289,13 @@ class XKeyboard with ChangeNotifier {
       }
 
       if (t >= 1.0) {
-        if (_animTo > _animFrom) {
-          h = _animTo;
-          _restCeiling = _animTo;
-        } else {
+        if (_animTo < _animFrom) {
           // A close settles on the native reading — the real keyboard can
           // lag the announced duration.
           h = native;
+        } else {
+          h = _animTo;
+          _restCeiling = _animTo;
         }
         _isAnimating = false;
         _finishLearning();

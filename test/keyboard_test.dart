@@ -99,6 +99,78 @@ void main() {
       expect(notified, settled);
     });
 
+    test('a duration-0 re-announce of the settled target stays on it', () {
+      var gen = 0;
+      var duration = 0.25;
+      final kb = XKeyboard.test(
+        nativeHeight: () => 336.33,
+        animTarget: () => 336.0,
+        animDuration: () => duration,
+        animGen: () => gen,
+        devicePixelRatio: 3,
+      );
+      gen = 1;
+      for (var t = 16; t <= 256; t += 16) {
+        kb.debugFrame(Duration(milliseconds: t));
+      }
+      expect(kb.height, closeTo(336.0, 1e-9));
+      duration = 0;
+      gen = 2;
+      kb.debugFrame(const Duration(milliseconds: 272));
+      expect(kb.height, closeTo(336.0, 1e-9));
+      kb.debugFrame(const Duration(milliseconds: 288));
+      expect(kb.height, closeTo(336.0, 1e-9));
+    });
+
+    test('a same-height curve re-announce settles on the curve target', () {
+      var gen = 0;
+      final kb = XKeyboard.test(
+        nativeHeight: () => 336.33,
+        animTarget: () => 336.0,
+        animDuration: () => 0.25,
+        animGen: () => gen,
+        devicePixelRatio: 3,
+      );
+      gen = 1;
+      for (var t = 16; t <= 256; t += 16) {
+        kb.debugFrame(Duration(milliseconds: t));
+      }
+      expect(kb.height, closeTo(336.0, 1e-9));
+      var notified = 0;
+      kb.addListener(() => notified++);
+      gen = 2;
+      for (var t = 272; t <= 528; t += 16) {
+        kb.debugFrame(Duration(milliseconds: t));
+      }
+      expect(kb.height, closeTo(336.0, 1e-9));
+      expect(notified, 0);
+    });
+
+    test('a close settles on the lagging native reading', () {
+      var gen = 0;
+      var native = 336.33;
+      var target = 336.0;
+      final kb = XKeyboard.test(
+        nativeHeight: () => native,
+        animTarget: () => target,
+        animDuration: () => 0.25,
+        animGen: () => gen,
+        devicePixelRatio: 3,
+      );
+      gen = 1;
+      for (var t = 16; t <= 256; t += 16) {
+        kb.debugFrame(Duration(milliseconds: t));
+      }
+      expect(kb.height, closeTo(336.0, 1e-9));
+      gen = 2;
+      target = 0;
+      native = 48.0;
+      for (var t = 272; t <= 528; t += 16) {
+        kb.debugFrame(Duration(milliseconds: t));
+      }
+      expect(kb.height, 48.0);
+    });
+
     test('the rest reading and the tracking base collapse to one pixel', () {
       // The native tracking base is sampled from the same reader as the
       // rest reading; snapping makes offset 0 publish nothing.
