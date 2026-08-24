@@ -108,24 +108,29 @@ public class KeyboardPlugin: NSObject, NativePlugin {
         wakeCallback?()
     }
 
-    /// The height outside interactive tracking. Every branch bases on the
-    /// keyboard view's live presentation frame — never on the notification's
-    /// `keyboardFullHeight`, which can differ from the frame by a fraction of
-    /// a point — so rest, bounds-shifted and settled readings are continuous.
+    /// The height outside interactive tracking. While an animation is in
+    /// flight the presentation layer trails the model and the reading is the
+    /// live presentation frame. Once the presentation has caught up (rest),
+    /// the reading is `keyboardFullHeight` — the presented frame can rest a
+    /// fraction of a point above the announced height, and the rest reading
+    /// must match it. While the bounds are shifted (dismiss, snap-back) it is
+    /// `trackingBase` plus the shift, so a full dismiss travel lands exactly
+    /// on 0 and a snap-back lands back on the rest reading.
     fileprivate func presentedHeight() -> CGFloat {
         guard let kbView = keyboardView else {
             return isDismissing || snapBackAnimator != nil ? 0 : keyboardFullHeight
         }
         // presentation() gives the interpolated value during CoreAnimation
         let layer = kbView.layer.presentation() ?? kbView.layer
-        let frameHeight = max(0, UIScreen.main.bounds.height - layer.frame.origin.y)
         if isDismissing || snapBackAnimator != nil {
-            // The dismiss shift lives in bounds.origin.y (≤ 0); the frame is
-            // unaffected by it, so the frame reading alone would report full
-            // height.
-            return max(0, frameHeight + layer.bounds.origin.y)
+            // The dismiss shift lives in bounds.origin.y (≤ 0).
+            return max(0, trackingBase + layer.bounds.origin.y)
         }
-        return frameHeight
+        let lag = abs(layer.frame.origin.y - kbView.layer.frame.origin.y)
+        if lag * UIScreen.main.scale < 1 {
+            return keyboardFullHeight
+        }
+        return max(0, UIScreen.main.bounds.height - layer.frame.origin.y)
     }
 
     // MARK: - Keyboard Notifications
@@ -149,6 +154,12 @@ public class KeyboardPlugin: NSObject, NativePlugin {
             self,
             selector: #selector(keyboardDidHide),
             name: UIResponder.keyboardDidHideNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(keyboardDidChangeFrame),
+            name: UIResponder.keyboardDidChangeFrameNotification,
             object: nil
         )
     }
@@ -237,6 +248,10 @@ public class KeyboardPlugin: NSObject, NativePlugin {
         guard isDismissing else { return }
         isDismissing = false
         keyboardView?.layer.bounds.origin = .zero
+    }
+
+    @objc private func keyboardDidChangeFrame(_ notification: Notification) {
+        wake()
     }
 
     // MARK: - Keyboard View Discovery
@@ -395,8 +410,8 @@ public class KeyboardPlugin: NSObject, NativePlugin {
 
     private func dismissKeyboard() {
         isDismissing = true
-        // The bounds shift must cancel the frame reading for presentedHeight
-        // to end at 0; trackingBase holds that reading from the pan start.
+        // The bounds shift must cancel trackingBase — the base of the
+        // shifted reading — for presentedHeight to end at 0.
         let travel = trackingBase
 
         // Tell Dart to start close animation immediately
