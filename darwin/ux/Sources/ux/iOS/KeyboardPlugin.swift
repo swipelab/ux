@@ -22,7 +22,7 @@ public func ux_keyboard_height() -> Double {
     // (frame is unaffected by bounds.origin, so the normal path would report full height)
     if plugin.isDismissing || plugin.snapBackAnimator != nil {
         guard let kbView = plugin.keyboardView else { return 0 }
-        let boundsY = kbView.layer.presentation()?.bounds.origin.y ?? 0
+        let boundsY = kbView.layer.presentation()?.bounds.origin.y ?? kbView.layer.bounds.origin.y
         return max(0, Double(plugin.keyboardFullHeight + Double(boundsY)))
     }
 
@@ -142,13 +142,22 @@ public class KeyboardPlugin: NSObject, NativePlugin {
             name: UIResponder.keyboardWillShowNotification,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(keyboardDidHide),
+            name: UIResponder.keyboardDidHideNotification,
+            object: nil
+        )
+    }
+
+    private static func endFrameHeight(_ userInfo: [AnyHashable: Any]) -> CGFloat {
+        let endFrame = (userInfo[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue ?? .zero
+        return max(0, UIScreen.main.bounds.height - endFrame.origin.y)
     }
 
     @objc private func keyboardWillChange(_ notification: Notification) {
         guard let userInfo = notification.userInfo else { return }
-        let endFrame = (userInfo[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue ?? .zero
-        let screenHeight = UIScreen.main.bounds.height
-        let height = max(0, screenHeight - endFrame.origin.y)
+        let height = Self.endFrameHeight(userInfo)
 
         // If the keyboard is closing while we're tracking (e.g. resignFirstResponder
         // fired from a completed dismiss during a new pan), stop tracking and process
@@ -161,6 +170,19 @@ public class KeyboardPlugin: NSObject, NativePlugin {
             }
         }
 
+        // A committed dismiss resigns first responder while the keyboard view
+        // is still on-screen at the full frame, and the system re-reports that
+        // frame (height > 0) before posting the hide. Forwarding either event
+        // would animate the height back up, so the reader stays on the bounds
+        // offset until keyboardDidHide. A genuine re-open lands in
+        // keyboardWillShow, which lifts the dismiss first.
+        if isDismissing {
+            if height > 0 { return }
+            keyboardFullHeight = 0
+            wake()
+            return
+        }
+
         // Pass animation params to Dart so it can replay the same animation
         let duration = (userInfo[UIResponder.keyboardAnimationDurationUserInfoKey] as? NSNumber)?.doubleValue ?? 0.25
         animTarget = height
@@ -168,21 +190,12 @@ public class KeyboardPlugin: NSObject, NativePlugin {
         animGeneration &+= 1
 
         if height > 0 {
-            // Cancel any in-flight dismiss so it doesn't resignFirstResponder
-            // after the user has already re-focused.
-            if let anim = dismissAnimator {
-                anim.stopAnimation(true)
-                dismissAnimator = nil
-            }
-            // Always reset bounds — the dismiss animation (or its completion)
-            // may have shifted the keyboard view offscreen.
-            isDismissing = false
+            // Reset bounds — a snap-back or a lifted dismiss may have left the
+            // keyboard view shifted.
             keyboardView?.layer.bounds.origin = .zero
             keyboardFullHeight = height
         } else {
             keyboardFullHeight = 0
-            isDismissing = false
-            // Reset bounds when system confirms keyboard is gone
             keyboardView?.layer.bounds.origin = .zero
         }
 
@@ -195,7 +208,32 @@ public class KeyboardPlugin: NSObject, NativePlugin {
     }
 
     @objc private func keyboardWillShow(_ notification: Notification) {
+        if isDismissing, let userInfo = notification.userInfo {
+            // A re-open during the dismiss teardown. Its willChangeFrame is
+            // swallowed by the dismiss guard, so replay the show from here;
+            // the generation bump also keeps the dismiss completion from
+            // resigning the fresh responder.
+            dismissAnimator?.stopAnimation(true)
+            dismissAnimator = nil
+            isDismissing = false
+            keyboardView?.layer.bounds.origin = .zero
+
+            let height = Self.endFrameHeight(userInfo)
+            if height > 0 {
+                keyboardFullHeight = height
+                animTarget = height
+                animDuration = (userInfo[UIResponder.keyboardAnimationDurationUserInfoKey] as? NSNumber)?.doubleValue ?? 0.25
+                animGeneration &+= 1
+                wake()
+            }
+        }
         discoverKeyboardView()
+    }
+
+    @objc private func keyboardDidHide(_ notification: Notification) {
+        guard isDismissing else { return }
+        isDismissing = false
+        keyboardView?.layer.bounds.origin = .zero
     }
 
     // MARK: - Keyboard View Discovery
@@ -370,7 +408,9 @@ public class KeyboardPlugin: NSObject, NativePlugin {
         }
         animator.addCompletion { [weak self] _ in
             self?.dismissAnimator = nil
-            self?.isDismissing = false
+            // isDismissing stays set: the keyboard view's frame is still at
+            // full height, so the reader must keep using the bounds offset.
+            // keyboardDidHide (or a re-open via keyboardWillShow) clears it.
             // Only resign if no new keyboard event arrived since the dismiss started.
             // Otherwise we'd kill a keyboard the user just re-opened.
             guard self?.animGeneration == genAtDismiss else { return }

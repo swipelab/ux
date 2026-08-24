@@ -212,20 +212,14 @@ class XKeyboard with ChangeNotifier {
       final t = (elapsed / _animDuration).clamp(0.0, 1.0);
       h = _animFrom + (_animTo - _animFrom) * _lerpSamples(_samples, t);
 
-      // Cap the Dart-side prediction against the system-reported height.
-      // The native value is per-vsync fresh on Android R+ (via
-      // WindowInsetsAnimation.onProgress) and iOS (via CADisplayLink); on
-      // Android pre-R it snaps to the target up-front, making this a no-op.
-      // This trades the LUT's predictive *lead* for robustness against
-      // overshoot when the LUT hasn't adapted to this device's actual
-      // curve — especially in debug mode where Flutter's lower frame rate
-      // amplifies per-frame divergence.
       final native = _uxKeyboardHeight!();
-      if (_animTo > _animFrom && h > native) {
-        h = native;
-      } else if (_animTo < _animFrom && h < native) {
-        h = native;
-      }
+      h = clampPrediction(
+        h: h,
+        native: native,
+        animFrom: _animFrom,
+        animTo: _animTo,
+        current: _height,
+      );
 
       // Collect observations for adaptive learning.
       if (t < 1.0 && !_converged) {
@@ -265,6 +259,36 @@ class XKeyboard with ChangeNotifier {
     if (curveActive || (!Platform.isIOS && (h > 0 || _height > 0))) {
       SchedulerBinding.instance.scheduleFrame();
     }
+  }
+
+  /// Caps the LUT prediction [h] against the fresh [native] reading. The
+  /// native value is per-vsync fresh on Android R+ (via
+  /// WindowInsetsAnimation.onProgress) and iOS (via CADisplayLink); on
+  /// Android pre-R it snaps to the target up-front, making this a no-op.
+  /// This trades the LUT's predictive *lead* for robustness against
+  /// overshoot when the LUT hasn't adapted to this device's actual curve.
+  ///
+  /// Rising ([animTo] > [animFrom]): native is a ceiling the prediction may
+  /// not overshoot. Closing: native is a floor that can hold the height up
+  /// while the real keyboard lags, but never raise it — the floor is trusted
+  /// only inside `[animTo, animFrom]` and never above [current], so a native
+  /// flash back to the full frame mid-close cannot lift the height.
+  @visibleForTesting
+  static double clampPrediction({
+    required double h,
+    required double native,
+    required double animFrom,
+    required double animTo,
+    required double current,
+  }) {
+    if (animTo > animFrom && h > native) {
+      return native;
+    }
+    if (animTo < animFrom && h < native) {
+      final floor = math.min(clampDouble(native, animTo, animFrom), current);
+      return math.max(h, floor);
+    }
+    return h;
   }
 
   /// After a clean animation, learn the head start and curve shape.
