@@ -99,6 +99,26 @@ void main() {
       expect(notified, settled);
     });
 
+    test('a native IME resize after settle is not capped at the old target', () {
+      var gen = 0;
+      var native = 336.33;
+      final kb = XKeyboard.test(
+        nativeHeight: () => native,
+        animTarget: () => 336.0,
+        animDuration: () => 0.25,
+        animGen: () => gen,
+        devicePixelRatio: 3,
+      );
+      gen = 1;
+      for (var t = 16; t <= 256; t += 16) {
+        kb.debugFrame(Duration(milliseconds: t));
+      }
+      expect(kb.height, closeTo(336.0, 1e-9));
+      native = 420.0;
+      kb.debugFrame(const Duration(milliseconds: 272));
+      expect(kb.height, 420.0);
+    });
+
     test('a duration-0 re-announce of the settled target stays on it', () {
       var gen = 0;
       var duration = 0.25;

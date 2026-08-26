@@ -304,7 +304,13 @@ class XKeyboard with ChangeNotifier {
       h = _readHeight!();
       final ceiling = _restCeiling;
       if (ceiling != null && h > ceiling) {
-        h = ceiling;
+        // Sub-pixel native excess around the settled target. A jump of
+        // more than 1pt is a real IME resize.
+        if (h - ceiling <= 1) {
+          h = ceiling;
+        } else {
+          _restCeiling = h;
+        }
       }
     }
 
