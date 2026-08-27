@@ -35,8 +35,11 @@ public func ux_system_keyboard_height() -> Double {
     return Double(KeyboardPlugin.shared?.keyboardFullHeight ?? 0)
 }
 
+private var gWakeCallback: WakeCallback?
+
 @_cdecl("ux_register_wake_callback")
 public func ux_register_wake_callback(_ cb: @escaping WakeCallback) {
+    gWakeCallback = cb
     KeyboardPlugin.shared?.wakeCallback = cb
 }
 
@@ -99,13 +102,14 @@ public class KeyboardPlugin: NSObject, NativePlugin {
 
     public func register(with registrar: FlutterPluginRegistrar) {
         KeyboardPlugin.shared = self
+        wakeCallback = gWakeCallback
         KeyboardPlugin.warmup()
         startObserving()
     }
 
     /// Wake Dart so it reads the height on its next frame
     private func wake() {
-        wakeCallback?()
+        (wakeCallback ?? gWakeCallback)?()
     }
 
     /// The height outside interactive tracking. While an animation is in
@@ -166,7 +170,12 @@ public class KeyboardPlugin: NSObject, NativePlugin {
 
     private static func endFrameHeight(_ userInfo: [AnyHashable: Any]) -> CGFloat {
         let endFrame = (userInfo[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue ?? .zero
-        return max(0, UIScreen.main.bounds.height - endFrame.origin.y)
+        let window = XWindow.keyWindow
+        let bounds = window?.bounds ?? UIScreen.main.bounds
+        let frame = window?.convert(endFrame, from: nil) ?? endFrame
+        let overlap = bounds.intersection(frame)
+        if overlap.isNull { return 0 }
+        return max(0, overlap.height)
     }
 
     @objc private func keyboardWillChange(_ notification: Notification) {

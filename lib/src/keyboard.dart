@@ -1,9 +1,11 @@
+import 'dart:ffi';
 import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 
 import 'package:ux/src/_ffi.dart';
 import 'package:ux/src/log.dart';
@@ -19,6 +21,11 @@ final _uxAnimGen = uxLookupInt32('ux_keyboard_anim_gen');
 
 final _uxEnableInteractiveDismiss = uxLookupVoidDouble('ux_enable_interactive_dismiss');
 final _uxDisableInteractiveDismiss = uxLookupVoid('ux_disable_interactive_dismiss');
+final _uxRegisterWake = uxLookupVoidCallback('ux_register_wake_callback');
+
+void _uxKeyboardWake() {
+  SchedulerBinding.instance.scheduleFrame();
+}
 
 /// iOS keyboard animation curve — sampled from native CADisplayLink.
 /// 21 points at t = 0.00, 0.05, ..., 1.00. Averaged from multiple open/close cycles.
@@ -103,7 +110,7 @@ double _inverseLerp(List<double> samples, double value) {
 /// Android, a method call handler — both require an initialized Flutter
 /// binding, so touch it only after `runApp` (or an explicit
 /// `WidgetsFlutterBinding.ensureInitialized()`).
-class XKeyboard with ChangeNotifier {
+class XKeyboard with ChangeNotifier, WidgetsBindingObserver {
   XKeyboard._()
       : _readHeight = _uxKeyboardHeight,
         _readIsTracking = _uxIsTracking,
@@ -115,7 +122,16 @@ class XKeyboard with ChangeNotifier {
       _channel.setMethodCallHandler(_onMethodCall);
     }
     if (uxLib == null) return;
+    WidgetsBinding.instance.addObserver(this);
+    _uxRegisterWake?.call(
+      Pointer.fromFunction<Void Function()>(_uxKeyboardWake),
+    );
     SchedulerBinding.instance.addPersistentFrameCallback(_onFrame);
+  }
+
+  @override
+  void didChangeMetrics() {
+    SchedulerBinding.instance.scheduleFrame();
   }
 
   /// A keyboard with injected native readers — under `flutter test` the FFI
@@ -324,15 +340,16 @@ class XKeyboard with ChangeNotifier {
       // so dirty marks enqueued during notifyListeners would never get
       // flushed. Mid-animation transitions don't need this because the
       // pump or curveActive condition already covers them.
-      if (!Platform.isIOS && _height == 0) {
+      if (_height == 0) {
         SchedulerBinding.instance.scheduleFrame();
       }
     }
 
-    // Schedule frames while the curve is still running.
+    // Schedule frames while the curve is still running, and while the
+    // keyboard is up so a late native height is not missed after idle.
     final curveActive = _isAnimating &&
         (ts - _animStartTime) < _animDuration;
-    if (curveActive || (!Platform.isIOS && (h > 0 || _height > 0))) {
+    if (curveActive || h > 0 || _height > 0) {
       SchedulerBinding.instance.scheduleFrame();
     }
   }
