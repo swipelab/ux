@@ -112,13 +112,14 @@ public class KeyboardPlugin: NSObject, NativePlugin {
         (wakeCallback ?? gWakeCallback)?()
     }
 
-    /// Live height outside interactive tracking. In flight, the presentation
-    /// frame. At rest, `keyboardFullHeight` when that frame still occupies
-    /// the slot, or 0 when it sits off-screen (the presented frame can rest
-    /// a fraction of a point above the announced height). While the bounds
-    /// are shifted (dismiss, snap-back), `trackingBase` plus the shift, so
-    /// a full dismiss travel lands on 0 and a snap-back lands on the rest
-    /// reading.
+    /// The height outside interactive tracking. While an animation is in
+    /// flight the presentation layer trails the model and the reading is the
+    /// live presentation frame. Once the presentation has caught up (rest),
+    /// the reading is `keyboardFullHeight` — the presented frame can rest a
+    /// fraction of a point above the announced height, and the rest reading
+    /// must match it. While the bounds are shifted (dismiss, snap-back) it is
+    /// `trackingBase` plus the shift, so a full dismiss travel lands exactly
+    /// on 0 and a snap-back lands back on the rest reading.
     fileprivate func presentedHeight() -> CGFloat {
         guard let kbView = keyboardView else {
             return isDismissing || snapBackAnimator != nil ? 0 : keyboardFullHeight
@@ -129,13 +130,11 @@ public class KeyboardPlugin: NSObject, NativePlugin {
             // The dismiss shift lives in bounds.origin.y (≤ 0).
             return max(0, trackingBase + layer.bounds.origin.y)
         }
-        let presented = max(0, UIScreen.main.bounds.height - layer.frame.origin.y)
         let lag = abs(layer.frame.origin.y - kbView.layer.frame.origin.y)
         if lag * UIScreen.main.scale < 1 {
-            if presented < 1 { return 0 }
             return keyboardFullHeight
         }
-        return presented
+        return max(0, UIScreen.main.bounds.height - layer.frame.origin.y)
     }
 
     // MARK: - Keyboard Notifications
@@ -255,17 +254,9 @@ public class KeyboardPlugin: NSObject, NativePlugin {
     }
 
     @objc private func keyboardDidHide(_ notification: Notification) {
-        if isDismissing {
-            isDismissing = false
-            keyboardView?.layer.bounds.origin = .zero
-        }
-        let height = Self.endFrameHeight(notification.userInfo ?? [:])
-        guard height == 0, keyboardFullHeight != 0 else { return }
-        keyboardFullHeight = 0
-        animTarget = 0
-        animDuration = 0
-        animGeneration &+= 1
-        wake()
+        guard isDismissing else { return }
+        isDismissing = false
+        keyboardView?.layer.bounds.origin = .zero
     }
 
     @objc private func keyboardDidChangeFrame(_ notification: Notification) {
