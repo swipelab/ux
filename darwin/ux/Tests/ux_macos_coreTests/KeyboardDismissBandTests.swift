@@ -1,3 +1,4 @@
+import CoreGraphics
 import XCTest
 
 @testable import ux_macos_core
@@ -6,6 +7,7 @@ final class KeyboardDismissBandTests: XCTestCase {
     func testHostViewNames() {
         XCTAssertTrue(KeyboardDismissBand.isHostViewClass("UIInputSetHostView"))
         XCTAssertTrue(KeyboardDismissBand.isHostViewClass("UIKeyboardItemContainerView"))
+        XCTAssertTrue(KeyboardDismissBand.isHostViewClass("_UIKeyboardItemContainerView"))
         XCTAssertFalse(KeyboardDismissBand.isHostViewClass("UIWindow"))
         XCTAssertFalse(KeyboardDismissBand.isHostViewClass("FlutterView"))
     }
@@ -60,5 +62,19 @@ final class KeyboardDismissBandTests: XCTestCase {
         XCTAssertTrue(KeyboardDismissBand.isDownwardTravel(1))
         XCTAssertFalse(KeyboardDismissBand.isDownwardTravel(0))
         XCTAssertFalse(KeyboardDismissBand.isDownwardTravel(-1))
+    }
+
+    func testOverlapHeightIsTheVisibleImeSlice() {
+        let view = CGRect(x: 0, y: 0, width: 390, height: 844)
+        let docked = CGRect(x: 0, y: 543, width: 390, height: 301)
+        XCTAssertEqual(
+            KeyboardDismissBand.overlapHeight(keyboardFrame: docked, viewOnScreen: view),
+            301
+        )
+        let hidden = CGRect(x: 0, y: 844, width: 390, height: 301)
+        XCTAssertEqual(
+            KeyboardDismissBand.overlapHeight(keyboardFrame: hidden, viewOnScreen: view),
+            0
+        )
     }
 }

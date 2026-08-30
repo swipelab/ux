@@ -174,11 +174,19 @@ public class KeyboardPlugin: NSObject, NativePlugin {
     private static func endFrameHeight(_ userInfo: [AnyHashable: Any]) -> CGFloat {
         let endFrame = (userInfo[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue ?? .zero
         let window = XWindow.keyWindow
-        let bounds = window?.bounds ?? UIScreen.main.bounds
-        let frame = window?.convert(endFrame, from: nil) ?? endFrame
-        let overlap = bounds.intersection(frame)
-        if overlap.isNull { return 0 }
-        return max(0, overlap.height)
+        let view = window?.rootViewController?.view
+        let screen = window?.windowScene?.screen ?? UIScreen.main
+        let viewOnScreen: CGRect
+        if let view {
+            viewOnScreen = view.convert(view.bounds, to: screen.coordinateSpace)
+        } else {
+            viewOnScreen = screen.bounds
+        }
+        return CGFloat(
+            KeyboardDismissBand.overlapHeight(
+                keyboardFrame: endFrame, viewOnScreen: viewOnScreen
+            )
+        )
     }
 
     @objc private func keyboardWillChange(_ notification: Notification) {
@@ -251,6 +259,9 @@ public class KeyboardPlugin: NSObject, NativePlugin {
                 animGeneration &+= 1
                 wake()
             }
+        }
+        if gestureEnabled, panRecognizer == nil {
+            setupPanGesture()
         }
         discoverKeyboardView()
     }
@@ -343,14 +354,13 @@ public class KeyboardPlugin: NSObject, NativePlugin {
 
     private func setupPanGesture() {
         guard let window = XWindow.keyWindow else { return }
-        let view: UIView = window.rootViewController?.view ?? window
 
         let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan))
         pan.cancelsTouchesInView = false
         pan.delaysTouchesBegan = false
         pan.delaysTouchesEnded = false
         pan.delegate = self
-        view.addGestureRecognizer(pan)
+        window.addGestureRecognizer(pan)
         panRecognizer = pan
         discoverKeyboardView()
     }
@@ -401,7 +411,7 @@ public class KeyboardPlugin: NSObject, NativePlugin {
                 // Don't start tracking during a dismiss — the keyboard is going away.
                 guard dismissAnimator == nil, !isDismissing else { return }
                 if keyboardView == nil { discoverKeyboardView() }
-                guard keyboardFullHeight > 0, keyboardView != nil else { return }
+                guard keyboardFullHeight > 0 else { return }
 
                 if fromKeyboard {
                     let windowHeight = Double(

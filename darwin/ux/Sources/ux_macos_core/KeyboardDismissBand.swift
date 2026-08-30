@@ -1,3 +1,5 @@
+import CoreGraphics
+
 /// Class names and start geometry for iOS interactive IME dismiss.
 /// A pan on the chat window starts when the finger has travelled down
 /// while the IME is up (stream or composer). A pan on the IME window
@@ -11,8 +13,15 @@ public enum KeyboardDismissBand {
     }
 
     public static func isHostViewClass(_ name: String) -> Bool {
-        (name.hasPrefix("UI") && name.hasSuffix("InputSetHostView"))
-            || (name.hasPrefix("UI") && name.hasSuffix("KeyboardItemContainerView"))
+        name.contains("InputSetHostView") || name.contains("KeyboardItemContainerView")
+    }
+
+    /// Overlap of a screen-space keyboard frame with the chat view on
+    /// that screen. Hidden IME frames sit below the view and return 0.
+    public static func overlapHeight(keyboardFrame: CGRect, viewOnScreen: CGRect) -> Double {
+        let overlap = keyboardFrame.intersection(viewOnScreen)
+        guard !overlap.isNull, overlap.height > 0 else { return 0 }
+        return Double(overlap.height)
     }
 
     public static func contains(
