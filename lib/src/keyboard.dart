@@ -469,9 +469,10 @@ class XKeyboard with ChangeNotifier, WidgetsBindingObserver {
   /// Enables swipe-to-dismiss on the keyboard.
   ///
   /// [trackingInset] is the height of your input bar in logical pixels.
-  /// On iOS a downward swipe from the chat window (stream or composer)
-  /// starts tracking, and a matching pan on the keyboard host view starts
-  /// on a downward swipe on the IME itself.
+  /// On iOS a downward drag from the chat window (stream or composer)
+  /// starts tracking. Velocity at lift-off commits dismiss or snap-back.
+  /// A matching pan on the keyboard host view starts on a downward swipe
+  /// on the IME itself.
   void enableInteractiveDismiss({double trackingInset = 0}) => _uxEnableInteractiveDismiss?.call(trackingInset);
 
   /// Disables the swipe-to-dismiss gesture.

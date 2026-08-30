@@ -55,4 +55,10 @@ final class KeyboardDismissBandTests: XCTestCase {
         XCTAssertFalse(KeyboardDismissBand.beginsDismiss(velocityX: 200, velocityY: 50))
         XCTAssertFalse(KeyboardDismissBand.beginsDismiss(velocityX: 0, velocityY: -100))
     }
+
+    func testChatWindowStartsOnDownwardFingerTravel() {
+        XCTAssertTrue(KeyboardDismissBand.isDownwardTravel(1))
+        XCTAssertFalse(KeyboardDismissBand.isDownwardTravel(0))
+        XCTAssertFalse(KeyboardDismissBand.isDownwardTravel(-1))
+    }
 }

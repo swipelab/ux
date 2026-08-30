@@ -414,9 +414,8 @@ public class KeyboardPlugin: NSObject, NativePlugin {
                         trackingInset: Double(trackingInset)
                     ) else { return }
                 } else {
-                    guard KeyboardDismissBand.beginsDismiss(
-                        velocityX: Double(velocity.x),
-                        velocityY: Double(velocity.y)
+                    guard KeyboardDismissBand.isDownwardTravel(
+                        Double(gesture.translation(in: view).y)
                     ) else { return }
                 }
 
