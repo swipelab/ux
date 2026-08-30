@@ -82,6 +82,7 @@ public class KeyboardPlugin: NSObject, NativePlugin {
     private var gestureEnabled = false
     private var panRecognizer: UIPanGestureRecognizer?
     private var keyboardPanRecognizer: UIPanGestureRecognizer?
+    private weak var trackingPan: UIPanGestureRecognizer?
 
     // Keyboard state
     fileprivate var keyboardView: UIView?
@@ -190,6 +191,7 @@ public class KeyboardPlugin: NSObject, NativePlugin {
         if isTracking {
             if height == 0 {
                 isTracking = false
+                trackingPan = nil
             } else {
                 return
             }
@@ -407,12 +409,15 @@ public class KeyboardPlugin: NSObject, NativePlugin {
                 snapBackAnimator = nil
 
                 isTracking = true
+                trackingPan = gesture
                 interactiveOffset = 0
                 keyboardOriginY = location.y
 
                 // Wake Dart so it knows tracking started (for scroll stop)
                 wake()
             }
+
+            guard gesture === trackingPan else { return }
 
             interactiveOffset = max(0, location.y - keyboardOriginY)
 
@@ -428,8 +433,9 @@ public class KeyboardPlugin: NSObject, NativePlugin {
             wake()
 
         case .ended, .cancelled:
-            guard isTracking else { return }
+            guard isTracking, gesture === trackingPan else { return }
             isTracking = false
+            trackingPan = nil
 
             let velocity = gesture.velocity(in: nil).y
             let dismissThreshold = keyboardFullHeight * 0.4
@@ -521,6 +527,15 @@ extension KeyboardPlugin: UIGestureRecognizerDelegate {
         shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
     ) -> Bool {
         return true
+    }
+
+    public func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard gestureRecognizer === keyboardPanRecognizer,
+              let pan = gestureRecognizer as? UIPanGestureRecognizer else {
+            return true
+        }
+        let v = pan.velocity(in: nil)
+        return KeyboardDismissBand.beginsDismiss(velocityX: v.x, velocityY: v.y)
     }
 }
 

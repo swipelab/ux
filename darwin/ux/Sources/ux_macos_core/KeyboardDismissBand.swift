@@ -21,4 +21,10 @@ public enum KeyboardDismissBand {
         guard keyboardHeight > 0 else { return false }
         return y > windowHeight - keyboardHeight - trackingInset
     }
+
+    /// True when the pan is downward-dominant, so swipe-typing and
+    /// cursor drags on the IME do not begin dismiss tracking.
+    public static func beginsDismiss(velocityX: Double, velocityY: Double) -> Bool {
+        velocityY > 0 && velocityY > abs(velocityX)
+    }
 }

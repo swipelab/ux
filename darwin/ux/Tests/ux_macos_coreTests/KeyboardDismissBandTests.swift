@@ -49,4 +49,10 @@ final class KeyboardDismissBandTests: XCTestCase {
             )
         )
     }
+
+    func testBeginsDismissIsDownwardDominant() {
+        XCTAssertTrue(KeyboardDismissBand.beginsDismiss(velocityX: 10, velocityY: 80))
+        XCTAssertFalse(KeyboardDismissBand.beginsDismiss(velocityX: 200, velocityY: 50))
+        XCTAssertFalse(KeyboardDismissBand.beginsDismiss(velocityX: 0, velocityY: -100))
+    }
 }
