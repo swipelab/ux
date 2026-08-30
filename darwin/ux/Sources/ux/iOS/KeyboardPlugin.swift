@@ -8,8 +8,8 @@ import ux_macos_core
 
 public typealias WakeCallback = @convention(c) () -> Void
 
-/// Returns the current keyboard height by reading the presentation layer directly.
-/// Called by Dart's persistent frame callback — zero latency.
+/// Dart binds these by name through `DynamicLibrary.process()`.
+@_used
 @_cdecl("ux_keyboard_height")
 public func ux_keyboard_height() -> Double {
     guard let plugin = KeyboardPlugin.shared else { return 0 }
@@ -24,6 +24,7 @@ public func ux_keyboard_height() -> Double {
 
 /// Returns true when interactive dismiss pan is active.
 /// Flutter should stop scrolling the message list.
+@_used
 @_cdecl("ux_is_tracking")
 public func ux_is_tracking() -> Int32 {
     return (KeyboardPlugin.shared?.isTracking ?? false) ? 1 : 0
@@ -31,6 +32,7 @@ public func ux_is_tracking() -> Int32 {
 
 /// Returns the system-reported keyboard height (from the last notification).
 /// Use this as source of truth for "is keyboard open" state.
+@_used
 @_cdecl("ux_system_keyboard_height")
 public func ux_system_keyboard_height() -> Double {
     return Double(KeyboardPlugin.shared?.keyboardFullHeight ?? 0)
@@ -38,28 +40,33 @@ public func ux_system_keyboard_height() -> Double {
 
 private var gWakeCallback: WakeCallback?
 
+@_used
 @_cdecl("ux_register_wake_callback")
 public func ux_register_wake_callback(_ cb: @escaping WakeCallback) {
     gWakeCallback = cb
     KeyboardPlugin.shared?.wakeCallback = cb
 }
 
+@_used
 @_cdecl("ux_enable_interactive_dismiss")
 public func ux_enable_interactive_dismiss(_ trackingInset: Double) {
     KeyboardPlugin.shared?.enableInteractiveDismiss(trackingInset: CGFloat(trackingInset))
 }
 
+@_used
 @_cdecl("ux_disable_interactive_dismiss")
 public func ux_disable_interactive_dismiss() {
     KeyboardPlugin.shared?.disableInteractiveDismiss()
 }
 
 /// Animation params — Dart replays the same animation internally.
+@_used
 @_cdecl("ux_keyboard_anim_target")
 public func ux_keyboard_anim_target() -> Double {
     return Double(KeyboardPlugin.shared?.animTarget ?? 0)
 }
 
+@_used
 @_cdecl("ux_keyboard_anim_duration")
 public func ux_keyboard_anim_duration() -> Double {
     return KeyboardPlugin.shared?.animDuration ?? 0
@@ -67,6 +74,7 @@ public func ux_keyboard_anim_duration() -> Double {
 
 /// Incremented each time a new keyboard animation starts.
 /// Dart compares against its own copy to detect new animations.
+@_used
 @_cdecl("ux_keyboard_anim_gen")
 public func ux_keyboard_anim_gen() -> Int32 {
     return KeyboardPlugin.shared?.animGeneration ?? 0

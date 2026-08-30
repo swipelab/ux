@@ -4,6 +4,7 @@ import CoreMotion
 import Flutter
 import UIKit
 
+@_used
 @_cdecl("ux_device_orientation")
 public func ux_device_orientation() -> Int32 {
     return SensorPlugin.shared?.currentIndex ?? 0

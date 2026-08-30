@@ -1,4 +1,4 @@
 #include "Pods/Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"
 #include "Generated.xcconfig"
 // Dart looks up ux_* in this executable (DynamicLibrary.process).
-EXPORTED_SYMBOLS_FILE=$(PROJECT_DIR)/Runner/process_ffi.exp
+STRIP_STYLE = non-global
