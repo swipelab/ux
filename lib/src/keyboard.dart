@@ -470,7 +470,8 @@ class XKeyboard with ChangeNotifier, WidgetsBindingObserver {
   ///
   /// [trackingInset] is the height of your input bar in logical pixels.
   /// The dismiss gesture activates when the finger enters the keyboard zone
-  /// below this inset.
+  /// below this inset. On iOS a matching pan is attached to the system
+  /// keyboard host view, so a swipe on the IME itself starts tracking.
   void enableInteractiveDismiss({double trackingInset = 0}) => _uxEnableInteractiveDismiss?.call(trackingInset);
 
   /// Disables the swipe-to-dismiss gesture.

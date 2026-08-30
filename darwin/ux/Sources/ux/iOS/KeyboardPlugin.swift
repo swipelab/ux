@@ -2,6 +2,7 @@
 
 import Flutter
 import UIKit
+import ux_macos_core
 
 // MARK: - FFI interface
 
@@ -80,6 +81,7 @@ public class KeyboardPlugin: NSObject, NativePlugin {
     private var isObserving = false
     private var gestureEnabled = false
     private var panRecognizer: UIPanGestureRecognizer?
+    private var keyboardPanRecognizer: UIPanGestureRecognizer?
 
     // Keyboard state
     fileprivate var keyboardView: UIView?
@@ -222,9 +224,7 @@ public class KeyboardPlugin: NSObject, NativePlugin {
             keyboardView?.layer.bounds.origin = .zero
         }
 
-        if keyboardView == nil {
-            discoverKeyboardView()
-        }
+        discoverKeyboardView()
 
         // Wake Dart so it starts the animation
         wake()
@@ -260,47 +260,50 @@ public class KeyboardPlugin: NSObject, NativePlugin {
     }
 
     @objc private func keyboardDidChangeFrame(_ notification: Notification) {
+        discoverKeyboardView()
         wake()
     }
 
     // MARK: - Keyboard View Discovery
 
     private func discoverKeyboardView() {
-        keyboardView = nil
+        if let found = locateKeyboardHostView() {
+            keyboardView = found
+            if gestureEnabled {
+                attachKeyboardPan(to: found)
+            }
+        }
+    }
 
+    private func locateKeyboardHostView() -> UIView? {
         // Private API — same as Telegram (UIKitRuntimeUtils/UIViewController+Navigation.m)
         if let windowClass = NSClassFromString("UIRemoteKeyboardWindow") as? NSObject.Type {
             let sel = NSSelectorFromString("remoteKeyboardWindowForScreen:create:")
             if windowClass.responds(to: sel) {
                 if let window = windowClass.perform(sel, with: UIScreen.main, with: false)?.takeUnretainedValue() as? UIWindow {
                     if let found = findKeyboardHostView(in: window) {
-                        keyboardView = found
-                        return
+                        return found
                     }
                 }
             }
         }
 
-        // Fallback: walk visible windows
+        var fallback: UIView?
         for scene in UIApplication.shared.connectedScenes {
             guard let windowScene = scene as? UIWindowScene else { continue }
             for window in windowScene.windows {
-                let name = NSStringFromClass(type(of: window))
-                let isKB = (name.hasPrefix("UI") && name.hasSuffix("RemoteKeyboardWindow")) ||
-                           (name.hasPrefix("UI") && name.hasSuffix("TextEffectsWindow"))
-                guard isKB else { continue }
-                if let found = findKeyboardHostView(in: window) {
-                    keyboardView = found
-                    return
+                guard let found = findKeyboardHostView(in: window) else { continue }
+                if KeyboardDismissBand.isWindowClass(NSStringFromClass(type(of: window))) {
+                    return found
                 }
+                fallback = found
             }
         }
+        return fallback
     }
 
     private func findKeyboardHostView(in view: UIView) -> UIView? {
-        let name = NSStringFromClass(type(of: view))
-        if (name.hasPrefix("UI") && name.hasSuffix("InputSetHostView")) ||
-           (name.hasPrefix("UI") && name.hasSuffix("KeyboardItemContainerView")) {
+        if KeyboardDismissBand.isHostViewClass(NSStringFromClass(type(of: view))) {
             return view
         }
         for subview in view.subviews {
@@ -317,6 +320,7 @@ public class KeyboardPlugin: NSObject, NativePlugin {
         self.trackingInset = trackingInset
         guard panRecognizer == nil else {
             gestureEnabled = true
+            discoverKeyboardView()
             return
         }
         gestureEnabled = true
@@ -332,6 +336,7 @@ public class KeyboardPlugin: NSObject, NativePlugin {
             recognizer.view?.removeGestureRecognizer(recognizer)
             panRecognizer = nil
         }
+        detachKeyboardPan()
     }
 
     private func setupPanGesture() {
@@ -345,13 +350,36 @@ public class KeyboardPlugin: NSObject, NativePlugin {
         pan.delegate = self
         view.addGestureRecognizer(pan)
         panRecognizer = pan
+        discoverKeyboardView()
+    }
+
+    /// The IME is in its own window, so a pan on the Flutter view never
+    /// sees a swipe on the keys. A matching pan is attached to the host
+    /// view in that window.
+    private func attachKeyboardPan(to view: UIView) {
+        if keyboardPanRecognizer?.view === view { return }
+        detachKeyboardPan()
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan))
+        pan.cancelsTouchesInView = false
+        pan.delaysTouchesBegan = false
+        pan.delaysTouchesEnded = false
+        pan.delegate = self
+        view.addGestureRecognizer(pan)
+        keyboardPanRecognizer = pan
+    }
+
+    private func detachKeyboardPan() {
+        if let recognizer = keyboardPanRecognizer {
+            recognizer.view?.removeGestureRecognizer(recognizer)
+            keyboardPanRecognizer = nil
+        }
     }
 
     @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
-        guard gestureEnabled, let view = gesture.view else { return }
+        guard gestureEnabled else { return }
 
-        let location = gesture.location(in: view)
-        let screenHeight = UIScreen.main.bounds.height
+        let location = gesture.location(in: nil)
+        let screenHeight = gesture.view?.window?.bounds.height ?? UIScreen.main.bounds.height
 
         switch gesture.state {
         case .began:
@@ -361,11 +389,15 @@ public class KeyboardPlugin: NSObject, NativePlugin {
             if !isTracking {
                 // Don't start tracking during a dismiss — the keyboard is going away.
                 guard dismissAnimator == nil, !isDismissing else { return }
-                // Use system keyboard height as source of truth
+                if keyboardView == nil { discoverKeyboardView() }
                 guard keyboardFullHeight > 0, keyboardView != nil else { return }
 
-                let keyboardTop = screenHeight - keyboardFullHeight - trackingInset
-                guard location.y > keyboardTop else { return }
+                guard KeyboardDismissBand.contains(
+                    y: location.y,
+                    windowHeight: screenHeight,
+                    keyboardHeight: keyboardFullHeight,
+                    trackingInset: trackingInset
+                ) else { return }
 
                 // Sampled before the animator is niled so a mid-snap-back
                 // grab starts from the currently displayed height.
@@ -399,7 +431,7 @@ public class KeyboardPlugin: NSObject, NativePlugin {
             guard isTracking else { return }
             isTracking = false
 
-            let velocity = gesture.velocity(in: view).y
+            let velocity = gesture.velocity(in: nil).y
             let dismissThreshold = keyboardFullHeight * 0.4
 
             if velocity > 100 || interactiveOffset > dismissThreshold {
