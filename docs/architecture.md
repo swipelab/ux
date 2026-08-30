@@ -56,7 +56,7 @@ links `ux_extension` alone and registers what it needs itself. Consumer:
 banlu's iOS share extension.
 
 Keyboard, sensor, and URL-detect talk to Dart through `DynamicLibrary.process()`.
-The host app executable exports those globals (`-Wl,-export_dynamic`).
+The host app executable exports those names (`EXPORTED_SYMBOLS_FILE`).
 
 ---
 
