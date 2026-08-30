@@ -404,17 +404,19 @@ public class KeyboardPlugin: NSObject, NativePlugin {
                 guard keyboardFullHeight > 0, keyboardView != nil else { return }
 
                 if fromKeyboard {
+                    let windowHeight = Double(
+                        view.window?.bounds.height ?? UIScreen.main.bounds.height
+                    )
                     guard KeyboardDismissBand.contains(
-                        y: locationY,
-                        windowHeight: view.window?.bounds.height
-                            ?? UIScreen.main.bounds.height,
-                        keyboardHeight: keyboardFullHeight,
-                        trackingInset: trackingInset
+                        y: Double(locationY),
+                        windowHeight: windowHeight,
+                        keyboardHeight: Double(keyboardFullHeight),
+                        trackingInset: Double(trackingInset)
                     ) else { return }
                 } else {
                     guard KeyboardDismissBand.beginsDismiss(
-                        velocityX: velocity.x,
-                        velocityY: velocity.y
+                        velocityX: Double(velocity.x),
+                        velocityY: Double(velocity.y)
                     ) else { return }
                 }
 
@@ -551,7 +553,10 @@ extension KeyboardPlugin: UIGestureRecognizerDelegate {
             return true
         }
         let v = pan.velocity(in: nil)
-        return KeyboardDismissBand.beginsDismiss(velocityX: v.x, velocityY: v.y)
+        return KeyboardDismissBand.beginsDismiss(
+            velocityX: Double(v.x),
+            velocityY: Double(v.y)
+        )
     }
 }
 
