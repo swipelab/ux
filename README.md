@@ -15,7 +15,7 @@ from the native layer via FFI — zero channel latency, every frame.
 - **Real-time height** — reads the keyboard's actual position each frame via FFI (iOS) / JNI (Android)
 - **Native animation curves** — sampled from `CADisplayLink` (iOS) and `WindowInsetsAnimation` (Android),
   with adaptive learning that refines the curve from observations
-- **Interactive dismiss** — swipe the keyboard down like iMessage/Telegram, with snap-back or dismiss. On iOS the pan is on the keyboard host view as well as the chat window, so a swipe on the IME itself tracks.
+- **Interactive dismiss** — swipe the keyboard down like iMessage/Telegram, with snap-back or dismiss. On iOS a downward swipe from the chat (stream or composer) tracks, and a downward swipe on the IME itself tracks.
 - **Scroll freeze** — `isTracking` flag lets you freeze scrolling during interactive dismiss
 
 ### Quick start

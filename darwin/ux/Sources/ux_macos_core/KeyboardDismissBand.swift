@@ -1,6 +1,7 @@
-/// Class names and the composer-plus-keyboard band for iOS interactive
-/// IME dismiss. A touch starts tracking when it sits in that band of
-/// the window that owns the pan.
+/// Class names and start geometry for iOS interactive IME dismiss.
+/// A pan on the chat window starts on a downward-dominant swipe while
+/// the IME is up (stream or composer). A pan on the IME window starts
+/// when the touch sits in the composer-plus-keyboard band.
 public enum KeyboardDismissBand {
     public static func isWindowClass(_ name: String) -> Bool {
         (name.hasPrefix("UI") && name.hasSuffix("RemoteKeyboardWindow"))
@@ -26,5 +27,13 @@ public enum KeyboardDismissBand {
     /// cursor drags on the IME do not begin dismiss tracking.
     public static func beginsDismiss(velocityX: Double, velocityY: Double) -> Bool {
         velocityY > 0 && velocityY > abs(velocityX)
+    }
+
+    public static func beginsFromChatWindow(
+        velocityX: Double,
+        velocityY: Double,
+        keyboardHeight: Double
+    ) -> Bool {
+        keyboardHeight > 0 && beginsDismiss(velocityX: velocityX, velocityY: velocityY)
     }
 }

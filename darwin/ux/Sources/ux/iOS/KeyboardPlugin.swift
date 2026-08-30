@@ -378,10 +378,24 @@ public class KeyboardPlugin: NSObject, NativePlugin {
     }
 
     @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
-        guard gestureEnabled else { return }
+        guard gestureEnabled, let view = gesture.view else { return }
 
-        let location = gesture.location(in: nil)
-        let screenHeight = gesture.view?.window?.bounds.height ?? UIScreen.main.bounds.height
+        let fromKeyboard = gesture === keyboardPanRecognizer
+        let locationY: CGFloat
+        let canvasHeight: CGFloat
+        let velocity: CGPoint
+        if fromKeyboard {
+            let p = gesture.location(in: nil)
+            velocity = gesture.velocity(in: nil)
+            locationY = p.y
+            canvasHeight = view.window?.bounds.height ?? UIScreen.main.bounds.height
+        } else {
+            // Chat window: Flutter-view coordinates and the screen
+            // height, so a stream or composer swipe starts tracking.
+            velocity = gesture.velocity(in: view)
+            locationY = gesture.location(in: view).y
+            canvasHeight = UIScreen.main.bounds.height
+        }
 
         switch gesture.state {
         case .began:
@@ -394,12 +408,20 @@ public class KeyboardPlugin: NSObject, NativePlugin {
                 if keyboardView == nil { discoverKeyboardView() }
                 guard keyboardFullHeight > 0, keyboardView != nil else { return }
 
-                guard KeyboardDismissBand.contains(
-                    y: location.y,
-                    windowHeight: screenHeight,
-                    keyboardHeight: keyboardFullHeight,
-                    trackingInset: trackingInset
-                ) else { return }
+                if fromKeyboard {
+                    guard KeyboardDismissBand.contains(
+                        y: locationY,
+                        windowHeight: canvasHeight,
+                        keyboardHeight: keyboardFullHeight,
+                        trackingInset: trackingInset
+                    ) else { return }
+                } else {
+                    guard KeyboardDismissBand.beginsFromChatWindow(
+                        velocityX: velocity.x,
+                        velocityY: velocity.y,
+                        keyboardHeight: keyboardFullHeight
+                    ) else { return }
+                }
 
                 // Sampled before the animator is niled so a mid-snap-back
                 // grab starts from the currently displayed height.
@@ -411,7 +433,7 @@ public class KeyboardPlugin: NSObject, NativePlugin {
                 isTracking = true
                 trackingPan = gesture
                 interactiveOffset = 0
-                keyboardOriginY = location.y
+                keyboardOriginY = locationY
 
                 // Wake Dart so it knows tracking started (for scroll stop)
                 wake()
@@ -419,7 +441,7 @@ public class KeyboardPlugin: NSObject, NativePlugin {
 
             guard gesture === trackingPan else { return }
 
-            interactiveOffset = max(0, location.y - keyboardOriginY)
+            interactiveOffset = max(0, locationY - keyboardOriginY)
 
             // Move the keyboard view — same as Telegram's KeyboardManager
             if let kbView = keyboardView {
@@ -437,10 +459,9 @@ public class KeyboardPlugin: NSObject, NativePlugin {
             isTracking = false
             trackingPan = nil
 
-            let velocity = gesture.velocity(in: nil).y
             let dismissThreshold = keyboardFullHeight * 0.4
 
-            if velocity > 100 || interactiveOffset > dismissThreshold {
+            if velocity.y > 100 || interactiveOffset > dismissThreshold {
                 dismissKeyboard()
             } else {
                 snapBack()
