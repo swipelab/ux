@@ -1,4 +1,7 @@
 ### 0.10.0
+- **Apple host executables export dart:ffi process symbols.** Keyboard,
+  sensor, and URL-detect entry points are looked up in the process; the
+  host app's release link passes `-Wl,-export_dynamic`.
 - **`XAudioCapture` picks its source.** `sources()` lists the hardware inputs
   the OS names plus, on macOS and Android 10+, one `playback` source for what
   the device plays; `start({sourceId})` opens it. Omitting `sourceId` is the

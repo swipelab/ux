@@ -55,6 +55,9 @@ so `XPlugin` registers them for the app exactly as before; an extension host
 links `ux_extension` alone and registers what it needs itself. Consumer:
 banlu's iOS share extension.
 
+Keyboard, sensor, and URL-detect talk to Dart through `DynamicLibrary.process()`.
+The host app executable exports those globals (`-Wl,-export_dynamic`).
+
 ---
 
 ## Video pipeline (Android)
