@@ -382,19 +382,14 @@ public class KeyboardPlugin: NSObject, NativePlugin {
 
         let fromKeyboard = gesture === keyboardPanRecognizer
         let locationY: CGFloat
-        let canvasHeight: CGFloat
         let velocity: CGPoint
         if fromKeyboard {
             let p = gesture.location(in: nil)
             velocity = gesture.velocity(in: nil)
             locationY = p.y
-            canvasHeight = view.window?.bounds.height ?? UIScreen.main.bounds.height
         } else {
-            // Chat window: Flutter-view coordinates and the screen
-            // height, so a stream or composer swipe starts tracking.
             velocity = gesture.velocity(in: view)
             locationY = gesture.location(in: view).y
-            canvasHeight = UIScreen.main.bounds.height
         }
 
         switch gesture.state {
@@ -411,15 +406,15 @@ public class KeyboardPlugin: NSObject, NativePlugin {
                 if fromKeyboard {
                     guard KeyboardDismissBand.contains(
                         y: locationY,
-                        windowHeight: canvasHeight,
+                        windowHeight: view.window?.bounds.height
+                            ?? UIScreen.main.bounds.height,
                         keyboardHeight: keyboardFullHeight,
                         trackingInset: trackingInset
                     ) else { return }
                 } else {
-                    guard KeyboardDismissBand.beginsFromChatWindow(
+                    guard KeyboardDismissBand.beginsDismiss(
                         velocityX: velocity.x,
-                        velocityY: velocity.y,
-                        keyboardHeight: keyboardFullHeight
+                        velocityY: velocity.y
                     ) else { return }
                 }
 

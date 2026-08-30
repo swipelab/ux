@@ -55,22 +55,4 @@ final class KeyboardDismissBandTests: XCTestCase {
         XCTAssertFalse(KeyboardDismissBand.beginsDismiss(velocityX: 200, velocityY: 50))
         XCTAssertFalse(KeyboardDismissBand.beginsDismiss(velocityX: 0, velocityY: -100))
     }
-
-    func testChatWindowStartsOnADownwardSwipeWhileTheImeIsUp() {
-        XCTAssertTrue(
-            KeyboardDismissBand.beginsFromChatWindow(
-                velocityX: 10, velocityY: 80, keyboardHeight: 301
-            )
-        )
-        XCTAssertFalse(
-            KeyboardDismissBand.beginsFromChatWindow(
-                velocityX: 10, velocityY: 80, keyboardHeight: 0
-            )
-        )
-        XCTAssertFalse(
-            KeyboardDismissBand.beginsFromChatWindow(
-                velocityX: 0, velocityY: -80, keyboardHeight: 301
-            )
-        )
-    }
 }

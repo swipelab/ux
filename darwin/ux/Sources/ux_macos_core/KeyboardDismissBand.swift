@@ -28,12 +28,4 @@ public enum KeyboardDismissBand {
     public static func beginsDismiss(velocityX: Double, velocityY: Double) -> Bool {
         velocityY > 0 && velocityY > abs(velocityX)
     }
-
-    public static func beginsFromChatWindow(
-        velocityX: Double,
-        velocityY: Double,
-        keyboardHeight: Double
-    ) -> Bool {
-        keyboardHeight > 0 && beginsDismiss(velocityX: velocityX, velocityY: velocityY)
-    }
 }
