@@ -21,23 +21,18 @@ class HttpSink extends LogSink {
   /// [token] auth. [device] and [app] are merged into every record's JSON
   /// envelope. [sender] is overridable for tests.
   HttpSink({
-    required Uri endpoint,
-    required String token,
-    LogLevel minLevel = LogLevel.info,
+    required this._endpoint,
+    required this._token,
+    this._minLevel = LogLevel.info,
     this.batchSize = 25,
     this.flushInterval = const Duration(seconds: 2),
     this.queueCapacity = 2000,
     this.initialBackoff = const Duration(seconds: 1),
     this.maxBackoff = const Duration(seconds: 30),
-    Map<String, Object?>? device,
-    Map<String, Object?>? app,
+    this._device,
+    this._app,
     HttpSender? sender,
-  })  : _endpoint = endpoint,
-        _token = token,
-        _minLevel = minLevel,
-        _device = device,
-        _app = app,
-        _sender = sender ?? _defaultSender;
+  })  : _sender = sender ?? _defaultSender;
 
   /// The full URL the batched POST hits (e.g. `http://nas:8000/log`).
   final Uri _endpoint;

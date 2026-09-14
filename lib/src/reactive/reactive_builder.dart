@@ -35,12 +35,11 @@ class ReactiveBuilder<T extends Listenable> extends StatefulWidget {
   /// Creates the listenable through [create] and owns its disposal.
   const ReactiveBuilder({
     super.key,
-    required ReactiveCreateDelegate<T> create,
+    required ReactiveCreateDelegate<T> this._create,
     required this.builder,
     this.child,
     this.onUpdate,
-  })  : _value = null,
-        _create = create;
+  })  : _value = null;
 
   /// Listens to an externally-owned [value] and leaves its disposal to
   /// whoever created it.

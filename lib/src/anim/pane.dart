@@ -357,8 +357,8 @@ class PaneElement extends RenderObjectElement {
 class PaneRender extends RenderBox {
   /// Binds the render box to the pane it delegates to.
   PaneRender({
-    required Pane controller,
-  }) : _controller = controller;
+    required this._controller,
+  });
 
   Pane _controller;
 

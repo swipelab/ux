@@ -234,7 +234,7 @@ void main() {
 
     test('saveToLibrary outcome is overridable via onSaveToLibrary', () async {
       XGallery.backend = FakeXGalleryBackend(
-        onSaveToLibrary: (_, __) => XGallerySaveStatus.denied,
+        onSaveToLibrary: (_, _) => XGallerySaveStatus.denied,
       );
 
       final status = await XGallery.saveToLibrary(

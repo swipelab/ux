@@ -291,7 +291,7 @@ class MethodChannelXAudioCapture implements XAudioCapture {
   }) {
     if (sourceId == null && voiceProcessing) return null;
     return {
-      if (sourceId != null) 'sourceId': sourceId,
+      'sourceId': ?sourceId,
       if (!voiceProcessing) 'voiceProcessing': false,
     };
   }
@@ -312,7 +312,7 @@ class MethodChannelXAudioCapture implements XAudioCapture {
         previous == null ? command() : previous.then((_) => command());
     final tail = operation.then<void>(
       (_) {},
-      onError: (Object _, StackTrace __) {},
+      onError: (Object _, StackTrace _) {},
     );
     _commandTail = tail;
     tail.whenComplete(() {

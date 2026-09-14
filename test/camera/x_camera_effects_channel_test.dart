@@ -20,7 +20,7 @@ Map<String, Object?> _status(
       'phase': phase,
       'effect': effect,
       'generation': generation,
-      if (code != null) 'code': code,
+      'code': ?code,
     };
 
 Map<Object?, Object?> _argumentsOf(MethodCall call) =>

@@ -377,12 +377,11 @@ class ConsoleSink extends LogSink {
   /// writers; otherwise it's auto-detected from `stdout.supportsAnsiEscapes`.
   /// [stackFrames] caps how many stack lines are printed per record.
   ConsoleSink({
-    LogLevel minLevel = LogLevel.trace,
+    this._minLevel = LogLevel.trace,
     bool? color,
     this.stackFrames = 8,
     void Function(String line)? write,
-  }) : _minLevel = minLevel,
-       _color = color ?? _detectAnsi(),
+  }) : _color = color ?? _detectAnsi(),
        _write = write ?? _defaultConsoleWrite;
 
   final LogLevel _minLevel;
@@ -405,7 +404,7 @@ class ConsoleSink extends LogSink {
 /// not attached); active on web where it routes to the browser console.
 class DeveloperSink extends LogSink {
   /// Creates a sink that hands records to `dart:developer.log`.
-  DeveloperSink({LogLevel minLevel = LogLevel.trace}) : _minLevel = minLevel;
+  DeveloperSink({this._minLevel = LogLevel.trace});
 
   final LogLevel _minLevel;
 
@@ -430,8 +429,7 @@ class DeveloperSink extends LogSink {
 /// deterministic sink in tests.
 class MemorySink extends LogSink {
   /// Creates a ring buffer that keeps the most recent [capacity] records.
-  MemorySink({this.capacity = 100, LogLevel minLevel = LogLevel.trace})
-    : _minLevel = minLevel;
+  MemorySink({this.capacity = 100, this._minLevel = LogLevel.trace});
 
   /// Maximum number of records kept. Older records are evicted FIFO.
   final int capacity;

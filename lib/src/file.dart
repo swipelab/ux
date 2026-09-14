@@ -167,8 +167,8 @@ class XFiles {
   }) async {
     final result = await _channel.invokeMethod<bool>('share', {
       'path': path,
-      if (title != null) 'title': title,
-      if (mimeType != null) 'mimeType': mimeType,
+      'title': ?title,
+      'mimeType': ?mimeType,
       if (sourceRect != null)
         'sourceRect': {
           'x': sourceRect.left,
@@ -204,7 +204,7 @@ class XFiles {
   }) async {
     final s = await _channel.invokeMethod<String>('saveCopy', {
       'path': path,
-      if (mimeType != null) 'mimeType': mimeType,
+      'mimeType': ?mimeType,
     });
     return switch (s) {
       'saved' => XFileSaveStatus.saved,
@@ -233,8 +233,8 @@ class XFiles {
   }) async {
     final result = await _channel.invokeMethod<bool>('open', {
       'path': path,
-      if (mimeType != null) 'mimeType': mimeType,
-      if (bookmark != null) 'bookmark': bookmark,
+      'mimeType': ?mimeType,
+      'bookmark': ?bookmark,
     });
     return result ?? false;
   }
@@ -256,7 +256,7 @@ class XFiles {
     List<String>? mimeTypes,
   }) async {
     final result = await _channel.invokeMapMethod<String, Object?>('pick', {
-      if (mimeTypes != null) 'mimeTypes': mimeTypes,
+      'mimeTypes': ?mimeTypes,
     });
     if (result == null) return null;
     final path = result['path'] as String?;
@@ -285,7 +285,7 @@ class XFiles {
     if (!Platform.isMacOS) return false;
     final result = await _channel.invokeMethod<bool>('showInFolder', {
       'path': path,
-      if (bookmark != null) 'bookmark': bookmark,
+      'bookmark': ?bookmark,
     });
     return result ?? false;
   }
@@ -337,11 +337,11 @@ class XFiles {
         'path': path,
         'atMs': atMs,
         'maxWidth': maxWidth,
-        if (transform != null) 'transform': transform,
-        if (outWidth != null) 'outWidth': outWidth,
-        if (outHeight != null) 'outHeight': outHeight,
-        if (overlayPath != null) 'overlayPath': overlayPath,
-        if (maxLongest != null) 'maxLongest': maxLongest,
+        'transform': ?transform,
+        'outWidth': ?outWidth,
+        'outHeight': ?outHeight,
+        'overlayPath': ?overlayPath,
+        'maxLongest': ?maxLongest,
       },
     );
     if (result == null) return null;

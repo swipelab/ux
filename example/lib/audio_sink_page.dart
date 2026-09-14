@@ -60,7 +60,7 @@ class _AudioSinkPageState extends State<AudioSinkPage> {
     unawaited(_drains?.cancel());
     unawaited(_sink.flush().then<void>(
           (_) {},
-          onError: (Object _, StackTrace __) {},
+          onError: (Object _, StackTrace _) {},
         ));
     super.dispose();
   }

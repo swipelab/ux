@@ -93,7 +93,7 @@ class MethodChannelXCameraEffectsBackend implements XCameraEffectsBackend {
         previous == null ? command() : previous.then((_) => command());
     final tail = operation.then<void>(
       (_) {},
-      onError: (Object _, StackTrace __) {},
+      onError: (Object _, StackTrace _) {},
     );
     _commandTail = tail;
     tail.whenComplete(() {
@@ -118,7 +118,7 @@ class MethodChannelXCameraEffectsBackend implements XCameraEffectsBackend {
   void _subscribe() {
     _subscription ??= _events.receiveBroadcastStream().listen(
           _onEvent,
-          onError: (Object _, StackTrace __) {},
+          onError: (Object _, StackTrace _) {},
         );
   }
 

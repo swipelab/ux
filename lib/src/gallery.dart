@@ -411,7 +411,7 @@ class MethodChannelGalleryBackend implements XGalleryBackend {
     final s = await _channel.invokeMethod<String>('saveToLibrary', {
       'path': path,
       'kind': _kindArg(kind),
-      if (mimeType != null) 'mime': mimeType,
+      'mime': ?mimeType,
     });
     return s == 'saved' ? XGallerySaveStatus.saved : XGallerySaveStatus.denied;
   }

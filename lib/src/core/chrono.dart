@@ -35,7 +35,7 @@ abstract class Chrono with WidgetsBindingObserver implements Timer {
     if (_appLifecycle == null) {
       WidgetsBinding.instance.addObserver(this);
     } else {
-      _appLifecycle!.addListener(_appLifecycleStateChanged);
+      _appLifecycle.addListener(_appLifecycleStateChanged);
     }
     stopwatch.start();
   }
@@ -96,7 +96,7 @@ abstract class Chrono with WidgetsBindingObserver implements Timer {
     if (_appLifecycle == null) {
       WidgetsBinding.instance.removeObserver(this);
     } else {
-      _appLifecycle!.removeListener(_appLifecycleStateChanged);
+      _appLifecycle.removeListener(_appLifecycleStateChanged);
     }
     _isCancelled = true;
     _timer?.cancel();

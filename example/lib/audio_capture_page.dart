@@ -38,7 +38,7 @@ class _AudioCapturePageState extends State<AudioCapturePage> {
     _frames?.cancel();
     unawaited(_capture.stop().then<void>(
           (_) {},
-          onError: (Object _, StackTrace __) {},
+          onError: (Object _, StackTrace _) {},
         ));
     super.dispose();
   }

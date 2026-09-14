@@ -105,7 +105,7 @@ class MethodChannelXSecureStore implements XSecureStore {
         previous == null ? command() : previous.then((_) => command());
     final tail = operation.then<void>(
       (_) {},
-      onError: (Object _, StackTrace __) {},
+      onError: (Object _, StackTrace _) {},
     );
     _commandTail = tail;
     tail.whenComplete(() {

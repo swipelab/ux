@@ -286,7 +286,7 @@ class XKeyboard with ChangeNotifier, WidgetsBindingObserver {
       final t = (elapsed / _animDuration).clamp(0.0, 1.0);
       h = _animFrom + (_animTo - _animFrom) * _lerpSamples(_samples, t);
 
-      final native = _readHeight!();
+      final native = _readHeight();
       h = clampPrediction(
         h: h,
         native: native,
@@ -317,7 +317,7 @@ class XKeyboard with ChangeNotifier, WidgetsBindingObserver {
         _finishLearning();
       }
     } else {
-      h = _readHeight!();
+      h = _readHeight();
       final ceiling = _restCeiling;
       if (ceiling != null && h > ceiling) {
         // Sub-pixel native excess around the settled target. A jump of
