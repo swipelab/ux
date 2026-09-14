@@ -57,6 +57,8 @@ banlu's iOS share extension.
 
 Keyboard, sensor, and URL-detect talk to Dart through `DynamicLibrary.process()`.
 The host app's release strip keeps global symbols (`STRIP_STYLE = non-global`).
+The Swift entry points are `@_used`, so dead-stripping keeps them; the `ux` target
+enables `SymbolLinkageMarkers` for that attribute.
 
 ---
 

@@ -58,6 +58,8 @@ let package = Package(
         ),
       ],
       path: "Sources/ux",
+      // `@_used` keeps the dart:ffi entry points through dead-stripping.
+      swiftSettings: [.enableExperimentalFeature("SymbolLinkageMarkers")],
       linkerSettings: [
         .linkedFramework("AVFoundation"),
         .linkedFramework("CoreMedia"),
