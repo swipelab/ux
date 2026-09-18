@@ -1,3 +1,13 @@
+### 0.11.0
+- **`ux.dart` is pure.** It exports core, reactive, navi, anim and the
+  geometry helpers, and compiles for the web. Each native component is
+  imported from its own library: `audio.dart`, `camera.dart`,
+  `screen_sources.dart`, `video.dart`, `image.dart`, `clipboard.dart`,
+  `crypto.dart`, `notifications.dart`, `secure_store.dart`, `window.dart`,
+  `drop.dart`, `file.dart`, `gallery.dart`, `keyboard.dart`, `scanner.dart`,
+  `shortcuts.dart`, `url.dart`, `sensor.dart`, `crash.dart`, `log.dart`,
+  `app_group.dart`. Breaking: add the library a symbol lives in.
+
 ### 0.10.0
 - **Apple host executables export dart:ffi process symbols.** Keyboard,
   sensor, and URL-detect entry points are looked up in the process; the

@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ux/ux.dart';
+import 'package:ux/audio.dart';
 
 Uint8List _bytes(List<int> samples) {
   final data = ByteData(samples.length * 2);

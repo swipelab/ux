@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ux/ux.dart';
+import 'package:ux/crash.dart';
+import 'package:ux/log.dart';
 
 void _noop() {}
 

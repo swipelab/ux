@@ -3,7 +3,7 @@ description: >-
   Flutter toolkit for fluid, native-feeling UIs. Includes frame-accurate
   keyboard height tracking via FFI with interactive dismiss, bezier utilities,
   and layout primitives.
-version: 0.10.0
+version: 0.11.0
 homepage: https://swipelab.co/ux.html
 repository: https://github.com/swipelab/ux
 issue_tracker: https://github.com/swipelab/ux/issues

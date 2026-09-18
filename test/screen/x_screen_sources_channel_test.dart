@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ux/ux.dart';
+import 'package:ux/screen_sources.dart';
 
 const _channelName = 'ux/screen_sources';
 const _channel = MethodChannel(_channelName);

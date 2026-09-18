@@ -2,7 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ux/testing.dart';
-import 'package:ux/ux.dart';
+import 'package:ux/screen_sources.dart';
 
 XScreenSource _source(String id, {Uint8List? thumbnailPng}) => XScreenSource(
       id: id,

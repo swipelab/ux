@@ -1,7 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ux/testing.dart';
-import 'package:ux/ux.dart';
+import 'package:ux/gallery.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

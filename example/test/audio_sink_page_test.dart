@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ux/ux.dart';
+import 'package:ux/audio.dart';
 import 'package:ux_example/audio_sink_page.dart';
 
 void main() {

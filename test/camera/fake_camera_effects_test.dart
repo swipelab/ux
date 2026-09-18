@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ux/testing.dart';
-import 'package:ux/ux.dart';
+import 'package:ux/camera.dart';
 
 void main() {
   test('it records commands in the order a consumer made them', () async {

@@ -2,7 +2,7 @@
 library;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ux/ux.dart';
+import 'package:ux/log.dart';
 
 /// End-to-end smoke against a running `tools/log_server` at $E2E_LOG_ENDPOINT.
 /// Skipped unless both `E2E_LOG_ENDPOINT` and `E2E_LOG_TOKEN` are provided.

@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ux/ux.dart';
+import 'package:ux/camera.dart';
 
 const _methodChannelName = 'ux/camera_effects';
 const _eventChannelName = 'ux/camera_effects/events';

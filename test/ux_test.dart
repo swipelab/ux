@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ux/ux.dart';
+import 'package:ux/keyboard.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

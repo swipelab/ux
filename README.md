@@ -2,6 +2,31 @@
 
 A Flutter toolkit for building fluid, native-feeling UIs.
 
+## Libraries
+
+`package:ux/ux.dart` is plain Dart and Flutter — core, reactive, navi, anim,
+bezier — and runs everywhere, the web included. Each native component is a
+library of its own:
+
+| Library | Holds |
+| --- | --- |
+| `app_group.dart` | storage shared with app extensions |
+| `audio.dart` | `XAudioCapture`, `XAudioSink` |
+| `camera.dart` | `XCamera`, preview, effects |
+| `clipboard.dart` | rich clipboard |
+| `crash.dart` | native crash reports |
+| `crypto.dart` | AES-CTR |
+| `drop.dart` | `XDrop` |
+| `file.dart`, `gallery.dart` | picked files, photo library |
+| `image.dart`, `video.dart` | probes, `XVideoPlayer`, `XVideoExporter` |
+| `keyboard.dart` | `XKeyboard` |
+| `log.dart` | console and HTTP sinks |
+| `notifications.dart` | `XNotifications` |
+| `scanner.dart` | `XScanner` |
+| `screen_sources.dart` | `XScreenSources` |
+| `secure_store.dart` | `XSecureStore` |
+| `sensor.dart`, `shortcuts.dart`, `url.dart`, `window.dart` | the rest |
+
 ## XKeyboard
 
 Frame-accurate keyboard height tracking for iOS and Android, with interactive dismiss.
