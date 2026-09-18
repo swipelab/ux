@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:ux/ux.dart';
+import 'package:ux/secure_store.dart';
 
 /// Demonstrates XSecureStore: write a value under a key, read it back, and
 /// delete it — the round trip a session token makes through the OS credential

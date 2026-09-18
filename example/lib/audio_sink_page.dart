@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:ux/ux.dart';
+import 'package:ux/audio.dart';
 
 /// One 20 ms chunk of a 440 Hz sine at [XAudioSink.sampleRate], starting at
 /// sample [offset] so consecutive chunks carry a continuous phase — a seam

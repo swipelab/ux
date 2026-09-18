@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
-import 'package:ux/ux.dart';
+import 'package:ux/screen_sources.dart';
 
 /// Enumerates the capture stack's own sources, whose ids
 /// [XScreenSourcesBackend.list] takes as its allowed sets.

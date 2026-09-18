@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:ux/ux.dart';
+import 'package:ux/url.dart';
+import 'package:ux/window.dart';
 
 /// Demonstrates the two OS-session controls a call screen reaches for:
 /// XWindow.keepAwake, which holds the screen on while the call runs, and

@@ -3,7 +3,7 @@ import 'dart:ui' show Size;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ux/testing.dart';
-import 'package:ux/ux.dart';
+import 'package:ux/video.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

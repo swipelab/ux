@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:ux/ux.dart';
+import 'package:ux/keyboard.dart';
 
 import 'package:ux_example/audio_capture_page.dart';
 import 'package:ux_example/audio_sink_page.dart';

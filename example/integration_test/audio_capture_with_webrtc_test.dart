@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:ux/ux.dart';
+import 'package:ux/audio.dart';
 import 'package:ux_example/audio_sink_page.dart';
 
 void main() {

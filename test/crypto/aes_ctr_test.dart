@@ -2,7 +2,7 @@ import 'dart:io' as io;
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ux/ux.dart'; // encryptChunk (re-exported from crypto.dart)
+import 'package:ux/crypto.dart';
 // White-box: the software fallback is not part of the public API, but the
 // parity contract (it must match encryptChunk byte-for-byte, and the native
 // path) is exactly what these tests guard.

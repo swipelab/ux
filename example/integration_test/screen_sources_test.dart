@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:ux/ux.dart';
+import 'package:ux/screen_sources.dart';
 import 'package:ux_example/screen_sources_page.dart';
 
 class _RecordedList {

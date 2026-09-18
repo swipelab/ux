@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:ux/ux.dart';
+import 'package:ux/audio.dart';
 
 /// Demonstrates XAudioCapture: start/stop the microphone tap, meter the
 /// level of each 20 ms frame, and show the state the native side reports
