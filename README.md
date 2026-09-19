@@ -21,7 +21,7 @@ library of its own:
 | `image.dart`, `video.dart` | probes, `XVideoPlayer`, `XVideoExporter` |
 | `keyboard.dart` | `XKeyboard` |
 | `log.dart` | console and HTTP sinks |
-| `media.dart` | `MediaHost`, `Touch`, `CountOdometer`, `MediaCommandsBar`, `MicPermissionBanner`, EXIF orientation, `VideoEditValues` |
+| `media.dart` | `MediaHost`, the image editors (`Editor`, crop, draw, text), `Touch`, `CountOdometer`, `MediaCommandsBar`, `MicPermissionBanner`, EXIF orientation, `VideoEditValues` |
 | `notifications.dart` | `XNotifications` |
 | `scanner.dart` | `XScanner` |
 | `screen_sources.dart` | `XScreenSources` |

@@ -7,11 +7,17 @@ MediaColors get colors => MediaHost.current.colors;
 /// The host's type.
 MediaText get text => MediaHost.current.text;
 
+/// The font family of text the flow styles itself.
+String get mediaFontFamily => MediaHost.current.text.family;
+
 /// The host's icons.
 MediaIcons get icons => MediaHost.current.icons;
 
 /// The host's strings.
 MediaStrings get strings => MediaHost.current.strings;
+
+/// The host's insets.
+MediaInsets get insets => MediaHost.current.insets;
 
 /// Distances between elements.
 const space = MediaSpace();

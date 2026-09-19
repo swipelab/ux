@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 350" fill="none">
+  <defs>
+    <linearGradient id="body" x1="0" x2="100" y1="0" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0A0B0E"/>
+      <stop offset="0.18" stop-color="#13141A"/>
+      <stop offset="0.50" stop-color="#1B1C24"/>
+      <stop offset="0.82" stop-color="#13141A"/>
+      <stop offset="1" stop-color="#0A0B0E"/>
+    </linearGradient>
+    <linearGradient id="bodyVert" x1="0" x2="0" y1="86" y2="345" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.06"/>
+      <stop offset="0.20" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <path d="M 35 86 L 35 42 Q 35 36 41 39 L 59 48 Q 65 51 65 57 L 65 86 Z" fill="currentColor"/>
+  <path d="M 41 39 L 59 48 L 59 52 L 41 43 Z" fill="#fff" opacity="0.22"/>
+  <path d="M 59 57 L 65 57 L 65 86 L 59 86 Z" fill="#000" opacity="0.18"/>
+
+  <path d="M 30 86 L 70 86 L 86 130 L 86 331 Q 86 345 72 345 L 28 345 Q 14 345 14 331 L 14 130 L 30 86 Z" fill="url(#body)"/>
+  <path d="M 30 86 L 70 86 L 86 130 L 86 331 Q 86 345 72 345 L 28 345 Q 14 345 14 331 L 14 130 L 30 86 Z" fill="url(#bodyVert)"/>
+  <rect x="30" y="86" width="40" height="1" fill="#fff" opacity="0.14"/>
+</svg>

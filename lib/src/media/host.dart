@@ -17,6 +17,20 @@ abstract class MediaHost {
 
   /// Strings in the app's language.
   MediaStrings get strings;
+
+  /// Safe-area and keyboard insets.
+  MediaInsets get insets;
+}
+
+/// Safe-area and keyboard insets taken from the binding rather than from
+/// `MediaQuery`, which a router may strip the keyboard's inset out of. It
+/// notifies when either changes.
+abstract class MediaInsets implements Listenable {
+  /// The system's safe-area padding in logical pixels.
+  EdgeInsets get viewPadding;
+
+  /// Height the keyboard covers, in logical pixels.
+  double get keyboardInset;
 }
 
 /// The colours the media flow paints with.
@@ -63,6 +77,9 @@ abstract class MediaColors {
 
 /// The text styles the media flow sets type in.
 abstract class MediaText {
+  /// The font family of text the flow styles itself.
+  String get family;
+
   /// Running text.
   TextStyle get body;
 

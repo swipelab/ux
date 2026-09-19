@@ -11,6 +11,9 @@ class FakeMediaHost
   MediaIcons get icons => this;
   @override
   MediaStrings get strings => this;
+  @override
+  MediaInsets get insets => _insets;
+  final _insets = FakeMediaInsets();
 
   @override
   Color get onMedia => const Color(0xFFFFFFFF);
@@ -40,6 +43,8 @@ class FakeMediaHost
   Color get destructive => const Color(0xFFFF3B30);
 
   @override
+  String get family => 'Roboto';
+  @override
   TextStyle get body => const TextStyle(fontSize: 16);
   @override
   TextStyle get bodySmall => const TextStyle(fontSize: 13);
@@ -67,4 +72,11 @@ class FakeMediaHost
   String get delete => 'Delete';
   @override
   String get close => 'Close';
+}
+
+class FakeMediaInsets extends ChangeNotifier implements MediaInsets {
+  @override
+  EdgeInsets viewPadding = EdgeInsets.zero;
+  @override
+  double keyboardInset = 0;
 }
