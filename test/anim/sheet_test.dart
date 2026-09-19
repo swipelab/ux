@@ -651,4 +651,48 @@ void main() {
     expect(left, isTrue);
     expect(_sheetTop(tester), _screenHeight);
   });
+
+  testWidgets('a drag in flight when the sheet starts to slide away is dropped',
+      (tester) async {
+    final sheet = SheetController();
+    final list = ScrollController();
+    addTearDown(list.dispose);
+    await _pumpSheet(tester, sheet: sheet, list: list);
+
+    final gesture = await tester.startGesture(_onThumb(tester));
+    await _moveBy(tester, gesture, -40);
+    var left = false;
+    sheet.animateDismiss().then((_) => left = true);
+    await tester.pump(const Duration(milliseconds: 90));
+    await _moveBy(tester, gesture, -40);
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    expect(left, isTrue);
+    expect(_sheetTop(tester), _screenHeight);
+  });
+
+  testWidgets('a barrier press held when the sheet starts to slide away is dropped',
+      (tester) async {
+    final sheet = SheetController();
+    final list = ScrollController();
+    addTearDown(list.dispose);
+    var dismissed = 0;
+    await _pumpSheet(
+      tester,
+      sheet: sheet,
+      list: list,
+      onDismiss: () => dismissed++,
+    );
+
+    final press = await tester.startGesture(const Offset(200, 40));
+    var left = false;
+    sheet.animateDismiss().then((_) => left = true);
+    await tester.pump(const Duration(milliseconds: 90));
+    await press.up();
+    await tester.pumpAndSettle();
+
+    expect(left, isTrue);
+    expect(dismissed, 0);
+  });
 }

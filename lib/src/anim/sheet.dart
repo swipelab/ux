@@ -265,8 +265,8 @@ class SheetState extends State<Sheet> with SingleTickerProviderStateMixin {
 
   bool _isDismissing = false;
 
-  /// Whether the sheet is sliding away. It takes no touches then, so the
-  /// slide runs to its end.
+  /// Whether the sheet is sliding away. It takes no touches then and drops
+  /// the gesture in flight, so the slide runs to its end.
   bool _leaving = false;
 
   double get _screenHeight => MediaQuery.sizeOf(context).height;
@@ -345,6 +345,7 @@ class SheetState extends State<Sheet> with SingleTickerProviderStateMixin {
   /// position) and flashes.
   Future<void> _playDismissAnimation() {
     setState(() => _leaving = true);
+    _onPanCancel();
     return _animateWithEaseInOut(
       targetTop: _screenHeight,
       duration: _kSheetAnimation,
@@ -462,6 +463,7 @@ class SheetState extends State<Sheet> with SingleTickerProviderStateMixin {
   }
 
   void _onPanStart(DragStartDetails details) {
+    if (_leaving) return;
     _animController.stop();
     _panTopInset = _isExpanded ? 0.0 : _edgeTopInset;
     _panOffset = 0.0;
@@ -768,7 +770,7 @@ class SheetState extends State<Sheet> with SingleTickerProviderStateMixin {
       children: [
         Positioned.fill(
           child: GestureDetector(
-            onTap: widget.isDismissible ? _dismiss : null,
+            onTap: widget.isDismissible && !_leaving ? _dismiss : null,
             behavior: HitTestBehavior.opaque,
             child: ColoredBox(
               color: widget.barrierColor.withValues(
