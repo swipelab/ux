@@ -1,3 +1,12 @@
+### 0.14.0
+- **`media.dart` holds the compose page.** `ComposePage` and `ComposeEntry`
+  with the crop and draw tool screens and the video trim scrubber; the gallery
+  open and close transition with `GallerySource`; `DismissCarrier`,
+  `HiddenMediaController`, the video painters, `XMedia` and the gallery timing
+  constants. `MediaHost` gains `push`, `captionController`, `captionField` and
+  `keyboardInsets`. New dependencies: `path`, `path_provider`. Breaking: a
+  `MediaHost` implements the four new members.
+
 ### 0.13.0
 - **`media.dart` holds the image editors.** `Editor` with its crop, draw and
   text tools: `CropImageLayer`, `DrawImageLayer`, `EntityLayer`, their
