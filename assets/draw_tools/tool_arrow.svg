@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 350" fill="none">
+  <defs>
+    <linearGradient id="body" x1="0" x2="100" y1="0" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0A0B0E"/>
+      <stop offset="0.18" stop-color="#13141A"/>
+      <stop offset="0.50" stop-color="#1B1C24"/>
+      <stop offset="0.82" stop-color="#13141A"/>
+      <stop offset="1" stop-color="#0A0B0E"/>
+    </linearGradient>
+    <linearGradient id="bodyVert" x1="0" x2="0" y1="68" y2="345" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.04"/>
+      <stop offset="0.20" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="ferrule" x1="0" x2="100" y1="0" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="currentColor" stop-opacity="0.45"/>
+      <stop offset="0.18" stop-color="currentColor"/>
+      <stop offset="0.50" stop-color="currentColor"/>
+      <stop offset="0.82" stop-color="currentColor"/>
+      <stop offset="1" stop-color="currentColor" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="shaftFade" x1="0" x2="0" y1="60" y2="68" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.40"/>
+    </linearGradient>
+    <clipPath id="bodyClip">
+      <rect x="14" y="68" width="72" height="277" rx="14"/>
+    </clipPath>
+  </defs>
+
+  <line x1="50" y1="22" x2="50" y2="134" stroke="currentColor" stroke-width="16" stroke-linecap="round"/>
+  <path d="M 28 36 L 50 16 L 72 36" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <rect x="42" y="60" width="16" height="8" fill="url(#shaftFade)"/>
+
+  <rect x="14" y="68" width="72" height="277" rx="14" fill="url(#body)"/>
+  <rect x="14" y="68" width="72" height="277" rx="14" fill="url(#bodyVert)"/>
+
+  <g clip-path="url(#bodyClip)">
+    <rect x="14" y="68" width="72" height="36" fill="url(#ferrule)"/>
+    <rect x="14" y="68" width="72" height="2" fill="#fff" opacity="0.22"/>
+    <rect x="14" y="102" width="72" height="2" fill="#000" opacity="0.40"/>
+  </g>
+
+</svg>

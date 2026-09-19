@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 350" fill="none">
+  <defs>
+    <linearGradient id="body" x1="0" x2="100" y1="0" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0A0B0E"/>
+      <stop offset="0.18" stop-color="#13141A"/>
+      <stop offset="0.50" stop-color="#1B1C24"/>
+      <stop offset="0.82" stop-color="#13141A"/>
+      <stop offset="1" stop-color="#0A0B0E"/>
+    </linearGradient>
+    <linearGradient id="bodyVert" x1="0" x2="0" y1="80" y2="345" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.06"/>
+      <stop offset="0.20" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="50" cy="42" r="56" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="currentColor" stop-opacity="0.85"/>
+      <stop offset="0.30" stop-color="currentColor" stop-opacity="0.60"/>
+      <stop offset="0.65" stop-color="currentColor" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="currentColor" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="bulb" cx="50" cy="36" r="32" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff"/>
+      <stop offset="0.55" stop-color="#fff" stop-opacity="0.95"/>
+      <stop offset="0.85" stop-color="#fff" stop-opacity="0.65"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0.20"/>
+    </radialGradient>
+  </defs>
+
+  <ellipse cx="50" cy="42" rx="58" ry="58" fill="url(#halo)"/>
+  <circle cx="50" cy="36" r="28" fill="url(#bulb)"/>
+  <ellipse cx="42" cy="26" rx="9" ry="5" fill="#fff" opacity="0.95"/>
+
+  <rect x="14" y="80" width="72" height="265" rx="14" fill="url(#body)"/>
+  <rect x="14" y="80" width="72" height="265" rx="14" fill="url(#bodyVert)"/>
+  <rect x="14" y="80" width="72" height="1" fill="#fff" opacity="0.14"/>
+</svg>

@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 350" fill="none">
+  <defs>
+    <linearGradient id="body" x1="0" x2="100" y1="0" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0A0B0E"/>
+      <stop offset="0.18" stop-color="#13141A"/>
+      <stop offset="0.50" stop-color="#1B1C24"/>
+      <stop offset="0.82" stop-color="#13141A"/>
+      <stop offset="1" stop-color="#0A0B0E"/>
+    </linearGradient>
+    <linearGradient id="bodyVert" x1="0" x2="0" y1="62" y2="345" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.06"/>
+      <stop offset="0.20" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="cap" x1="0" x2="100" y1="0" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#C95E78"/>
+      <stop offset="0.18" stop-color="#FFA9BC"/>
+      <stop offset="0.45" stop-color="#FFD9E2"/>
+      <stop offset="0.55" stop-color="#FFD9E2"/>
+      <stop offset="0.82" stop-color="#FFA9BC"/>
+      <stop offset="1" stop-color="#A84660"/>
+    </linearGradient>
+    <linearGradient id="capVert" x1="0" x2="0" y1="4" y2="50" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.30"/>
+      <stop offset="0.55" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.20"/>
+    </linearGradient>
+    <linearGradient id="seam" x1="0" x2="100" y1="0" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#C95E78"/>
+      <stop offset="0.18" stop-color="#FFA9BC"/>
+      <stop offset="0.50" stop-color="#FFB7C5"/>
+      <stop offset="0.82" stop-color="#FFA9BC"/>
+      <stop offset="1" stop-color="#C95E78"/>
+    </linearGradient>
+  </defs>
+
+  <path d="M 14 50 L 14 30 Q 14 4 50 4 Q 86 4 86 30 L 86 50 Z" fill="url(#cap)"/>
+  <path d="M 14 50 L 14 30 Q 14 4 50 4 Q 86 4 86 30 L 86 50 Z" fill="url(#capVert)"/>
+  <ellipse cx="40" cy="14" rx="16" ry="6" fill="#fff" opacity="0.42"/>
+  <ellipse cx="36" cy="11" rx="8" ry="3" fill="#fff" opacity="0.72"/>
+
+  <rect x="14" y="48" width="72" height="14" fill="url(#seam)"/>
+  <rect x="14" y="58" width="72" height="4" fill="#000" opacity="0.40"/>
+
+  <rect x="14" y="62" width="72" height="283" rx="14" fill="url(#body)"/>
+  <rect x="14" y="62" width="72" height="283" rx="14" fill="url(#bodyVert)"/>
+  <rect x="14" y="62" width="72" height="1" fill="#fff" opacity="0.14"/>
+</svg>

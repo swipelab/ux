@@ -1,3 +1,11 @@
+### 0.13.0
+- **`media.dart` holds the image editors.** `Editor` with its crop, draw and
+  text tools: `CropImageLayer`, `DrawImageLayer`, `EntityLayer`, their
+  gestures, controls and painters, `Animator`, `CameraFit` and the text
+  entity model. `MediaHost` gains `insets` and the text `family`. New
+  dependencies: `flutter_svg`, `vector_math`. The brush illustrations ship as
+  package assets.
+
 ### 0.12.0
 - **`media.dart`.** `MediaHost`, through which the media flow reads the
   hosting app's colours, type, icons and strings, with `Touch`,
