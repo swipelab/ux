@@ -1,12 +1,13 @@
 import 'package:flutter/cupertino.dart';
 
-import 'design.dart';
-import 'touch.dart';
+import 'package:ux/src/media/design.dart';
+import 'package:ux/src/media/touch.dart';
 
 /// Compose-page editor entry-points: crop, draw, aspect-ratio. The host
 /// (e.g. `ComposePage`) replaces this bar with the active editor's
-/// own controls strip while a tool is mounted. A tool without a callback
-/// is left out.
+/// own controls strip while a tool is mounted. Crop, draw and aspect-ratio
+/// without a callback show dimmed and take no press; confirm shows only with
+/// [onConfirm].
 class MediaCommandsBar extends StatelessWidget {
   /// Binds each tool to its callback.
   const MediaCommandsBar({

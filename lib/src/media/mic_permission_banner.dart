@@ -1,10 +1,9 @@
 import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
-
-import '../../camera.dart';
-import 'design.dart';
-import 'touch.dart';
+import 'package:ux/camera.dart';
+import 'package:ux/src/media/design.dart';
+import 'package:ux/src/media/touch.dart';
 
 /// Compact pill shown above the camera shutter when the user is in
 /// video mode but mic permission isn't (yet) granted. Tapping routes

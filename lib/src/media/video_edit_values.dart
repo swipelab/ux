@@ -81,8 +81,9 @@ class VideoDrawOverlay {
 
 /// Per-entry video edit state: the trim range and mute, the crop geometry
 /// and the rasterised paint overlay. Owned by `ComposeEntry` and carried by
-/// `ComposeResult` to the sender, which bakes it through `XVideoExporter`. Null bounds mean "keep the source
-/// edge"; a values object with nothing set is equivalent to no edits.
+/// `ComposeResult` to the sender, which bakes it through `XVideoExporter`.
+/// Null bounds mean "keep the source edge"; a values object with nothing
+/// set is equivalent to no edits.
 @immutable
 class VideoEditValues {
   /// No edits unless a field is set.

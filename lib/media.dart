@@ -1,4 +1,5 @@
-/// Picking, shooting and editing photos and video.
+/// The hosting app's [MediaHost] and the leaf widgets and models of the
+/// media flow.
 library;
 
 export 'src/media/count_odometer.dart';

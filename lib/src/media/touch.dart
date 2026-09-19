@@ -4,7 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
-import 'design.dart';
+import 'package:ux/src/media/design.dart';
 
 /// A press target that fades and grows while it is held, and gives a light
 /// haptic on a long press.
@@ -32,7 +32,7 @@ class Touch extends StatefulWidget {
   /// Space around [child] that also takes the press.
   final EdgeInsetsGeometry? padding;
 
-  /// Logical pixels the target grows by on its shorter side while held.
+  /// Logical pixels the target grows by on its longer side while held.
   final double inflate;
 
   /// Opacity of [child] while held.

@@ -1,6 +1,5 @@
 import 'package:flutter/widgets.dart';
-
-import 'host.dart';
+import 'package:ux/src/media/host.dart';
 
 /// The host's colours.
 MediaColors get colors => MediaHost.current.colors;

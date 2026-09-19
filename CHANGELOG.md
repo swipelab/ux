@@ -1,8 +1,8 @@
 ### 0.12.0
-- **`media.dart`.** Picking, shooting and editing photos and video, read
-  from the hosting app through `MediaHost` (colours, type, icons, strings).
-  It holds `Touch`, `CountOdometer`, `MediaCommandsBar`,
-  `MicPermissionBanner`, the EXIF orientation reader and `VideoEditValues`.
+- **`media.dart`.** `MediaHost`, through which the media flow reads the
+  hosting app's colours, type, icons and strings, with `Touch`,
+  `CountOdometer`, `MediaCommandsBar`, `MicPermissionBanner`, the EXIF
+  orientation reader and `VideoEditValues`.
 
 ### 0.11.0
 - **`ux.dart` is pure.** It exports core, reactive, navi, anim and the
