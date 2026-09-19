@@ -38,7 +38,7 @@ class CameraFit {
   /// Uniform scale.
   final double scale;
 
-  /// The affine as a matrix: the translation, then the scale.
+  /// The affine as a matrix: scales by [scale], then translates by ([tx], [ty]).
   vmath.Matrix4 toMatrix() => vmath.Matrix4.identity()
     ..translateByDouble(tx, ty, 0, 1)
     ..scaleByDouble(scale, scale, 1, 1);

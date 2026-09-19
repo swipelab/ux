@@ -37,7 +37,7 @@ enum BrushType {
   /// A glowing line.
   neon,
 
-  /// Removes what is under it.
+  /// Removes the strokes under it.
   eraser,
 }
 
@@ -133,9 +133,10 @@ class Stroke {
 
   /// How much of the arrowhead is drawn, 0 to 1.
   double arrowProgress = 0;
-  /// The arrowhead's tip; absent until the stroke ends.
+  /// The arrowhead's tip; absent until an arrow stroke ends.
   Offset? arrowAnchor;
-  /// The arrowhead's heading in radians; absent until the stroke ends.
+  /// Angle in radians from the tip back along the stroke, which the arms open
+  /// around; absent until an arrow stroke ends.
   double? arrowDirection;
 
   /// Multiplier applied to the width of the tail (last N smooth points).

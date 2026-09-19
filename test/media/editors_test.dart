@@ -69,11 +69,14 @@ void main() {
     final image = await recorder.endRecording().toImage(4, 4);
     final layer = DrawImageLayer(image: image)
       ..setCurrentColor(const Color(0xFF00FF00))
+      ..normalizedThickness = 0.9
       ..setBrushType(BrushType.marker);
     expect(layer.currentColor, kBrushDefaultColors[BrushType.marker]);
+    expect(layer.normalizedThickness, kBrushDefaultThickness[BrushType.marker]);
 
     layer.setBrushType(BrushType.pen);
     expect(layer.currentColor, const Color(0xFF00FF00));
+    expect(layer.normalizedThickness, 0.9);
     image.dispose();
   });
 }

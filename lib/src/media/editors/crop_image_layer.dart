@@ -934,7 +934,7 @@ class UserTransform with Emitter {
   /// No pan, zoom, rotation or flip.
   static UserTransform zero() => UserTransform();
 
-  /// The pan, then the zoom with its flip, then the rotation.
+  /// Maps a point through the rotation, then the zoom with its flip, then the pan.
   math.Matrix4 get matrix {
     return math.Matrix4.identity()
       ..translateByVector3(offset)
