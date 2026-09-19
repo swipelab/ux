@@ -21,6 +21,7 @@ library of its own:
 | `image.dart`, `video.dart` | probes, `XVideoPlayer`, `XVideoExporter` |
 | `keyboard.dart` | `XKeyboard` |
 | `log.dart` | console and HTTP sinks |
+| `media.dart` | picking, shooting and editing media, through `MediaHost` |
 | `notifications.dart` | `XNotifications` |
 | `scanner.dart` | `XScanner` |
 | `screen_sources.dart` | `XScreenSources` |
