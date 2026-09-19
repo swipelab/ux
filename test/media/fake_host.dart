@@ -16,13 +16,8 @@ class FakeMediaHost
   MediaInsets get insets => _insets;
   final _insets = FakeMediaInsets();
 
-  final pushed = <Screen>[];
-
   @override
-  Future<T?> push<T>(Screen<T> screen) async {
-    pushed.add(screen);
-    return null;
-  }
+  Future<T?> push<T>(Screen<T> screen) async => null;
 
   @override
   TextEditingController captionController() => TextEditingController();

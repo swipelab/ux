@@ -275,7 +275,8 @@ class ComposeEntry with Emitter {
   /// Whether the preview is zoomed in.
   final ValueNotifier<bool> isZoomed = ValueNotifier<bool>(false);
 
-  /// Player of a video entry's preview; absent for other media and until it starts.
+  /// Player of a video entry's preview; absent for other media, before
+  /// [ensureVideoInitialized] and after [disposeVideo].
   XVideoPlayerController? videoController;
   bool _videoInitStarted = false;
 

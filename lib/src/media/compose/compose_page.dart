@@ -84,18 +84,6 @@ enum ComposePurpose {
   avatar,
 }
 
-/// Folded single + multi compose page. Accepts a list of `XMedia`
-/// (1..N); single-asset callers wrap with `[m]`. The `PageView` is
-/// non-swipeable when N == 1 and the dot indicator hides for the
-/// same case — single-asset surface is identical to today, just
-/// without the swipe / dots.
-///
-/// Telegram parity: per-entry state lives on each `ComposeEntry`
-/// (composer controller, viewer transform, video controller,
-/// persistent editor layers); chrome is shared and rebinds to the
-/// focused entry on page change. Rasterisation is lazy — edits stay
-/// as vector state on the layers until `handleSubmit` walks each
-/// entry's `resolveOutputMedia`.
 /// Per-result handle returned by [ComposeSubmitCallback]: the
 /// placeholder bubble's `clientMessageId` plus a closure that resolves
 /// the chat bubble's transition source for that cid. The closure
@@ -121,8 +109,18 @@ class ChatSendResult {
 typedef ComposeSubmitCallback =
     Future<ChatSendResult> Function(List<ComposeResult>);
 
-/// Previews the picked media one page each, with a caption and the crop and
-/// draw tools, and pops with one [ComposeResult] per entry.
+/// Folded single + multi compose page. Accepts a list of `XMedia`
+/// (1..N); single-asset callers wrap with `[m]`. The `PageView` is
+/// non-swipeable when N == 1 and the dot indicator hides for the
+/// same case — single-asset surface is identical to today, just
+/// without the swipe / dots.
+///
+/// Telegram parity: per-entry state lives on each `ComposeEntry`
+/// (composer controller, viewer transform, video controller,
+/// persistent editor layers); chrome is shared and rebinds to the
+/// focused entry on page change. Rasterisation is lazy — edits stay
+/// as vector state on the layers until `handleSubmit` walks each
+/// entry's `resolveOutputMedia`.
 class ComposePage with Screen<List<ComposeResult>?>, Emitter {
   /// Standalone: creates one fresh [ComposeEntry] per input media,
   /// disposes all entries on pop. Used by camera / file-pick flows
