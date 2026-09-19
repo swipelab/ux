@@ -1,8 +1,17 @@
-/// The hosting app's [MediaHost], the image editors, and the leaf widgets
-/// and models of the media flow.
+/// The hosting app's [MediaHost], the compose page, the image editors, the
+/// gallery transition, and the leaf widgets and models of the media flow.
 library;
 
+export 'src/media/compose/compose_constants.dart';
+export 'src/media/compose/compose_entry.dart';
+export 'src/media/compose/compose_page.dart';
+export 'src/media/compose/crop_screen.dart';
+export 'src/media/compose/draw_screen.dart';
+export 'src/media/compose/tool_chrome.dart';
+export 'src/media/compose/tool_export.dart';
+export 'src/media/compose/video_scrubber.dart';
 export 'src/media/count_odometer.dart';
+export 'src/media/dismiss_carrier.dart';
 export 'src/media/editors/animator.dart';
 export 'src/media/editors/camera_fit.dart';
 export 'src/media/editors/crop_area_overlay.dart';
@@ -20,8 +29,17 @@ export 'src/media/editors/text_entity.dart';
 export 'src/media/editors/text_entity_painter.dart';
 export 'src/media/editors/text_pill.dart';
 export 'src/media/exif_orientation.dart';
+export 'src/media/hidden_media_controller.dart';
 export 'src/media/host.dart';
 export 'src/media/media_commands_bar.dart';
 export 'src/media/mic_permission_banner.dart';
+export 'src/media/timing.dart';
 export 'src/media/touch.dart';
+export 'src/media/transition/fit_rect.dart';
+export 'src/media/transition/gallery_close_transition.dart';
+export 'src/media/transition/gallery_open_transition.dart';
+export 'src/media/transition/gallery_source.dart';
+export 'src/media/transition/gallery_transition.dart';
 export 'src/media/video_edit_values.dart';
+export 'src/media/video_painters.dart';
+export 'src/media/x_media.dart';

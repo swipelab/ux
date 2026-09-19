@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:ux/src/media/host.dart';
+import 'package:ux/src/navi/screen.dart';
 
 /// The host's colours.
 MediaColors get colors => MediaHost.current.colors;
@@ -18,6 +19,12 @@ MediaStrings get strings => MediaHost.current.strings;
 
 /// The host's insets.
 MediaInsets get insets => MediaHost.current.insets;
+
+/// Shows a screen of the flow on the host's router.
+extension MediaScreenPush<T> on Screen<T> {
+  /// Completes with the screen's result.
+  Future<T?> push() => MediaHost.current.push(this);
+}
 
 /// Distances between elements.
 const space = MediaSpace();

@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'package:ux/src/navi/screen.dart';
 
 /// What the media flow reads from the app that hosts it. The app sets
 /// [MediaHost.current] before it shows any of the flow.
@@ -20,6 +21,27 @@ abstract class MediaHost {
 
   /// Safe-area and keyboard insets.
   MediaInsets get insets;
+
+  /// Shows [screen] on the app's router and completes with its result.
+  Future<T?> push<T>(Screen<T> screen);
+
+  /// A controller for the caption of one composed item.
+  TextEditingController captionController();
+
+  /// The caption field over a controller from [captionController].
+  Widget captionField({
+    required GlobalKey bubbleKey,
+    required TextEditingController controller,
+    required FocusNode focusNode,
+    required VoidCallback onSubmit,
+    required String placeholder,
+  });
+
+  /// Builds with the bottom inset that clears the keyboard and the safe area,
+  /// and rebuilds when it changes.
+  Widget keyboardInsets({
+    required Widget Function(BuildContext context, double bottom) builder,
+  });
 }
 
 /// Safe-area and keyboard insets taken from the binding rather than from

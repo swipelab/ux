@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:ux/media.dart';
+import 'package:ux/ux.dart';
 
 class FakeMediaHost
     implements MediaHost, MediaColors, MediaText, MediaIcons, MediaStrings {
@@ -14,6 +15,39 @@ class FakeMediaHost
   @override
   MediaInsets get insets => _insets;
   final _insets = FakeMediaInsets();
+
+  final pushed = <Screen>[];
+
+  @override
+  Future<T?> push<T>(Screen<T> screen) async {
+    pushed.add(screen);
+    return null;
+  }
+
+  @override
+  TextEditingController captionController() => TextEditingController();
+
+  @override
+  Widget captionField({
+    required GlobalKey bubbleKey,
+    required TextEditingController controller,
+    required FocusNode focusNode,
+    required VoidCallback onSubmit,
+    required String placeholder,
+  }) => EditableText(
+    key: bubbleKey,
+    controller: controller,
+    focusNode: focusNode,
+    style: const TextStyle(),
+    cursorColor: const Color(0xFFFFFFFF),
+    backgroundCursorColor: const Color(0xFFFFFFFF),
+    onSubmitted: (_) => onSubmit(),
+  );
+
+  @override
+  Widget keyboardInsets({
+    required Widget Function(BuildContext context, double bottom) builder,
+  }) => Builder(builder: (context) => builder(context, 0));
 
   @override
   Color get onMedia => const Color(0xFFFFFFFF);
