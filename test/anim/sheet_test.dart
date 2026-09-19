@@ -633,4 +633,22 @@ void main() {
       expect(list.offset, lessThan(300));
     });
   });
+
+  testWidgets('a touch while the sheet slides away does not stop it',
+      (tester) async {
+    final sheet = SheetController();
+    final list = ScrollController();
+    addTearDown(list.dispose);
+    await _pumpSheet(tester, sheet: sheet, list: list);
+
+    var left = false;
+    sheet.animateDismiss().then((_) => left = true);
+    await tester.pump(const Duration(milliseconds: 90));
+    await tester.tapAt(_inList(tester));
+    await tester.dragFrom(_onThumb(tester), const Offset(0, -80));
+    await tester.pumpAndSettle();
+
+    expect(left, isTrue);
+    expect(_sheetTop(tester), _screenHeight);
+  });
 }
