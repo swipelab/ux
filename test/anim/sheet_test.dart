@@ -695,4 +695,28 @@ void main() {
     expect(left, isTrue);
     expect(dismissed, 0);
   });
+
+  testWidgets(
+      'a list press whose drag starts after the sheet starts to slide away is dropped',
+      (tester) async {
+    final sheet = SheetController();
+    final list = ScrollController();
+    addTearDown(list.dispose);
+    await _pumpSheet(tester, sheet: sheet, list: list);
+    await _expandSheet(tester);
+    list.jumpTo(200);
+    await tester.pump();
+
+    final press = await tester.startGesture(_inList(tester));
+    var left = false;
+    sheet.animateDismiss().then((_) => left = true);
+    await tester.pump(const Duration(milliseconds: 90));
+    await _moveBy(tester, press, 60);
+    await _moveBy(tester, press, 60);
+    await press.up();
+    await tester.pumpAndSettle();
+
+    expect(left, isTrue);
+    expect(_sheetTop(tester), _screenHeight);
+  });
 }
