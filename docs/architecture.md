@@ -62,6 +62,15 @@ or long-press recording, video-only capture has no still mode, and null permits
 both. Foreground microphone refresh and physical-orientation observation live
 with the active page.
 
+`MediaPickerPage` owns the gallery cell's session and lends it to `CameraPage`.
+The camera occupies one column and two rows, independently of photo-library
+access. Empty device discovery reserves no grid space. Foreground transitions
+refresh both permissions; revocation releases the session, and refresh results
+apply only while current and while the picker remains open. Captures enter a
+single-item `ComposePage` with the picker's purpose and submission handler;
+the picker filter also restricts capture. Confirmation dismisses the picker
+with the editor's results.
+
 ### Apple packaging — two SPM products
 
 `darwin/ux` vends `ux` and `ux_extension`. `ux_extension`
