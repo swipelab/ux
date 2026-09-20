@@ -51,6 +51,15 @@ void main() {
     expect(backend.createCalls, isEmpty);
   });
 
+  test('a single-camera session keeps its lens when asked to flip', () async {
+    backend.cameras = [frontCamera];
+    final original = await session.initialize();
+    await session.flipCamera();
+    expect(backend.setDescriptionCalls, isEmpty);
+    expect(session.value, same(original));
+    expect(session.value!.description, frontCamera);
+  });
+
   test(
     'closing before create returns releases the late native allocation',
     () async {

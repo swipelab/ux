@@ -65,6 +65,39 @@ void main() {
   );
 
   test(
+    'a recording shared controller refuses page and owner lens changes',
+    () async {
+      final session = _Session();
+      final page = CameraPage(session: session)..onPush();
+      await session.initialize();
+      await page.takeVideo();
+      expect(page.recording, isTrue);
+      await page.flipCamera();
+      await session.flipCamera();
+      expect(backend.setDescriptionCalls, isEmpty);
+      expect(session.value!.description, frontCamera);
+      page.dispose();
+      await session.stopRecording();
+      await session.dispose();
+    },
+  );
+
+  test('still flash fires on the back camera and stays off on the front', () async {
+    final page = CameraPage()..onPush();
+    await page.session.initialize();
+    page.toggleFlash();
+    backend.takePictureError = const XCameraException('capture_failed');
+    await page.takePhoto();
+    expect(backend.setFlashModeCalls.single.mode, XFlashMode.off);
+    await page.flipCamera();
+    await page.takePhoto();
+    expect(backend.setFlashModeCalls.last.mode, XFlashMode.always);
+    expect(backend.takePictureCalls, hasLength(2));
+    page.dispose();
+    await page.session.dispose();
+  });
+
+  test(
     'standalone open and cancel cycles release their sessions and listeners',
     () async {
       for (var cycle = 0; cycle < 12; cycle++) {
