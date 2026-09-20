@@ -17,6 +17,14 @@ class FakeMediaHost
   final _insets = FakeMediaInsets();
 
   @override
+  final ValueNotifier<AppLifecycleState> lifecycle = ValueNotifier(
+    AppLifecycleState.resumed,
+  );
+
+  @override
+  bool isWideScreen(BuildContext context) => false;
+
+  @override
   Future<T?> push<T>(Screen<T> screen) async => null;
 
   @override

@@ -1,7 +1,15 @@
-/// The hosting app's [MediaHost], the compose page, the image editors, the
-/// gallery transition, and the leaf widgets and models of the media flow.
+/// The hosting app's [MediaHost], the media picker, the camera, the compose
+/// page, the image editors, the gallery transition, and the leaf widgets and
+/// models of the media flow.
 library;
 
+export 'src/media/camera/camera_button.dart';
+export 'src/media/camera/camera_capture.dart';
+export 'src/media/camera/camera_guideline.dart';
+export 'src/media/camera/camera_page.dart';
+export 'src/media/camera/camera_thumb.dart';
+export 'src/media/camera/flash_button.dart';
+export 'src/media/camera/photo_video_swap.dart';
 export 'src/media/compose/compose_constants.dart';
 export 'src/media/compose/compose_entry.dart';
 export 'src/media/compose/compose_page.dart';
@@ -33,6 +41,14 @@ export 'src/media/hidden_media_controller.dart';
 export 'src/media/host.dart';
 export 'src/media/media_commands_bar.dart';
 export 'src/media/mic_permission_banner.dart';
+export 'src/media/picker/albums_screen.dart';
+export 'src/media/picker/media_picker_page.dart';
+export 'src/media/picker/picker_grid_item.dart';
+export 'src/media/picker/picker_permission_view.dart';
+export 'src/media/picker/picker_view_kind.dart';
+export 'src/media/picker/selected_strip.dart';
+export 'src/media/picker/selection_context.dart';
+export 'src/media/picker/thumbnail_cache.dart';
 export 'src/media/timing.dart';
 export 'src/media/touch.dart';
 export 'src/media/transition/fit_rect.dart';
