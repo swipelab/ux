@@ -19,8 +19,8 @@ abstract class GallerySource {
   /// Corner shape applied outside the captured image.
   BorderRadius get borderRadius;
 
-  /// Capture a snapshot of the bubble's current visual. Returns null if the
-  /// source has been disposed or is not paintable.
+  /// Current image pixels, cover-fitted to [currentRect] by the flight.
+  /// The caller owns the image; null means no pixels are available.
   Future<ui.Image?> snapshot();
 }
 

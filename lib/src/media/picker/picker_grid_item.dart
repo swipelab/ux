@@ -1,3 +1,7 @@
+import 'dart:ui' as ui;
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/rendering.dart';
 import 'package:ux/src/media/design.dart';
 import 'package:ux/src/media/picker/picker_view_kind.dart';
 import 'package:ux/src/media/picker/selection_context.dart';
@@ -83,14 +87,19 @@ class PickerGridItem extends StatelessWidget {
 
   /// The asset shown.
   final XAsset asset;
+
   /// Thumbnail size requested, in physical pixels.
   final int cellSizePx;
+
   /// The picked assets, which number the ring.
   final SelectionContext selection;
+
   /// Where the thumbnail loads from.
   final ThumbnailCache cache;
+
   /// Compose entries by asset id; an edited asset shows its entry's preview.
   final Map<String, ComposeEntry> entriesById;
+
   /// Called on a tap of the cell's body.
   final ValueChanged<XAsset> onTap;
 
@@ -98,6 +107,7 @@ class PickerGridItem extends StatelessWidget {
   /// `transitionSourceFor` closure consults `_displayMode` so the
   /// hero animation lands on whichever view is visible.
   final PickerViewKind viewKind;
+
   /// Where the cell records its transition source.
   final PickerSourceRegistry sourceRegistry;
 
@@ -190,14 +200,10 @@ class _Thumbnail extends StatefulWidget {
 class _ThumbnailState extends State<_Thumbnail> {
   XAssetThumbnail? _thumb;
 
-  /// Wraps the visible thumbnail in a [RepaintBoundary] so the compose
-  /// open / close hero-flight can capture the current pixels (edited
-  /// preview or raw asset thumbnail) and resolve the picker cell's
-  /// screen rect via [RepaintBoundaryGallerySource].
   final GlobalKey _boundaryKey = GlobalKey();
 
   /// Live transition source over this cell's `RepaintBoundary`.
-  late final GallerySource gallerySource = RepaintBoundaryGallerySource(
+  late final GallerySource gallerySource = _ThumbnailSource(
     _boundaryKey,
     borderRadius: widget.viewKind == PickerViewKind.strip
         ? BorderRadius.circular(radius.sm)
@@ -291,11 +297,27 @@ class _ThumbnailState extends State<_Thumbnail> {
   Widget _buildFallback() {
     final t = _thumb;
     if (t == null) return const SizedBox.expand();
-    return Image.memory(
-      t.bytes,
-      fit: BoxFit.cover,
-      gaplessPlayback: true,
-    );
+    return Image.memory(t.bytes, fit: BoxFit.cover, gaplessPlayback: true);
+  }
+}
+
+class _ThumbnailSource extends RepaintBoundaryGallerySource {
+  _ThumbnailSource(super.boundaryKey, {super.borderRadius});
+
+  @override
+  Future<ui.Image?> snapshot() {
+    ui.Image? image;
+    void visit(RenderObject object) {
+      if (object is RenderImage) {
+        image = object.image;
+      } else {
+        object.visitChildren(visit);
+      }
+    }
+
+    final boundary = boundaryKey.currentContext?.findRenderObject();
+    if (boundary != null) visit(boundary);
+    return SynchronousFuture(image?.clone());
   }
 }
 
@@ -382,9 +404,10 @@ class _SelectionRingState extends State<_SelectionRing>
     final index = widget.index;
     final selected = index != null;
     return ScaleTransition(
-      scale: Tween<double>(begin: 0.2, end: 1.0).animate(
-        CurvedAnimation(parent: _entry, curve: Curves.easeOutBack),
-      ),
+      scale: Tween<double>(
+        begin: 0.2,
+        end: 1.0,
+      ).animate(CurvedAnimation(parent: _entry, curve: Curves.easeOutBack)),
       child: FadeTransition(
         opacity: _entry,
         child: AnimatedContainer(

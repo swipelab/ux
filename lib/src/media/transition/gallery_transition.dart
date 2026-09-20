@@ -23,7 +23,7 @@ class GalleryTransition extends StatefulWidget {
   /// Route progress, from source (zero) to page (one).
   final Animation<double> animation;
 
-  /// Visible thumbnail captured before pushing the route.
+  /// Opening image pixels, cover-fitted to the moving bounds.
   final ui.Image? snapshot;
 
   /// Opening thumbnail bounds in global coordinates; absent for standalone compose.

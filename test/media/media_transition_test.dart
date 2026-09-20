@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ux/camera.dart';
 import 'package:ux/gallery.dart';
@@ -231,9 +234,206 @@ Rect? _paintedRect(WidgetTester tester) {
   return state.paintedRectForTest as Rect?;
 }
 
+class _GatedImageFile implements File {
+  _GatedImageFile(this.bytes);
+  final Uint8List bytes;
+  final release = Completer<void>();
+  final readStarted = Completer<void>();
+
+  @override
+  Future<Uint8List> readAsBytes() async {
+    if (!readStarted.isCompleted) readStarted.complete();
+    await release.future;
+    return bytes;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+Future<ui.Image> _sceneImage(WidgetTester tester, GlobalKey key) async {
+  final boundary =
+      key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+  return (await tester.runAsync(() => boundary.toImage()))!;
+}
+
+Future<Rect> _redLandmark(WidgetTester tester, GlobalKey key) async {
+  final image = await _sceneImage(tester, key);
+  final pixels = (await tester.runAsync(() => image.toByteData()))!;
+  Rect? bounds;
+  for (var y = 0; y < image.height; y++) {
+    for (var x = 0; x < image.width; x++) {
+      final i = (y * image.width + x) * 4;
+      if (pixels.getUint8(i) > 130 &&
+          pixels.getUint8(i + 1) < 65 &&
+          pixels.getUint8(i + 2) < 110) {
+        final pixel = Rect.fromLTWH(x.toDouble(), y.toDouble(), 1, 1);
+        bounds = bounds?.expandToInclude(pixel) ?? pixel;
+      }
+    }
+  }
+  image.dispose();
+  return bounds!;
+}
+
+void _expectLandmark(Rect landmark, Rect media, Size content) {
+  final scale = math.max(
+    media.width / content.width,
+    media.height / content.height,
+  );
+  expect(landmark.center.dx, closeTo(media.center.dx, 1));
+  expect(landmark.center.dy, closeTo(media.center.dy, 1));
+  expect(landmark.width, closeTo(content.width * scale / 5, 2));
+  expect(landmark.height, closeTo(content.height * scale / 5, 2));
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(loadMediaTestFonts);
+
+  for (final (assetName, dimensions) in [
+    ('landscape', const Size(600, 300)),
+    ('portrait', const Size(300, 600)),
+    ('exif', const Size(300, 600)),
+  ]) {
+    for (final navigator in [false, true]) {
+      final arrival = navigator ? 150 : 450;
+      final name =
+          '${assetName}_${navigator ? 'navigator_mid' : 'screen_stack_late'}';
+      testWidgets('$name full-quality decode preserves image alignment', (
+        tester,
+      ) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final extension = assetName == 'exif' ? 'jpg' : 'png';
+        final file = _GatedImageFile(
+          File('test/media/fixtures/alignment_$assetName.$extension')
+              .readAsBytesSync(),
+        );
+        if (assetName == 'exif') {
+          expect(readJpegExifOrientation(file.bytes), 6);
+          expect(readJpegRawDimensions(file.bytes), (width: 600, height: 300));
+        }
+        final thumbnail = (await tester.runAsync(() async {
+          final codec = await ui.instantiateImageCodec(
+            file.bytes,
+            targetWidth: dimensions.width ~/ 5,
+            targetHeight: dimensions.height ~/ 5,
+          );
+          final image = (await codec.getNextFrame()).image;
+          codec.dispose();
+          expect(image.width, dimensions.width ~/ 5);
+          expect(image.height, dimensions.height ~/ 5);
+          final data = (await image.toByteData(
+            format: ui.ImageByteFormat.png,
+          ))!;
+          image.dispose();
+          return data.buffer.asUint8List();
+        }))!;
+        final asset = XAsset(
+          id: 'alignment',
+          kind: XAssetKind.image,
+          width: dimensions.width.toInt(),
+          height: dimensions.height.toInt(),
+          createdAt: DateTime(2026),
+        );
+        final oldGallery = XGallery.backend;
+        XCameraBackend.instance = CameraTestBackend();
+        XGallery.backend = FakeXGalleryBackend(
+          recents: [asset],
+          thumbnailFor: (_, _) => XAssetThumbnail(
+            bytes: thumbnail,
+            width: dimensions.width ~/ 5,
+            height: dimensions.height ~/ 5,
+          ),
+          fileFor: (_) => file,
+        );
+        final host = _Host(navigator);
+        MediaHost.current = host;
+        addTearDown(() async {
+          await tester.pumpWidget(const SizedBox());
+          for (final screen in host.screens.reversed) {
+            final disposable = screen as Disposable;
+            if (!disposable.disposed) disposable.dispose();
+          }
+          host.router.dispose();
+          host.lifecycle.dispose();
+          XGallery.backend = oldGallery;
+          XCameraBackend.instance = MethodChannelXCameraBackend();
+          HiddenMediaController.instance.clearForTest();
+        });
+        await tester.pumpWidget(host.app);
+        final picker = MediaPickerPage(filter: XAssetKind.image);
+        host.push(picker);
+        await tester.pumpAndSettle();
+        await tester.runAsync(
+          () => precacheImage(
+            MemoryImage(thumbnail),
+            host.navigatorKey.currentContext!,
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.runAsync(() async {
+          picker.handleAssetTap(asset);
+          await Future<void>.delayed(Duration.zero);
+        });
+        await tester.pump();
+        final compose = host.screens.last as ComposePage;
+        final entry = compose.focusedEntry;
+        await tester.runAsync(() => file.readStarted.future);
+        await tester.pump();
+        expect(entry.source, isNull);
+        expect(entry.contentSize, dimensions);
+
+        final landmarks = <({Rect landmark, Rect media})>[];
+        Future<void> golden(String frame) async {
+          await expectLater(
+            find.byKey(host.boundary),
+            matchesGoldenFile('goldens/alignment_${name}_$frame.png'),
+          );
+          landmarks.add((
+            landmark: await _redLandmark(tester, host.boundary),
+            media: _paintedRect(tester)!,
+          ));
+        }
+
+        await golden('open_0');
+        await tester.pump(const Duration(milliseconds: 75));
+        await golden('open_75');
+        await tester.pump(Duration(milliseconds: arrival - 75));
+        await golden('before_decode');
+        final before = await _redLandmark(tester, host.boundary);
+        final beforeRect = _paintedRect(tester)!;
+        expect(entry.source, isNull);
+        await tester.runAsync(() async {
+          file.release.complete();
+          await entry.ensureSource();
+        });
+        await tester.pump();
+        expect(entry.sourceSize, dimensions);
+        expect(_paintedRect(tester), beforeRect);
+        await golden('decode_arrival');
+        expect(await _redLandmark(tester, host.boundary), before);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 37));
+        await golden('blend');
+        await tester.pumpAndSettle();
+        await golden('settled');
+        final dynamic transition = tester.state(find.byType(GalleryTransition));
+        final restingRect = transition.mediaRectForTest as Rect;
+        _expectLandmark(
+          await _redLandmark(tester, host.boundary),
+          restingRect,
+          dimensions,
+        );
+        for (final sample in landmarks) {
+          _expectLandmark(sample.landmark, sample.media, dimensions);
+        }
+      });
+    }
+  }
 
   for (final (navigator, wide) in [
     (false, false),
