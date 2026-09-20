@@ -3,6 +3,45 @@ import 'package:flutter/cupertino.dart';
 import 'package:ux/gallery.dart';
 import 'package:ux/src/media/touch.dart';
 
+/// Camera authorization action alongside the photo library.
+class PickerCameraBanner extends StatelessWidget {
+  /// Requests access or opens the app's camera Settings.
+  const PickerCameraBanner({super.key, required this.onAllow});
+
+  /// The explicit permission action.
+  final VoidCallback onAllow;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: space.banner,
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(
+            'Allow camera access to take photos and videos.',
+            style: TextStyle(color: colors.textSecondary, fontSize: 13),
+          ),
+        ),
+        SizedBox(width: space.md),
+        Touch(
+          onPress: onAllow,
+          child: Container(
+            padding: space.banner,
+            decoration: BoxDecoration(
+              color: colors.brand,
+              borderRadius: BorderRadius.circular(radius.pill),
+            ),
+            child: Text(
+              'Allow Camera',
+              style: TextStyle(color: colors.onBrand),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 /// Full-screen photo-permission placeholder shown when access is
 /// `notDetermined` or `denied` / `restricted`. Mirrors telegram-iOS's
 /// `MediaPickerPlaceholderNode` (`MediaPickerPlaceholderNode.swift:11`):
@@ -33,8 +72,8 @@ class PickerPermissionPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final canPrompt = state == XGalleryPermission.notDetermined ||
-        state == null;
+    final canPrompt =
+        state == XGalleryPermission.notDetermined || state == null;
     final buttonLabel = canPrompt ? 'Allow Access' : 'Open Settings';
     final action = canPrompt ? onAllow : onSettings;
     return Center(
@@ -62,10 +101,7 @@ class PickerPermissionPlaceholder extends StatelessWidget {
             Text(
               'Tap $buttonLabel to grant access to your photos.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: colors.textSecondary,
-                fontSize: 15,
-              ),
+              style: TextStyle(color: colors.textSecondary, fontSize: 15),
             ),
             SizedBox(height: space.lg),
             Touch(
@@ -110,29 +146,20 @@ class PickerLimitedBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: colors.surface,
-      padding: EdgeInsets.symmetric(
-        horizontal: space.md,
-        vertical: space.sm,
-      ),
+      padding: EdgeInsets.symmetric(horizontal: space.md, vertical: space.sm),
       child: Row(
         children: [
           Expanded(
             child: Text(
               "You've allowed access to a select number of photos.",
-              style: TextStyle(
-                color: colors.textSecondary,
-                fontSize: 13,
-              ),
+              style: TextStyle(color: colors.textSecondary, fontSize: 13),
             ),
           ),
           SizedBox(width: space.md),
           Touch(
             onPress: onManage,
             child: Container(
-              padding: EdgeInsets.symmetric(
-                horizontal: space.md,
-                vertical: 6,
-              ),
+              padding: EdgeInsets.symmetric(horizontal: space.md, vertical: 6),
               decoration: BoxDecoration(
                 color: colors.brand,
                 borderRadius: BorderRadius.circular(14),
