@@ -37,6 +37,7 @@ dependencies:
   pointycastle: ^4.0.0
 
 dev_dependencies:
+  cupertino_icons: ^1.0.8
   flutter_lints: ^6.0.0
   flutter_test:
     sdk: flutter

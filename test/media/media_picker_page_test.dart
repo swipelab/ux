@@ -343,7 +343,7 @@ void main() {
       await expand(tester);
       expect(find.byType(PickerCameraBanner), findsOneWidget);
       camera.requestGate = Completer();
-      await tester.tap(find.text('Allow Camera'));
+      await tester.tap(find.text(host.manage));
       await tester.pump();
       final rect = tester.getRect(_cell('0'));
       await tester.tapAt(rect.topRight + const Offset(-18, 18));
@@ -359,31 +359,47 @@ void main() {
   );
 
   pickerTest(
-    'denied photos and an empty album both retain a reachable camera',
+    'photo recovery reveals the camera even when the authorized album is empty',
     (tester) async {
       gallery = _Gallery()..permissionState = XGalleryPermission.denied;
       XGallery.backend = gallery;
       final picker = await mount(tester);
       expect(find.byType(PickerPermissionPlaceholder), findsOneWidget);
+      expect(find.byType(CameraThumb), findsNothing);
+      expect(find.byType(PickerCameraBanner), findsNothing);
       await expand(tester);
-      await tester.ensureVisible(find.byType(CameraThumb));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byType(CameraThumb));
-      await tester.pumpAndSettle();
-      (host.pages.value.last as CameraPage).pop();
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Open Settings'));
+      await tester.tap(find.text(host.openSettings));
       expect(gallery.settingsCalls, 1);
       gallery.permissionState = XGalleryPermission.limited;
       host.lifecycle.foreground();
       await tester.pumpAndSettle();
       expect(find.byType(PickerPermissionPlaceholder), findsNothing);
       expect(find.byType(PickerLimitedBanner), findsOneWidget);
-      await tester.tap(find.text('MANAGE'));
+      await tester.tap(find.text(host.manage));
       expect(gallery.manageCalls, 1);
       expect(find.byType(CameraThumb), findsOneWidget);
       expect(find.byType(PickerGridItem), findsNothing);
+      await tester.tap(find.byType(CameraThumb));
+      await tester.pumpAndSettle();
+      (host.pages.value.last as CameraPage).pop();
+      await tester.pumpAndSettle();
       expect(picker.popped, isFalse);
+    },
+  );
+
+  pickerTest(
+    'first photo request replaces the prompt with the library and camera',
+    (tester) async {
+      gallery.permissionState = XGalleryPermission.notDetermined;
+      await mount(tester);
+      expect(find.byType(PickerPermissionPlaceholder), findsOneWidget);
+      expect(find.byType(CameraThumb), findsNothing);
+      expect(find.text(host.openSettings), findsNothing);
+      await tester.tap(find.text(host.allowPhotoAccess));
+      await tester.pumpAndSettle();
+      expect(find.byType(PickerPermissionPlaceholder), findsNothing);
+      expect(find.byType(CameraThumb), findsOneWidget);
+      expect(_cell('0'), findsOneWidget);
     },
   );
 
@@ -391,6 +407,9 @@ void main() {
     'foreground refresh revokes both permissions and restores library and preview',
     (tester) async {
       final picker = await mount(tester);
+      picker.selection.toggle(_asset('0'));
+      picker.setDisplayMode(DisplayMode.selected);
+      await tester.pumpAndSettle();
       camera.cameraPermission = false;
       gallery.permissionState = XGalleryPermission.denied;
       host.lifecycle.foreground();
@@ -398,6 +417,8 @@ void main() {
       expect(find.byType(CameraThumb), findsNothing);
       expect(find.byType(PickerGridItem), findsNothing);
       expect(find.byType(PickerPermissionPlaceholder), findsOneWidget);
+      expect(find.byType(SelectedStrip), findsNothing);
+      expect(find.text('1 selected'), findsNothing);
       expect(camera.disposeCalls, [1]);
       await tester.runAsync(() => Future<void>.delayed(Duration.zero));
       camera.cameraPermission = true;
@@ -406,6 +427,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(CameraThumb), findsOneWidget);
       expect(_cell('0'), findsOneWidget);
+      expect(picker.selection.count, 1);
+      expect(find.byType(SelectedStrip), findsOneWidget);
       expect(camera.createCalls, hasLength(2));
       expect(gallery.permissionCalls, 3);
       picker.pop();

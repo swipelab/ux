@@ -438,10 +438,12 @@ class MediaPickerPage
         child: Column(
           children: [
             _TopBar(
-              title: _currentAlbum?.name ?? 'Recents',
+              title: _permission == null || _hasPhotos
+                  ? _currentAlbum?.name ?? 'Recents'
+                  : null,
               onCancel: handleCancel,
               onTitleTap: _albums.length > 1 ? openAlbums : null,
-              toggle: _toggleVisible
+              toggle: _hasPhotos && _toggleVisible
                   ? _SelectedToggle(
                       count: selection.count,
                       active: _displayMode == DisplayMode.selected,
@@ -450,11 +452,12 @@ class MediaPickerPage
                   : null,
             ),
             Expanded(child: _buildBody()),
-            ListenableBuilder(
-              listenable: selection,
-              builder: (context, _) =>
-                  _SendFooter(count: selection.count, onSend: handleSend),
-            ),
+            if (_hasPhotos)
+              ListenableBuilder(
+                listenable: selection,
+                builder: (context, _) =>
+                    _SendFooter(count: selection.count, onSend: handleSend),
+              ),
           ],
         ),
       ),
@@ -462,6 +465,14 @@ class MediaPickerPage
   }
 
   Widget _buildBody() {
+    final permission = _permission;
+    if (permission != null && !_hasPhotos) {
+      return PickerPermissionPlaceholder(
+        state: permission,
+        onAllow: handleAllowAccess,
+        onSettings: XGallery.openSettings,
+      );
+    }
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -483,7 +494,6 @@ class MediaPickerPage
               camera: _cameraSession?.value == null ? null : _cameraSession,
               onCamera: handleCameraTap,
               permission: _permission,
-              onAllow: handleAllowAccess,
               onManage: handleManageLimited,
               cameraDenied: _cameraPermission == false,
               onCameraAccess: handleCameraAccess,
@@ -519,7 +529,7 @@ class _TopBar extends StatelessWidget {
     this.toggle,
   });
 
-  final String title;
+  final String? title;
   final VoidCallback onCancel;
 
   /// Null when there's ≤1 album to switch to — the title renders as
@@ -533,13 +543,16 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final title = this.title;
     final tap = onTitleTap;
     final titleStyle = TextStyle(
       color: colors.textPrimary,
       fontSize: 17,
       fontWeight: FontWeight.w600,
     );
-    final Widget titleContent = tap == null
+    final Widget titleContent = title == null
+        ? const SizedBox.shrink()
+        : tap == null
         ? Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: Text(title, style: titleStyle),
@@ -663,7 +676,6 @@ class _Grid extends StatefulWidget {
     required this.camera,
     required this.onCamera,
     required this.permission,
-    required this.onAllow,
     required this.onManage,
     required this.cameraDenied,
     required this.onCameraAccess,
@@ -680,7 +692,6 @@ class _Grid extends StatefulWidget {
   final CameraSession? camera;
   final VoidCallback onCamera;
   final XGalleryPermission? permission;
-  final VoidCallback onAllow;
   final VoidCallback onManage;
   final bool cameraDenied;
   final VoidCallback onCameraAccess;
@@ -718,24 +729,10 @@ class _GridState extends State<_Grid> {
     final cellPx = (cellLogical * dpr).round();
 
     final camera = widget.camera;
-    final hasPhotos =
-        widget.permission == XGalleryPermission.granted ||
-        widget.permission == XGalleryPermission.limited;
     return CustomScrollView(
       controller: _scroll,
       physics: widget.sheetController.physics,
       slivers: [
-        if (!hasPhotos && widget.permission != null)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: PickerPermissionPlaceholder(
-                state: widget.permission,
-                onAllow: widget.onAllow,
-                onSettings: XGallery.openSettings,
-              ),
-            ),
-          ),
         if (widget.permission == XGalleryPermission.limited)
           SliverToBoxAdapter(
             child: PickerLimitedBanner(onManage: widget.onManage),
