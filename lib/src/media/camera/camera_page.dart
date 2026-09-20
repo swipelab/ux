@@ -101,6 +101,11 @@ class CameraPage with Screen<XMedia?>, Emitter {
           source: cellSource?.rect ?? source,
           target: _previewSlot,
           progress: t,
+          background: _buildFrame(
+            context,
+            const SizedBox.expand(),
+            background: true,
+          ),
           chrome: child,
           preview: IgnorePointer(
             child: ClipRRect(
@@ -407,40 +412,47 @@ class CameraPage with Screen<XMedia?>, Emitter {
   }
 
   @override
-  Widget buildPresenter(BuildContext context) {
-    if (MediaHost.current.isWideScreen(context)) return _buildDesktop(context);
-    return _buildMobile(context);
-  }
+  Widget buildPresenter(BuildContext context) => _buildFrame(
+    context,
+    _buildContent(context),
+    background: _cellRect == null || error != null,
+  );
 
-  Widget _buildDesktop(BuildContext context) {
+  Widget _buildFrame(
+    BuildContext context,
+    Widget content, {
+    required bool background,
+  }) {
+    if (!MediaHost.current.isWideScreen(context)) {
+      return Scaffold(
+        backgroundColor: background
+            ? const Color(0xFF000000)
+            : Colors.transparent,
+        body: content,
+      );
+    }
     return GestureDetector(
       onTap: pop,
       child: Container(
-        color: colors.scrim,
+        color: background ? colors.scrim : null,
         child: Center(
           child: GestureDetector(
             onTap: () {},
             child: Card(
-              color: const Color(0xFF000000),
+              color: background ? const Color(0xFF000000) : Colors.transparent,
+              elevation: background ? null : 0,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
               clipBehavior: Clip.antiAlias,
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 540),
-                child: _buildContent(context),
+                child: content,
               ),
             ),
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildMobile(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF000000),
-      body: _buildContent(context),
     );
   }
 

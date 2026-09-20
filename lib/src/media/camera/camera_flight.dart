@@ -1,7 +1,7 @@
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
-/// A live preview above fading page chrome, laid out from cell to preview slot.
+/// A live preview between fading background and controls, from cell to slot.
 class CameraFlight extends StatelessWidget {
   /// The source rect uses screen coordinates; [target] belongs to [chrome].
   const CameraFlight({
@@ -10,6 +10,7 @@ class CameraFlight extends StatelessWidget {
     required this.target,
     required this.progress,
     required this.preview,
+    required this.background,
     required this.chrome,
   });
 
@@ -25,7 +26,10 @@ class CameraFlight extends StatelessWidget {
   /// The single live preview, including its interpolated corners and icon.
   final Widget preview;
 
-  /// Camera controls and background, excluding the live preview.
+  /// Full-page fill, including the desktop scrim and card.
+  final Widget background;
+
+  /// Camera controls with a transparent preview slot and background.
   final Widget chrome;
 
   @override
@@ -34,8 +38,9 @@ class CameraFlight extends StatelessWidget {
     target: target,
     progress: progress,
     children: [
-      Opacity(opacity: progress, child: chrome),
+      Opacity(opacity: progress, child: background),
       preview,
+      Opacity(opacity: progress, child: chrome),
     ],
   );
 }
@@ -82,6 +87,7 @@ class _RenderFlight extends RenderBox
   GlobalKey target;
   double progress;
   late Rect _destination;
+  RenderBox get _preview => childAfter(firstChild!)!;
 
   @override
   void setupParentData(RenderBox child) {
@@ -94,13 +100,14 @@ class _RenderFlight extends RenderBox
   void performLayout() {
     size = constraints.biggest;
     firstChild!.layout(BoxConstraints.tight(size));
+    lastChild!.layout(BoxConstraints.tight(size));
     final slot = target.currentContext!.findRenderObject() as RenderBox;
     // The tight preview slot exposes its bounds during ancestor layout.
     _destination = MatrixUtils.transformRect(
       slot.getTransformTo(this),
       Offset.zero & slot.constraints.biggest,
     );
-    lastChild!.layout(
+    _preview.layout(
       BoxConstraints.tight(
         Size.lerp(source.size, _destination.size, progress)!,
       ),
@@ -112,7 +119,7 @@ class _RenderFlight extends RenderBox
     // Ancestor paint transforms are final only after layout.
     final origin = source.shift(-localToGlobal(Offset.zero));
     final rect = Rect.lerp(origin, _destination, progress)!;
-    (lastChild!.parentData as ContainerBoxParentData<RenderBox>).offset =
+    (_preview.parentData as ContainerBoxParentData<RenderBox>).offset =
         rect.topLeft;
     defaultPaint(context, offset);
   }

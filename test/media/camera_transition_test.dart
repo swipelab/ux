@@ -235,6 +235,28 @@ void main() {
 
   for (final navigator in [false, true]) {
     final name = navigator ? 'navigator' : 'screen_stack';
+    testWidgets('$name short camera keeps controls above the preview', (
+      tester,
+    ) async {
+      await mount(tester, navigator, size: const Size(375, 667));
+      try {
+        await tester.tap(find.byType(CameraThumb));
+        await tester.pumpAndSettle();
+        expect(
+          tester
+              .getRect(find.byType(CameraThumb))
+              .overlaps(tester.getRect(find.byType(CameraButton))),
+          isTrue,
+        );
+        await expectLater(
+          find.byKey(host.boundary),
+          matchesGoldenFile('goldens/camera_${name}_short_rest.png'),
+        );
+      } finally {
+        await close(tester);
+      }
+    });
+
     testWidgets('$name camera flies on open and close with one texture', (
       tester,
     ) async {
