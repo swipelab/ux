@@ -108,6 +108,8 @@ class MediaPickerPage
   bool get _hasPhotos =>
       _permission == XGalleryPermission.granted ||
       _permission == XGalleryPermission.limited;
+  bool get _canPreviewCamera =>
+      _cameraPermission == true && (_permission == null || _hasPhotos);
 
   DisplayMode _displayMode = DisplayMode.all;
 
@@ -220,6 +222,7 @@ class MediaPickerPage
           : XGallery.permission());
       if (_closed || revision != _photoRefresh) return;
       _permission = permission;
+      unawaited(_reconcileCamera());
       if (!_hasPhotos) {
         _assets.clear();
         _albums = const [];
@@ -267,22 +270,30 @@ class MediaPickerPage
           : XCameraController.cameraPermissionGranted());
       if (_closed || revision != _cameraRefresh) return;
       _cameraPermission = granted;
-      if (!granted) {
+      await _reconcileCamera();
+    } catch (error, stack) {
+      Log.tag('picker')
+          .w('camera refresh failed', error: error, stackTrace: stack);
+    }
+  }
+
+  Future<void> _reconcileCamera() async {
+    try {
+      if (!_canPreviewCamera) {
         final releasing = _releaseCamera();
         _safeNotify();
         await releasing;
         return;
       }
       await _cameraRelease;
-      if (_closed || revision != _cameraRefresh) return;
+      if (_closed || !_canPreviewCamera) return;
       final session = _cameraSession ??= (CameraSession()
         ..addListener(_safeNotify));
       await session.initialize();
-      if (_closed || revision != _cameraRefresh) return;
       _safeNotify();
     } catch (error, stack) {
       Log.tag('picker')
-          .w('camera refresh failed', error: error, stackTrace: stack);
+          .w('camera reconciliation failed', error: error, stackTrace: stack);
     }
   }
 

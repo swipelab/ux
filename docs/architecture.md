@@ -65,7 +65,8 @@ with the active page.
 `MediaPickerPage` owns the gallery cell's session and lends it to `CameraPage`.
 With granted or limited photo access, the camera occupies one column and two
 rows, including in an empty album. Photo denial replaces the library with its
-permission prompt; the camera cell and permission row are hidden. Empty device
+permission prompt; the camera cell and permission row are hidden, and its
+session is released. Photo access recovery recreates the preview. Empty device
 discovery reserves no grid space. Foreground transitions
 refresh both permissions; revocation releases the session, and refresh results
 apply only while current and while the picker remains open. Captures enter a

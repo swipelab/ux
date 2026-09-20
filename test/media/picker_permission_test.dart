@@ -130,6 +130,7 @@ void main() {
             photos == XGalleryPermission.granted ||
             photos == XGalleryPermission.limited;
         if (!hasPhotos) {
+          expect(camera.liveHandles, isEmpty);
           expect(find.byType(PickerPermissionPlaceholder), findsOneWidget);
           expect(find.byType(CameraThumb), findsNothing);
           expect(find.byType(PickerCameraBanner), findsNothing);

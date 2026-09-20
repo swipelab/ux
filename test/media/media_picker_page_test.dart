@@ -368,6 +368,7 @@ void main() {
       expect(find.byType(CameraThumb), findsNothing);
       expect(find.byType(PickerCameraBanner), findsNothing);
       await expand(tester);
+      expect(camera.liveHandles, isEmpty);
       await tester.tap(find.text(host.openSettings));
       expect(gallery.settingsCalls, 1);
       gallery.permissionState = XGalleryPermission.limited;
@@ -379,6 +380,7 @@ void main() {
       expect(gallery.manageCalls, 1);
       expect(find.byType(CameraThumb), findsOneWidget);
       expect(find.byType(PickerGridItem), findsNothing);
+      expect(camera.liveHandles, hasLength(1));
       await tester.tap(find.byType(CameraThumb));
       await tester.pumpAndSettle();
       (host.pages.value.last as CameraPage).pop();
@@ -395,11 +397,36 @@ void main() {
       expect(find.byType(PickerPermissionPlaceholder), findsOneWidget);
       expect(find.byType(CameraThumb), findsNothing);
       expect(find.text(host.openSettings), findsNothing);
+      expect(camera.liveHandles, isEmpty);
       await tester.tap(find.text(host.allowPhotoAccess));
       await tester.pumpAndSettle();
       expect(find.byType(PickerPermissionPlaceholder), findsNothing);
       expect(find.byType(CameraThumb), findsOneWidget);
       expect(_cell('0'), findsOneWidget);
+      expect(camera.liveHandles, hasLength(1));
+    },
+  );
+
+  pickerTest(
+    'photo library revocation releases the camera and recovery opens a new preview',
+    (tester) async {
+      await mount(tester);
+      expect(camera.liveHandles, {1});
+      gallery.permissionState = XGalleryPermission.denied;
+      gallery.emitLibraryChange();
+      await tester.pumpAndSettle();
+      expect(find.byType(PickerPermissionPlaceholder), findsOneWidget);
+      expect(find.byType(CameraThumb), findsNothing);
+      expect(camera.liveHandles, isEmpty);
+      expect(camera.disposeCalls, [1]);
+
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      gallery.permissionState = XGalleryPermission.granted;
+      gallery.emitLibraryChange();
+      await tester.pumpAndSettle();
+      expect(find.byType(PickerPermissionPlaceholder), findsNothing);
+      expect(find.byType(CameraThumb), findsOneWidget);
+      expect(camera.liveHandles, {2});
     },
   );
 
