@@ -63,13 +63,24 @@ both. Foreground microphone refresh and physical-orientation observation live
 with the active page.
 
 `MediaPickerPage` owns the gallery cell's session and lends it to `CameraPage`.
-The camera occupies one column and two rows, independently of photo-library
-access. Empty device discovery reserves no grid space. Foreground transitions
-refresh both permissions; revocation releases the session, and refresh results
-apply only while current and while the picker remains open. Captures enter a
+With granted or limited photo access, the camera occupies one column and two
+rows, including in an empty album. Photo denial replaces the library with its
+permission prompt; the camera cell and permission row are hidden. Session
+reconciliation requires an open picker, confirmed camera access, and either an
+existing loan to `CameraPage` or known
+granted/limited photo access. A revoked loan is not replaced until it returns;
+the loan ends before compose opens. Empty device discovery reserves no grid
+space. Foreground transitions refresh both permissions; refresh results apply
+only while current and while the picker remains open. Captures enter a
 single-item `ComposePage` with the picker's purpose and submission handler;
 the picker filter also restricts capture. Confirmation dismisses the picker
 with the editor's results.
+
+Picker permission views use `MediaColors`, `MediaText.body` and the host's
+`MediaStrings`: `cameraAccessRationale`, `photoAccessTitle`, `allowPhotoAccess`,
+`openSettings`, `limitedPhotosRationale` and `manage`. The camera and
+limited-library actions use `manage`; photo access uses `allowPhotoAccess`
+before the first prompt and `openSettings` after denial or restriction.
 
 ### Apple packaging — two SPM products
 

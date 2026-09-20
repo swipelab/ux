@@ -12,6 +12,7 @@ import 'package:ux/ux.dart';
 
 import 'camera_test_backend.dart';
 import 'fake_host.dart';
+import 'test_fonts.dart';
 
 XAsset _asset(String id) => XAsset(
   id: id,
@@ -50,6 +51,7 @@ class _Host extends FakeMediaHost implements ScreenHost {
   }
 
   Widget get app => MaterialApp(
+    debugShowCheckedModeBanner: false,
     home: ValueListenableBuilder<List<Screen>>(
       valueListenable: pages,
       builder: (context, pages, _) => ScreenStack(home: _Home(), stack: pages),
@@ -155,6 +157,7 @@ Finder _cell(String id) => find.byWidgetPredicate(
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(loadMediaTestFonts);
   late _Camera camera;
   late _Gallery gallery;
   late _Host host;
@@ -316,24 +319,55 @@ void main() {
   );
 
   pickerTest(
-    'unknown photo permission keeps the camera visible without a rationale',
+    'unknown photo permission defers the camera until photo access is granted',
     (tester) async {
       final permission = Completer<XGalleryPermission>();
       gallery.queuedPermissions.add(permission);
       await mount(tester);
+      expect(camera.cameraPermissionCalls, 1);
+      expect(camera.createCalls, isEmpty);
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/picker_photo_permission_pending.png'),
       );
       expect(find.byType(PickerPermissionPlaceholder), findsNothing);
       expect(find.byType(PickerGridItem), findsNothing);
-      expect(find.byType(CameraThumb), findsOneWidget);
+      expect(find.byType(CameraThumb), findsNothing);
       permission.complete(XGalleryPermission.granted);
       await tester.pumpAndSettle();
       expect(find.byType(PickerPermissionPlaceholder), findsNothing);
       expect(_cell('0'), findsOneWidget);
+      expect(find.byType(CameraThumb), findsOneWidget);
+      expect(camera.liveHandles, {1});
     },
   );
+
+  pickerTest('a delayed photo denial never allocates a camera', (tester) async {
+    final permission = Completer<XGalleryPermission>();
+    gallery.queuedPermissions.add(permission);
+    await mount(tester);
+    expect(camera.cameraPermissionCalls, 1);
+    expect(camera.createCalls, isEmpty);
+    permission.complete(XGalleryPermission.denied);
+    await tester.pumpAndSettle();
+    expect(find.byType(PickerPermissionPlaceholder), findsOneWidget);
+    expect(camera.createCalls, isEmpty);
+    expect(camera.disposeCalls, isEmpty);
+  });
+
+  pickerTest('known photo access waits for the camera permission answer', (
+    tester,
+  ) async {
+    final permission = Completer<bool>();
+    camera.queuedPermissions.add(permission);
+    await mount(tester);
+    expect(_cell('0'), findsOneWidget);
+    expect(camera.createCalls, isEmpty);
+    permission.complete(true);
+    await tester.pumpAndSettle();
+    expect(find.byType(CameraThumb), findsOneWidget);
+    expect(camera.liveHandles, {1});
+  });
 
   pickerTest(
     'camera requests leave photos selectable and recover the preview',
@@ -343,7 +377,7 @@ void main() {
       await expand(tester);
       expect(find.byType(PickerCameraBanner), findsOneWidget);
       camera.requestGate = Completer();
-      await tester.tap(find.text('Allow Camera'));
+      await tester.tap(find.text(host.manage));
       await tester.pump();
       final rect = tester.getRect(_cell('0'));
       await tester.tapAt(rect.topRight + const Offset(-18, 18));
@@ -359,31 +393,182 @@ void main() {
   );
 
   pickerTest(
-    'denied photos and an empty album both retain a reachable camera',
+    'photo recovery reveals the camera even when the authorized album is empty',
     (tester) async {
       gallery = _Gallery()..permissionState = XGalleryPermission.denied;
       XGallery.backend = gallery;
       final picker = await mount(tester);
       expect(find.byType(PickerPermissionPlaceholder), findsOneWidget);
+      expect(find.byType(CameraThumb), findsNothing);
+      expect(find.byType(PickerCameraBanner), findsNothing);
       await expand(tester);
-      await tester.ensureVisible(find.byType(CameraThumb));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byType(CameraThumb));
-      await tester.pumpAndSettle();
-      (host.pages.value.last as CameraPage).pop();
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Open Settings'));
+      expect(camera.liveHandles, isEmpty);
+      await tester.tap(find.text(host.openSettings));
       expect(gallery.settingsCalls, 1);
       gallery.permissionState = XGalleryPermission.limited;
       host.lifecycle.foreground();
       await tester.pumpAndSettle();
       expect(find.byType(PickerPermissionPlaceholder), findsNothing);
       expect(find.byType(PickerLimitedBanner), findsOneWidget);
-      await tester.tap(find.text('MANAGE'));
+      await tester.tap(find.text(host.manage));
       expect(gallery.manageCalls, 1);
       expect(find.byType(CameraThumb), findsOneWidget);
       expect(find.byType(PickerGridItem), findsNothing);
+      expect(camera.liveHandles, hasLength(1));
+      await tester.tap(find.byType(CameraThumb));
+      await tester.pumpAndSettle();
+      (host.pages.value.last as CameraPage).pop();
+      await tester.pumpAndSettle();
       expect(picker.popped, isFalse);
+    },
+  );
+
+  pickerTest(
+    'first photo request replaces the prompt with the library and camera',
+    (tester) async {
+      gallery.permissionState = XGalleryPermission.notDetermined;
+      await mount(tester);
+      expect(find.byType(PickerPermissionPlaceholder), findsOneWidget);
+      expect(find.byType(CameraThumb), findsNothing);
+      expect(find.text(host.openSettings), findsNothing);
+      expect(camera.liveHandles, isEmpty);
+      await tester.tap(find.text(host.allowPhotoAccess));
+      await tester.pumpAndSettle();
+      expect(find.byType(PickerPermissionPlaceholder), findsNothing);
+      expect(find.byType(CameraThumb), findsOneWidget);
+      expect(_cell('0'), findsOneWidget);
+      expect(camera.liveHandles, hasLength(1));
+    },
+  );
+
+  pickerTest(
+    'photo library revocation releases the camera and recovery opens a new preview',
+    (tester) async {
+      await mount(tester);
+      expect(camera.liveHandles, {1});
+      gallery.permissionState = XGalleryPermission.denied;
+      gallery.emitLibraryChange();
+      await tester.pumpAndSettle();
+      expect(find.byType(PickerPermissionPlaceholder), findsOneWidget);
+      expect(find.byType(CameraThumb), findsNothing);
+      expect(camera.liveHandles, isEmpty);
+      expect(camera.disposeCalls, [1]);
+
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      gallery.permissionState = XGalleryPermission.granted;
+      gallery.emitLibraryChange();
+      await tester.pumpAndSettle();
+      expect(find.byType(PickerPermissionPlaceholder), findsNothing);
+      expect(find.byType(CameraThumb), findsOneWidget);
+      expect(camera.liveHandles, {2});
+    },
+  );
+
+  pickerTest(
+    'photo denial preserves the lent camera until cancellation returns it',
+    (tester) async {
+      final picker = await mount(tester);
+      final opening = picker.handleCameraTap();
+      await tester.pumpAndSettle();
+      final page = host.pages.value.last as CameraPage;
+      final controller = page.controller.value;
+
+      gallery.permissionState = XGalleryPermission.denied;
+      host.lifecycle.foreground();
+      await tester.pumpAndSettle();
+      expect(host.pages.value.last, same(page));
+      expect(camera.liveHandles, {1});
+      expect(page.session.disposed, isFalse);
+      expect(page.controller.value, same(controller));
+      expect(
+        tester.widget<Texture>(find.byType(Texture)).textureId,
+        controller!.textureId,
+      );
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/picker_borrowed_camera_photos_denied.png'),
+      );
+
+      gallery.permissionState = XGalleryPermission.granted;
+      gallery.emitLibraryChange();
+      await tester.pumpAndSettle();
+      expect(page.controller.value, same(controller));
+      expect(camera.createCalls, hasLength(1));
+      gallery.permissionState = XGalleryPermission.denied;
+      gallery.emitLibraryChange();
+      await tester.pumpAndSettle();
+      expect(page.session.disposed, isFalse);
+      expect(camera.disposeCalls, isEmpty);
+
+      page.pop();
+      await tester.pumpAndSettle();
+      await tester.runAsync(() => opening);
+      await tester.pumpAndSettle();
+      expect(page.session.disposed, isTrue);
+      expect(camera.liveHandles, isEmpty);
+      expect(camera.disposeCalls, [1]);
+      expect(find.byType(PickerPermissionPlaceholder), findsOneWidget);
+    },
+  );
+
+  pickerTest(
+    'capture with photos denied releases the loan before compose closes',
+    (tester) async {
+      camera.picturePath = File('test/media/fixtures/capture.png')
+          .absolute
+          .path;
+      final picker = await mount(tester);
+      final opening = picker.handleCameraTap();
+      await tester.pumpAndSettle();
+      final page = host.pages.value.last as CameraPage;
+      gallery.permissionState = XGalleryPermission.denied;
+      host.lifecycle.foreground();
+      await tester.pumpAndSettle();
+
+      await tester.runAsync(page.takePhoto);
+      await tester.pumpAndSettle();
+      expect(camera.takePictureCalls, hasLength(1));
+      final compose = host.pages.value.last as ComposePage;
+      expect(compose.assets.single, isA<ImageMedia>());
+      expect(page.session.disposed, isTrue);
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pumpAndSettle();
+      expect(camera.liveHandles, isEmpty);
+      expect(camera.disposeCalls, [1]);
+      compose.handleCancel();
+      await tester.pumpAndSettle();
+      await opening;
+      expect(find.byType(PickerPermissionPlaceholder), findsOneWidget);
+    },
+  );
+
+  pickerTest(
+    'camera revocation releases a loan and recovery waits for its return',
+    (tester) async {
+      final picker = await mount(tester);
+      final opening = picker.handleCameraTap();
+      await tester.pumpAndSettle();
+      final page = host.pages.value.last as CameraPage;
+      camera.cameraPermission = false;
+      host.lifecycle.foreground();
+      await tester.pumpAndSettle();
+      expect(page.session.disposed, isTrue);
+      expect(page.controller.value, isNull);
+      expect(camera.liveHandles, isEmpty);
+      expect(camera.disposeCalls, [1]);
+
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      camera.cameraPermission = true;
+      host.lifecycle.foreground();
+      await tester.pumpAndSettle();
+      expect(camera.createCalls, hasLength(1));
+      expect(camera.liveHandles, isEmpty);
+      page.pop();
+      await tester.pumpAndSettle();
+      await tester.runAsync(() => opening);
+      await tester.pumpAndSettle();
+      expect(camera.liveHandles, {2});
+      expect(find.byType(CameraThumb), findsOneWidget);
     },
   );
 
@@ -391,6 +576,9 @@ void main() {
     'foreground refresh revokes both permissions and restores library and preview',
     (tester) async {
       final picker = await mount(tester);
+      picker.selection.toggle(_asset('0'));
+      picker.setDisplayMode(DisplayMode.selected);
+      await tester.pumpAndSettle();
       camera.cameraPermission = false;
       gallery.permissionState = XGalleryPermission.denied;
       host.lifecycle.foreground();
@@ -398,6 +586,8 @@ void main() {
       expect(find.byType(CameraThumb), findsNothing);
       expect(find.byType(PickerGridItem), findsNothing);
       expect(find.byType(PickerPermissionPlaceholder), findsOneWidget);
+      expect(find.byType(SelectedStrip), findsNothing);
+      expect(find.text('1 selected'), findsNothing);
       expect(camera.disposeCalls, [1]);
       await tester.runAsync(() => Future<void>.delayed(Duration.zero));
       camera.cameraPermission = true;
@@ -406,6 +596,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(CameraThumb), findsOneWidget);
       expect(_cell('0'), findsOneWidget);
+      expect(picker.selection.count, 1);
+      expect(find.byType(SelectedStrip), findsOneWidget);
       expect(camera.createCalls, hasLength(2));
       expect(gallery.permissionCalls, 3);
       picker.pop();
@@ -670,18 +862,27 @@ void main() {
   );
 
   pickerTest(
-    'a late camera result cannot push an editor after picker removal',
+    'picker disposal closes a loan and ignores its late capture result',
     (tester) async {
       final picker = await mount(tester);
       final opening = picker.handleCameraTap();
       await tester.pumpAndSettle();
       final page = host.pages.value.last as CameraPage;
+      await tester.pumpWidget(const SizedBox());
+      picker.dispose();
+      expect(page.session.disposed, isTrue);
       picker.pop();
+      await tester.pumpAndSettle();
+      expect(page.session.disposed, isTrue);
+      expect(camera.liveHandles, isEmpty);
+      host.lifecycle.foreground();
       await tester.pumpAndSettle();
       page.pop(ImageMedia(file: File('test/media/fixtures/capture.png')));
       await tester.pumpAndSettle();
       await opening;
       expect(host.pushed.whereType<ComposePage>(), isEmpty);
+      expect(camera.createCalls, hasLength(1));
+      expect(camera.liveHandles, isEmpty);
     },
   );
 }

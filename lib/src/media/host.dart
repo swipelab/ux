@@ -145,6 +145,24 @@ abstract class MediaStrings {
   /// Invites a tap that turns the microphone on.
   String get cameraTapToEnableMic;
 
+  /// Explains camera access beside the library.
+  String get cameraAccessRationale;
+
+  /// Title inviting access to the photo library.
+  String get photoAccessTitle;
+
+  /// Action requesting photo access for the first time.
+  String get allowPhotoAccess;
+
+  /// Action opening the app's permission settings.
+  String get openSettings;
+
+  /// Explains that only selected photos are accessible.
+  String get limitedPhotosRationale;
+
+  /// Action managing camera or limited-library access.
+  String get manage;
+
   /// Placeholder of the caption field.
   String get addACaption;
 
