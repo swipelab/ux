@@ -1,5 +1,9 @@
 import 'dart:io' as io;
 
+import 'package:flutter/foundation.dart';
+import 'package:ux/gallery.dart';
+import 'package:ux/src/media/camera/camera_session.dart';
+
 import 'package:ux/src/media/camera/camera_capture.dart';
 import 'package:ux/src/media/design.dart';
 import 'package:ux/src/media/camera/camera_button.dart';
@@ -7,7 +11,6 @@ import 'package:ux/src/media/camera/camera_guideline.dart';
 import 'package:ux/src/media/camera/camera_thumb.dart';
 import 'package:ux/src/media/camera/flash_button.dart';
 import 'package:ux/src/media/camera/photo_video_swap.dart';
-import 'package:collection/collection.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -23,56 +26,84 @@ import 'package:ux/sensor.dart';
 /// The camera: takes a photo or records a video, and pops with it as an
 /// [XMedia], or with nothing when closed.
 class CameraPage with Screen<XMedia?>, Emitter {
-  /// The open camera; absent while one is being opened.
-  final ValueEmitter<XCameraController?> controller = ValueEmitter(null);
-  /// The device's cameras.
-  List<XCameraDescription> cameras = const [];
-  /// What went wrong, shown in place of the preview.
+  /// Borrows [session] when supplied; otherwise owns a new session.
+  CameraPage({CameraSession? session, this.filter})
+    : session = session ?? CameraSession(),
+      _ownsSession = session == null,
+      _photo = filter != XAssetKind.video;
+
+  /// A supplied session remains owned by the caller after this page closes.
+  final CameraSession session;
+  final bool _ownsSession;
+
+  /// Restricts capture to this kind; null permits photos and videos.
+  final XAssetKind? filter;
+
+  /// The shared owner's current controller, absent during replacement.
+  ValueListenable<XCameraController?> get controller => session;
+
+  /// The devices discovered by the shared owner.
+  List<XCameraDescription> get cameras => session.cameras;
+
+  /// The failure shown in place of the preview.
   String? error;
-  /// Whether the shutter takes a photo rather than a video.
-  bool photo = true;
-  /// Whether a video is being recorded.
-  bool recording = false;
-  /// Whether a photo from a back camera fires the flash.
+  bool _photo;
+
+  /// Whether the shutter captures a still, subject to [filter].
+  bool get photo => _photo;
+
+  /// Whether the shared controller has an active recording.
+  bool get recording => session.value?.value.isRecordingVideo ?? false;
+
+  /// Whether still captures from the back camera fire the flash.
   bool flashOn = false;
-  /// The device's physical orientation.
+
+  /// Physical orientation for the control icons.
   DeviceOrientation orientation = DeviceOrientation.portraitUp;
+
+  /// Microphone authorization, refreshed on foreground return.
+  bool micPermissionGranted = true;
+  bool _capturing = false;
+  Future<void>? _cancellation;
+  bool get _closed => disposed || popped;
 
   late final VoidCallback _orientationListener = _onOrientationChanged;
   late final VoidCallback _lifecycleListener = _onLifecycle;
+  late final VoidCallback _sessionListener = _safeNotify;
+  ValueListenable<AppLifecycleState>? _lifecycle;
   AppLifecycleState _lastLifecycle = AppLifecycleState.resumed;
 
-  /// Mic permission as reported by the OS. Polled on push + on every
-  /// foreground transition so a grant made via Settings is reflected
-  /// without restarting the page. Defaults to true so the banner
-  /// doesn't flicker on first paint before the first poll lands.
-  bool micPermissionGranted = true;
-
   @override
-  Widget buildTransition(BuildContext context, Animation<double> animation, Widget child) {
+  Widget buildTransition(
+    BuildContext context,
+    Animation<double> animation,
+    Widget child,
+  ) {
     return ScreenTransitions.responsive(context, animation, child);
   }
 
   @override
-  Iterable<DeviceOrientation> get supportedOrientations =>
-      const [DeviceOrientation.portraitUp];
+  Iterable<DeviceOrientation> get supportedOrientations => const [
+    DeviceOrientation.portraitUp,
+  ];
 
   @override
   void onPush() {
     super.onPush();
+    session.addListener(_sessionListener);
     _initCamera();
-    _refreshMicPermission();
+    if (filter != XAssetKind.image) _refreshMicPermission();
   }
 
   Future<void> _refreshMicPermission() async {
     try {
       final granted = await XCameraController.audioPermissionGranted();
-      if (granted == micPermissionGranted) return;
+      if (_closed || granted == micPermissionGranted) return;
       micPermissionGranted = granted;
       _safeNotify();
-    } catch (_) {
-      // Mic-permission query is best-effort. A failure shouldn't
-      // disrupt the camera page — the banner stays hidden.
+    } catch (error, stack) {
+      Log.tag('camera')
+          .w('microphone status failed', error: error, stackTrace: stack);
     }
   }
 
@@ -81,14 +112,20 @@ class CameraPage with Screen<XMedia?>, Emitter {
     super.onActive();
     orientation = XSensor.orientationListenable.value;
     XSensor.orientationListenable.addListener(_orientationListener);
-    _lastLifecycle = MediaHost.current.lifecycle.value;
-    MediaHost.current.lifecycle.addListener(_lifecycleListener);
+    _lifecycle = MediaHost.current.lifecycle;
+    _lastLifecycle = _lifecycle!.value;
+    _lifecycle!.addListener(_lifecycleListener);
+  }
+
+  void _removeActiveListeners() {
+    _lifecycle?.removeListener(_lifecycleListener);
+    _lifecycle = null;
+    XSensor.orientationListenable.removeListener(_orientationListener);
   }
 
   @override
   void onInactive() {
-    MediaHost.current.lifecycle.removeListener(_lifecycleListener);
-    XSensor.orientationListenable.removeListener(_orientationListener);
+    _removeActiveListeners();
     super.onInactive();
   }
 
@@ -96,231 +133,185 @@ class CameraPage with Screen<XMedia?>, Emitter {
     final next = XSensor.orientationListenable.value;
     if (next != orientation) {
       orientation = next;
-      notifyListeners();
+      _safeNotify();
     }
   }
 
   void _onLifecycle() {
-    final next = MediaHost.current.lifecycle.value;
+    final next = _lifecycle!.value;
     final wasPaused = _lastLifecycle != AppLifecycleState.resumed;
     _lastLifecycle = next;
-    if (next == AppLifecycleState.resumed && wasPaused) {
+    if (next == AppLifecycleState.resumed &&
+        wasPaused &&
+        filter != XAssetKind.image) {
       _refreshMicPermission();
-      controller.value?.refreshAudioPermission();
+      _refreshControllerAudioPermission();
     }
   }
 
-  /// `notifyListeners()` after an `await` is a footgun — the page may
-  /// have been popped while we were suspended, and the underlying
-  /// Emitter throws an assertion in debug ("ChangeNotifier was used
-  /// after being disposed") if we notify post-dispose. Every async
-  /// path in this class uses this helper instead of the raw call.
+  Future<void> _refreshControllerAudioPermission() async {
+    try {
+      await session.useController(
+        (controller) => controller.refreshAudioPermission(),
+      );
+    } catch (error, stack) {
+      Log.tag('camera').w(
+        'controller microphone status failed',
+        error: error,
+        stackTrace: stack,
+      );
+    }
+  }
+
   void _safeNotify() {
-    if (disposed) return;
-    notifyListeners();
+    if (!_closed) notifyListeners();
+  }
+
+  void _captureError(Object failure, StackTrace stack) {
+    Log.tag('camera')
+        .e('camera operation failed', error: failure, stackTrace: stack);
+    if (_closed) return;
+    error = failure is XCameraException
+        ? failure.description ?? strings.cameraError
+        : strings.cameraError;
+    _safeNotify();
   }
 
   Future<void> _initCamera() async {
     try {
-      cameras = await uxAvailableCameras();
-      if (cameras.isEmpty) {
-        Log.tag('camera').w('no cameras available');
-        error = strings.noCameraFound;
-        notifyListeners();
-        return;
+      final controller = await session.initialize();
+      if (_closed) return;
+      if (controller == null) {
+        error = cameras.isEmpty
+            ? strings.noCameraFound
+            : strings.failedToAccessCamera;
       }
-      final camera = cameras.firstWhere(
-        (c) => c.lens == XCameraLens.front,
-        orElse: () => cameras.first,
-      );
-      final ctrl = await _tryInitController(
-        camera,
-        XResolutionPreset.high,
-        audio: false,
-      );
-      if (ctrl == null) {
-        error = strings.failedToAccessCamera;
-        notifyListeners();
-        return;
-      }
-      controller.value = ctrl;
-      notifyListeners();
-    } on XCameraException catch (e, st) {
-      Log.tag('camera').e('initCamera failed', error: e, stackTrace: st);
-      error = e.description ?? strings.cameraError;
-      notifyListeners();
-    } catch (e, st) {
-      Log.tag('camera').e('initCamera unexpected failure', error: e, stackTrace: st);
-      error = strings.failedToAccessCamera;
-      notifyListeners();
+      _safeNotify();
+    } catch (error, stack) {
+      _captureError(error, stack);
     }
   }
 
-  /// Switches to a camera facing the other way, unless recording.
+  /// Changes lens through the shared owner when capture is idle.
   Future<void> flipCamera() async {
-    if (recording) return;
-    final ctrl = controller.value;
-    if (ctrl == null) return;
-    final direction = ctrl.description.lens;
-    final other = cameras.firstWhereOrNull((c) => c.lens != direction);
-    if (other == null) return;
-    await ctrl.setDescription(other);
-    await ctrl.lockCaptureOrientation(DeviceOrientation.portraitUp);
-    notifyListeners();
+    if (_closed || _capturing || recording) return;
+    try {
+      await session.flipCamera();
+    } catch (error, stack) {
+      _captureError(error, stack);
+    }
   }
 
-  /// Turns the flash on or off.
+  /// Toggles flash for still captures.
   void toggleFlash() {
     flashOn = !flashOn;
-    notifyListeners();
+    _safeNotify();
   }
 
-  /// Chooses between photo and video.
+  /// Selects an allowed mode while capture is idle.
   void setPhoto(bool isPhoto) {
-    if (photo == isPhoto) return;
-    photo = isPhoto;
-    notifyListeners();
+    if (_closed || _capturing || recording || photo == isPhoto) return;
+    if (isPhoto ? filter == XAssetKind.video : filter == XAssetKind.image) {
+      return;
+    }
+    _photo = isPhoto;
+    _safeNotify();
   }
 
-  /// Takes a photo and pops with it; in video mode starts or ends the recording
-  /// instead.
+  /// Captures a still, or starts/stops recording in video mode.
   Future<void> takePhoto() async {
-    final ctrl = controller.value;
-    if (ctrl == null) return;
+    if (_closed || _capturing) return;
     if (!photo) {
       await endVideo();
       return;
     }
     if (recording) return;
-    final physical = XSensor.orientation;
-    final sensor = ctrl.description.sensorOrientation;
-    final isFront = ctrl.description.lens == XCameraLens.front;
+    _capturing = true;
+    _safeNotify();
     try {
-      await ctrl.setFlashMode(flashOn && !isFront ? XFlashMode.always : XFlashMode.off);
-      final xFile = await ctrl.takePicture();
-      final normalized = await normalizeCameraCapture(
-        io.File(xFile.path),
-        physical: physical,
-        sensorOrientation: sensor,
-        isFrontCamera: isFront,
-      );
-      pop(ImageMedia(file: normalized));
-    } on XCameraException catch (e, st) {
-      Log.tag('camera').e('takePhoto failed', error: e, stackTrace: st);
-      error = e.description ?? strings.cameraError;
-      notifyListeners();
-    } catch (e, st) {
-      Log.tag('camera').e('takePhoto unexpected failure', error: e, stackTrace: st);
-      error = strings.cameraError;
-      notifyListeners();
+      final normalized = await session.useController((controller) async {
+        final physical = XSensor.orientation;
+        final sensor = controller.description.sensorOrientation;
+        final isFront = controller.description.lens == XCameraLens.front;
+        await controller.setFlashMode(
+          flashOn && !isFront ? XFlashMode.always : XFlashMode.off,
+        );
+        final file = await controller.takePicture();
+        return normalizeCameraCapture(
+          io.File(file.path),
+          physical: physical,
+          sensorOrientation: sensor,
+          isFrontCamera: isFront,
+        );
+      });
+      if (!_closed && normalized != null) pop(ImageMedia(file: normalized));
+    } catch (error, stack) {
+      _captureError(error, stack);
+    } finally {
+      _capturing = false;
+      _safeNotify();
     }
   }
 
-  /// Switches to video and starts recording, with sound when the microphone allows.
+  /// Starts an allowed video capture, with sound when available.
   Future<void> takeVideo() async {
-    if (recording) return;
-    photo = false;
-    notifyListeners();
-    final ctrl = await ensureAudio();
-    if (ctrl == null) return;
+    if (_closed || _capturing || recording || filter == XAssetKind.image) {
+      return;
+    }
+    _capturing = true;
+    _photo = false;
+    _safeNotify();
     try {
-      await ctrl.startVideoRecording();
-      recording = true;
-      notifyListeners();
-    } on XCameraException catch (e, st) {
-      Log.tag('camera').e('startVideoRecording failed', error: e, stackTrace: st);
-      error = e.description ?? strings.cameraError;
-      notifyListeners();
-    } catch (e, st) {
-      Log.tag('camera').e('startVideoRecording unexpected failure', error: e, stackTrace: st);
-      error = strings.cameraError;
-      notifyListeners();
+      final controller = await ensureAudio();
+      if (_closed || controller == null) return;
+      await session.useController(
+        (controller) => controller.startVideoRecording(),
+      );
+    } catch (error, stack) {
+      _captureError(error, stack);
+    } finally {
+      _capturing = false;
+      _safeNotify();
     }
   }
 
-  /// Stops the recording and pops with the video, or starts one when none is
-  /// running.
+  /// Returns the recording, or starts one if capture is idle.
   Future<void> endVideo() async {
+    if (_closed || _capturing || filter == XAssetKind.image) return;
     if (!recording) {
       await takeVideo();
       return;
     }
-    final ctrl = controller.value;
-    if (ctrl == null) return;
+    _capturing = true;
+    _safeNotify();
     try {
-      final xFile = await ctrl.stopVideoRecording();
-      recording = false;
-      photo = true;
-      notifyListeners();
-      pop(VideoMedia(file: io.File(xFile.path)));
-    } on XCameraException catch (e, st) {
-      Log.tag('camera').e('stopVideoRecording failed', error: e, stackTrace: st);
-      recording = false;
-      photo = true;
-      error = e.description ?? strings.cameraError;
-      notifyListeners();
-    } catch (e, st) {
-      Log.tag('camera').e('stopVideoRecording unexpected failure', error: e, stackTrace: st);
-      recording = false;
-      photo = true;
-      error = strings.cameraError;
-      notifyListeners();
+      final file = await session.useController(
+        (controller) => controller.stopVideoRecording(),
+      );
+      if (!_closed && file != null) pop(VideoMedia(file: io.File(file.path)));
+    } catch (error, stack) {
+      _captureError(error, stack);
+    } finally {
+      _capturing = false;
+      _photo = filter != XAssetKind.video;
+      _safeNotify();
     }
   }
 
-  /// The camera reopened with sound, or without it when that fails; absent when
-  /// neither opens.
-  Future<XCameraController?> ensureAudio() async {
-    final current = controller.value;
-    if (current == null) return null;
-    if (current.enableAudio) return current;
+  /// Reopens the shared owner's controller for audio when necessary.
+  Future<XCameraController?> ensureAudio() => session.ensureAudio();
 
-    final description = current.description;
-    final preset = current.resolutionPreset;
+  Future<void> _cancelRecording() => _cancellation ??= session
+      .stopRecording()
+      .catchError((Object error, StackTrace stack) {
+        Log.tag('camera')
+            .w('cancel recording failed', error: error, stackTrace: stack);
+      });
 
-    controller.value = null;
-    notifyListeners();
-    await current.dispose();
-
-    final next = await _tryInitController(description, preset, audio: true) ??
-        await _tryInitController(description, preset, audio: false);
-    controller.value = next;
-    if (next == null) error = strings.cameraError;
-    notifyListeners();
-    return next;
-  }
-
-  Future<XCameraController?> _tryInitController(
-    XCameraDescription description,
-    XResolutionPreset preset, {
-    required bool audio,
-  }) async {
-    final ctrl = XCameraController(description, preset, enableAudio: audio);
-    try {
-      await ctrl.initialize();
-      await ctrl.lockCaptureOrientation(DeviceOrientation.portraitUp);
-    } on XCameraException catch (e, st) {
-      Log.tag('camera').w(
-        '_tryInitController failed',
-        fields: {'audio': audio, 'cameraId': description.id},
-        error: e,
-        stackTrace: st,
-      );
-      // initialize() already disposes on failure; nothing extra here.
-      return null;
-    }
-    // If the page was popped during init, the caller will never get
-    // a chance to assign this controller anywhere — release the
-    // native device claim now so the next push doesn't hit device_busy.
-    if (disposed) {
-      Log.tag('camera').i(
-        '_tryInitController completed after page dispose; releasing',
-        fields: {'cameraId': description.id, 'audio': audio},
-      );
-      await ctrl.dispose();
-      return null;
-    }
-    return ctrl;
+  @override
+  void onDetach() {
+    _cancelRecording();
+    super.onDetach();
   }
 
   Widget _buildMicPermissionHint() {
@@ -332,13 +323,6 @@ class CameraPage with Screen<XMedia?>, Emitter {
       child: MicPermissionBanner(
         label: strings.cameraTapToEnableMic,
         onTap: () async {
-          // Native picks between the in-app system prompt and a
-          // Settings deep-link based on whether the OS will still
-          // surface a prompt; either path lands here with the
-          // post-call granted state. Refresh happens on
-          // AppLifecycleState.resumed too, but poll directly on
-          // return for snappier feedback when the user grants
-          // and immediately comes back.
           await XCameraController.requestAudioPermission();
           await _refreshMicPermission();
         },
@@ -353,8 +337,13 @@ class CameraPage with Screen<XMedia?>, Emitter {
 
   @override
   void dispose() {
-    controller.value?.dispose();
-    controller.dispose();
+    _removeActiveListeners();
+    session.removeListener(_sessionListener);
+    if (_ownsSession) {
+      session.dispose();
+    } else {
+      _cancelRecording();
+    }
     super.dispose();
   }
 
@@ -374,7 +363,9 @@ class CameraPage with Screen<XMedia?>, Emitter {
             onTap: () {},
             child: Card(
               color: const Color(0xFF000000),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               clipBehavior: Clip.antiAlias,
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 540),
@@ -415,7 +406,9 @@ class CameraPage with Screen<XMedia?>, Emitter {
     // native side reports landscape preview dims, so flip the
     // AspectRatio to 4:3 there — the Card constraint at maxWidth: 540
     // still keeps the dialog tidy.
-    final cameraAspect = MediaHost.current.isWideScreen(context) ? 4 / 3 : 3 / 4;
+    final cameraAspect = MediaHost.current.isWideScreen(context)
+        ? 4 / 3
+        : 3 / 4;
 
     return Stack(
       children: [
@@ -433,18 +426,16 @@ class CameraPage with Screen<XMedia?>, Emitter {
             ),
           ),
         ),
-        Dock.topLeft(
-          child: Padding(
-            padding: const EdgeInsets.only(left: 24, top: 48),
-            child: _Rotating(
-              orientation: orientation,
-              child: FlashButton(
-                onPress: toggleFlash,
-                on: flashOn,
+        if (filter != XAssetKind.video)
+          Dock.topLeft(
+            child: Padding(
+              padding: const EdgeInsets.only(left: 24, top: 48),
+              child: _Rotating(
+                orientation: orientation,
+                child: FlashButton(onPress: toggleFlash, on: flashOn),
               ),
             ),
           ),
-        ),
         Dock.bottom(
           bottom: 56,
           child: Column(
@@ -452,13 +443,14 @@ class CameraPage with Screen<XMedia?>, Emitter {
             mainAxisSize: MainAxisSize.min,
             children: [
               _buildMicPermissionHint(),
-              Opacity(
-                opacity: recording ? 0 : 1,
-                child: PhotoVideoSwap(
-                  isPhoto: photo,
-                  onChanged: recording ? (_) {} : setPhoto,
+              if (filter == null)
+                Opacity(
+                  opacity: recording ? 0 : 1,
+                  child: PhotoVideoSwap(
+                    isPhoto: photo,
+                    onChanged: recording ? (_) {} : setPhoto,
+                  ),
                 ),
-              ),
               const SizedBox(height: 6),
               Row(
                 children: [
@@ -474,8 +466,13 @@ class CameraPage with Screen<XMedia?>, Emitter {
                     child: Center(
                       child: CameraButton(
                         value: cameraButtonState,
-                        onPress: takePhoto,
-                        onLongPress: recording ? null : takeVideo,
+                        onPress: _capturing ? null : takePhoto,
+                        onLongPress:
+                            _capturing ||
+                                recording ||
+                                filter == XAssetKind.image
+                            ? null
+                            : takeVideo,
                       ),
                     ),
                   ),
@@ -484,7 +481,7 @@ class CameraPage with Screen<XMedia?>, Emitter {
                     child: Opacity(
                       opacity: recording ? 0 : 1,
                       child: _CircleButton(
-                        onPress: recording ? null : flipCamera,
+                        onPress: _capturing || recording ? null : flipCamera,
                         child: const Icon(CupertinoIcons.arrow_2_circlepath),
                       ),
                     ),
@@ -542,9 +539,9 @@ class _Rotating extends StatelessWidget {
   }
 
   static double _turnsFor(DeviceOrientation o) => switch (o) {
-        DeviceOrientation.portraitUp => 0,
-        DeviceOrientation.landscapeLeft => 0.25,
-        DeviceOrientation.portraitDown => 0.5,
-        DeviceOrientation.landscapeRight => -0.25,
-      };
+    DeviceOrientation.portraitUp => 0,
+    DeviceOrientation.landscapeLeft => 0.25,
+    DeviceOrientation.portraitDown => 0.5,
+    DeviceOrientation.landscapeRight => -0.25,
+  };
 }
