@@ -182,7 +182,8 @@ class CameraPage with Screen<XMedia?>, Emitter {
     notifyListeners();
   }
 
-  /// Takes a photo and pops with it.
+  /// Takes a photo and pops with it; in video mode starts or ends the recording
+  /// instead.
   Future<void> takePhoto() async {
     final ctrl = controller.value;
     if (ctrl == null) return;
@@ -237,7 +238,8 @@ class CameraPage with Screen<XMedia?>, Emitter {
     }
   }
 
-  /// Stops recording and pops with the video.
+  /// Stops the recording and pops with the video, or starts one when none is
+  /// running.
   Future<void> endVideo() async {
     if (!recording) {
       await takeVideo();

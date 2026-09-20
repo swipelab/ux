@@ -14,7 +14,7 @@ class PhotoVideoSwap extends StatefulWidget {
 
   /// Whether photo is chosen.
   final bool isPhoto;
-  /// Called on a tap with the other choice, true for photo.
+  /// Called with the chosen mode, true for photo, on a tap or a settled swipe.
   final ValueChanged<bool> onChanged;
 
   @override
