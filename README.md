@@ -21,7 +21,7 @@ library of its own:
 | `image.dart`, `video.dart` | probes, `XVideoPlayer`, `XVideoExporter` |
 | `keyboard.dart` | `XKeyboard` |
 | `log.dart` | console and HTTP sinks |
-| `media.dart` | `MediaHost`, the media picker (`MediaPickerPage`), the camera (`CameraPage`, `normalizeCameraCapture`), the compose page (`ComposePage`, `ComposeEntry`, `XMedia`), the gallery transition (`GalleryTransition`, `GallerySource`, `DismissCarrier`), the image editors (`Editor`, crop, draw, text), `Touch`, `CountOdometer`, `MediaCommandsBar`, `MicPermissionBanner`, EXIF orientation, `VideoEditValues` |
+| `media.dart` | `MediaHost`, the media picker with its live camera cell (`MediaPickerPage`, `CameraCell`, `CameraCellSource`), the camera and shared session (`CameraPage`, `CameraSession`, `normalizeCameraCapture`), the compose page (`ComposePage`, `ComposeEntry`, `XMedia`), the gallery transition (`GalleryTransition`, `GallerySource`, `DismissCarrier`), the image editors (`Editor`, crop, draw, text), `Touch`, `CountOdometer`, `MediaCommandsBar`, `MicPermissionBanner`, EXIF orientation, `VideoEditValues` |
 | `notifications.dart` | `XNotifications` |
 | `scanner.dart` | `XScanner` |
 | `screen_sources.dart` | `XScreenSources` |
