@@ -7,6 +7,7 @@ export 'src/media/camera/camera_button.dart';
 export 'src/media/camera/camera_capture.dart';
 export 'src/media/camera/camera_guideline.dart';
 export 'src/media/camera/camera_page.dart';
+export 'src/media/camera/camera_session.dart';
 export 'src/media/camera/camera_thumb.dart';
 export 'src/media/camera/flash_button.dart';
 export 'src/media/camera/photo_video_swap.dart';

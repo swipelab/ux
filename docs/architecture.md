@@ -40,6 +40,28 @@ Conventions:
 | `XShortcuts` — per-conversation **Direct Share** targets in the OS share sheet. One Dart surface, `donate(targets, category)` / `clear()`, over two unrelated OS mechanisms. **Android**: dynamic shortcuts — the caller's ordered top-N replaces the set wholesale (`ShortcutManagerCompat.setDynamicShortcuts`, capped at `getMaxShortcutCountPerActivity`); each is long-lived, carries a `Person` + `LocusIdCompat` keyed by the caller's id, an adaptive-bitmap icon decoded from `iconPath`, and the caller's `category` — which the consuming app's `share-targets.xml` must also declare. The shortcut's own intent (a launcher tap) is the package launch intent; the share sheet instead routes to the `<share-target>` activity with `EXTRA_SHORTCUT_ID`. A shortcut the user pinned to their home screen is not the app's to delete, so `clear()` removes the dynamic set and *disables* whatever is pinned (`FLAG_MATCH_PINNED` → `disableShortcuts`) — otherwise a logout would leave the previous account's names and faces sitting on the launcher; `donate` re-enables the ids it publishes, so signing back in restores them. **iOS**: SiriKit donation — one `INSendMessageIntent` per target wrapped in an outgoing `INInteraction`, `conversationIdentifier` = the caller's id (what the consuming share extension reads back off `NSExtensionContext.intent`), `speakableGroupName` = the label, `INImage` from `iconPath`, and `INInteraction.identifier` = the caller's id so a re-donation replaces rather than accumulates. Donations are ranked by recency, so the list is donated tail-first; `clear()` is `INInteraction.delete(with:)` on the plugin's own group identifier, which is also what keeps `category` an Android-only argument. **macOS**: `supported` is false — AppKit's share menu has no conversation suggestions. Consumer: banlu's dialog list, donating its four most recent conversations | [lib/src/shortcuts.dart](../lib/src/shortcuts.dart) | [android/.../ShortcutsPlugin.kt](../android/src/main/kotlin/io/swipelab/ux/ShortcutsPlugin.kt) | [darwin/ux/Sources/ux/iOS/ShortcutsPlugin.swift](../darwin/ux/Sources/ux/iOS/ShortcutsPlugin.swift) (iOS only) |
 | `XFile`, navi — see source | [lib/src/](../lib/src/) | mixed | mixed |
 
+### Camera session ownership
+
+`package:ux/media.dart` exposes `CameraSession`, the owner of a live camera
+controller and its native allocation. `CameraPage()` creates and disposes its
+own session. `CameraPage(session: session)` borrows one: the lending surface
+(such as a picker) keeps ownership and disposes it when that surface closes.
+Borrowing an initialized session preserves its controller and texture.
+
+Preview surfaces listen to the session's current value. Audio replacement
+publishes absence before releasing the old controller, then publishes its
+replacement on the same lens; an audio initialization failure retries without
+sound. Lens changes and `useController` operations serialize with replacement
+and disposal. Closing the owner rejects new work immediately and releases any
+in-flight initialization before its disposal future completes. Borrowed page
+closure stops that page's recording and removes its listeners without closing
+the session.
+
+`CameraPage.filter` uses `XAssetKind`: image-only capture has no video switch
+or long-press recording, video-only capture has no still mode, and null permits
+both. Foreground microphone refresh and physical-orientation observation live
+with the active page.
+
 ### Apple packaging — two SPM products
 
 `darwin/ux` vends `ux` and `ux_extension`. `ux_extension`
