@@ -7,7 +7,7 @@ import 'package:ux/gallery.dart';
 import 'package:ux/log.dart';
 import 'package:ux/src/media/camera/camera_page.dart';
 import 'package:ux/src/media/camera/camera_session.dart';
-import 'package:ux/src/media/camera/camera_thumb.dart';
+import 'package:ux/src/media/camera/camera_cell.dart';
 import 'package:ux/src/media/compose/compose_entry.dart';
 import 'package:ux/src/media/compose/compose_page.dart';
 import 'package:ux/src/media/count_odometer.dart';
@@ -103,6 +103,7 @@ class MediaPickerPage
   CameraSession? _cameraSession;
   Future<void> _cameraRelease = Future.value();
   bool _cameraBorrowed = false;
+  final _cameraSource = CameraCellSource();
   bool _routePending = false;
   bool _dismissing = false;
   bool get _closed => disposed || popped || _dismissing;
@@ -435,7 +436,11 @@ class MediaPickerPage
       final XMedia? media;
       _cameraBorrowed = true;
       try {
-        media = await CameraPage(session: session, filter: filter).push();
+        media = await CameraPage(
+          session: session,
+          filter: filter,
+          cellSource: _cameraSource,
+        ).push();
       } finally {
         _cameraBorrowed = false;
         unawaited(_reconcileCamera());
@@ -516,6 +521,7 @@ class MediaPickerPage
               viewKind: PickerViewKind.grid,
               camera: _cameraSession?.value == null ? null : _cameraSession,
               onCamera: handleCameraTap,
+              cameraSource: _cameraSource,
               permission: _permission,
               onManage: handleManageLimited,
               cameraDenied: _cameraPermission == false,
@@ -698,6 +704,7 @@ class _Grid extends StatefulWidget {
     required this.viewKind,
     required this.camera,
     required this.onCamera,
+    required this.cameraSource,
     required this.permission,
     required this.onManage,
     required this.cameraDenied,
@@ -714,6 +721,7 @@ class _Grid extends StatefulWidget {
   final PickerViewKind viewKind;
   final CameraSession? camera;
   final VoidCallback onCamera;
+  final CameraCellSource cameraSource;
   final XGalleryPermission? permission;
   final VoidCallback onManage;
   final bool cameraDenied;
@@ -771,18 +779,10 @@ class _GridState extends State<_Grid> {
           ),
           delegate: SliverChildBuilderDelegate((context, index) {
             if (camera != null && index == 0) {
-              return Touch(
-                onPress: widget.onCamera,
-                child: CameraThumb(
-                  controller: camera,
-                  child: Align(
-                    alignment: Alignment.topRight,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Icon(CupertinoIcons.camera, color: colors.onMedia),
-                    ),
-                  ),
-                ),
+              return CameraCell(
+                source: widget.cameraSource,
+                session: camera,
+                onTap: widget.onCamera,
               );
             }
             final asset = widget.assets[index - (camera == null ? 0 : 1)];
