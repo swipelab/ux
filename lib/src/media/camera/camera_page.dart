@@ -3,6 +3,8 @@ import 'dart:io' as io;
 import 'package:flutter/foundation.dart';
 import 'package:ux/gallery.dart';
 import 'package:ux/src/media/camera/camera_session.dart';
+import 'package:ux/src/media/camera/camera_cell.dart';
+import 'package:ux/src/media/camera/camera_flight.dart';
 
 import 'package:ux/src/media/camera/camera_capture.dart';
 import 'package:ux/src/media/design.dart';
@@ -27,7 +29,7 @@ import 'package:ux/sensor.dart';
 /// [XMedia], or with nothing when closed.
 class CameraPage with Screen<XMedia?>, Emitter {
   /// Borrows [session] when supplied; otherwise owns a new session.
-  CameraPage({CameraSession? session, this.filter})
+  CameraPage({CameraSession? session, this.filter, this.cellSource})
     : session = session ?? CameraSession(),
       _ownsSession = session == null,
       _photo = filter != XAssetKind.video;
@@ -35,6 +37,11 @@ class CameraPage with Screen<XMedia?>, Emitter {
   /// A supplied session remains owned by the caller after this page closes.
   final CameraSession session;
   final bool _ownsSession;
+
+  /// The picker cell lending its live preview through the route transition.
+  final CameraCellSource? cellSource;
+  Rect? _cellRect;
+  final _previewSlot = GlobalKey();
 
   /// Restricts capture to this kind; null permits photos and videos.
   final XAssetKind? filter;
@@ -79,7 +86,45 @@ class CameraPage with Screen<XMedia?>, Emitter {
     Animation<double> animation,
     Widget child,
   ) {
-    return ScreenTransitions.responsive(context, animation, child);
+    final source = _cellRect;
+    if (source == null) {
+      return ScreenTransitions.responsive(context, animation, child);
+    }
+    // Navigator measures an incoming route offstage before its first visible frame.
+    if (ModalRoute.of(context)?.offstage != true) cellSource!.cover();
+    final t = Curves.easeOutCubic.transform(animation.value);
+    return ListenableBuilder(
+      listenable: this,
+      builder: (context, _) {
+        if (error != null) return Opacity(opacity: t, child: child);
+        return CameraFlight(
+          source: cellSource?.rect ?? source,
+          target: _previewSlot,
+          progress: t,
+          chrome: child,
+          preview: IgnorePointer(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8 * (1 - t)),
+              child: CameraThumb(
+                controller: controller,
+                child: Stack(
+                  children: [
+                    Opacity(
+                      opacity: t,
+                      child: CustomPaint(
+                        painter: CameraGuidelinePainter(),
+                        child: const SizedBox.expand(),
+                      ),
+                    ),
+                    Opacity(opacity: 1 - t, child: const CameraCellIcon()),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -90,6 +135,7 @@ class CameraPage with Screen<XMedia?>, Emitter {
   @override
   void onPush() {
     super.onPush();
+    _cellRect = cellSource?.rect;
     session.addListener(_sessionListener);
     _initCamera();
     if (filter != XAssetKind.image) _refreshMicPermission();
@@ -343,6 +389,12 @@ class CameraPage with Screen<XMedia?>, Emitter {
       : (recording ? CameraButtonState.recording : CameraButtonState.video);
 
   @override
+  void onRemoved() {
+    cellSource?.uncover();
+    super.onRemoved();
+  }
+
+  @override
   void dispose() {
     _removeActiveListeners();
     session.removeListener(_sessionListener);
@@ -423,13 +475,12 @@ class CameraPage with Screen<XMedia?>, Emitter {
           child: Center(
             child: AspectRatio(
               aspectRatio: cameraAspect,
-              child: CustomPaint(
-                foregroundPainter: CameraGuidelinePainter(),
-                child: Hero(
-                  tag: 'camera',
-                  child: CameraThumb(controller: controller),
-                ),
-              ),
+              child: _cellRect != null
+                  ? SizedBox.expand(key: _previewSlot)
+                  : CustomPaint(
+                      foregroundPainter: CameraGuidelinePainter(),
+                      child: CameraThumb(controller: controller),
+                    ),
             ),
           ),
         ),

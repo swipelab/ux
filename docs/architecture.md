@@ -76,6 +76,19 @@ single-item `ComposePage` with the picker's purpose and submission handler;
 the picker filter also restricts capture. Confirmation dismisses the picker
 with the editor's results.
 
+The picker lends `CameraPage` its `CameraCellSource`. The page's
+`buildTransition` interpolates the live preview's bounds and corner radius,
+fades the cell icon out and the camera chrome in, and reverses on cancel.
+The cell retains its layout but yields painting, hit testing and semantics
+only once the camera route is onstage; `onRemoved` returns them to the cell.
+The native session remains owned by the picker throughout the flight.
+
+Hosts render `Screen.buildTransition` with their route animation and call
+`Screen.onRemoved` after the exit animation. `XRouter`/`ScreenStack` and a
+Navigator route using `ScreenSlot` satisfy this contract without a Hero
+controller or host-specific camera animation. The Navigator route retains
+the picker while covered (`maintainState: true`).
+
 Picker permission views use `MediaColors`, `MediaText.body` and the host's
 `MediaStrings`: `cameraAccessRationale`, `photoAccessTitle`, `allowPhotoAccess`,
 `openSettings`, `limitedPhotosRationale` and `manage`. The camera and
