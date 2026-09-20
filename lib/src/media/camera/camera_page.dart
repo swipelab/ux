@@ -229,7 +229,7 @@ class CameraPage with Screen<XMedia?>, Emitter {
     _capturing = true;
     _safeNotify();
     try {
-      final normalized = await session.useController((controller) async {
+      final capture = await session.useController((controller) async {
         final physical = XSensor.orientation;
         final sensor = controller.description.sensorOrientation;
         final isFront = controller.description.lens == XCameraLens.front;
@@ -237,14 +237,21 @@ class CameraPage with Screen<XMedia?>, Emitter {
           flashOn && !isFront ? XFlashMode.always : XFlashMode.off,
         );
         final file = await controller.takePicture();
-        return normalizeCameraCapture(
-          io.File(file.path),
+        return (
+          file: file,
           physical: physical,
           sensorOrientation: sensor,
           isFrontCamera: isFront,
         );
       });
-      if (!_closed && normalized != null) pop(ImageMedia(file: normalized));
+      if (capture == null) return;
+      final normalized = await normalizeCameraCapture(
+        io.File(capture.file.path),
+        physical: capture.physical,
+        sensorOrientation: capture.sensorOrientation,
+        isFrontCamera: capture.isFrontCamera,
+      );
+      if (!_closed) pop(ImageMedia(file: normalized));
     } catch (error, stack) {
       _captureError(error, stack);
     } finally {

@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io' as io;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -96,6 +98,36 @@ void main() {
     page.dispose();
     await page.session.dispose();
   });
+
+  test(
+    'the owner releases its camera while a borrowed still is normalizing',
+    () async {
+      final session = _Session();
+      final page = CameraPage(session: session)..onPush();
+      await session.initialize();
+      final file = _PendingCaptureFile();
+      final capture = io.IOOverrides.runZoned(
+        page.takePhoto,
+        createFile: (_) => file,
+      );
+      await file.readStarted.future;
+      page.pop();
+      page.dispose();
+      final closing = session.dispose();
+      try {
+        await expectLater(
+          closing.timeout(const Duration(seconds: 1)),
+          completes,
+        );
+        expect(backend.liveHandles, isEmpty);
+        expect(backend.listeners, 0);
+      } finally {
+        file.bytes.completeError(const io.FileSystemException('capture removed'));
+        await capture;
+        await closing;
+      }
+    },
+  );
 
   test(
     'standalone open and cancel cycles release their sessions and listeners',
@@ -311,6 +343,17 @@ void main() {
 
 class _Session extends CameraSession {
   bool get hasObservers => hasListeners;
+}
+
+class _PendingCaptureFile extends Fake implements io.File {
+  final readStarted = Completer<void>();
+  final bytes = Completer<Uint8List>();
+
+  @override
+  Future<Uint8List> readAsBytes() {
+    readStarted.complete();
+    return bytes.future;
+  }
 }
 
 class _Host extends FakeMediaHost {
