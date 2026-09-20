@@ -5,6 +5,7 @@ library;
 
 export 'src/media/camera/camera_button.dart';
 export 'src/media/camera/camera_capture.dart';
+export 'src/media/camera/camera_cell.dart';
 export 'src/media/camera/camera_guideline.dart';
 export 'src/media/camera/camera_page.dart';
 export 'src/media/camera/camera_session.dart';

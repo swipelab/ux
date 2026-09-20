@@ -298,7 +298,11 @@ void main() {
     ) async {
       await mount(tester, navigator);
       try {
-        final source = tester.getRect(find.byType(CameraThumb));
+        final CameraCellSource cellSource = tester
+            .widget<CameraCell>(find.byType(CameraCell))
+            .source;
+        final source = cellSource.rect!;
+        expectRect(source, tester.getRect(find.byType(CameraThumb)));
         const target = Rect.fromLTWH(0, 162, 390, 520);
         final session = tester
             .widget<CameraThumb>(find.byType(CameraThumb))
@@ -308,6 +312,7 @@ void main() {
         await tester.tap(find.byType(CameraThumb));
         await tester.pump();
         final cameraPage = host.screens.last as CameraPage;
+        expect(cameraPage.cellSource, same(cellSource));
         expect(find.byType(CameraThumb), findsOneWidget);
         expect(paintedTextures(), [textureId]);
         await expectLater(
