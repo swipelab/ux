@@ -42,6 +42,7 @@ class CameraPage with Screen<XMedia?>, Emitter {
   final CameraCellSource? cellSource;
   Rect? _cellRect;
   final _previewSlot = GlobalKey();
+  CurvedAnimation? _flightAnimation;
 
   /// Restricts capture to this kind; null permits photos and videos.
   final XAssetKind? filter;
@@ -92,7 +93,12 @@ class CameraPage with Screen<XMedia?>, Emitter {
     }
     // Navigator measures an incoming route offstage before its first visible frame.
     if (ModalRoute.of(context)?.offstage != true) cellSource!.cover();
-    final t = Curves.easeOutCubic.transform(animation.value);
+    final flight = _flightAnimation ??= CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeOutCubic.flipped,
+    );
+    final t = flight.value;
     return ListenableBuilder(
       listenable: this,
       builder: (context, _) {
@@ -402,6 +408,7 @@ class CameraPage with Screen<XMedia?>, Emitter {
 
   @override
   void dispose() {
+    _flightAnimation?.dispose();
     _removeActiveListeners();
     session.removeListener(_sessionListener);
     if (_ownsSession) {

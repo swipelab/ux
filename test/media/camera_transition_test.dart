@@ -326,7 +326,10 @@ void main() {
           if (milliseconds != 0) {
             await tester.pump(const Duration(milliseconds: 75));
           }
-          final t = Curves.easeOutCubic.transform(value);
+          final curve = direction == 'close'
+              ? Curves.easeOutCubic.flipped
+              : Curves.easeOutCubic;
+          final t = curve.transform(value);
           await expectLater(
             find.byKey(host.boundary),
             matchesGoldenFile(
@@ -371,6 +374,7 @@ void main() {
         for (final ms in [0, 75, 150, 225, 300]) {
           await frame('open', ms, ms / 300);
         }
+        await tester.pumpAndSettle();
         await tester.tap(find.byIcon(CupertinoIcons.xmark).last);
         expect(cameraPage.popped, isTrue);
         await tester.pump();
@@ -408,7 +412,10 @@ void main() {
         (host.screens.last as CameraPage).pop();
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 150));
-        expectRect(tester.getRect(find.byType(CameraThumb)), midpoint);
+        expectRect(
+          tester.getRect(find.byType(CameraThumb)),
+          Rect.lerp(source, target, Curves.easeOutCubic.flipped.transform(.5))!,
+        );
         await expectLater(
           find.byKey(host.boundary),
           matchesGoldenFile('goldens/camera_${name}_wide_close_150.png'),
