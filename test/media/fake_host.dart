@@ -104,6 +104,20 @@ class FakeMediaHost
   @override
   String get cameraTapToEnableMic => 'Tap to enable microphone';
   @override
+  String get cameraAccessRationale =>
+      'Allow camera access to take photos and videos.';
+  @override
+  String get photoAccessTitle => 'Access Your Photos';
+  @override
+  String get allowPhotoAccess => 'Allow Photos';
+  @override
+  String get openSettings => 'Open Settings';
+  @override
+  String get limitedPhotosRationale =>
+      "You've allowed access to selected photos.";
+  @override
+  String get manage => 'Manage';
+  @override
   String get addACaption => 'Add a caption';
   @override
   String get delete => 'Delete';

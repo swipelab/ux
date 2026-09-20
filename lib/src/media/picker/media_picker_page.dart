@@ -1,22 +1,30 @@
 import 'dart:async';
 
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
+import 'package:ux/camera.dart';
+import 'package:ux/gallery.dart';
+import 'package:ux/log.dart';
+import 'package:ux/src/media/camera/camera_page.dart';
+import 'package:ux/src/media/camera/camera_session.dart';
+import 'package:ux/src/media/camera/camera_cell.dart';
+import 'package:ux/src/media/compose/compose_entry.dart';
+import 'package:ux/src/media/compose/compose_page.dart';
+import 'package:ux/src/media/count_odometer.dart';
 import 'package:ux/src/media/design.dart';
+import 'package:ux/src/media/host.dart';
 import 'package:ux/src/media/picker/albums_screen.dart';
 import 'package:ux/src/media/picker/picker_grid_item.dart';
+import 'package:ux/src/media/picker/picker_grid_layout.dart';
 import 'package:ux/src/media/picker/picker_permission_view.dart';
 import 'package:ux/src/media/picker/picker_view_kind.dart';
 import 'package:ux/src/media/picker/selected_strip.dart';
 import 'package:ux/src/media/picker/selection_context.dart';
 import 'package:ux/src/media/picker/thumbnail_cache.dart';
-import 'package:flutter/cupertino.dart';
-import 'package:ux/src/media/compose/compose_entry.dart';
-import 'package:ux/src/media/compose/compose_page.dart';
-import 'package:ux/src/media/count_odometer.dart';
 import 'package:ux/src/media/touch.dart';
 import 'package:ux/src/media/transition/gallery_source.dart';
 import 'package:ux/src/media/x_media.dart';
 import 'package:ux/ux.dart';
-import 'package:ux/gallery.dart';
 
 /// Cross-fade duration when switching between grid and selected strip.
 /// Matches telegram's `updateDisplayMode` curve
@@ -40,22 +48,11 @@ Widget _pillVisibilityTransition(Widget child, Animation<double> anim) {
   );
 }
 
-/// Banlu's full-screen media picker — replaces `image_picker`'s system
-/// sheet. Faithful port of telegram-iOS's `MediaPickerScreen` (grid +
-/// multi-select up to [maxSelection]).
+/// A media-library sheet with a live camera cell and [maxSelection] picks.
 ///
-/// Mounts as a half-sheet via [SheetScreen]: the page enters at
-/// `sheetCollapsedExtent` of the viewport, drag-up expands it
-/// fullscreen, drag-down past the threshold dismisses it. Scroll on
-/// the inner grid coordinates with the sheet's pan via the screen's
-/// [SheetController].
-///
-/// On send, pushes [ComposePage.borrowed] with the selected assets'
-/// borrowed [ComposeEntry]s; if the user sends from compose, the
-/// picker pops with the per-entry results. Cancel from compose
-/// returns the user to the picker with edits intact. Cancel from the
-/// picker itself pops null. Mirrors telegram's "editor on top of
-/// gallery" stacking.
+/// The sheet and grid coordinate scrolling through [SheetController]. Gallery
+/// edits remain picker-owned across editor cancellation. Captures are composed
+/// independently of gallery selections; confirmation dismisses the picker.
 class MediaPickerPage
     with
         Screen<List<ComposeResult>?>,
@@ -72,15 +69,10 @@ class MediaPickerPage
   /// How many assets may be picked.
   final int maxSelection;
 
-  /// Restrict the grid + albums to a single asset kind. `null` shows
-  /// photos and videos (the default chat-attachment flow); avatar
-  /// pickers pass [XAssetKind.image] to hide videos.
+  /// Restricts the library and camera output; null permits photos and videos.
   final XAssetKind? filter;
 
-  /// Compose-submit handler — forwarded into the pushed
-  /// [ComposePage.borrowed]. The chat-side provider inserts the
-  /// placeholder bubble(s) and returns their cids; compose uses
-  /// those for the close hero destination.
+  /// Called by the editor before confirmation to provide send-transition targets.
   final ComposeSubmitCallback? onSubmit;
 
   /// Which compose surface to show after picking. Avatar flows reuse the
@@ -102,21 +94,27 @@ class MediaPickerPage
 
   final List<XAsset> _assets = <XAsset>[];
   XGalleryPermission? _permission;
-  bool _loading = true;
   StreamSubscription<void>? _librarySub;
+  ValueListenable<AppLifecycleState>? _lifecycle;
+  AppLifecycleState? _lastLifecycle;
+  int _photoRefresh = 0;
+  int _cameraRefresh = 0;
+  bool? _cameraPermission;
+  CameraSession? _cameraSession;
+  Future<void> _cameraRelease = Future.value();
+  bool _cameraBorrowed = false;
+  final _cameraSource = CameraCellSource();
+  bool _routePending = false;
+  bool _dismissing = false;
+  bool get _closed => disposed || popped || _dismissing;
+  bool get _hasPhotos =>
+      _permission == XGalleryPermission.granted ||
+      _permission == XGalleryPermission.limited;
 
   DisplayMode _displayMode = DisplayMode.all;
+
   /// Whether the grid or the strip of picked assets shows.
   DisplayMode get displayMode => _displayMode;
-
-  /// Mirrors `MediaPickerScreenImpl.isDismissing` in telegram-iOS
-  /// [MediaPickerScreen.swift:2004](../../../../projects/telegram-ios/submodules/MediaPickerUI/Sources/MediaPickerScreen.swift#L2004),
-  /// set at `sendSelected`'s outer entry (line 2293). Reset 1.5s later
-  /// via [_isDismissingReset] (a `Chrono` so it pauses while the app is
-  /// backgrounded and stays inert in widget tests where the binding
-  /// lifecycle isn't `resumed`).
-  bool _isDismissing = false;
-  Chrono? _isDismissingReset;
 
   /// Toggle pill is hidden in single-select mode (1:1 with telegram —
   /// `MediaPickerScreen.swift:2628` only adds it when multiselect is on)
@@ -141,10 +139,11 @@ class MediaPickerPage
   /// asset's file the first time and caches the entry; subsequent
   /// calls return the same instance so re-opening compose carries
   /// crop / draw / caption state across.
-  Future<ComposeEntry> _entryFor(XAsset asset) async {
+  Future<ComposeEntry?> _entryFor(XAsset asset) async {
     final existing = _entriesById[asset.id];
     if (existing != null) return existing;
     final file = await XGallery.resolveFile(asset.id);
+    if (_closed) return null;
     final media = switch (asset.kind) {
       XAssetKind.image => ImageMedia(file: file),
       XAssetKind.video => VideoMedia(file: file),
@@ -191,71 +190,126 @@ class MediaPickerPage
   @override
   void onPush() {
     super.onPush();
-    _librarySub = XGallery.libraryChanges.listen((_) => _onLibraryChanged());
-    _bootstrap();
+    _librarySub = XGallery.libraryChanges.listen((_) => _refreshPhotos());
+    _lifecycle = MediaHost.current.lifecycle;
+    _lastLifecycle = _lifecycle!.value;
+    _lifecycle!.addListener(_onLifecycle);
+    _refreshAccess();
   }
 
-  Future<void> _bootstrap() async {
-    final perm = await XGallery.permission();
-    _permission = perm;
-    if (perm == XGalleryPermission.granted ||
-        perm == XGalleryPermission.limited) {
-      await Future.wait([_loadAssetsForCurrentAlbum(), _loadAlbums()]);
+  void _onLifecycle() {
+    final next = _lifecycle!.value;
+    final previous = _lastLifecycle;
+    _lastLifecycle = next;
+    if (next == AppLifecycleState.resumed && previous != next) {
+      _refreshAccess();
     }
-    _loading = false;
-    notifyListeners();
   }
 
-  /// Reactive reload triggered by the native `photoLibraryDidChange`
-  /// observer — covers MANAGE add/remove, Photos.app edits, and
-  /// Settings flips with one path. Fires only when we actually have
-  /// access to fetch (granted / limited).
-  Future<void> _onLibraryChanged() async {
-    final perm = _permission;
-    if (perm != XGalleryPermission.granted &&
-        perm != XGalleryPermission.limited) {
-      return;
-    }
-    await Future.wait([_loadAssetsForCurrentAlbum(), _loadAlbums()]);
-    notifyListeners();
+  Future<void> _refreshAccess() =>
+      Future.wait([_refreshPhotos(), _refreshCamera()]);
+
+  void _safeNotify() {
+    if (!_closed) notifyListeners();
   }
 
-  /// Triggered by the placeholder's `Allow Access` button when the
-  /// system has never been asked — first-time prompt; subsequent
-  /// denials require Settings.
-  Future<void> handleAllowAccess() async {
-    final perm = await XGallery.requestPermission();
-    _permission = perm;
-    if (perm == XGalleryPermission.granted ||
-        perm == XGalleryPermission.limited) {
-      await _loadAssetsForCurrentAlbum();
+  Future<void> _refreshPhotos({bool request = false}) async {
+    if (_closed) return;
+    final revision = ++_photoRefresh;
+    try {
+      final permission = await (request
+          ? XGallery.requestPermission()
+          : XGallery.permission());
+      if (_closed || revision != _photoRefresh) return;
+      _permission = permission;
+      unawaited(_reconcileCamera());
+      if (!_hasPhotos) {
+        _assets.clear();
+        _albums = const [];
+        _safeNotify();
+        return;
+      }
+      _safeNotify();
+      final (assets, albums) = await (
+        XGallery.assets(
+          albumId: _currentAlbum?.id,
+          filter: filter,
+          start: 0,
+          end: 200,
+        ),
+        XGallery.albums(filter: filter),
+      ).wait;
+      if (_closed || revision != _photoRefresh) return;
+      _assets
+        ..clear()
+        ..addAll(assets);
+      _albums = albums;
+      _safeNotify();
+    } catch (error, stack) {
+      Log.tag('picker')
+          .w('photo refresh failed', error: error, stackTrace: stack);
     }
-    notifyListeners();
   }
+
+  Future<void> _releaseCamera() {
+    final session = _cameraSession;
+    _cameraSession = null;
+    if (session != null) {
+      session.removeListener(_safeNotify);
+      _cameraRelease = session.dispose();
+    }
+    return _cameraRelease;
+  }
+
+  Future<void> _refreshCamera({bool request = false}) async {
+    if (_closed) return;
+    final revision = ++_cameraRefresh;
+    try {
+      final granted = await (request
+          ? XCameraController.requestCameraPermission()
+          : XCameraController.cameraPermissionGranted());
+      if (_closed || revision != _cameraRefresh) return;
+      _cameraPermission = granted;
+      await _reconcileCamera();
+    } catch (error, stack) {
+      Log.tag('picker')
+          .w('camera refresh failed', error: error, stackTrace: stack);
+    }
+  }
+
+  Future<void> _reconcileCamera() async {
+    bool shouldOwnSession() =>
+        !_closed &&
+        _cameraPermission == true &&
+        (_cameraBorrowed ? _cameraSession != null : _hasPhotos);
+
+    try {
+      if (!shouldOwnSession()) {
+        final releasing = _releaseCamera();
+        _safeNotify();
+        await releasing;
+        return;
+      }
+      await _cameraRelease;
+      if (!shouldOwnSession()) return;
+      final session = _cameraSession ??= (CameraSession()
+        ..addListener(_safeNotify));
+      await session.initialize();
+      _safeNotify();
+    } catch (error, stack) {
+      Log.tag('picker')
+          .w('camera reconciliation failed', error: error, stackTrace: stack);
+    }
+  }
+
+  /// Requests photo access and reloads the authorized library.
+  Future<void> handleAllowAccess() => _refreshPhotos(request: true);
+
+  /// Requests camera access, opening Settings when a prompt is unavailable.
+  Future<void> handleCameraAccess() => _refreshCamera(request: true);
 
   /// Opens the system sheet that changes which photos the app may read.
-  Future<void> handleManageLimited() async {
-    // Reload is driven by [_onLibraryChanged] via the
-    // `XGallery.libraryChanges` stream, which fires after iOS
-    // commits the new subset.
-    await XGallery.presentLimitedLibraryPicker();
-  }
-
-  Future<void> _loadAssetsForCurrentAlbum() async {
-    final assets = await XGallery.assets(
-      albumId: _currentAlbum?.id,
-      filter: filter,
-      start: 0,
-      end: 200,
-    );
-    _assets
-      ..clear()
-      ..addAll(assets);
-  }
-
-  Future<void> _loadAlbums() async {
-    _albums = await XGallery.albums(filter: filter);
-  }
+  Future<void> handleManageLimited() => XGallery.presentLimitedLibraryPicker();
 
   /// Push the album browser onto the sheet's nested stack
   /// (`host?.push(AlbumsScreen)`); on pop with a non-null result,
@@ -273,25 +327,24 @@ class MediaPickerPage
     // row pops the actual `recents` album so it round-trips through
     // `selectAlbum` and reloads the grid even when the current album
     // is something else.
-    if (picked == null) return;
+    if (_closed || picked == null) return;
     await selectAlbum(picked.id == 'recents' ? null : picked);
   }
 
   /// Switch to [album] (or `null` for Recents) and reload the grid.
   Future<void> selectAlbum(XAlbum? album) async {
-    if (album?.id == _currentAlbum?.id) return;
+    if (_closed || album?.id == _currentAlbum?.id) return;
     _currentAlbum = album;
-    _loading = true;
-    notifyListeners();
-    await _loadAssetsForCurrentAlbum();
-    _loading = false;
-    notifyListeners();
+    await _refreshPhotos();
   }
 
   @override
   void dispose() {
-    _isDismissingReset?.cancel();
+    _dismissing = true;
+    _lifecycle?.removeListener(_onLifecycle);
+    _lifecycle = null;
     _librarySub?.cancel();
+    unawaited(_reconcileCamera());
     _thumbnails.clear();
     for (final e in _entriesById.values) {
       e.dispose();
@@ -307,8 +360,10 @@ class MediaPickerPage
   /// for drag / backdrop dismiss, which the Sheet handles before
   /// calling its `onDismiss` callback).
   Future<void> _animatedPop(List<ComposeResult>? result) async {
+    if (_closed) return;
+    _dismissing = true;
     await sheetController.animateDismiss();
-    pop(result);
+    if (!disposed && !popped) pop(result);
   }
 
   /// Dismisses the sheet and pops without a result.
@@ -350,28 +405,56 @@ class MediaPickerPage
       _sourceRegistry.sourceFor(assetId, _activeViewKind);
 
   Future<void> _openCompose(List<XAsset> assets) async {
-    if (_isDismissing) return;
-    _isDismissing = true;
-    _isDismissingReset?.cancel();
-    _isDismissingReset = Chrono(const Duration(milliseconds: 1500), () {
-      _isDismissing = false;
-    });
-    final entries = <ComposeEntry>[];
-    for (final a in assets) {
-      entries.add(await _entryFor(a));
+    if (_closed || _routePending) return;
+    _routePending = true;
+    try {
+      final entries = <ComposeEntry>[];
+      for (final asset in assets) {
+        final entry = await _entryFor(asset);
+        if (_closed || entry == null) return;
+        entries.add(entry);
+      }
+      final results = await ComposePage.borrowed(
+        entries: entries,
+        initialSourceRect: transitionSourceFor(assets.first.id)?.currentRect,
+        transitionSourceFor: transitionSourceFor,
+        onSubmit: onSubmit,
+        purpose: composePurpose,
+      ).push();
+      if (!_closed && results != null) await _animatedPop(results);
+    } finally {
+      _routePending = false;
     }
-    final results = await ComposePage.borrowed(
-      entries: entries,
-      initialSourceRect: transitionSourceFor(assets.first.id)?.currentRect,
-      transitionSourceFor: transitionSourceFor,
-      onSubmit: onSubmit,
-      purpose: composePurpose,
-    ).push();
-    if (results == null) {
-      // Cancel from compose — picker stays open with edits intact.
-      return;
+  }
+
+  /// Captures with the grid's session and composes independently of selection.
+  Future<void> handleCameraTap() async {
+    final session = _cameraSession;
+    if (_closed || _routePending || session?.value == null) return;
+    _routePending = true;
+    try {
+      final XMedia? media;
+      _cameraBorrowed = true;
+      try {
+        media = await CameraPage(
+          session: session,
+          filter: filter,
+          cellSource: _cameraSource,
+        ).push();
+      } finally {
+        _cameraBorrowed = false;
+        unawaited(_reconcileCamera());
+      }
+      if (_closed || media == null) return;
+      final results = await ComposePage(
+        assets: [media],
+        onSubmit: onSubmit,
+        purpose: composePurpose,
+      ).push();
+      if (!_closed && results != null) await _animatedPop(results);
+    } finally {
+      _routePending = false;
     }
-    await _animatedPop(results);
   }
 
   @override
@@ -383,10 +466,12 @@ class MediaPickerPage
         child: Column(
           children: [
             _TopBar(
-              title: _currentAlbum?.name ?? 'Recents',
+              title: _permission == null || _hasPhotos
+                  ? _currentAlbum?.name ?? 'Recents'
+                  : null,
               onCancel: handleCancel,
               onTitleTap: _albums.length > 1 ? openAlbums : null,
-              toggle: _toggleVisible
+              toggle: _hasPhotos && _toggleVisible
                   ? _SelectedToggle(
                       count: selection.count,
                       active: _displayMode == DisplayMode.selected,
@@ -395,13 +480,12 @@ class MediaPickerPage
                   : null,
             ),
             Expanded(child: _buildBody()),
-            ListenableBuilder(
-              listenable: selection,
-              builder: (context, _) => _SendFooter(
-                count: selection.count,
-                onSend: handleSend,
+            if (_hasPhotos)
+              ListenableBuilder(
+                listenable: selection,
+                builder: (context, _) =>
+                    _SendFooter(count: selection.count, onSend: handleSend),
               ),
-            ),
           ],
         ),
       ),
@@ -409,20 +493,15 @@ class MediaPickerPage
   }
 
   Widget _buildBody() {
-    if (_loading) return const SizedBox.expand();
-    final perm = _permission;
-    if (perm != XGalleryPermission.granted &&
-        perm != XGalleryPermission.limited) {
+    final permission = _permission;
+    if (permission != null && !_hasPhotos) {
       return PickerPermissionPlaceholder(
-        state: perm,
+        state: permission,
         onAllow: handleAllowAccess,
         onSettings: XGallery.openSettings,
       );
     }
-    // Both children stay mounted across the cross-fade so the grid
-    // retains its scroll position when the user round-trips through
-    // `.selected` mode.
-    final body = Stack(
+    return Stack(
       fit: StackFit.expand,
       children: [
         AnimatedOpacity(
@@ -440,6 +519,13 @@ class MediaPickerPage
               sourceRegistry: _sourceRegistry,
               onTap: handleAssetTap,
               viewKind: PickerViewKind.grid,
+              camera: _cameraSession?.value == null ? null : _cameraSession,
+              onCamera: handleCameraTap,
+              cameraSource: _cameraSource,
+              permission: _permission,
+              onManage: handleManageLimited,
+              cameraDenied: _cameraPermission == false,
+              onCameraAccess: handleCameraAccess,
             ),
           ),
         ),
@@ -461,15 +547,6 @@ class MediaPickerPage
         ),
       ],
     );
-    if (perm == XGalleryPermission.limited) {
-      return Column(
-        children: [
-          PickerLimitedBanner(onManage: handleManageLimited),
-          Expanded(child: body),
-        ],
-      );
-    }
-    return body;
   }
 }
 
@@ -481,7 +558,7 @@ class _TopBar extends StatelessWidget {
     this.toggle,
   });
 
-  final String title;
+  final String? title;
   final VoidCallback onCancel;
 
   /// Null when there's ≤1 album to switch to — the title renders as
@@ -495,13 +572,16 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final title = this.title;
     final tap = onTitleTap;
     final titleStyle = TextStyle(
       color: colors.textPrimary,
       fontSize: 17,
       fontWeight: FontWeight.w600,
     );
-    final Widget titleContent = tap == null
+    final Widget titleContent = title == null
+        ? const SizedBox.shrink()
+        : tap == null
         ? Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: Text(title, style: titleStyle),
@@ -622,6 +702,13 @@ class _Grid extends StatefulWidget {
     required this.sourceRegistry,
     required this.onTap,
     required this.viewKind,
+    required this.camera,
+    required this.onCamera,
+    required this.cameraSource,
+    required this.permission,
+    required this.onManage,
+    required this.cameraDenied,
+    required this.onCameraAccess,
   });
 
   final List<XAsset> assets;
@@ -632,6 +719,13 @@ class _Grid extends StatefulWidget {
   final PickerSourceRegistry sourceRegistry;
   final ValueChanged<XAsset> onTap;
   final PickerViewKind viewKind;
+  final CameraSession? camera;
+  final VoidCallback onCamera;
+  final CameraCellSource cameraSource;
+  final XGalleryPermission? permission;
+  final VoidCallback onManage;
+  final bool cameraDenied;
+  final VoidCallback onCameraAccess;
 
   @override
   State<_Grid> createState() => _GridState();
@@ -665,27 +759,47 @@ class _GridState extends State<_Grid> {
     final dpr = MediaQuery.devicePixelRatioOf(context);
     final cellPx = (cellLogical * dpr).round();
 
-    return GridView.builder(
+    final camera = widget.camera;
+    return CustomScrollView(
       controller: _scroll,
       physics: widget.sheetController.physics,
-      padding: EdgeInsets.zero,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: cols,
-        mainAxisSpacing: spacing,
-        crossAxisSpacing: spacing,
-        childAspectRatio: 1,
-      ),
-      itemCount: widget.assets.length,
-      itemBuilder: (context, index) => PickerGridItem(
-        asset: widget.assets[index],
-        cellSizePx: cellPx,
-        selection: widget.selection,
-        cache: widget.cache,
-        entriesById: widget.entriesById,
-        sourceRegistry: widget.sourceRegistry,
-        onTap: widget.onTap,
-        viewKind: widget.viewKind,
-      ),
+      slivers: [
+        if (widget.permission == XGalleryPermission.limited)
+          SliverToBoxAdapter(
+            child: PickerLimitedBanner(onManage: widget.onManage),
+          ),
+        if (widget.cameraDenied)
+          SliverToBoxAdapter(
+            child: PickerCameraBanner(onAllow: widget.onCameraAccess),
+          ),
+        SliverGrid(
+          gridDelegate: PickerGridDelegate(
+            columns: cols,
+            hasCamera: camera != null,
+          ),
+          delegate: SliverChildBuilderDelegate((context, index) {
+            if (camera != null && index == 0) {
+              return CameraCell(
+                source: widget.cameraSource,
+                session: camera,
+                onTap: widget.onCamera,
+              );
+            }
+            final asset = widget.assets[index - (camera == null ? 0 : 1)];
+            return PickerGridItem(
+              key: ValueKey(asset.id),
+              asset: asset,
+              cellSizePx: cellPx,
+              selection: widget.selection,
+              cache: widget.cache,
+              entriesById: widget.entriesById,
+              sourceRegistry: widget.sourceRegistry,
+              onTap: widget.onTap,
+              viewKind: widget.viewKind,
+            );
+          }, childCount: widget.assets.length + (camera == null ? 0 : 1)),
+        ),
+      ],
     );
   }
 }
@@ -701,18 +815,12 @@ class _SendFooter extends StatelessWidget {
     if (count == 0) return const SizedBox.shrink();
     return Container(
       color: colors.surface,
-      padding: EdgeInsets.symmetric(
-        horizontal: space.md,
-        vertical: space.sm,
-      ),
+      padding: EdgeInsets.symmetric(horizontal: space.md, vertical: space.sm),
       child: Row(
         children: [
           Text(
             '$count selected',
-            style: TextStyle(
-              color: colors.textPrimary,
-              fontSize: 14,
-            ),
+            style: TextStyle(color: colors.textPrimary, fontSize: 14),
           ),
           const Spacer(),
           Touch(

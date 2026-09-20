@@ -2,16 +2,16 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 
-import '../file.dart' show XFile;
-import '../log.dart' show Log;
-import 'camera.dart'
+import 'package:ux/src/file.dart' show XFile;
+import 'package:ux/src/log.dart' show Log;
+import 'package:ux/src/camera/camera.dart'
     show
         XCameraDescription,
         XCameraException,
         XCameraLens,
         XFlashMode,
         XResolutionPreset;
-import 'camera_backend.dart';
+import 'package:ux/src/camera/camera_backend.dart';
 
 final _log = Log.tag('camera');
 
@@ -156,6 +156,14 @@ class MethodChannelXCameraBackend implements XCameraBackend {
     final m = await _invokeMap('stopVideoRecording', {'handle': handle});
     return XFile(m['path'] as String);
   }
+
+  @override
+  Future<bool> cameraPermissionGranted() =>
+      _invoke<bool>('cameraPermissionStatus');
+
+  @override
+  Future<bool> requestCameraPermission() =>
+      _invoke<bool>('requestCameraPermission');
 
   @override
   Future<bool> audioPermissionGranted() => _invoke<bool>('audioPermissionStatus');

@@ -1,3 +1,25 @@
+### 0.16.0
+- **`media.dart` holds the live picker camera cell.** `MediaPickerPage`
+  shows a two-row preview with granted or limited photo access, lends its
+  `CameraSession` to `CameraPage`, and sends captures through `ComposePage`
+  with the picker's filter, purpose and submission handler. `CameraCell`
+  and `CameraCellSource` carry the animated preview between grid and camera;
+  cancellation returns to the picker with its gallery selection intact.
+  `CameraPage` supports borrowed sessions and image-only or video-only capture.
+  Permission views use host colours, text and strings, and foreground return
+  refreshes camera and photo access. `XCameraController` exposes
+  `cameraPermissionGranted()` without prompting or opening a session, and
+  `requestCameraPermission()` with a Settings fallback. New development
+  dependency: `cupertino_icons` for test fonts. Breaking: hosts implement
+  `MediaStrings.cameraAccessRationale`, `photoAccessTitle`, `allowPhotoAccess`,
+  `openSettings`, `limitedPhotosRationale` and `manage`, render
+  `Screen.buildTransition` and call `Screen.onRemoved` after exit (through
+  `XRouter`/`ScreenStack` or a Navigator route using `ScreenSlot` with
+  `maintainState: true`), and declare Android `android.permission.CAMERA`,
+  Apple `NSCameraUsageDescription` in `Info.plist`, and macOS
+  `com.apple.security.device.camera` in debug and release entitlements; custom `XCameraBackend` implementations
+  supply `cameraPermissionGranted()` and `requestCameraPermission()`.
+
 ### 0.15.0
 - **`media.dart` holds the media picker and the camera.** `MediaPickerPage`
   with its albums screen, grid cell, selected strip, permission views,

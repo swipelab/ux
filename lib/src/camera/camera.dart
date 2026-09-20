@@ -4,11 +4,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart' show Widget;
 
-import '../file.dart' show XFile;
-import '../log.dart' show Log;
-import '../sensor.dart' show XSensor;
-import 'camera_backend.dart';
-import 'camera_preview.dart' show XCameraPreview;
+import 'package:ux/src/file.dart' show XFile;
+import 'package:ux/src/log.dart' show Log;
+import 'package:ux/src/sensor.dart' show XSensor;
+import 'package:ux/src/camera/camera_backend.dart';
+import 'package:ux/src/camera/camera_preview.dart' show XCameraPreview;
 
 final _log = Log.tag('camera');
 
@@ -381,6 +381,15 @@ class XCameraController extends ValueNotifier<XCameraValue> {
     }
   }
 
+  /// Reads camera authorization without prompting or creating a session.
+  static Future<bool> cameraPermissionGranted() =>
+      XCameraBackend.instance.cameraPermissionGranted();
+
+  /// Requests camera access, opening Settings when another prompt is unavailable.
+  /// Returns current authorization; re-query on foreground return from Settings.
+  static Future<bool> requestCameraPermission() =>
+      XCameraBackend.instance.requestCameraPermission();
+
   /// Whether the user has granted mic permission to the app. Static
   /// because the answer is global to the process — useful from UI that
   /// needs the status before any controller has been created (e.g.
@@ -397,10 +406,8 @@ class XCameraController extends ValueNotifier<XCameraValue> {
   static Future<bool> requestAudioPermission() =>
       XCameraBackend.instance.requestAudioPermission();
 
-  /// Deep-link into the system Settings page so the user can grant
-  /// mic permission. Static because it doesn't depend on any active
-  /// controller — useful from the banner tap before the controller
-  /// has finished initialising.
+  /// Opens camera privacy Settings on macOS and app Settings on mobile.
+  /// Re-query authorization on foreground return.
   static Future<void> openSystemSettings() =>
       XCameraBackend.instance.openSettings();
 

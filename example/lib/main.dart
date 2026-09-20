@@ -5,6 +5,7 @@ import 'package:ux/keyboard.dart';
 
 import 'package:ux_example/audio_capture_page.dart';
 import 'package:ux_example/audio_sink_page.dart';
+import 'package:ux_example/camera_permission_page.dart';
 import 'package:ux_example/keep_awake_page.dart';
 import 'package:ux_example/screen_sources_page.dart';
 import 'package:ux_example/secure_store_page.dart';
@@ -63,6 +64,13 @@ class _ChatScreenState extends State<ChatScreen> {
       appBar: AppBar(
         title: Text('XKeyboard Chat'),
         actions: [
+          IconButton(
+            icon: Icon(Icons.camera_alt),
+            tooltip: 'Camera permission',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const CameraPermissionPage()),
+            ),
+          ),
           IconButton(
             icon: Icon(Icons.mic),
             tooltip: 'XAudioCapture',

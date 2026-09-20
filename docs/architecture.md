@@ -21,7 +21,7 @@ Conventions:
 |---|---|---|---|
 | `XKeyboard` — frame-accurate keyboard tracking + interactive dismiss | [lib/src/keyboard.dart](../lib/src/keyboard.dart) | [android/src/main/jni/keyboard_bridge.c](../android/src/main/jni/keyboard_bridge.c) | [darwin/ux/Sources/ux/iOS/KeyboardPlugin.swift](../darwin/ux/Sources/ux/iOS/KeyboardPlugin.swift) |
 | `XSensors` — gyro / accelerometer over JNI/FFI | [lib/src/sensor.dart](../lib/src/sensor.dart) | [android/src/main/jni/sensor_bridge.c](../android/src/main/jni/sensor_bridge.c) | [darwin/ux/Sources/ux/iOS/SensorPlugin.swift](../darwin/ux/Sources/ux/iOS/SensorPlugin.swift) |
-| `XCamera` — CameraX (Android) / AVCaptureSession (Apple) | [lib/src/camera/](../lib/src/camera/) | [android/src/main/kotlin/io/swipelab/ux/camera/](../android/src/main/kotlin/io/swipelab/ux/camera/) | [darwin/ux/Sources/ux/Camera/](../darwin/ux/Sources/ux/Camera/) |
+| `XCamera` — CameraX (Android) / AVCaptureSession (Apple). `XCameraController.cameraPermissionGranted()` queries authorization without prompting, microphone access or session creation. `requestCameraPermission()` prompts when permitted, otherwise opens camera/app Settings, and returns current authorization; re-query on foreground return. Hosts declare Android `android.permission.CAMERA`, Apple `NSCameraUsageDescription`, and macOS `com.apple.security.device.camera` in debug and release entitlements. | [lib/src/camera/](../lib/src/camera/) | [android/src/main/kotlin/io/swipelab/ux/camera/](../android/src/main/kotlin/io/swipelab/ux/camera/) | [darwin/ux/Sources/ux/Camera/](../darwin/ux/Sources/ux/Camera/) |
 | `XAudioCapture` — live PCM from one source: mono 16 kHz Int16 frames of 320 samples (20 ms) plus an RMS level, over `ux/audio_capture` (+`/events`). `sources()` lists the hardware inputs the OS names — Core Audio devices by UID, `AVAudioSession` ports by uid, `AudioDeviceInfo` ids behind `mic:<id>` — plus one `playback` source where the platform taps its own output, and `start({sourceId})` opens it: omitted is the system's default microphone, one tap at a time, no mixing, and an id naming nothing fails `unknown_source`. A microphone is a *tap*, not an owner of the capture graph: Apple installs it on the `AVAudioEngine` input node and resamples the hardware format through an `AVAudioConverter`; Android reads an `AudioRecord` on `VOICE_COMMUNICATION`, which leaves the communication route to whoever holds it. It runs under the platform voice processing — Apple's `setVoiceProcessingEnabled`, Android's `AcousticEchoCanceler` — so what the device plays does not re-enter as local speech. Playback is that output, captured raw: macOS opens an audio-only `SCStream` under the screen-recording grant, excluding the host's own output so a dub cannot loop; Android 10+ opens an `AudioPlaybackCaptureConfiguration` under a media-projection consent the capture plugin asks for itself, held up by `AudioProjectionService` and unrelated to a screen share's `ScreenShareService`; iOS lists no playback source at all. The level is computed in Dart from the samples so both platforms report the same number. `state` (`idle`/`running`/`interrupted`) is the single source of truth and never resumes on its own — iOS drops to `interrupted` on `AVAudioSession` interruption (call, Siri) and on `oldDeviceUnavailable` route changes, Android on `AudioRecordingConfiguration.isClientSilenced` (API 29+) or a failed `AudioRecord.read`, and both on the engine's configuration-change notification. macOS has no `AVAudioSession`, so there the configuration change (default input swapped or removed) is the only interruption signal; a playback tap drops to `interrupted` when the system ends the stream or the projection. Hosts declare their own access: `RECORD_AUDIO`, `NSMicrophoneUsageDescription`, and `com.apple.security.device.audio-input` plus `com.apple.security.screen-capture` for a sandboxed macOS playback tap. Consumer: transcript.chat's live captioning, reading the mic while flutter_webrtc holds it | [lib/src/audio/x_audio_capture.dart](../lib/src/audio/x_audio_capture.dart) | [android/.../AudioCapturePlugin.kt](../android/src/main/kotlin/io/swipelab/ux/AudioCapturePlugin.kt) | [darwin/ux/Sources/ux/Audio/AudioCapturePlugin.swift](../darwin/ux/Sources/ux/Audio/AudioCapturePlugin.swift) |
 | `XAudioSink` — push-based playback of mono 16 kHz Int16 PCM over `ux/audio_sink` (+`/events`): `enqueue(Int16List)` appends a chunk and opens the output on the first one, so a stream is audible long before it ends; `flush()` silences and empties the queue — including chunks Dart has not handed over yet, which a generation counter drops on their way to the channel — and releases the output; `drained` fires when the queue plays out, leaving the output open so the next chunk of a conversation skips the device warm-up. A *writer* on the output, not an owner of the route: Apple schedules converted buffers on an `AVAudioPlayerNode` connected to the main mixer, which resamples to the hardware rate, and on iOS only widens the shared `AVAudioSession` category to include playback with no added options, so a call keeps its `.voiceChat` mode and speaker choice; Android streams into an `AudioTrack` on `USAGE_MEDIA` + `CONTENT_TYPE_SPEECH` and never requests audio focus, so it neither claims the communication route nor ducks what is already playing — a consumer wanting exclusive playback asks for focus itself. `state` (`idle`/`playing`/`interrupted`) never resumes on its own: iOS drops to `interrupted` on an `AVAudioSession` interruption, macOS when a configuration change leaves the engine stopped, Android on a failed `AudioTrack.write`. Consumer: transcript.chat's dubbing, playing a TTS byte stream while a call holds the microphone | [lib/src/audio/x_audio_sink.dart](../lib/src/audio/x_audio_sink.dart) | [android/.../AudioSinkPlugin.kt](../android/src/main/kotlin/io/swipelab/ux/AudioSinkPlugin.kt) | [darwin/ux/Sources/ux/Audio/AudioSinkPlugin.swift](../darwin/ux/Sources/ux/Audio/AudioSinkPlugin.swift) |
 | `XScanner` — ZXing QR scanner (Android) / VNDetect (Apple) | [lib/src/scanner.dart](../lib/src/scanner.dart) | [android/src/main/kotlin/io/swipelab/ux/ScannerPlugin.kt](../android/src/main/kotlin/io/swipelab/ux/ScannerPlugin.kt) | [darwin/ux/Sources/ux/iOS/ScannerPlugin.swift](../darwin/ux/Sources/ux/iOS/ScannerPlugin.swift) |
@@ -39,6 +39,61 @@ Conventions:
 | `XImageProbe` — upright dimensions and a downscaled PNG of an image file, in one native round-trip that **never materialises the full-resolution bitmap**. Flutter's own route (`instantiateImageCodec` over the bytes) costs 4 bytes per *source* pixel even to read the intrinsic size or make a 200px thumbnail — ~190 MB for a 48-megapixel photo, several times what an **app extension** is allowed. Apple reads the header with `CGImageSourceCopyPropertiesAtIndex` and renders through `CGImageSourceCreateThumbnailAtIndex` (`kCGImageSourceCreateThumbnailWithTransform` applies the EXIF orientation, so reported dimensions and pixels agree); Android measures with `inJustDecodeBounds` and decodes subsampled via `inSampleSize`, then rotates by the `ExifInterface` orientation. Both allocate for the *output*. Lives in `ux_extension` for the same reason `XVideoProbe` does. `supported` is false off iOS/macOS/Android, where the caller keeps its own decode path. Consumer: banlu's outgoing-media preview (inline thumb + `thumbFile`), on every host | [lib/src/image/x_image_probe.dart](../lib/src/image/x_image_probe.dart) | [android/.../ImageProbePlugin.kt](../android/src/main/kotlin/io/swipelab/ux/ImageProbePlugin.kt) | [darwin/ux/Sources/ux_extension/ImageProbePlugin.swift](../darwin/ux/Sources/ux_extension/ImageProbePlugin.swift) |
 | `XShortcuts` — per-conversation **Direct Share** targets in the OS share sheet. One Dart surface, `donate(targets, category)` / `clear()`, over two unrelated OS mechanisms. **Android**: dynamic shortcuts — the caller's ordered top-N replaces the set wholesale (`ShortcutManagerCompat.setDynamicShortcuts`, capped at `getMaxShortcutCountPerActivity`); each is long-lived, carries a `Person` + `LocusIdCompat` keyed by the caller's id, an adaptive-bitmap icon decoded from `iconPath`, and the caller's `category` — which the consuming app's `share-targets.xml` must also declare. The shortcut's own intent (a launcher tap) is the package launch intent; the share sheet instead routes to the `<share-target>` activity with `EXTRA_SHORTCUT_ID`. A shortcut the user pinned to their home screen is not the app's to delete, so `clear()` removes the dynamic set and *disables* whatever is pinned (`FLAG_MATCH_PINNED` → `disableShortcuts`) — otherwise a logout would leave the previous account's names and faces sitting on the launcher; `donate` re-enables the ids it publishes, so signing back in restores them. **iOS**: SiriKit donation — one `INSendMessageIntent` per target wrapped in an outgoing `INInteraction`, `conversationIdentifier` = the caller's id (what the consuming share extension reads back off `NSExtensionContext.intent`), `speakableGroupName` = the label, `INImage` from `iconPath`, and `INInteraction.identifier` = the caller's id so a re-donation replaces rather than accumulates. Donations are ranked by recency, so the list is donated tail-first; `clear()` is `INInteraction.delete(with:)` on the plugin's own group identifier, which is also what keeps `category` an Android-only argument. **macOS**: `supported` is false — AppKit's share menu has no conversation suggestions. Consumer: banlu's dialog list, donating its four most recent conversations | [lib/src/shortcuts.dart](../lib/src/shortcuts.dart) | [android/.../ShortcutsPlugin.kt](../android/src/main/kotlin/io/swipelab/ux/ShortcutsPlugin.kt) | [darwin/ux/Sources/ux/iOS/ShortcutsPlugin.swift](../darwin/ux/Sources/ux/iOS/ShortcutsPlugin.swift) (iOS only) |
 | `XFile`, navi — see source | [lib/src/](../lib/src/) | mixed | mixed |
+
+### Camera session ownership
+
+`package:ux/media.dart` exposes `CameraSession`, the owner of a live camera
+controller and its native allocation. `CameraPage()` creates and disposes its
+own session. `CameraPage(session: session)` borrows one: the lending surface
+(such as a picker) keeps ownership and disposes it when that surface closes.
+Borrowing an initialized session preserves its controller and texture.
+
+Preview surfaces listen to the session's current value. Audio replacement
+publishes absence before releasing the old controller, then publishes its
+replacement on the same lens; an audio initialization failure retries without
+sound. Lens changes and `useController` operations serialize with replacement
+and disposal. Closing the owner rejects new work immediately and releases any
+in-flight initialization before its disposal future completes. Borrowed page
+closure stops that page's recording and removes its listeners without closing
+the session.
+
+`CameraPage.filter` uses `XAssetKind`: image-only capture has no video switch
+or long-press recording, video-only capture has no still mode, and null permits
+both. Foreground microphone refresh and physical-orientation observation live
+with the active page.
+
+`MediaPickerPage` owns the gallery cell's session and lends it to `CameraPage`.
+With granted or limited photo access, the camera occupies one column and two
+rows, including in an empty album. Photo denial replaces the library with its
+permission prompt; the camera cell and permission row are hidden. Session
+reconciliation requires an open picker, confirmed camera access, and either an
+existing loan to `CameraPage` or known
+granted/limited photo access. A revoked loan is not replaced until it returns;
+the loan ends before compose opens. Empty device discovery reserves no grid
+space. Foreground transitions refresh both permissions; refresh results apply
+only while current and while the picker remains open. Captures enter a
+single-item `ComposePage` with the picker's purpose and submission handler;
+the picker filter also restricts capture. Confirmation dismisses the picker
+with the editor's results.
+
+The picker lends `CameraPage` its `CameraCellSource`. The page's
+`buildTransition` interpolates the live preview's bounds and corner radius,
+fades the cell icon out and the camera chrome in, and reverses on cancel.
+The cell retains its layout but yields painting, hit testing and semantics
+only once the camera route is onstage; `onRemoved` returns them to the cell.
+The native session remains owned by the picker throughout the flight.
+
+Hosts render `Screen.buildTransition` with their route animation and call
+`Screen.onRemoved` after the exit animation. `XRouter`/`ScreenStack` and a
+Navigator route using `ScreenSlot` satisfy this contract without a Hero
+controller or host-specific camera animation. The Navigator route retains
+the picker while covered (`maintainState: true`).
+
+Picker permission views use `MediaColors`, `MediaText.body` and the host's
+`MediaStrings`: `cameraAccessRationale`, `photoAccessTitle`, `allowPhotoAccess`,
+`openSettings`, `limitedPhotosRationale` and `manage`. The camera and
+limited-library actions use `manage`; photo access uses `allowPhotoAccess`
+before the first prompt and `openSettings` after denial or restriction.
 
 ### Apple packaging — two SPM products
 

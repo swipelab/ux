@@ -32,6 +32,7 @@ class CameraPlugin :
     companion object {
         private const val PERMISSION_REQUEST_CODE = 0xC2A0
         private const val PREFS_NAME = "ux.camera"
+        private const val PREF_CAMERA_ASKED = "camera_asked"
         private const val PREF_AUDIO_ASKED = "audio_asked"
     }
 
@@ -143,8 +144,14 @@ class CameraPlugin :
             "takePicture" -> handleTakePicture(call, result)
             "startVideoRecording" -> handleStartVideo(call, result)
             "stopVideoRecording" -> handleStopVideo(call, result)
-            "audioPermissionStatus" -> result.success(isAudioGranted())
-            "requestAudioPermission" -> handleRequestAudioPermission(result)
+            "cameraPermissionStatus" -> result.success(isPermissionGranted(Manifest.permission.CAMERA))
+            "requestCameraPermission" -> handleRequestPermission(
+                Manifest.permission.CAMERA, PREF_CAMERA_ASKED, result,
+            )
+            "audioPermissionStatus" -> result.success(isPermissionGranted(Manifest.permission.RECORD_AUDIO))
+            "requestAudioPermission" -> handleRequestPermission(
+                Manifest.permission.RECORD_AUDIO, PREF_AUDIO_ASKED, result,
+            )
             "openSettings" -> handleOpenSettings(result)
             else -> result.notImplemented()
         }
@@ -362,50 +369,30 @@ class CameraPlugin :
         act.startActivity(intent)
     }
 
-    private fun isAudioGranted(): Boolean {
+    private fun isPermissionGranted(permission: String): Boolean {
         val ctx = context ?: return false
-        return ContextCompat.checkSelfPermission(
-            ctx, Manifest.permission.RECORD_AUDIO,
-        ) == PackageManager.PERMISSION_GRANTED
+        return ContextCompat.checkSelfPermission(ctx, permission) == PackageManager.PERMISSION_GRANTED
     }
 
-    /// Banner-tap entry point: show the in-app mic prompt when the OS
-    /// will still surface one (fresh install, or first denial without
-    /// "don't ask again"); otherwise deep-link into app Settings.
-    ///
-    /// We track first-ever-asked in SharedPrefs because Android's
-    /// `shouldShowRequestPermissionRationale` returns false in two
-    /// observationally identical states: "never asked yet" and
-    /// "permanently denied". Without the flag, the first banner tap on
-    /// a fresh install would land in the settings fallback before the
-    /// permission entry even exists in the Privacy pane.
-    private fun handleRequestAudioPermission(result: MethodChannel.Result) {
+    private fun handleRequestPermission(
+        permission: String,
+        askedKey: String,
+        result: MethodChannel.Result,
+    ) {
         val act = activity
             ?: return result.error("no_activity", "plugin not attached", null)
-        if (isAudioGranted()) return result.success(true)
-        val prefs = act.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val askedBefore = prefs.getBoolean(PREF_AUDIO_ASKED, false)
-        val rationale = ActivityCompat.shouldShowRequestPermissionRationale(
-            act, Manifest.permission.RECORD_AUDIO,
-        )
-        if (askedBefore && !rationale) {
-            openAppSettings(act)
-            return result.success(false)
-        }
+        if (isPermissionGranted(permission)) return result.success(true)
         if (pending != null) {
             return result.error("in_progress", "another permission request is in flight", null)
         }
-        prefs.edit().putBoolean(PREF_AUDIO_ASKED, true).apply()
-        pending = PendingPermission(
-            primary = Manifest.permission.RECORD_AUDIO,
-            kind = "microphone",
-            cb = { granted -> result.success(granted) },
-        )
-        ActivityCompat.requestPermissions(
-            act,
-            arrayOf(Manifest.permission.RECORD_AUDIO),
-            PERMISSION_REQUEST_CODE,
-        )
+        val prefs = act.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val askedBefore = prefs.getBoolean(askedKey, false)
+        val rationale = ActivityCompat.shouldShowRequestPermissionRationale(act, permission)
+        if (askedBefore && !rationale) {
+            openAppSettings(act)
+            return result.success(isPermissionGranted(permission))
+        }
+        requestPermissions(listOf(permission)) { granted, _ -> result.success(granted) }
     }
 
     private fun requestPermissions(
@@ -425,13 +412,13 @@ class CameraPlugin :
         val hasCamera = toRequest.contains(Manifest.permission.CAMERA)
         val primary = if (hasCamera) Manifest.permission.CAMERA else Manifest.permission.RECORD_AUDIO
         val kind = if (hasCamera) "camera" else "microphone"
-        // Persist the audio-asked flag whenever a mic request leaves
-        // the dispatch queue; the banner-tap path keys off this to tell
-        // "never asked" apart from "permanently denied" later.
+        // Rationale is false both before the first request and after permanent denial.
+        val asked = act.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+        if (hasCamera) asked.putBoolean(PREF_CAMERA_ASKED, true)
         if (toRequest.contains(Manifest.permission.RECORD_AUDIO)) {
-            act.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .edit().putBoolean(PREF_AUDIO_ASKED, true).apply()
+            asked.putBoolean(PREF_AUDIO_ASKED, true)
         }
+        asked.apply()
         pending = PendingPermission(
             primary = primary,
             kind = kind,

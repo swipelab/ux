@@ -93,6 +93,24 @@ class FakeXCameraBackend implements XCameraBackend {
   /// If non-null, [stopVideoRecording] throws this.
   XCameraException? stopVideoRecordingError;
 
+  /// Authorization returned by [cameraPermissionGranted].
+  bool cameraPermission = true;
+
+  /// Authorization returned and stored by [requestCameraPermission].
+  bool requestCameraPermissionResult = true;
+
+  /// Failure returned instead of the configured authorization.
+  XCameraException? cameraPermissionError;
+
+  /// Request failure that leaves authorization unchanged.
+  XCameraException? requestCameraPermissionError;
+
+  /// Number of camera authorization queries.
+  int cameraPermissionCalls = 0;
+
+  /// Number of explicit camera authorization requests.
+  int requestCameraPermissionCalls = 0;
+
   /// Audio permission state returned by [audioPermissionGranted].
   /// Tests mutate this to drive the mic-permission UI banner.
   bool audioPermission = true;
@@ -261,6 +279,23 @@ class FakeXCameraBackend implements XCameraBackend {
 
   @override
   Stream<XCameraEvent> events(int handle) => _controllerFor(handle).stream;
+
+  @override
+  Future<bool> cameraPermissionGranted() async {
+    cameraPermissionCalls += 1;
+    final error = cameraPermissionError;
+    if (error != null) throw error;
+    return cameraPermission;
+  }
+
+  @override
+  Future<bool> requestCameraPermission() async {
+    requestCameraPermissionCalls += 1;
+    final error = requestCameraPermissionError;
+    if (error != null) throw error;
+    cameraPermission = requestCameraPermissionResult;
+    return cameraPermission;
+  }
 
   @override
   Future<bool> audioPermissionGranted() async {
