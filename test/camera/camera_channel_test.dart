@@ -208,6 +208,62 @@ void main() {
       );
     });
 
+    test(
+      'camera authorization uses handle-free calls without audio or sessions',
+      () async {
+        var granted = false;
+        handle((call) {
+          expect(call.arguments, isNull);
+          if (call.method == 'requestCameraPermission') granted = true;
+          return granted;
+        });
+
+        expect(await backend.cameraPermissionGranted(), isFalse);
+        expect(await backend.requestCameraPermission(), isTrue);
+        expect(await backend.cameraPermissionGranted(), isTrue);
+        granted = false;
+        handle((call) => false);
+        expect(await backend.requestCameraPermission(), isFalse);
+        expect(calls.map((call) => call.method), [
+          'cameraPermissionStatus',
+          'requestCameraPermission',
+          'cameraPermissionStatus',
+          'requestCameraPermission',
+        ]);
+      },
+    );
+
+    test('camera permission errors retain platform code and message', () async {
+      handle(
+        (_) => throw PlatformException(
+          code: 'in_progress',
+          message: 'another permission request is in flight',
+        ),
+      );
+      final error = throwsA(
+        isA<XCameraException>()
+            .having((e) => e.code, 'code', 'in_progress')
+            .having(
+              (e) => e.description,
+              'description',
+              'another permission request is in flight',
+            ),
+      );
+
+      await expectLater(backend.cameraPermissionGranted(), error);
+      await expectLater(backend.requestCameraPermission(), error);
+    });
+
+    test(
+      'requestAudioPermission preserves the microphone channel operation',
+      () async {
+        handle((_) => true);
+        expect(await backend.requestAudioPermission(), isTrue);
+        expect(calls.single.method, 'requestAudioPermission');
+        expect(calls.single.arguments, isNull);
+      },
+    );
+
     test('PlatformException maps to XCameraException carrying code/message',
         () async {
       handle((_) => throw PlatformException(
