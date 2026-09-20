@@ -519,6 +519,48 @@ void main() {
   );
 
   testWidgets(
+    'a partially visible destination still receives the current image when capture fails',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final host = _Host(false);
+      MediaHost.current = host;
+      await tester.pumpWidget(host.app);
+      const target = Rect.fromLTWH(-40, 100, 80, 90);
+      var captures = 0;
+      final page = _ProbePage(
+        await _snapshot(tester),
+        _Source(target, () {
+          captures++;
+          return Future<ui.Image?>.error(StateError('capture unavailable'));
+        }),
+      );
+      host.push(page);
+      await tester.pumpAndSettle();
+      page.pop();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 150));
+      await expectLater(
+        find.byKey(host.boundary),
+        matchesGoldenFile('goldens/media_partial_close_150.png'),
+      );
+      await tester.pump(const Duration(milliseconds: 149));
+      final landed = _paintedRect(tester)!;
+      expect(landed.left, closeTo(target.left, .001));
+      expect(landed.top, closeTo(target.top, .001));
+      expect(landed.width, closeTo(target.width, .001));
+      expect(captures, 1);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      host.router.dispose();
+      host.lifecycle.dispose();
+    },
+  );
+
+  testWidgets(
     'interruption preserves the moving pixels; late captures are disposed after removal',
     (tester) async {
       tester.view.physicalSize = const Size(390, 844);
