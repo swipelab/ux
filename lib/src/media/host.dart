@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:ux/src/navi/screen.dart';
 
@@ -21,6 +22,12 @@ abstract class MediaHost {
 
   /// Safe-area and keyboard insets.
   MediaInsets get insets;
+
+  /// The app's lifecycle state.
+  ValueListenable<AppLifecycleState> get lifecycle;
+
+  /// Whether the window is wide enough for the app's wide layout.
+  bool isWideScreen(BuildContext context);
 
   /// Shows [screen] on the app's router and completes with its result.
   Future<T?> push<T>(Screen<T> screen);

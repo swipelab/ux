@@ -1,3 +1,13 @@
+### 0.15.0
+- **`media.dart` holds the media picker and the camera.** `MediaPickerPage`
+  with its albums screen, grid cell, selected strip, permission views,
+  `SelectionContext` and `ThumbnailCache`; `CameraPage` with the shutter, flash
+  and photo/video controls, `CameraThumb` and `normalizeCameraCapture`.
+  `MediaHost` gains `lifecycle` and `isWideScreen`. New dependencies:
+  `collection`, and `swipelab_webp` from the sibling checkout
+  `../swipelab_webp`, so the package is `publish_to: none`. Breaking: a
+  `MediaHost` implements the two new members.
+
 ### 0.14.0
 - **`media.dart` holds the compose page.** `ComposePage` and `ComposeEntry`
   with the crop and draw tool screens and the video trim scrubber; the gallery
