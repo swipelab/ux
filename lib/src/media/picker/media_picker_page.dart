@@ -102,14 +102,13 @@ class MediaPickerPage
   bool? _cameraPermission;
   CameraSession? _cameraSession;
   Future<void> _cameraRelease = Future.value();
+  bool _cameraBorrowed = false;
   bool _routePending = false;
   bool _dismissing = false;
   bool get _closed => disposed || popped || _dismissing;
   bool get _hasPhotos =>
       _permission == XGalleryPermission.granted ||
       _permission == XGalleryPermission.limited;
-  bool get _canPreviewCamera =>
-      _cameraPermission == true && (_permission == null || _hasPhotos);
 
   DisplayMode _displayMode = DisplayMode.all;
 
@@ -278,15 +277,20 @@ class MediaPickerPage
   }
 
   Future<void> _reconcileCamera() async {
+    bool shouldOwnSession() =>
+        !_closed &&
+        _cameraPermission == true &&
+        (_cameraBorrowed ? _cameraSession != null : _hasPhotos);
+
     try {
-      if (!_canPreviewCamera) {
+      if (!shouldOwnSession()) {
         final releasing = _releaseCamera();
         _safeNotify();
         await releasing;
         return;
       }
       await _cameraRelease;
-      if (_closed || !_canPreviewCamera) return;
+      if (!shouldOwnSession()) return;
       final session = _cameraSession ??= (CameraSession()
         ..addListener(_safeNotify));
       await session.initialize();
@@ -335,10 +339,11 @@ class MediaPickerPage
 
   @override
   void dispose() {
+    _dismissing = true;
     _lifecycle?.removeListener(_onLifecycle);
     _lifecycle = null;
     _librarySub?.cancel();
-    _releaseCamera();
+    unawaited(_reconcileCamera());
     _thumbnails.clear();
     for (final e in _entriesById.values) {
       e.dispose();
@@ -427,7 +432,14 @@ class MediaPickerPage
     if (_closed || _routePending || session?.value == null) return;
     _routePending = true;
     try {
-      final media = await CameraPage(session: session, filter: filter).push();
+      final XMedia? media;
+      _cameraBorrowed = true;
+      try {
+        media = await CameraPage(session: session, filter: filter).push();
+      } finally {
+        _cameraBorrowed = false;
+        unawaited(_reconcileCamera());
+      }
       if (_closed || media == null) return;
       final results = await ComposePage(
         assets: [media],

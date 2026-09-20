@@ -1,8 +1,6 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ux/camera.dart';
 import 'package:ux/gallery.dart';
@@ -12,6 +10,7 @@ import 'package:ux/ux.dart';
 
 import 'camera_test_backend.dart';
 import 'fake_host.dart';
+import 'test_fonts.dart';
 
 class _Host extends FakeMediaHost {
   @override
@@ -38,34 +37,9 @@ class _Home with Screen<void> {
   Widget buildPresenter(BuildContext context) => const SizedBox.expand();
 }
 
-Future<void> _loadFonts() async {
-  final config = File('.dart_tool/package_config.json');
-  final packages =
-      (jsonDecode(config.readAsStringSync()) as Map)['packages'] as List;
-  Uri root(String name) => config.absolute.uri.resolve(
-    '${packages.cast<Map>().singleWhere((p) => p['name'] == name)['rootUri']}/',
-  );
-  final flutter = root('flutter');
-  final roboto = FontLoader('Roboto');
-  for (final weight in ['Regular', 'Bold']) {
-    roboto.addFont(
-      File.fromUri(
-        flutter.resolve(
-          '../../bin/cache/artifacts/material_fonts/Roboto-$weight.ttf',
-        ),
-      ).readAsBytes().then((bytes) => ByteData.sublistView(bytes)),
-    );
-  }
-  await roboto.load();
-  final icons = root('cupertino_icons').resolve('assets/CupertinoIcons.ttf');
-  await (FontLoader('packages/cupertino_icons/CupertinoIcons')
-        ..addFont(File.fromUri(icons).readAsBytes().then(ByteData.sublistView)))
-      .load();
-}
-
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  setUpAll(_loadFonts);
+  setUpAll(loadMediaTestFonts);
 
   for (final (name, photos, hasCamera) in [
     ('camera_denied', XGalleryPermission.granted, false),
