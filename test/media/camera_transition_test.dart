@@ -154,11 +154,19 @@ void main() {
     WidgetTester tester,
     bool navigator, {
     Size size = const Size(390, 844),
+    EdgeInsets viewPadding = EdgeInsets.zero,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.padding = FakeViewPadding(
+      top: viewPadding.top,
+      bottom: viewPadding.bottom,
+    );
+    tester.view.viewPadding = tester.view.padding;
+    addTearDown(tester.view.resetPadding);
+    addTearDown(tester.view.resetViewPadding);
     camera = CameraTestBackend();
     XCameraBackend.instance = camera;
     oldGallery = XGallery.backend;
@@ -178,6 +186,7 @@ void main() {
           XAssetThumbnail(bytes: thumbnail, width: 12, height: 8),
     );
     host = _Host(navigator);
+    (host.insets as FakeMediaInsets).viewPadding = viewPadding;
     MediaHost.current = host;
     await tester.pumpWidget(host.app);
     await tester.runAsync(
@@ -235,6 +244,33 @@ void main() {
 
   for (final navigator in [false, true]) {
     final name = navigator ? 'navigator' : 'screen_stack';
+    testWidgets('$name camera flash clears the host top safe area', (
+      tester,
+    ) async {
+      await mount(
+        tester,
+        navigator,
+        size: const Size(393, 852),
+        viewPadding: const EdgeInsets.only(top: 59, bottom: 34),
+      );
+      try {
+        await tester.tap(find.byType(CameraThumb));
+        await tester.pumpAndSettle();
+        await expectLater(
+          find.byKey(host.boundary),
+          matchesGoldenFile('goldens/camera_${name}_top_safe_area.png'),
+        );
+        expect(tester.getTopLeft(find.byType(FlashButton)).dy, 59);
+        final insets = host.insets as FakeMediaInsets;
+        insets.viewPadding = const EdgeInsets.only(top: 83, bottom: 34);
+        insets.notifyListeners();
+        await tester.pump();
+        expect(tester.getTopLeft(find.byType(FlashButton)).dy, 83);
+      } finally {
+        await close(tester);
+      }
+    });
+
     testWidgets('$name short camera keeps controls above the preview', (
       tester,
     ) async {
