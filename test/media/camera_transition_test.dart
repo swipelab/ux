@@ -257,6 +257,42 @@ void main() {
       }
     });
 
+    testWidgets('$name close paints the cell on the flight removal frame', (
+      tester,
+    ) async {
+      await mount(tester, navigator);
+      try {
+        final textureId = tester
+            .widget<Texture>(find.byType(Texture))
+            .textureId;
+        await tester.tap(find.byType(CameraThumb));
+        await tester.pumpAndSettle();
+        (host.screens.last as CameraPage).pop();
+        await tester.pump();
+        final frames = <int, List<int>>{0: paintedTextures()};
+        for (var ms = 16; ms <= 336; ms += 16) {
+          await tester.pump(const Duration(milliseconds: 16));
+          frames[ms] = paintedTextures();
+          if (ms == 304) {
+            expect(find.byType(CameraButton), findsNothing);
+            await expectLater(
+              find.byKey(host.boundary),
+              matchesGoldenFile('goldens/camera_${name}_close_removed.png'),
+            );
+          }
+        }
+        for (final frame in frames.entries) {
+          expect(frame.value, [
+            textureId,
+          ], reason: 'close frame ${frame.key} ms');
+        }
+        expect(camera.createCalls, hasLength(1));
+        expect(camera.disposeCalls, isEmpty);
+      } finally {
+        await close(tester);
+      }
+    });
+
     testWidgets('$name camera flies on open and close with one texture', (
       tester,
     ) async {

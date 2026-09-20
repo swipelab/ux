@@ -12,6 +12,7 @@ class CameraFlight extends StatelessWidget {
     required this.preview,
     required this.background,
     required this.chrome,
+    required this.onDetach,
   });
 
   /// The cell's bounds in screen coordinates.
@@ -32,11 +33,15 @@ class CameraFlight extends StatelessWidget {
   /// Camera controls with a transparent preview slot and background.
   final Widget chrome;
 
+  /// Releases the source before the frame removing this flight is painted.
+  final VoidCallback onDetach;
+
   @override
   Widget build(BuildContext context) => _FlightLayout(
     source: source,
     target: target,
     progress: progress,
+    onDetach: onDetach,
     children: [
       Opacity(opacity: progress, child: background),
       preview,
@@ -50,15 +55,17 @@ class _FlightLayout extends MultiChildRenderObjectWidget {
     required this.source,
     required this.target,
     required this.progress,
+    required this.onDetach,
     required super.children,
   });
   final Rect source;
   final GlobalKey target;
   final double progress;
+  final VoidCallback onDetach;
 
   @override
   RenderObject createRenderObject(BuildContext context) =>
-      _RenderFlight(source, target, progress);
+      _RenderFlight(source, target, progress, onDetach);
 
   @override
   void updateRenderObject(BuildContext context, _RenderFlight renderObject) {
@@ -66,6 +73,7 @@ class _FlightLayout extends MultiChildRenderObjectWidget {
       ..source = source
       ..target = target
       ..progress = progress
+      ..onDetach = onDetach
       ..markNeedsLayout();
   }
 }
@@ -82,12 +90,19 @@ class _RenderFlight extends RenderBox
           RenderBox,
           ContainerBoxParentData<RenderBox>
         > {
-  _RenderFlight(this.source, this.target, this.progress);
+  _RenderFlight(this.source, this.target, this.progress, this.onDetach);
   Rect source;
   GlobalKey target;
   double progress;
+  VoidCallback onDetach;
   late Rect _destination;
   RenderBox get _preview => childAfter(firstChild!)!;
+
+  @override
+  void detach() {
+    super.detach();
+    onDetach();
+  }
 
   @override
   void setupParentData(RenderBox child) {

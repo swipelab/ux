@@ -101,6 +101,7 @@ class CameraPage with Screen<XMedia?>, Emitter {
           source: cellSource?.rect ?? source,
           target: _previewSlot,
           progress: t,
+          onDetach: cellSource!.uncover,
           background: _buildFrame(
             context,
             const SizedBox.expand(),
