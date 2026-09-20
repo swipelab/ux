@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:ux/src/media/design.dart';
+import 'package:ux/src/media/timing.dart';
 import 'package:ux/src/media/compose/video_scrubber.dart';
 import 'package:ux/src/media/x_media.dart';
 import 'package:ux/src/media/compose/compose_constants.dart';
@@ -134,6 +135,7 @@ class ComposePage with Screen<List<ComposeResult>?>, Emitter {
        ownsEntries = true,
        initialSourceRect = null,
        initialSnapshot = null,
+       initialSourceRadius = BorderRadius.zero,
        transitionSourceFor = null;
 
   /// Borrowed: reuses entries owned by the caller (the picker).
@@ -153,6 +155,7 @@ class ComposePage with Screen<List<ComposeResult>?>, Emitter {
     required List<ComposeEntry> entries,
     this.initialSourceRect,
     this.initialSnapshot,
+    this.initialSourceRadius = BorderRadius.zero,
     this.transitionSourceFor,
     this.onSubmit,
     this.purpose = ComposePurpose.mediaMessage,
@@ -179,19 +182,20 @@ class ComposePage with Screen<List<ComposeResult>?>, Emitter {
   final bool ownsEntries;
   final List<ComposeEntry>? _borrowedEntries;
 
-  /// Picker-side bubble rect at push time. Null disables the hero
-  /// flight (no morph; fall back to a plain transition).
+  /// Opening thumbnail bounds; absence uses an in-place media fade.
   final Rect? initialSourceRect;
 
   /// Picker-side bubble snapshot at push time. Disposed on screen
   /// removal so the GPU bitmap doesn't leak.
   final ui.Image? initialSnapshot;
 
+  /// Opening thumbnail corners, applied by the flight.
+  final BorderRadius initialSourceRadius;
+
   /// Picker-provided lookup for the close hero-flight destination.
   /// Closes over the picker's current `_displayMode` so dismiss
   /// always lands on whichever view (grid or strip) is in front.
-  /// Null in standalone mode — close falls back to
-  /// [initialSourceRect].
+  /// Absence uses an in-place fade and shrink.
   final GallerySource? Function(Object id)? transitionSourceFor;
 
   /// One entry per asset: the borrowed ones, else created here.
@@ -246,29 +250,9 @@ class ComposePage with Screen<List<ComposeResult>?>, Emitter {
   bool _completed = false;
   Chrono? _completedReset;
 
-  /// Flips true once the route animation enters reverse — the
-  /// editor body hides itself so it doesn't double-render the image
-  /// over the morphing snapshot. Mirrors telegram's
-  /// `previewContainerView` being morphed out of its at-rest position
-  /// rather than left behind as a ghost.
-  late final ValueNotifier<bool> _editorHidden = ValueNotifier<bool>(false);
-
-  /// Animation handed to us by the route. Installed once on the
-  /// first [buildTransition] call so we can listen for the close
-  /// status without re-subscribing on every rebuild.
-  Animation<double>? _routeAnimation;
-
-  void _handleRouteStatus(AnimationStatus status) {
-    final closing =
-        status == AnimationStatus.reverse ||
-        status == AnimationStatus.dismissed;
-    if (_editorHidden.value != closing) _editorHidden.value = closing;
-  }
-
   /// Resolve the source for the close hero on the focused entry.
   /// On Send: target the chat bubble exclusively — if it hasn't
-  /// registered yet, return null so the morph anchors at source
-  /// instead of swinging toward the (unrelated) picker thumbnail.
+  /// registered yet, return null for an in-place fade and shrink.
   /// On Cancel: fall through to the picker cell via
   /// [transitionSourceFor].
   GallerySource? _closeSourceForFocus() {
@@ -284,56 +268,36 @@ class ComposePage with Screen<List<ComposeResult>?>, Emitter {
   }
 
   @override
+  Duration get transitionDuration => kMediaFlightDuration;
+
+  @override
   Widget buildTransition(
     BuildContext context,
     Animation<double> animation,
     Widget child,
-  ) {
-    // GalleryTransition is needed whenever there's a possible hero
-    // target — either an open source (gallery flow) OR a Send-time
-    // bubble destination (any flow with `onSubmit`). Standalone Cancel
-    // (no source, no submit yet) falls through to the responsive
-    // screen transition.
-    final hasHero = initialSourceRect != null || onSubmit != null;
-    if (!hasHero) {
-      return ScreenTransitions.responsive(context, animation, child);
-    }
-    // Install the route animation listener once so [_editorHidden]
-    // tracks the close phase. The editor body listens to this flag
-    // and stops rendering its image during close — without that,
-    // both the shell (image at compose's fit rect) and the morphing
-    // snapshot would paint at the same time, producing a ghost
-    // image behind the morph.
-    if (_routeAnimation != animation) {
-      _routeAnimation?.removeStatusListener(_handleRouteStatus);
-      _routeAnimation = animation;
-      animation.addStatusListener(_handleRouteStatus);
-      _handleRouteStatus(animation.status);
-    }
-    // `bubbleRect: Rect.zero` for standalone (no open source) — open
-    // phase has a null snapshot so the morph rect is invisible; only
-    // the shell fade is visible. Close phase ignores this and uses
-    // `_closeSourceForFocus()` / `closeFallbackDestinationRect`.
-    final openSource = initialSourceRect ?? Rect.zero;
-    // Fall back to compose's own current image when no open-time
-    // snapshot was supplied — the close hero needs something to morph
-    // even when `closeSnapshotFactory` hasn't resolved (e.g. before
-    // the destination bubble has painted, or in fake-clock tests).
-    final snap =
-        initialSnapshot ?? focusedEntry.renderedPreview ?? focusedEntry.source;
-    return GalleryTransition(
-      animation: animation,
-      snapshot: snap,
-      bubbleRect: openSource,
-      contentSize: focusedEntry.contentSize,
-      photoRectLookup: () => focusedEntry.contentScreenRect,
-      closeDestinationLookup: () => _closeSourceForFocus()?.currentRect,
-      closeFallbackDestinationRect: openSource,
-      closeSnapshotFactory: () async =>
-          await _closeSourceForFocus()?.snapshot(),
-      closeSourceTranslation: Offset(0, dragOffset.value),
-      child: child,
-    );
+  ) => GalleryTransition(
+    animation: animation,
+    snapshot: initialSnapshot,
+    sourceRect: initialSourceRect,
+    sourceRadius: initialSourceRadius,
+    closeSourceLookup: _closeSourceForFocus,
+    onStage: _stage,
+    onDetach: _releaseHideSlot,
+    child: child,
+  );
+
+  bool _onstage = false;
+
+  void _stage() {
+    _onstage = true;
+    _syncHideSlot();
+  }
+
+  void _releaseHideSlot() {
+    _onstage = false;
+    final slot = _hideSlot;
+    if (slot != null) HiddenMediaController.instance.release(slot);
+    _hideSlot = null;
   }
 
   HideSlot? _hideSlot;
@@ -356,7 +320,6 @@ class ComposePage with Screen<List<ComposeResult>?>, Emitter {
       currentIndex.addListener(_syncHideSlot);
       _hideListenerAttached = true;
     }
-    _syncHideSlot();
   }
 
   /// Whichever target should currently be hidden behind compose. Before
@@ -373,6 +336,7 @@ class ComposePage with Screen<List<ComposeResult>?>, Emitter {
   }
 
   void _syncHideSlot() {
+    if (!_onstage) return;
     final id = _currentHideId();
     final slot = _hideSlot;
     if (slot == null) {
@@ -390,11 +354,7 @@ class ComposePage with Screen<List<ComposeResult>?>, Emitter {
       currentIndex.removeListener(_syncHideSlot);
       _hideListenerAttached = false;
     }
-    final slot = _hideSlot;
-    if (slot != null) {
-      HiddenMediaController.instance.release(slot);
-      _hideSlot = null;
-    }
+    _releaseHideSlot();
     super.onRemoved();
   }
 
@@ -476,12 +436,7 @@ class ComposePage with Screen<List<ComposeResult>?>, Emitter {
     // stays invisible behind the close morph; the snapshot lands on
     // an empty rect and the bubble unhides when compose is removed.
     _syncHideSlot();
-    // Defer the pop until *after* the next build flushes — the
-    // placeholder bubble inserted by [onSubmit] mounts in that build
-    // and registers its `GallerySource`. Without this defer the
-    // close-hero's first frame finds no destination and would jitter
-    // toward the open-time fallback before snapping to the bubble on
-    // frame 2.
+    // The inserted bubble registers its source during the next build.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (disposed) return;
       pop(results);
@@ -517,77 +472,65 @@ class ComposePage with Screen<List<ComposeResult>?>, Emitter {
   Widget buildPresenter(BuildContext context) {
     _safeAreaTop = MediaQuery.viewPaddingOf(context).top;
     return Scaffold(
-      backgroundColor: const Color(0xFF000000),
+      backgroundColor: const Color(0x00000000),
       resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
-          // Full-bleed editor area. Re-publishes its fit rect whenever
-          // the body or chrome heights change, so the host's camera
-          // animator interpolates between the same coord system as the
-          // tool screens. Wrapped in [_editorHidden] so it vanishes
-          // during close — the morphing snapshot is what carries the
-          // image to the destination.
+          const Positioned.fill(
+            child: MediaFlightChrome(
+              child: ColoredBox(color: Color(0xFF000000)),
+            ),
+          ),
           Positioned.fill(
-            child: ValueListenableBuilder<bool>(
-              valueListenable: _editorHidden,
-              builder: (ctx, hidden, body) => Visibility(
-                visible: !hidden,
-                maintainState: true,
-                child: body!,
-              ),
-              child: ListenableBuilder(
-                listenable: Listenable.merge([
-                  _topBarHeight,
-                  _bottomStripHeight,
-                ]),
-                builder: (ctx, _) => LayoutBuilder(
-                  builder: (ctx2, constraints) {
-                    _lastBody = constraints.biggest;
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      _publish();
-                    });
-                    return ListenableBuilder(
-                      listenable: dragOffset,
-                      builder: (ctx3, _) {
-                        final viewport = MediaQuery.sizeOf(ctx3).height;
-                        final dismissDistance = viewport / 4;
-                        final progress = dismissDistance == 0
-                            ? 0.0
-                            : (dragOffset.value.abs() / dismissDistance).clamp(
-                                0.0,
-                                1.0,
-                              );
-                        final scale = 1 - 0.1 * progress;
-                        return Transform.scale(
-                          scale: scale,
-                          alignment: Alignment.topCenter,
-                          child: Listener(
-                            behavior: HitTestBehavior.translucent,
-                            onPointerDown: _maybeDismissKeyboard,
-                            child: ValueListenableBuilder<int>(
-                              valueListenable: currentIndex,
-                              builder: (ctx4, _, _) => DismissCarrier(
-                                blocked: focusedEntry.isZoomed,
-                                dragOffset: dragOffset,
-                                onDismissCommitted: handleCancel,
-                                child: PageView.builder(
-                                  controller: pageController,
-                                  itemCount: entries.length,
-                                  onPageChanged: _onPageChanged,
-                                  physics: entries.length > 1
-                                      ? null
-                                      : NeverScrollableScrollPhysics(),
-                                  itemBuilder: (ctx5, i) =>
-                                      ComposeEntryView(entry: entries[i]),
-                                ),
+            child: ListenableBuilder(
+              listenable: Listenable.merge([_topBarHeight, _bottomStripHeight]),
+              builder: (ctx, _) => LayoutBuilder(
+                builder: (ctx2, constraints) {
+                  _lastBody = constraints.biggest;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    _publish();
+                  });
+                  return ListenableBuilder(
+                    listenable: dragOffset,
+                    builder: (ctx3, _) {
+                      final viewport = MediaQuery.sizeOf(ctx3).height;
+                      final dismissDistance = viewport / 4;
+                      final progress = dismissDistance == 0
+                          ? 0.0
+                          : (dragOffset.value.abs() / dismissDistance).clamp(
+                              0.0,
+                              1.0,
+                            );
+                      final scale = 1 - 0.1 * progress;
+                      return Transform.scale(
+                        scale: scale,
+                        alignment: Alignment.topCenter,
+                        child: Listener(
+                          behavior: HitTestBehavior.translucent,
+                          onPointerDown: _maybeDismissKeyboard,
+                          child: ValueListenableBuilder<int>(
+                            valueListenable: currentIndex,
+                            builder: (ctx4, _, _) => DismissCarrier(
+                              blocked: focusedEntry.isZoomed,
+                              dragOffset: dragOffset,
+                              onDismissCommitted: handleCancel,
+                              child: PageView.builder(
+                                controller: pageController,
+                                itemCount: entries.length,
+                                onPageChanged: _onPageChanged,
+                                physics: entries.length > 1
+                                    ? null
+                                    : NeverScrollableScrollPhysics(),
+                                itemBuilder: (ctx5, i) =>
+                                    ComposeEntryView(entry: entries[i], flightEnabled: i == currentIndex.value),
                               ),
                             ),
                           ),
-                        );
-                      },
-                    );
-                  },
-                ),
+                        ),
+                      );
+                    },
+                  );
+                },
               ),
             ),
           ),
@@ -596,35 +539,37 @@ class ComposePage with Screen<List<ComposeResult>?>, Emitter {
             top: 0,
             left: 0,
             right: 0,
-            child: OnSize(
-              onSize: (s) {
-                _topBarMeasured = true;
-                _topBarHeight.value = s.height;
-              },
-              child: SafeArea(
-                bottom: false,
-                child: Padding(
-                  padding: EdgeInsets.only(left: 8, top: 4, bottom: 4),
-                  child: Row(
-                    children: [
-                      Touch(
-                        onPress: handleCancel,
-                        child: Container(
-                          width: 44,
-                          height: 44,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: colors.onMedia.withValues(alpha: 0.15),
-                          ),
-                          child: Icon(
-                            CupertinoIcons.xmark,
-                            color: colors.onMedia,
-                            size: 18,
+            child: MediaFlightChrome(
+              child: OnSize(
+                onSize: (s) {
+                  _topBarMeasured = true;
+                  _topBarHeight.value = s.height;
+                },
+                child: SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: EdgeInsets.only(left: 8, top: 4, bottom: 4),
+                    child: Row(
+                      children: [
+                        Touch(
+                          onPress: handleCancel,
+                          child: Container(
+                            width: 44,
+                            height: 44,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: colors.onMedia.withValues(alpha: 0.15),
+                            ),
+                            child: Icon(
+                              CupertinoIcons.xmark,
+                              color: colors.onMedia,
+                              size: 18,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -637,85 +582,86 @@ class ComposePage with Screen<List<ComposeResult>?>, Emitter {
             bottom: 0,
             left: 0,
             right: 0,
-            child: OnSize(
-              onSize: (s) {
-                _bottomStripMeasured = true;
-                _bottomStripHeight.value = s.height;
-              },
-              child: MediaHost.current.keyboardInsets(
-                builder: (context, bottom) => Container(
-                  // Pad the bottom safe area / keyboard area INSIDE
-                  // the colored container so its background covers the
-                  // gap. Otherwise an InteractiveViewer-zoomed image
-                  // beneath shows through the bottom safe-area strip.
-                  color: const Color(0xCC000000),
-                  padding: EdgeInsets.only(bottom: bottom),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (entries.length > 1)
+            child: MediaFlightChrome(
+              child: OnSize(
+                onSize: (s) {
+                  _bottomStripMeasured = true;
+                  _bottomStripHeight.value = s.height;
+                },
+                child: MediaHost.current.keyboardInsets(
+                  builder: (context, bottom) => Container(
+                    // Pad the bottom safe area / keyboard area INSIDE
+                    // the colored container so its background covers the
+                    // gap. Otherwise an InteractiveViewer-zoomed image
+                    // beneath shows through the bottom safe-area strip.
+                    color: const Color(0xCC000000),
+                    padding: EdgeInsets.only(bottom: bottom),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (entries.length > 1)
+                          ValueListenableBuilder<int>(
+                            valueListenable: currentIndex,
+                            builder: (context, i, _) =>
+                                _DotIndicator(count: entries.length, active: i),
+                          ),
                         ValueListenableBuilder<int>(
                           valueListenable: currentIndex,
-                          builder: (context, i, _) => _DotIndicator(
-                            count: entries.length,
-                            active: i,
-                          ),
+                          builder: (context, _, _) {
+                            final e = focusedEntry;
+                            if (e.input is! VideoMedia) {
+                              return SizedBox.shrink();
+                            }
+                            // Telegram places the trim scrubber directly
+                            // above the caption bar; it mounts once the
+                            // preview controller knows the duration.
+                            return ListenableBuilder(
+                              listenable: e,
+                              builder: (context, _) {
+                                final ctrl = e.videoController;
+                                if (ctrl == null || !ctrl.value.isInitialized) {
+                                  return SizedBox.shrink();
+                                }
+                                return VideoTrimScrubber(
+                                  entry: e,
+                                  duration: ctrl.value.duration,
+                                );
+                              },
+                            );
+                          },
                         ),
-                      ValueListenableBuilder<int>(
-                        valueListenable: currentIndex,
-                        builder: (context, _, _) {
-                          final e = focusedEntry;
-                          if (e.input is! VideoMedia) return SizedBox.shrink();
-                          // Telegram places the trim scrubber directly
-                          // above the caption bar; it mounts once the
-                          // preview controller knows the duration.
-                          return ListenableBuilder(
-                            listenable: e,
-                            builder: (context, _) {
-                              final ctrl = e.videoController;
-                              if (ctrl == null || !ctrl.value.isInitialized) {
-                                return SizedBox.shrink();
-                              }
-                              return VideoTrimScrubber(
-                                entry: e,
-                                duration: ctrl.value.duration,
-                              );
-                            },
-                          );
-                        },
-                      ),
-                      if (_showsCaption)
+                        if (_showsCaption)
+                          ValueListenableBuilder<int>(
+                            valueListenable: currentIndex,
+                            builder: (context, _, _) =>
+                                MediaHost.current.captionField(
+                                  bubbleKey: composerBubbleKey,
+                                  controller: focusedEntry.composerController,
+                                  focusNode: composerFocus,
+                                  onSubmit: handleSubmit,
+                                  placeholder: strings.addACaption,
+                                ),
+                          ),
                         ValueListenableBuilder<int>(
                           valueListenable: currentIndex,
-                          builder: (context, _, _) => MediaHost.current.captionField(
-                            bubbleKey: composerBubbleKey,
-                            controller: focusedEntry.composerController,
-                            focusNode: composerFocus,
-                            onSubmit: handleSubmit,
-                            placeholder: strings.addACaption,
-                          ),
+                          builder: (context, _, _) {
+                            final e = focusedEntry;
+                            // Video tools edit poster-frame geometry.
+                            final editable =
+                                e.input is ImageMedia || e.input is VideoMedia;
+                            return MediaCommandsBar(
+                              onCrop: editable
+                                  ? () => _openTool(e.openCropEditor)
+                                  : null,
+                              onDraw: editable
+                                  ? () => _openTool(e.openDrawEditor)
+                                  : null,
+                              onConfirm: _showsCaption ? null : handleSubmit,
+                            );
+                          },
                         ),
-                      ValueListenableBuilder<int>(
-                        valueListenable: currentIndex,
-                        builder: (context, _, _) {
-                          final e = focusedEntry;
-                          // Crop and draw run on images and videos alike
-                          // (V2 crop / V3 paint, both on the poster-frame
-                          // geometry).
-                          final editable = e.input is ImageMedia ||
-                              e.input is VideoMedia;
-                          return MediaCommandsBar(
-                            onCrop: editable
-                                ? () => _openTool(e.openCropEditor)
-                                : null,
-                            onDraw: editable
-                                ? () => _openTool(e.openDrawEditor)
-                                : null,
-                            onConfirm: _showsCaption ? null : handleSubmit,
-                          );
-                        },
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -729,9 +675,6 @@ class ComposePage with Screen<List<ComposeResult>?>, Emitter {
   @override
   void dispose() {
     _completedReset?.cancel();
-    _routeAnimation?.removeStatusListener(_handleRouteStatus);
-    _routeAnimation = null;
-    _editorHidden.dispose();
     if (ownsEntries) {
       for (final e in entries) {
         e.dispose();

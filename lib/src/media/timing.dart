@@ -1,25 +1,7 @@
 import 'package:flutter/animation.dart';
 
-/// GalleryControllerNode.swift:434 (backgroundColor) and :436 (chrome alpha).
-const kGalleryOpenChrome = Duration(milliseconds: 150);
-
-/// ChatImageGalleryItem.swift:1044 — `positionDuration = 0.21`.
-const kGalleryOpenPosition = Duration(milliseconds: 210);
-
-/// ChatImageGalleryItem.swift:1064 — content node bounds + copyView scale.
-const kGalleryOpenBounds = Duration(milliseconds: 250);
-
-/// GalleryControllerNode.swift:463 — chatController.pushedTransition.
-const kGalleryOpenPushed = Duration(milliseconds: 450);
-
-/// ChatImageGalleryItem.swift:1040 — copyView alpha 1→0.
-const kGalleryOpenCopyAlpha = Duration(milliseconds: 200);
-
-/// ChatImageGalleryItem.swift:1141-1152 — content/copy/surface position+bounds.
-const kGalleryCloseSpatial = Duration(milliseconds: 250);
-
-/// GalleryControllerNode.swift:484, 486, 494, 499 — canonical close path.
-const kGalleryCloseChrome = Duration(milliseconds: 100);
+/// Shared camera, compose and gallery route duration.
+const kMediaFlightDuration = Duration(milliseconds: 300);
 
 /// Close-transition shrink factor when the resolved destination rect
 /// is off-screen. The snapshot fades + scales down in place to this

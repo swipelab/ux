@@ -199,6 +199,9 @@ class _ThumbnailState extends State<_Thumbnail> {
   /// Live transition source over this cell's `RepaintBoundary`.
   late final GallerySource gallerySource = RepaintBoundaryGallerySource(
     _boundaryKey,
+    borderRadius: widget.viewKind == PickerViewKind.strip
+        ? BorderRadius.circular(radius.sm)
+        : BorderRadius.zero,
   );
 
   @override
@@ -266,18 +269,9 @@ class _ThumbnailState extends State<_Thumbnail> {
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: HiddenMediaController.instance,
-      builder: (context, _) {
-        final hidden = HiddenMediaController.instance.isHidden(widget.assetId);
-        return Opacity(
-          opacity: hidden ? 0.0 : 1.0,
-          child: RepaintBoundary(
-            key: _boundaryKey,
-            child: _buildContent(),
-          ),
-        );
-      },
+    return HiddenMedia(
+      ids: [widget.assetId],
+      child: RepaintBoundary(key: _boundaryKey, child: _buildContent()),
     );
   }
 

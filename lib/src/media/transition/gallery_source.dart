@@ -1,5 +1,6 @@
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
@@ -15,6 +16,9 @@ abstract class GallerySource {
   /// Bubble rect in screen (logical) coordinates. Null if scrolled off-screen.
   Rect? get currentRect;
 
+  /// Corner shape applied outside the captured image.
+  BorderRadius get borderRadius;
+
   /// Capture a snapshot of the bubble's current visual. Returns null if the
   /// source has been disposed or is not paintable.
   Future<ui.Image?> snapshot();
@@ -26,7 +30,13 @@ abstract class GallerySource {
 /// image in a [RepaintBoundary] keyed by this implementation.
 class RepaintBoundaryGallerySource implements GallerySource {
   /// Creates the source over [boundaryKey].
-  RepaintBoundaryGallerySource(this.boundaryKey);
+  RepaintBoundaryGallerySource(
+    this.boundaryKey, {
+    this.borderRadius = BorderRadius.zero,
+  });
+
+  @override
+  final BorderRadius borderRadius;
 
   /// Key of the [RepaintBoundary] that is measured and captured.
   final GlobalKey boundaryKey;
@@ -36,20 +46,21 @@ class RepaintBoundaryGallerySource implements GallerySource {
     final renderObject = boundaryKey.currentContext?.findRenderObject();
     if (renderObject is! RenderBox) return null;
     if (!renderObject.hasSize) return null;
-    final origin = renderObject.localToGlobal(Offset.zero);
-    return origin & renderObject.size;
+    return MatrixUtils.transformRect(
+      renderObject.getTransformTo(null),
+      Offset.zero & renderObject.size,
+    );
   }
 
   @override
-  Future<ui.Image?> snapshot() async {
+  Future<ui.Image?> snapshot() {
     final renderObject = boundaryKey.currentContext?.findRenderObject();
-    if (renderObject is! RenderRepaintBoundary) return null;
+    if (renderObject is! RenderRepaintBoundary) return SynchronousFuture(null);
     try {
-      return renderObject.toImageSync(pixelRatio: 1.0);
+      return SynchronousFuture(renderObject.toImageSync(pixelRatio: 1.0));
     } catch (_) {
-      // Returns null when the layer hasn't been built (boundary not yet
-      // painted into the scene); the hero degrades to a no-snapshot morph.
-      return null;
+      // Unpainted boundaries have no layer to capture.
+      return SynchronousFuture(null);
     }
   }
 }

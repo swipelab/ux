@@ -54,8 +54,6 @@ export 'src/media/picker/thumbnail_cache.dart';
 export 'src/media/timing.dart';
 export 'src/media/touch.dart';
 export 'src/media/transition/fit_rect.dart';
-export 'src/media/transition/gallery_close_transition.dart';
-export 'src/media/transition/gallery_open_transition.dart';
 export 'src/media/transition/gallery_source.dart';
 export 'src/media/transition/gallery_transition.dart';
 export 'src/media/video_edit_values.dart';
