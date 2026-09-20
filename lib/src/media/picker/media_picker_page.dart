@@ -725,7 +725,7 @@ class _GridState extends State<_Grid> {
       controller: _scroll,
       physics: widget.sheetController.physics,
       slivers: [
-        if (!hasPhotos)
+        if (!hasPhotos && widget.permission != null)
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 16),

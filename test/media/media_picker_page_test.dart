@@ -316,6 +316,26 @@ void main() {
   );
 
   pickerTest(
+    'unknown photo permission keeps the camera visible without a rationale',
+    (tester) async {
+      final permission = Completer<XGalleryPermission>();
+      gallery.queuedPermissions.add(permission);
+      await mount(tester);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/picker_photo_permission_pending.png'),
+      );
+      expect(find.byType(PickerPermissionPlaceholder), findsNothing);
+      expect(find.byType(PickerGridItem), findsNothing);
+      expect(find.byType(CameraThumb), findsOneWidget);
+      permission.complete(XGalleryPermission.granted);
+      await tester.pumpAndSettle();
+      expect(find.byType(PickerPermissionPlaceholder), findsNothing);
+      expect(_cell('0'), findsOneWidget);
+    },
+  );
+
+  pickerTest(
     'camera requests leave photos selectable and recover the preview',
     (tester) async {
       camera.cameraPermission = false;
