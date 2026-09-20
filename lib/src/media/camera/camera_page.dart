@@ -1,4 +1,5 @@
 import 'dart:io' as io;
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:ux/gallery.dart';
@@ -506,8 +507,15 @@ class CameraPage with Screen<XMedia?>, Emitter {
         ),
         if (filter != XAssetKind.video)
           Dock.topLeft(
-            child: Padding(
-              padding: const EdgeInsets.only(left: 24, top: 48),
+            child: ListenableBuilder(
+              listenable: insets,
+              builder: (context, child) => Padding(
+                padding: EdgeInsets.only(
+                  left: 24,
+                  top: math.max(48, insets.viewPadding.top),
+                ),
+                child: child,
+              ),
               child: _Rotating(
                 orientation: orientation,
                 child: FlashButton(onPress: toggleFlash, on: flashOn),
