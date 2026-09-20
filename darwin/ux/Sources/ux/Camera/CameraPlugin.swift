@@ -268,30 +268,17 @@ public class CameraPlugin: NSObject, NativePlugin, FlutterStreamHandler {
                 }
             }
 
+        case "cameraPermissionStatus":
+            result(AVCaptureDevice.authorizationStatus(for: .video) == .authorized)
+
+        case "requestCameraPermission":
+            requestPermission(for: .video, result: result)
+
         case "audioPermissionStatus":
-            let granted = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
-            result(granted)
+            result(AVCaptureDevice.authorizationStatus(for: .audio) == .authorized)
 
         case "requestAudioPermission":
-            // On `.notDetermined` the system can still show the in-app
-            // prompt; on `.denied`/`.restricted` it can't — and on a
-            // fresh install the mic entry isn't in the Privacy pane
-            // until requestAccess has fired at least once, so the
-            // settings fallback only makes sense after first prompt.
-            let status = AVCaptureDevice.authorizationStatus(for: .audio)
-            switch status {
-            case .authorized:
-                result(true)
-            case .notDetermined:
-                AVCaptureDevice.requestAccess(for: .audio) { granted in
-                    DispatchQueue.main.async { result(granted) }
-                }
-            default:
-                DispatchQueue.main.async {
-                    CameraSettings.openAppSettings()
-                    result(false)
-                }
-            }
+            requestPermission(for: .audio, result: result)
 
         case "openSettings":
             DispatchQueue.main.async {
@@ -477,6 +464,22 @@ public class CameraPlugin: NSObject, NativePlugin, FlutterStreamHandler {
             // adding an audio input to the writer").
             self.requestAccess(for: .audio) { _ in
                 completion(true, "")
+            }
+        }
+    }
+
+    private func requestPermission(for mediaType: AVMediaType, result: @escaping FlutterResult) {
+        switch AVCaptureDevice.authorizationStatus(for: mediaType) {
+        case .authorized:
+            result(true)
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: mediaType) { granted in
+                DispatchQueue.main.async { result(granted) }
+            }
+        default:
+            DispatchQueue.main.async {
+                CameraSettings.openAppSettings()
+                result(AVCaptureDevice.authorizationStatus(for: mediaType) == .authorized)
             }
         }
     }

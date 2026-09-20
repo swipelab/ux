@@ -26,6 +26,8 @@
 	<string>$(PRODUCT_COPYRIGHT)</string>
 	<key>NSMainNibFile</key>
 	<string>MainMenu</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Camera access for the camera permission example.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Live level metering for the XAudioCapture example.</string>
 	<key>NSPrincipalClass</key>

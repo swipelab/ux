@@ -2,9 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 
-import '../file.dart' show XFile;
-import 'camera.dart' show XCameraDescription, XFlashMode, XResolutionPreset;
-import 'camera_channel.dart' show MethodChannelXCameraBackend;
+import 'package:ux/src/file.dart' show XFile;
+import 'package:ux/src/camera/camera.dart' show XCameraDescription, XFlashMode, XResolutionPreset;
+import 'package:ux/src/camera/camera_channel.dart' show MethodChannelXCameraBackend;
 
 /// Backend contract that [XCameraController] dispatches into. The default
 /// implementation calls into native code via the `ux/camera` /
@@ -91,6 +91,13 @@ abstract class XCameraBackend {
   /// [disposeInstance].
   Stream<XCameraEvent> events(int handle);
 
+  /// Reads camera authorization without a session, prompt or microphone access.
+  Future<bool> cameraPermissionGranted();
+
+  /// Requests camera access or opens Settings if another prompt is unavailable.
+  /// Returns current authorization; Settings changes require a foreground query.
+  Future<bool> requestCameraPermission();
+
   /// True iff the user has granted microphone access. Cheap; safe to
   /// re-poll on app foregrounding to detect grants made via Settings.
   Future<bool> audioPermissionGranted();
@@ -104,9 +111,8 @@ abstract class XCameraBackend {
   /// fired at least once.
   Future<bool> requestAudioPermission();
 
-  /// Deep-link into the system Settings page for this app. Caller is
-  /// expected to refresh [audioPermissionGranted] on
-  /// `AppLifecycleState.resumed`.
+  /// Opens camera privacy Settings on macOS and app Settings on mobile.
+  /// Authorization changes require a foreground query.
   Future<void> openSettings();
 }
 

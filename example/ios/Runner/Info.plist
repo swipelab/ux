@@ -22,6 +22,8 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Camera access for the camera permission example.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Live level metering for the XAudioCapture example.</string>
 	<key>UILaunchStoryboardName</key>

@@ -35,6 +35,54 @@ void main() {
     expect(fake.availableCamerasCalls, 1);
   });
 
+  test(
+    'camera permission is available without a controller or microphone access',
+    () async {
+      fake.cameraPermission = false;
+      expect(await XCameraController.cameraPermissionGranted(), isFalse);
+      expect(fake.requestCameraPermissionCalls, 0);
+
+      fake.requestCameraPermissionResult = false;
+      expect(await XCameraController.requestCameraPermission(), isFalse);
+      expect(fake.cameraPermission, isFalse);
+      fake.requestCameraPermissionResult = true;
+      expect(await XCameraController.requestCameraPermission(), isTrue);
+      expect(await XCameraController.cameraPermissionGranted(), isTrue);
+      fake.cameraPermission = false;
+      expect(await XCameraController.cameraPermissionGranted(), isFalse);
+
+      expect(fake.cameraPermissionCalls, 3);
+      expect(fake.requestCameraPermissionCalls, 2);
+      expect(fake.createCalls, isEmpty);
+      expect(fake.initializeCalls, isEmpty);
+      expect(fake.availableCamerasCalls, 0);
+      expect(fake.audioPermissionCalls, 0);
+      expect(fake.requestAudioPermissionCalls, 0);
+    },
+  );
+
+  test(
+    'fake camera permission failures propagate without changing authorization',
+    () async {
+      const error = XCameraException('no_activity', 'plugin not attached');
+      fake.cameraPermission = false;
+      fake.cameraPermissionError = error;
+      fake.requestCameraPermissionError = error;
+
+      await expectLater(
+        XCameraController.cameraPermissionGranted(),
+        throwsA(same(error)),
+      );
+      await expectLater(
+        XCameraController.requestCameraPermission(),
+        throwsA(same(error)),
+      );
+      expect(fake.cameraPermission, isFalse);
+      expect(fake.cameraPermissionCalls, 1);
+      expect(fake.requestCameraPermissionCalls, 1);
+    },
+  );
+
   test('initialize creates the native instance, subscribes to events, '
       'and reports previewSize / isInitialized', () async {
     final ctrl = XCameraController(_front, XResolutionPreset.high, enableAudio: false);
