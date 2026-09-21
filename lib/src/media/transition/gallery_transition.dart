@@ -27,6 +27,7 @@ class GalleryTransition extends StatefulWidget {
   final ui.Image? snapshot;
 
   /// Opening thumbnail bounds in global coordinates; absent for standalone compose.
+  /// Without [snapshot], media fades in place.
   final Rect? sourceRect;
 
   /// Shape of the opening thumbnail, excluded from its captured pixels.
@@ -114,8 +115,10 @@ class _GalleryTransitionState extends State<GalleryTransition>
         _flight
           ..progress = _progress.value
           ..openingSnapshot = widget.snapshot
-          ..sourceRect = widget.sourceRect
-          ..sourceRadius = widget.sourceRadius;
+          ..sourceRect = widget.snapshot == null ? null : widget.sourceRect
+          ..sourceRadius = widget.snapshot == null
+              ? BorderRadius.zero
+              : widget.sourceRadius;
         final closing =
             widget.animation.status == AnimationStatus.reverse ||
             (_flight.closing &&

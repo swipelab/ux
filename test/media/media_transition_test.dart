@@ -163,9 +163,13 @@ class _ProbePage with Screen<void> {
     this.source, {
     bool ready = true,
     this.fromSource = true,
+    this.openingSnapshot = true,
+    this.paintWhileLoading = false,
   }) : ready = ValueNotifier(ready);
   final ui.Image snapshot;
   final bool fromSource;
+  final bool openingSnapshot;
+  final bool paintWhileLoading;
   final GallerySource? source;
   final ValueNotifier<bool> ready;
   @override
@@ -177,7 +181,7 @@ class _ProbePage with Screen<void> {
     Widget child,
   ) => GalleryTransition(
     animation: animation,
-    snapshot: fromSource ? snapshot : null,
+    snapshot: fromSource && openingSnapshot ? snapshot : null,
     sourceRect: fromSource ? const Rect.fromLTWH(22, 650, 80, 90) : null,
     sourceRadius: BorderRadius.circular(8),
     closeSourceLookup: () => source,
@@ -205,7 +209,11 @@ class _ProbePage with Screen<void> {
           valueListenable: ready,
           builder: (_, loaded, _) => MediaFlightSurface(
             ready: loaded,
-            child: ColoredBox(color: loaded ? Colors.blue : Colors.transparent),
+            child: ColoredBox(
+              color: loaded || paintWhileLoading
+                  ? Colors.blue
+                  : Colors.transparent,
+            ),
           ),
         ),
       ),
@@ -631,6 +639,45 @@ void main() {
     host.router.dispose();
     host.lifecycle.dispose();
   });
+
+  testWidgets(
+    'without an opening snapshot readiness preserves the destination fade',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final host = _Host(false);
+      MediaHost.current = host;
+      await tester.pumpWidget(host.app);
+      final page = _ProbePage(
+        await _snapshot(tester),
+        null,
+        ready: false,
+        openingSnapshot: false,
+        paintWhileLoading: true,
+      );
+      host.push(page);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(_paintedRect(tester), const Rect.fromLTWH(70, 150, 180, 240));
+      await expectLater(
+        find.byKey(host.boundary),
+        matchesGoldenFile('goldens/media_no_snapshot_pending_150.png'),
+      );
+      page.ready.value = true;
+      await tester.pump();
+      expect(_paintedRect(tester), const Rect.fromLTWH(70, 150, 180, 240));
+      await expectLater(
+        find.byKey(host.boundary),
+        matchesGoldenFile('goldens/media_no_snapshot_ready_150.png'),
+      );
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(const SizedBox());
+      host.router.dispose();
+      host.lifecycle.dispose();
+    },
+  );
 
   testWidgets(
     'late pixels preserve the source until a continuous handoff; an absent destination shrinks in place',
