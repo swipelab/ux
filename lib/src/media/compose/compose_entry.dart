@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:ux/src/media/design.dart';
+import 'package:ux/src/media/transition/gallery_transition.dart';
 import 'package:ux/src/media/timing.dart';
 import 'package:ux/src/media/x_media.dart';
 import 'package:ux/src/media/compose/crop_screen.dart';
@@ -292,10 +293,12 @@ class ComposeEntry with Emitter {
     if (_source != null) return _source;
     final decoded = await _decodeFile(input.file);
     if (disposed) {
-      // Compose popped mid-decode: `dispose` already ran, so this image
-      // has no owner left to release it.
       decoded?.dispose();
       return null;
+    }
+    if (_source != null) {
+      decoded?.dispose();
+      return _source;
     }
     _source = decoded;
     final src = sourceSize;
@@ -591,16 +594,23 @@ class ComposeEntry with Emitter {
     final dir = io.Directory('${base.path}/banlu_uploads');
     await dir.create(recursive: true);
     final file = io.File(
-        '${dir.path}/draw_${clock.now().microsecondsSinceEpoch}.png');
-    await file.writeAsBytes(byteData!.buffer
-        .asUint8List(byteData.offsetInBytes, byteData.lengthInBytes));
-    setVideoEdit(videoEdit.copyWith(
-      overlay: VideoDrawOverlay(
-        path: file.path,
-        width: src.width.toInt(),
-        height: src.height.toInt(),
+      '${dir.path}/draw_${clock.now().microsecondsSinceEpoch}.png',
+    );
+    await file.writeAsBytes(
+      byteData!.buffer.asUint8List(
+        byteData.offsetInBytes,
+        byteData.lengthInBytes,
       ),
-    ));
+    );
+    setVideoEdit(
+      videoEdit.copyWith(
+        overlay: VideoDrawOverlay(
+          path: file.path,
+          width: src.width.toInt(),
+          height: src.height.toInt(),
+        ),
+      ),
+    );
   }
 
   void _invalidatePreview() {
@@ -616,7 +626,13 @@ class ComposeEntry with Emitter {
     try {
       final source = await ensureSource();
       if (source == null) return;
-      renderedPreview = await _composeLayers(source);
+      final preview = await _composeLayers(source);
+      if (disposed) {
+        preview.dispose();
+        return;
+      }
+      renderedPreview?.dispose();
+      renderedPreview = preview;
       notifyListeners();
     } finally {
       _previewRendering = false;
@@ -756,7 +772,10 @@ class ComposeEntry with Emitter {
 /// jump. For [VideoMedia], renders the player when initialised.
 class ComposeEntryView extends StatelessWidget {
   /// Creates the preview of [entry].
-  const ComposeEntryView({required this.entry, super.key});
+  const ComposeEntryView({required this.entry, this.flightEnabled = true, super.key});
+
+  /// Whether this entry is the current route flight surface.
+  final bool flightEnabled;
 
   /// The entry shown.
   final ComposeEntry entry;
@@ -770,7 +789,7 @@ class ComposeEntryView extends StatelessWidget {
           ImageMedia() => InteractiveViewer(
             transformationController: entry.viewerController,
             maxScale: 4,
-            child: _ImagePreview(entry: entry),
+            child: _ImagePreview(entry: entry, flightEnabled: flightEnabled),
           ),
           VideoMedia() => _buildVideo(entry),
           // FileMedia / AudioMedia never reach ComposeEntry — filtered
@@ -783,7 +802,14 @@ class ComposeEntryView extends StatelessWidget {
 
   Widget _buildVideo(ComposeEntry entry) {
     final ctrl = entry.videoController;
-    if (ctrl == null || !ctrl.value.isInitialized) return SizedBox.expand();
+    if (ctrl == null || !ctrl.value.isInitialized) {
+      return MediaFlightSurface(
+        enabled: flightEnabled,
+        ready: false,
+        contentRect: (size) => _entryFitRect(entry, size),
+        child: const SizedBox.expand(),
+      );
+    }
     Widget player = ctrl.buildPlayer();
     // Paint strokes and text entities live over the frames, in the same
     // source-space box the crop affine transforms — video and overlay
@@ -815,14 +841,10 @@ class ComposeEntryView extends StatelessWidget {
         ? Center(
             child: AspectRatio(
               aspectRatio: ctrl.value.aspectRatio,
-              child: player,
+              child: MediaFlightSurface(enabled: flightEnabled, child: player),
             ),
           )
-        : CroppedVideoPreview(
-            entry: entry,
-            crop: crop,
-            child: player,
-          );
+        : CroppedVideoPreview(entry: entry, crop: crop, flightEnabled: flightEnabled, child: player);
     return ComposePlayOverlay(controller: ctrl, child: video);
   }
 }
@@ -859,18 +881,20 @@ class ComposePlayOverlay extends StatelessWidget {
               child,
               if (!playing)
                 Center(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => controller.play().unawaited(),
-                    child: Container(
-                      width: kCenterStatusDiameter,
-                      height: kCenterStatusDiameter,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: const Color(0x80000000),
-                      ),
-                      child: CustomPaint(
-                        painter: PlayTrianglePainter(colors.onMedia),
+                  child: MediaFlightChrome(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => controller.play().unawaited(),
+                      child: Container(
+                        width: kCenterStatusDiameter,
+                        height: kCenterStatusDiameter,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: const Color(0x80000000),
+                        ),
+                        child: CustomPaint(
+                          painter: PlayTrianglePainter(colors.onMedia),
+                        ),
                       ),
                     ),
                   ),
@@ -930,8 +954,12 @@ class CroppedVideoPreview extends StatelessWidget {
     required this.entry,
     required this.crop,
     required this.child,
+    this.flightEnabled = true,
     super.key,
   });
+
+  /// Whether this entry is the current route flight surface.
+  final bool flightEnabled;
 
   /// The video entry, which places the crop on screen.
   final ComposeEntry entry;
@@ -953,23 +981,27 @@ class CroppedVideoPreview extends StatelessWidget {
           minHeight: 0,
           maxHeight: double.infinity,
           alignment: Alignment.topLeft,
-          child: ClipRect(
-            child: SizedBox(
-              width: crop.outWidth.toDouble(),
-              height: crop.outHeight.toDouble(),
-              child: Transform(
-                transform:
-                    Matrix4.fromFloat64List(crop.transformColumnMajor4x4),
-                child: OverflowBox(
-                  minWidth: 0,
-                  maxWidth: double.infinity,
-                  minHeight: 0,
-                  maxHeight: double.infinity,
-                  alignment: Alignment.topLeft,
-                  child: SizedBox(
-                    width: sourceSize.width,
-                    height: sourceSize.height,
-                    child: child,
+          child: MediaFlightSurface(
+            enabled: flightEnabled,
+            child: ClipRect(
+              child: SizedBox(
+                width: crop.outWidth.toDouble(),
+                height: crop.outHeight.toDouble(),
+                child: Transform(
+                  transform: Matrix4.fromFloat64List(
+                    crop.transformColumnMajor4x4,
+                  ),
+                  child: OverflowBox(
+                    minWidth: 0,
+                    maxWidth: double.infinity,
+                    minHeight: 0,
+                    maxHeight: double.infinity,
+                    alignment: Alignment.topLeft,
+                    child: SizedBox(
+                      width: sourceSize.width,
+                      height: sourceSize.height,
+                      child: child,
+                    ),
                   ),
                 ),
               ),
@@ -986,8 +1018,9 @@ class CroppedVideoPreview extends StatelessWidget {
 /// one continuous interpolation. Falls back to `Image.file` until the
 /// source is decoded.
 class _ImagePreview extends StatefulWidget {
-  const _ImagePreview({required this.entry});
+  const _ImagePreview({required this.entry, required this.flightEnabled});
   final ComposeEntry entry;
+  final bool flightEnabled;
 
   @override
   State<_ImagePreview> createState() => _ImagePreviewState();
@@ -1012,7 +1045,12 @@ class _ImagePreviewState extends State<_ImagePreview> {
           // nothing rather than a wrong-position fallback. The
           // ComposePage.onActive → setFitRect chain is fast enough
           // that this is at most one frame.
-          return SizedBox.expand();
+          return MediaFlightSurface(
+            enabled: widget.flightEnabled,
+            ready: false,
+            contentRect: (size) => _entryFitRect(widget.entry, size),
+            child: const SizedBox.expand(),
+          );
         }
         // The rendered preview is rasterised in crop-output space (its
         // origin is the crop rect's top-left); the raw source fallback
@@ -1020,13 +1058,41 @@ class _ImagePreviewState extends State<_ImagePreview> {
         final matrix = widget.entry.renderedPreview != null
             ? widget.entry.cropOutputCamera
             : cam;
-        return CustomPaint(
-          painter: _CameraImagePainter(image: image, camera: matrix),
-          size: Size.infinite,
+        return MediaFlightSurface(
+          enabled: widget.flightEnabled,
+          contentRect: (_) => MatrixUtils.transformRect(
+            matrix,
+            Rect.fromLTWH(
+              0,
+              0,
+              image.width.toDouble(),
+              image.height.toDouble(),
+            ),
+          ),
+          child: CustomPaint(
+            painter: _CameraImagePainter(image: image, camera: matrix),
+            size: Size.infinite,
+          ),
         );
       },
     );
   }
+}
+
+Rect _entryFitRect(ComposeEntry entry, Size size) {
+  final bounds = entry.fitRect.value;
+  final viewport = bounds.isEmpty ? Offset.zero & size : bounds;
+  final content = entry.contentSize;
+  if (content == null) return viewport;
+  final scale = math.min(
+    viewport.width / content.width,
+    viewport.height / content.height,
+  );
+  return Rect.fromCenter(
+    center: viewport.center,
+    width: content.width * scale,
+    height: content.height * scale,
+  );
 }
 
 class _CameraImagePainter extends CustomPainter {

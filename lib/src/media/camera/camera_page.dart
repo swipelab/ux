@@ -1,6 +1,8 @@
 import 'dart:io' as io;
 import 'dart:math' as math;
 
+import 'package:ux/src/media/timing.dart';
+
 import 'package:flutter/foundation.dart';
 import 'package:ux/gallery.dart';
 import 'package:ux/src/media/camera/camera_session.dart';
@@ -81,6 +83,9 @@ class CameraPage with Screen<XMedia?>, Emitter {
   late final VoidCallback _sessionListener = _safeNotify;
   ValueListenable<AppLifecycleState>? _lifecycle;
   AppLifecycleState _lastLifecycle = AppLifecycleState.resumed;
+
+  @override
+  Duration get transitionDuration => kMediaFlightDuration;
 
   @override
   Widget buildTransition(

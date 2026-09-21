@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
@@ -407,22 +408,32 @@ class MediaPickerPage
   Future<void> _openCompose(List<XAsset> assets) async {
     if (_closed || _routePending) return;
     _routePending = true;
+    ui.Image? snapshot;
     try {
+      final source = transitionSourceFor(assets.first.id);
+      final sourceRect = source?.currentRect;
+      snapshot = await source?.snapshot();
+      if (_closed) return;
       final entries = <ComposeEntry>[];
       for (final asset in assets) {
         final entry = await _entryFor(asset);
         if (_closed || entry == null) return;
         entries.add(entry);
       }
-      final results = await ComposePage.borrowed(
+      final page = ComposePage.borrowed(
         entries: entries,
-        initialSourceRect: transitionSourceFor(assets.first.id)?.currentRect,
+        initialSourceRect: sourceRect,
+        initialSnapshot: snapshot,
+        initialSourceRadius: source?.borderRadius ?? BorderRadius.zero,
         transitionSourceFor: transitionSourceFor,
         onSubmit: onSubmit,
         purpose: composePurpose,
-      ).push();
+      );
+      snapshot = null;
+      final results = await page.push();
       if (!_closed && results != null) await _animatedPop(results);
     } finally {
+      snapshot?.dispose();
       _routePending = false;
     }
   }

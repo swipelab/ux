@@ -1,4 +1,5 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/widgets.dart';
 import 'package:ux/ux.dart';
 
 /// Coordinates "which chat bubble is currently being shown by a gallery and
@@ -65,4 +66,62 @@ class HideSlot {
   Object _id;
   /// The source this slot hides.
   Object get id => _id;
+}
+
+/// Paint-time source ownership, including the route-removal frame.
+class HiddenMedia extends SingleChildRenderObjectWidget {
+  /// Hides [child] when any of [ids] owns the current hide slot.
+  const HiddenMedia({super.key, required this.ids, required super.child});
+
+  /// Stable and finalized identities of the same source.
+  final List<Object?> ids;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _HiddenMedia(ids);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    covariant RenderObject renderObject,
+  ) {
+    (renderObject as _HiddenMedia).ids = ids;
+    renderObject.markNeedsPaint();
+  }
+}
+
+class _HiddenMedia extends RenderProxyBox {
+  _HiddenMedia(this.ids);
+  List<Object?> ids;
+  bool get hidden => ids.any(HiddenMediaController.instance.isHidden);
+
+  @override
+  void attach(PipelineOwner owner) {
+    super.attach(owner);
+    HiddenMediaController.instance.addListener(_changed);
+  }
+
+  @override
+  void detach() {
+    HiddenMediaController.instance.removeListener(_changed);
+    super.detach();
+  }
+
+  void _changed() {
+    markNeedsPaint();
+    markNeedsSemanticsUpdate();
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    if (!hidden) super.paint(context, offset);
+  }
+
+  @override
+  bool hitTest(BoxHitTestResult result, {required Offset position}) =>
+      !hidden && super.hitTest(result, position: position);
+
+  @override
+  void visitChildrenForSemantics(RenderObjectVisitor visitor) {
+    if (!hidden) super.visitChildrenForSemantics(visitor);
+  }
 }
