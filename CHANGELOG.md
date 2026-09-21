@@ -1,3 +1,17 @@
+### 0.17.0
+- **`media.dart` holds one snapshot flight.** `GalleryTransition` uses
+  `MediaFlightSurface` for current media pixels, `MediaFlightChrome` for
+  stationary controls, and `HiddenMedia` for source visibility.
+  `kMediaFlightDuration` is the shared 300 ms camera, compose and gallery
+  route duration. `GallerySource.borderRadius` supplies the source shape.
+  Picker snapshots retain the full bitmap so image quality upgrades preserve
+  framing. Without an opening snapshot, media fades at its destination.
+  Breaking: `GalleryOpenTransition`, `GalleryCloseTransition`,
+  `kGalleryOpenChrome`, `kGalleryOpenPosition`, `kGalleryOpenBounds`,
+  `kGalleryOpenPushed`, `kGalleryOpenCopyAlpha`, `kGalleryCloseSpatial` and
+  `kGalleryCloseChrome` are removed; hosts use `GalleryTransition` and
+  implement `GallerySource.borderRadius`.
+
 ### 0.16.0
 - **`media.dart` holds the live picker camera cell.** `MediaPickerPage`
   shows a two-row preview with granted or limited photo access, lends its
