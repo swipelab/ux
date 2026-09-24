@@ -6,6 +6,10 @@
   `ComposePage.maxImageExtent` bound the longest edge of those bytes.
   Breaking: `ComposeResult.imageBytes` is a future, and
   `ComposeEntry.resolveImageBytes` is replaced by `ComposeEntry.captureImage`.
+- **Avatar editors confirm with the app's primary button.** `ComposePage`
+  lays `MediaHost.confirmButton` full width under the editing tools wherever
+  no caption field sends the edit. Breaking: hosts implement
+  `MediaHost.confirmButton`, and `MediaCommandsBar.onConfirm` is removed.
 
 ### 0.17.0
 - **`media.dart` holds one snapshot flight.** `GalleryTransition` uses

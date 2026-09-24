@@ -706,10 +706,24 @@ class ComposePage with Screen<List<ComposeResult>?>, Emitter {
                               onDraw: editable
                                   ? () => _openTool(e.openDrawEditor)
                                   : null,
-                              onConfirm: _showsCaption ? null : handleSubmit,
                             );
                           },
                         ),
+                        if (!_showsCaption)
+                          Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              space.lg,
+                              0,
+                              space.lg,
+                              space.md,
+                            ),
+                            child: SizedBox(
+                              width: double.infinity,
+                              child: MediaHost.current.confirmButton(
+                                onPressed: handleSubmit,
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ),

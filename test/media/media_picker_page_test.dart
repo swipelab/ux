@@ -887,6 +887,18 @@ void main() {
     image.dispose();
   });
 
+  pickerTest("an avatar editor confirms through the host's primary button", (
+    tester,
+  ) async {
+    final picker = await pickAvatar(tester, maxImageExtent: 100);
+    final compose = host.pages.value.last as ComposePage;
+    await tester.runAsync(compose.focusedEntry.ensureSourceForTest);
+    await tester.tap(find.text('Confirm'));
+    await tester.pumpAndSettle();
+    expect(compose.popped, isTrue);
+    expect(await picker.future, hasLength(1));
+  });
+
   pickerTest(
     'camera and compose cancellation preserve selection and allow reopening',
     (tester) async {

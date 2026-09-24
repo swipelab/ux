@@ -5,9 +5,8 @@ import 'package:ux/src/media/touch.dart';
 
 /// Compose-page editor entry-points: crop, draw, aspect-ratio. The host
 /// (e.g. `ComposePage`) replaces this bar with the active editor's
-/// own controls strip while a tool is mounted. Crop, draw and aspect-ratio
-/// without a callback show dimmed and take no press; confirm shows only with
-/// [onConfirm].
+/// own controls strip while a tool is mounted. A tool without a callback
+/// shows dimmed and takes no press.
 class MediaCommandsBar extends StatelessWidget {
   /// Binds each tool to its callback.
   const MediaCommandsBar({
@@ -15,7 +14,6 @@ class MediaCommandsBar extends StatelessWidget {
     this.onCrop,
     this.onDraw,
     this.onAspectRatio,
-    this.onConfirm,
   });
 
   /// Opens the crop tool.
@@ -26,9 +24,6 @@ class MediaCommandsBar extends StatelessWidget {
 
   /// Opens the aspect-ratio choices.
   final VoidCallback? onAspectRatio;
-
-  /// Confirms the edits.
-  final VoidCallback? onConfirm;
 
   @override
   Widget build(BuildContext context) {
@@ -50,12 +45,7 @@ class MediaCommandsBar extends StatelessWidget {
             icon: CupertinoIcons.plus_slash_minus,
             onPress: onAspectRatio,
           ),
-          onConfirm == null
-              ? const SizedBox.shrink()
-              : _CommandButton(
-                  icon: CupertinoIcons.check_mark,
-                  onPress: onConfirm,
-                ),
+          const SizedBox.shrink(),
         ],
       ),
     );
