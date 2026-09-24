@@ -44,6 +44,10 @@ abstract class MediaHost {
     required String placeholder,
   });
 
+  /// The app's primary button, confirming an edit that has no caption field
+  /// to send it.
+  Widget confirmButton({required VoidCallback onPressed});
+
   /// Builds with the bottom inset that clears the keyboard and the safe area,
   /// and rebuilds when it changes.
   Widget keyboardInsets({

@@ -31,6 +31,10 @@ class FakeMediaHost
   TextEditingController captionController() => TextEditingController();
 
   @override
+  Widget confirmButton({required VoidCallback onPressed}) =>
+      GestureDetector(onTap: onPressed, child: const Text('Confirm'));
+
+  @override
   Widget captionField({
     required GlobalKey bubbleKey,
     required TextEditingController controller,

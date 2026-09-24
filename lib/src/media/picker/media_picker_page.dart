@@ -65,6 +65,7 @@ class MediaPickerPage
     this.filter,
     this.onSubmit,
     this.composePurpose = ComposePurpose.mediaMessage,
+    this.maxImageExtent,
   });
 
   /// How many assets may be picked.
@@ -79,6 +80,10 @@ class MediaPickerPage
   /// Which compose surface to show after picking. Avatar flows reuse the
   /// image tools but suppress chat-only caption UI.
   final ComposePurpose composePurpose;
+
+  /// Longest edge, in pixels, of an avatar result's
+  /// [ComposeResult.imageBytes]; absent keeps the image's own size.
+  final int? maxImageExtent;
 
   /// The picked assets.
   late final SelectionContext selection = SelectionContext(limit: maxSelection)
@@ -428,6 +433,7 @@ class MediaPickerPage
         transitionSourceFor: transitionSourceFor,
         onSubmit: onSubmit,
         purpose: composePurpose,
+        maxImageExtent: maxImageExtent,
       );
       snapshot = null;
       final results = await page.push();
@@ -461,6 +467,7 @@ class MediaPickerPage
         assets: [media],
         onSubmit: onSubmit,
         purpose: composePurpose,
+        maxImageExtent: maxImageExtent,
       ).push();
       if (!_closed && results != null) await _animatedPop(results);
     } finally {

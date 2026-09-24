@@ -701,19 +701,13 @@ class ComposeEntry with Emitter {
     return renderedPreview;
   }
 
-  /// Final visual image bytes for avatar-style callers. Unlike
-  /// [composedImage], this also rasterises an unedited source image so
-  /// the uploaded avatar matches the preview instead of any raw file
-  /// metadata quirks.
-  Future<Uint8List> resolveImageBytes() async {
-    if (input is! ImageMedia) return input.file.readAsBytes();
-    final image = await composedImage() ?? await ensureSource();
-    if (image == null) return input.file.readAsBytes();
-    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-    return byteData!.buffer.asUint8List(
-      byteData.offsetInBytes,
-      byteData.lengthInBytes,
-    );
+  /// The final image for avatar-style callers, as a handle the caller
+  /// disposes. Unlike [composedImage], this also yields an unedited source
+  /// image so the avatar matches the preview instead of any raw file
+  /// metadata quirks. Null for a video or an image that cannot be decoded.
+  Future<ui.Image?> captureImage() async {
+    if (input is! ImageMedia) return null;
+    return (await composedImage() ?? await ensureSource())?.clone();
   }
 
   Future<ui.Image?> _decodeFile(io.File f) async {
