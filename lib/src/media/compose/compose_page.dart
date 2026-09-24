@@ -55,8 +55,10 @@ class ComposeResult {
   final String? caption;
 
   /// Final visual bytes for flows that need to consume compose output
-  /// after the owning entry has been disposed, such as avatars.
-  final Uint8List? imageBytes;
+  /// after the owning entry has been disposed, such as avatars. Encoded
+  /// after the page pops, so the caller shows progress where the image
+  /// lands. A failure is delivered only to listeners.
+  final Future<Uint8List>? imageBytes;
 
   /// Trim / mute values for video entries; baked into the upload by
   /// `OutgoingVideoFromFile` at send time. Null for images or
@@ -69,11 +71,52 @@ class ComposeResult {
     if (resolved != null) return resolved;
     final image = composedImage;
     if (image == null) return source.file.readAsBytes();
-    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-    return byteData!.buffer.asUint8List(
-      byteData.offsetInBytes,
-      byteData.lengthInBytes,
+    return _png(image);
+  }
+}
+
+Future<Uint8List> _png(ui.Image image) async {
+  final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+  return byteData!.buffer.asUint8List(
+    byteData.offsetInBytes,
+    byteData.lengthInBytes,
+  );
+}
+
+/// [input]'s final image as PNG bytes with its longest edge at most
+/// [maxExtent]; disposes [image]. A video resolves to its file.
+Future<Uint8List> _avatarBytes(
+  XMedia input,
+  ui.Image? image,
+  int? maxExtent,
+) async {
+  if (input is! ImageMedia) return input.file.readAsBytes();
+  if (image == null) {
+    throw FormatException('The image cannot be decoded', input.file.path);
+  }
+  try {
+    final longest = math.max(image.width, image.height);
+    if (maxExtent == null || longest <= maxExtent) return await _png(image);
+    final scale = maxExtent / longest;
+    final width = math.max(1, (image.width * scale).round());
+    final height = math.max(1, (image.height * scale).round());
+    final recorder = ui.PictureRecorder();
+    Canvas(recorder).drawImageRect(
+      image,
+      Offset.zero & Size(image.width.toDouble(), image.height.toDouble()),
+      Offset.zero & Size(width.toDouble(), height.toDouble()),
+      Paint()..filterQuality = FilterQuality.medium,
     );
+    final picture = recorder.endRecording();
+    final scaled = await picture.toImage(width, height);
+    picture.dispose();
+    try {
+      return await _png(scaled);
+    } finally {
+      scaled.dispose();
+    }
+  } finally {
+    image.dispose();
   }
 }
 
@@ -131,6 +174,7 @@ class ComposePage with Screen<List<ComposeResult>?>, Emitter {
     required this.assets,
     this.onSubmit,
     this.purpose = ComposePurpose.mediaMessage,
+    this.maxImageExtent,
   }) : _borrowedEntries = null,
        ownsEntries = true,
        initialSourceRect = null,
@@ -159,6 +203,7 @@ class ComposePage with Screen<List<ComposeResult>?>, Emitter {
     this.transitionSourceFor,
     this.onSubmit,
     this.purpose = ComposePurpose.mediaMessage,
+    this.maxImageExtent,
   }) : assets = [for (final e in entries) e.input],
        _borrowedEntries = entries,
        ownsEntries = false;
@@ -168,6 +213,10 @@ class ComposePage with Screen<List<ComposeResult>?>, Emitter {
 
   /// What the results are for.
   final ComposePurpose purpose;
+
+  /// Longest edge, in pixels, of an avatar result's
+  /// [ComposeResult.imageBytes]; absent keeps the image's own size.
+  final int? maxImageExtent;
 
   bool get _showsCaption => purpose == ComposePurpose.mediaMessage;
 
@@ -425,7 +474,8 @@ class ComposePage with Screen<List<ComposeResult>?>, Emitter {
           caption: raw.isEmpty ? null : raw,
           videoEdit: e.videoEdit.hasEdits ? e.videoEdit : null,
           imageBytes: purpose == ComposePurpose.avatar
-              ? await e.resolveImageBytes()
+              ? (_avatarBytes(e.input, await e.captureImage(), maxImageExtent)
+                  ..ignore())
               : null,
         ),
       );

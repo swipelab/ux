@@ -32,7 +32,7 @@ void main() {
     final result = ComposeResult(
       source: ImageMedia(file: File('absent.jpg')),
       composedImage: null,
-      imageBytes: bytes,
+      imageBytes: Future.value(bytes),
     );
     expect(await result.resolveImageBytes(), same(bytes));
   });

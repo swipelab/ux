@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -818,7 +819,10 @@ void main() {
       await tester.pumpAndSettle();
       final results = await result;
       expect(results, same(submitted.single));
-      expect(results!.single.imageBytes, isNotEmpty);
+      expect(
+        await tester.runAsync(() => results!.single.imageBytes!),
+        isNotEmpty,
+      );
       expect(picker.popped, isTrue);
       await tester.runAsync(() => Future<void>.delayed(Duration.zero));
       await tester.pumpAndSettle();
@@ -827,6 +831,61 @@ void main() {
       expect(camera.liveHandles, isEmpty);
     },
   );
+
+  Future<MediaPickerPage> pickAvatar(
+    WidgetTester tester, {
+    required int maxImageExtent,
+  }) async {
+    final picker = await mount(
+      tester,
+      page: MediaPickerPage(
+        maxSelection: 1,
+        filter: XAssetKind.image,
+        composePurpose: ComposePurpose.avatar,
+        maxImageExtent: maxImageExtent,
+      ),
+    );
+    picker.selection.toggle(_asset('0'));
+    await tester.pumpAndSettle();
+    return picker;
+  }
+
+  Future<ui.Image> decodeAvatar(
+    WidgetTester tester,
+    ComposeResult result,
+  ) async => (await tester.runAsync(
+    () async => decodeImageFromList(await result.imageBytes!),
+  ))!;
+
+  pickerTest('an avatar editor pops before its image is encoded', (
+    tester,
+  ) async {
+    final picker = await pickAvatar(tester, maxImageExtent: 6);
+    final compose = host.pages.value.last as ComposePage;
+    await tester.runAsync(compose.focusedEntry.ensureSourceForTest);
+    unawaited(compose.handleSubmit());
+    await tester.pumpAndSettle();
+    expect(compose.popped, isTrue);
+    final avatar = (await picker.future)!.single;
+    var encoded = false;
+    unawaited(avatar.imageBytes!.then((_) => encoded = true));
+    await tester.pump();
+    expect(encoded, isFalse);
+    final image = await decodeAvatar(tester, avatar);
+    expect((image.width, image.height), (6, 4));
+    image.dispose();
+  });
+
+  pickerTest('an avatar within the image extent keeps its own size', (
+    tester,
+  ) async {
+    final picker = await pickAvatar(tester, maxImageExtent: 100);
+    await tester.runAsync((host.pages.value.last as ComposePage).handleSubmit);
+    await tester.pumpAndSettle();
+    final image = await decodeAvatar(tester, (await picker.future)!.single);
+    expect((image.width, image.height), (12, 8));
+    image.dispose();
+  });
 
   pickerTest(
     'camera and compose cancellation preserve selection and allow reopening',
