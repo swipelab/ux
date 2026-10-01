@@ -21,6 +21,9 @@ class ScreenStack extends StatefulWidget {
     super.key,
     required this.home,
     this.stack = const [],
+    this.hidden = const {},
+    this.beside = const {},
+    this.place,
     this.onRemoved,
   });
 
@@ -29,6 +32,22 @@ class ScreenStack extends StatefulWidget {
 
   /// Screens above [home], bottom to top, matched by `==`.
   final List<Screen> stack;
+
+  /// Screens of [stack] kept offstage: mounted with their State, but
+  /// unpainted, out of hit testing and focus, their tickers muted. One
+  /// hides and shows again at once, and leaves without an exit transition.
+  final Set<Screen> hidden;
+
+  /// Screens of [stack] that sit beside the screen under them instead of
+  /// covering it. The stack hands one no focus as it enters, and focus
+  /// inside one as it hides or leaves goes back to the screen it sits
+  /// beside, whose Tab traversal it shares. It takes no back gesture.
+  final Set<Screen> beside;
+
+  /// Wraps the slot of a screen of [stack] to lay out where it draws. A
+  /// leaving slot keeps the wrapper it last had.
+  final Widget Function(BuildContext context, Screen screen, Widget slot)?
+      place;
 
   /// Called once a popped screen's exit animation has finished.
   final ValueChanged<Screen>? onRemoved;
@@ -66,8 +85,20 @@ class ScreenStackState extends State<ScreenStack> with TickerProviderStateMixin 
     for (final page in widget.stack) {
       _entries.add(_createEntry(page, animated: false));
     }
+    _sync();
     _updateCanPop();
     _scheduleTopFocusHandoff();
+  }
+
+  void _sync() {
+    var under = _homeSlot;
+    for (final entry in _entries) {
+      if (entry.removing) continue;
+      entry.hidden = widget.hidden.contains(entry.page);
+      entry.beside = widget.beside.contains(entry.page) ? under : null;
+      entry._place = widget.place;
+      if (entry._covers) under = entry;
+    }
   }
 
   /// Hand focus to the current top slot's scope on the next frame.
@@ -86,7 +117,7 @@ class ScreenStackState extends State<ScreenStack> with TickerProviderStateMixin 
   }
 
   void _updateCanPop() {
-    final canPop = _entries.any((e) => !e.removing && e.page.canPop);
+    final canPop = _entries.any((e) => e._covers && e.page.canPop);
     if (canPop == _canPop) return;
     _canPop = canPop;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -179,6 +210,7 @@ class ScreenStackState extends State<ScreenStack> with TickerProviderStateMixin 
       });
     }
 
+    _sync();
     _updateCanPop();
     _scheduleTopFocusHandoff();
     setState(() {});
@@ -206,7 +238,9 @@ class ScreenStackState extends State<ScreenStack> with TickerProviderStateMixin 
 
   void _removeEntry(ScreenSlot entry) {
     entry.removing = true;
-    entry.controller.reverse().then((_) {
+    final exit =
+        entry.hidden ? Future<void>.value() : entry.controller.reverse();
+    exit.then((_) {
       if (!mounted) return;
       _entries.remove(entry);
       entry.controller.dispose();
@@ -231,14 +265,17 @@ class ScreenStackState extends State<ScreenStack> with TickerProviderStateMixin 
     super.dispose();
   }
 
-  /// Topmost live slot — the last non-removing pushed entry if any,
+  /// Topmost covering slot — the last pushed entry that covers, if any,
   /// else home. Used for focus handoff.
   ScreenSlot get _topSlot =>
-      _entries.lastWhereOrNull((e) => !e.removing) ?? _homeSlot;
+      _entries.lastWhereOrNull((e) => e._covers) ?? _homeSlot;
+
+  Widget _place(BuildContext context, ScreenSlot entry, Widget slot) =>
+      entry._place?.call(context, entry.page, slot) ?? slot;
 
   @override
   Widget build(BuildContext context) {
-    final top = _entries.lastWhereOrNull((e) => !e.removing);
+    final top = _entries.lastWhereOrNull((e) => e._covers);
     return Actions(
       actions: {
         DismissIntent: CallbackAction<DismissIntent>(
@@ -266,11 +303,15 @@ class ScreenStackState extends State<ScreenStack> with TickerProviderStateMixin 
             // reconcile inner widgets by type and preserve their State.
             KeyedSubtree(key: _homeSlot.key, child: _homeSlot.build(context)),
             for (final entry in _entries)
-              ScreenBackHandler(
-                key: entry.key,
-                entry: entry,
-                enabled: entry == top && _canPop && entry.page.canPop,
-                onPop: () => entry.page.pop(),
+              _place(
+                context,
+                entry,
+                ScreenBackHandler(
+                  key: entry.key,
+                  entry: entry,
+                  enabled: entry == top && _canPop && entry.page.canPop,
+                  onPop: () => entry.page.pop(),
+                ),
               ),
           ],
         ),
@@ -295,8 +336,10 @@ class ScreenSlot {
   /// rebuilding it.
   final key = GlobalKey();
 
-  /// Identity of the screen's content below the transition.
+  /// Identity of the screen's content below the transition, so the content
+  /// keeps its State when the transition changes shape.
   final contentKey = GlobalKey();
+
   /// Focus scope private to this slot, so a pushed screen starts with a
   /// clean focus state. The outer [ScreenStack] scope calls `setFirstFocus`
   /// on it when the slot becomes top, matching Navigator's per-route scope
@@ -309,6 +352,25 @@ class ScreenSlot {
   /// Whether this slot is playing its exit animation.
   bool removing = false;
 
+  /// Whether the screen is kept offstage: mounted with its State, but
+  /// unpainted, out of hit testing and focus, its tickers muted.
+  bool hidden = false;
+
+  /// The slot this one sits beside instead of covering, whose Tab traversal
+  /// it shares; null when this one covers the slots under it.
+  ScreenSlot? get beside => _beside;
+  ScreenSlot? _beside;
+  set beside(ScreenSlot? slot) {
+    _beside = slot;
+    focusScope.traversalEdgeBehavior = slot == null
+        ? TraversalEdgeBehavior.closedLoop
+        : TraversalEdgeBehavior.parentScope;
+  }
+
+  Widget Function(BuildContext context, Screen screen, Widget slot)? _place;
+
+  bool get _covers => !removing && !hidden && beside == null;
+
   /// Builds the screen under its transition, rebuilding it whenever the
   /// screen itself emits.
   Widget build(BuildContext context) {
@@ -318,12 +380,28 @@ class ScreenSlot {
             builder: (context, _) => page.buildPresenter(context),
           )
         : page.buildPresenter(context);
+    final focusable = !hidden && !(removing && beside != null);
 
-    return AnimatedBuilder(
-      animation: controller,
-      child: FocusScope(node: focusScope, child: child),
-      builder: (context, child) =>
-          page.buildTransition(context, controller, child!),
+    return Offstage(
+      offstage: hidden,
+      child: TickerMode(
+        enabled: !hidden,
+        child: AnimatedBuilder(
+          animation: controller,
+          child: KeyedSubtree(
+            key: contentKey,
+            child: FocusScope(
+              node: focusScope,
+              parentNode: beside?.focusScope,
+              canRequestFocus: focusable,
+              descendantsAreFocusable: focusable,
+              child: child,
+            ),
+          ),
+          builder: (context, child) =>
+              page.buildTransition(context, controller, child!),
+        ),
+      ),
     );
   }
 }

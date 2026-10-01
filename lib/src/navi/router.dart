@@ -115,14 +115,36 @@ class XRouter extends BackButtonDispatcher
     }
   }
 
-  /// Every screen to render, bottom to top, with each [ScreenShell]'s
-  /// hosted screens flattened in above it. Override to gate the list — for
+  /// Every screen shown, bottom to top, with each [ScreenShell]'s shown
+  /// screens flattened in above it. Override to gate the list — for
   /// instance to substitute an auth screen for [home].
   @override
   List<Screen> get pages => [
         ..._expand(home),
         for (final page in stack) ..._expand(page),
       ];
+
+  /// Every screen the router holds: [pages], with the hidden screens of
+  /// each [ScreenShell] among them listed after that shell.
+  @override
+  List<Screen> get hosted => _withHidden(pages);
+
+  List<Screen> _withHidden(List<Screen> shown) => [
+        for (final page in shown) ...[
+          page,
+          if (page case final ScreenShell shell)
+            for (final screen in shell.hosted)
+              if (!screen.popped && !shell.pages.contains(screen)) screen,
+        ],
+      ];
+
+  /// Re-renders [pages] and recomputes the active screen, the system-back
+  /// state and the orientations.
+  @override
+  void pagesChanged() {
+    delegate.notifyListeners();
+    _updateActive();
+  }
 
   late final _overlayEntry = OverlayEntry(builder: _buildContent);
 
@@ -145,14 +167,27 @@ class XRouter extends BackButtonDispatcher
   Widget _buildContent(BuildContext context) {
     // [pages] (not the [home]/[stack] fields) so subclasses can
     // override for gating — e.g. swap home to an auth screen.
-    final p = pages;
+    final shown = pages;
+    final screens = _withHidden(shown);
+    final shells = <Screen, ScreenShell>{
+      for (final page in shown)
+        if (page case final ScreenShell shell)
+          for (final screen in shell.hosted) screen: shell,
+    };
     final content = Material(
       child: NotificationListener<NavigationNotification>(
         onNotification: (_) =>
             true, // absorb — router manages system back directly
         child: ScreenStack(
-          home: p.first,
-          stack: p.skip(1).toList(),
+          home: screens.first,
+          stack: screens.sublist(1),
+          hidden: {...screens}..removeAll(shown),
+          beside: {
+            for (final MapEntry(key: screen, value: shell) in shells.entries)
+              if (shell.isBeside(screen)) screen,
+          },
+          place: (context, screen, slot) =>
+              shells[screen]?.place(context, screen, slot) ?? slot,
         ),
       ),
     );
@@ -176,7 +211,7 @@ class XRouter extends BackButtonDispatcher
       stack.last.pop();
     }
     if (home is ScreenShell) {
-      for (final screen in (home as ScreenShell).pages.toList()) {
+      for (final screen in (home as ScreenShell).hosted.toList()) {
         screen.pop();
       }
     }
@@ -184,8 +219,9 @@ class XRouter extends BackButtonDispatcher
 
   /// Push [page] onto the router.
   ///
-  /// If an `==`-equal page is already mounted (shell-hosted by [home] or
-  /// anywhere on [stack]), pops every stack entry above it and returns
+  /// If an `==`-equal page is already mounted (hosted by [home], shown or
+  /// hidden, or anywhere on [stack]), pops every stack entry above it, asks
+  /// [home] to [ScreenShell.show] it when [home] hosts it, and returns
   /// that existing page's future — the caller awaits until the mounted
   /// page is popped. No duplicate is created, no fresh instance is
   /// mounted. For identity-equal screens (no `==` override), this dedup
@@ -196,23 +232,30 @@ class XRouter extends BackButtonDispatcher
   /// page of a different `T` is undefined.
   @override
   Future<T?> push<T>(Screen<T> page) async {
-    FocusManager.instance.primaryFocus?.unfocus();
     if (home == page) {
+      FocusManager.instance.primaryFocus?.unfocus();
       popAll();
       return SynchronousFuture(null);
     }
+
+    final top = stack.lastOrNull ?? home;
+    final beside = top is ScreenShell && (top as ScreenShell).isBeside(page);
+    if (!beside) FocusManager.instance.primaryFocus?.unfocus();
 
     final existing = _findMounted(page);
     if (existing != null) {
       while (stack.isNotEmpty && !identical(stack.last, existing)) {
         stack.last.pop();
       }
+      if (home case final ScreenShell shell
+          when shell.hosted.any((screen) => identical(screen, existing))) {
+        shell.show(existing);
+      }
       delegate.notifyListeners();
       _updateActive();
       return existing.future as Future<T?>;
     }
 
-    final top = stack.lastOrNull ?? home;
     if (top case final ScreenShell host when host.accept(page)) {
       page.parentHost = this;
       page.detach = () {
@@ -229,6 +272,7 @@ class XRouter extends BackButtonDispatcher
       return page.future;
     }
 
+    if (beside) FocusManager.instance.primaryFocus?.unfocus();
     page.parentHost = this;
     page.detach = () {
       FocusManager.instance.primaryFocus?.unfocus();
@@ -250,9 +294,9 @@ class XRouter extends BackButtonDispatcher
   /// router stack bottom→top.
   Screen? _findMounted(Screen page) {
     if (home is ScreenShell) {
-      for (final hosted in (home as ScreenShell).pages) {
-        if (hosted.popped) continue;
-        if (identical(hosted, page) || hosted == page) return hosted;
+      for (final screen in (home as ScreenShell).hosted) {
+        if (screen.popped) continue;
+        if (identical(screen, page) || screen == page) return screen;
       }
     }
     for (final entry in stack) {
@@ -352,9 +396,44 @@ mixin ScreenShell {
   /// Called after a hosted screen's exit animation completes.
   void remove(Screen screen) {}
 
-  /// The screens currently hosted by this shell. The router flattens
-  /// these into the [ScreenStack] alongside the main stack.
+  /// The screens this shell shows. The router flattens these into the
+  /// [ScreenStack] alongside the main stack.
   Iterable<Screen> get pages => const [];
+
+  /// Every screen this shell hosts, shown or hidden. A hosted screen that
+  /// [pages] leaves out is hidden: it stays mounted offstage with its
+  /// State, unpainted, out of hit testing and focus, its tickers muted.
+  Iterable<Screen> get hosted => pages;
+
+  /// Shows [screen], which this shell hosts, when a push equals it. The
+  /// router re-reads [pages] afterwards.
+  void show(Screen screen) {}
+
+  /// Tells the router hosting this shell that [pages], [place] or
+  /// [isBeside] changed outside a push or a pop, as when a tab host
+  /// switches tabs.
+  void pagesChanged() {
+    if (this case Screen(parentHost: final ScreenShell router)) {
+      router.pagesChanged();
+    }
+  }
+
+  /// Wraps [slot], where hosted [screen] draws, to lay it out within this
+  /// shell, such as in a pane. The wrapper is a child of the
+  /// [ScreenStack]'s [Stack], so it may be a [Positioned]. The screen keeps
+  /// the window's [MediaQuery].
+  Widget place(BuildContext context, Screen screen, Widget slot) => slot;
+
+  /// Whether [screen] sits beside this shell instead of covering it. The
+  /// router asks before [accept] on a push, and for each hosted screen as
+  /// it renders.
+  ///
+  /// A beside screen moves no focus as it comes and goes, except that focus
+  /// inside one that leaves goes to this shell. Tab and Shift+Tab cross
+  /// between this shell's controls and the screen's. The screen takes no
+  /// edge-swipe or predictive-back drag, so system back reaches this
+  /// shell's [Screen.handleBack].
+  bool isBeside(Screen screen) => false;
 }
 
 /// Mixin for screens that support deep-linking via a URL.
