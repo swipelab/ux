@@ -41,10 +41,11 @@ final class UxVideoPlayerInstance: NSObject {
     /// `item.presentationSize` already reflects the rotated dimensions.
     /// Without surfacing this to Dart, the gallery wraps a
     /// portrait-displayed-as-landscape buffer in a portrait
-    /// `AspectRatio` and stretches it. Computed from the first video
-    /// track's `preferredTransform` in [setSource]; reported back via
-    /// [prepare]'s completion alongside the presentation size.
-    private var rotationQuarterTurns: Int = 0
+    /// `AspectRatio` and stretches it. Loaded from the first video
+    /// track's `preferredTransform` once the asset's tracks arrive — for
+    /// a remote asset, after its header downloads — and nil until then.
+    /// [prepare] completes only once it is known.
+    private var rotationQuarterTurns: Int?
 
     private var disposed = false
     private var lastReportedIsPlaying = false
@@ -75,7 +76,6 @@ final class UxVideoPlayerInstance: NSObject {
 
     func setSource(url: URL) {
         let asset = AVURLAsset(url: url)
-        rotationQuarterTurns = Self.rotationQuarterTurns(for: asset)
         let newItem = AVPlayerItem(asset: asset)
         let output = AVPlayerItemVideoOutput(
             pixelBufferAttributes: Self.pixelBufferAttributes,
@@ -87,6 +87,13 @@ final class UxVideoPlayerInstance: NSObject {
         player.replaceCurrentItem(with: newItem)
 
         addObservers(item: newItem)
+
+        // A tracks load that fails also fails the item, which fails [prepare].
+        Task { @MainActor [weak self] in
+            let turns = (try? await Self.rotationQuarterTurns(for: asset)) ?? 0
+            self?.rotationQuarterTurns = turns
+            self?.completePrepare()
+        }
     }
 
     /// Maps the first video track's `preferredTransform` to quarter
@@ -94,9 +101,11 @@ final class UxVideoPlayerInstance: NSObject {
     /// angle from the affine transform's rotation/scale components;
     /// rounding to the nearest 90° gives a stable enum-like value
     /// (`Int` mod 4) for the Dart-side `RotatedBox`.
-    private static func rotationQuarterTurns(for asset: AVAsset) -> Int {
-        guard let track = asset.tracks(withMediaType: .video).first else { return 0 }
-        let t = track.preferredTransform
+    private static func rotationQuarterTurns(for asset: AVAsset) async throws -> Int {
+        guard #available(iOS 15, macOS 12, *),
+              let track = try await asset.loadTracks(withMediaType: .video).first
+        else { return 0 }
+        let t = try await track.load(.preferredTransform)
         let radians = atan2(t.b, t.a)
         let degrees = radians * 180.0 / .pi
         let normalized = (Int(degrees.rounded()) % 360 + 360) % 360
@@ -104,7 +113,7 @@ final class UxVideoPlayerInstance: NSObject {
     }
 
     func prepare(completion: @escaping (Error?, CGSize, Int64, Int) -> Void) {
-        guard let item = item else {
+        guard item != nil else {
             completion(
                 NSError(
                     domain: "ux.video",
@@ -118,16 +127,26 @@ final class UxVideoPlayerInstance: NSObject {
             return
         }
         prepareCompletion = completion
-        // If we already passed .readyToPlay, fire immediately.
-        if item.status == .readyToPlay {
-            let dims = item.presentationSize
-            let durMs = Self.toMs(item.duration)
-            prepareCompletion = nil
-            startPumping()
-            startPositionTimer()
-            completion(nil, dims, durMs, rotationQuarterTurns)
-        }
-        // Otherwise the KVO on `status` will resolve us when ready.
+        completePrepare()
+    }
+
+    /// Resolves [prepare] once the item is ready to play and the
+    /// rotation has loaded.
+    private func completePrepare() {
+        guard let completion = prepareCompletion,
+              let item = item,
+              item.status == .readyToPlay,
+              let rotationQuarterTurns
+        else { return }
+        prepareCompletion = nil
+        let dims = item.presentationSize
+        let durMs = Self.toMs(item.duration)
+        lastReportedSize = dims
+        lastReportedDurationMs = durMs
+        startPumping()
+        startPositionTimer()
+        emitSizeChanged(dims)
+        completion(nil, dims, durMs, rotationQuarterTurns)
     }
 
     // MARK: - Controls
@@ -264,17 +283,7 @@ final class UxVideoPlayerInstance: NSObject {
         if context == &statusContext, let item = item {
             switch item.status {
             case .readyToPlay:
-                if let completion = prepareCompletion {
-                    prepareCompletion = nil
-                    let dims = item.presentationSize
-                    let durMs = Self.toMs(item.duration)
-                    lastReportedSize = dims
-                    lastReportedDurationMs = durMs
-                    startPumping()
-                    startPositionTimer()
-                    emitSizeChanged(dims)
-                    completion(nil, dims, durMs, rotationQuarterTurns)
-                }
+                completePrepare()
             case .failed:
                 if let completion = prepareCompletion {
                     prepareCompletion = nil
