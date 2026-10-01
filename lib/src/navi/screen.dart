@@ -78,11 +78,12 @@ mixin Screen<T> {
 
   /// Called when this screen becomes the topmost visible screen in the
   /// router. Fires once after push, and again whenever it becomes topmost
-  /// after a screen above it pops. Always paired with a later [onInactive].
+  /// after a screen above it pops or hides, or its shell shows it. Always
+  /// paired with a later [onInactive].
   void onActive() {}
 
-  /// Called when another screen is pushed on top, or right before this one
-  /// is popped. Mirror of [onActive].
+  /// Called when another screen is pushed on top, when its shell hides it,
+  /// or right before this one is popped. Mirror of [onActive].
   void onInactive() {}
 
   // === pop lifecycle ===

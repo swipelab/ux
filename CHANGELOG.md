@@ -13,6 +13,27 @@
 - **Network video players open without blocking the UI on iOS and macOS.**
   The player loads the video's rotation once the header has downloaded, and
   `initialize` reports it with the size and duration.
+- **A `ScreenShell` keeps screens it hosts but does not show.**
+  `ScreenShell.hosted` lists every screen a shell hosts and `pages` the ones
+  it shows. A hosted screen left out of `pages` stays mounted offstage with
+  its State, unpainted, out of hit testing and focus, its tickers muted. It
+  hides, shows again and leaves at once, without a transition, and focus
+  inside it goes back to the shell. `ScreenShell.pagesChanged` tells the
+  router that the shown screens changed outside a push or a pop, and the
+  router re-renders and recomputes the active screen, the system-back state
+  and the orientations. `XRouter.hosted` lists every screen the router holds,
+  and `XRouter.pages` the shown ones. `popAll` pops hidden screens too, and a
+  push equal to a screen `home` hosts asks it to `ScreenShell.show` that
+  screen.
+- **A `ScreenShell` places its hosted screens and hosts screens beside it.**
+  `ScreenShell.place` wraps a hosted screen's slot to lay out where it draws,
+  under the window's `MediaQuery`. A screen `ScreenShell.isBeside` marks
+  moves no focus as it comes and goes, except that focus inside one that
+  leaves goes to the shell. Tab and Shift+Tab cross between the shell and the
+  screen, and the screen takes no edge-swipe or predictive-back drag, so
+  system back reaches the shell's `handleBack`. A screen keeps its State when
+  its placement, its beside mark or the shape of its transition changes.
+  `ScreenStack` takes `hidden`, `beside` and `place`.
 
 ### 0.17.0
 - **`media.dart` holds one snapshot flight.** `GalleryTransition` uses
