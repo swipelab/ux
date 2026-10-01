@@ -10,6 +10,9 @@
   lays `MediaHost.confirmButton` full width under the editing tools wherever
   no caption field sends the edit. Breaking: hosts implement
   `MediaHost.confirmButton`, and `MediaCommandsBar.onConfirm` is removed.
+- **Network video players open without blocking the UI on iOS and macOS.**
+  The player loads the video's rotation once the header has downloaded, and
+  `initialize` reports it with the size and duration.
 
 ### 0.17.0
 - **`media.dart` holds one snapshot flight.** `GalleryTransition` uses
