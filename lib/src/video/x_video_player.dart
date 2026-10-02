@@ -160,7 +160,8 @@ class XVideoPlayerValue {
 /// gallery / outgoing-media read.
 ///
 /// Lifecycle: construct → [initialize] → use → [dispose]. After
-/// [dispose] every other method throws [XVideoPlayerException("disposed")].
+/// [dispose] every other method throws [XVideoPlayerException("disposed")],
+/// and so does a call the native side answers after [dispose].
 class XVideoPlayerController extends ChangeNotifier
     implements ValueListenable<XVideoPlayerValue> {
   /// Play a local file.
@@ -221,6 +222,8 @@ class XVideoPlayerController extends ChangeNotifier
       final result = await XVideoPlayerBackend.instance.create(
         uri: _uri,
       );
+      if (_disposed) await _disposeInstance(result.handle);
+      _throwIfDisposed('initialize');
       _handle = result.handle;
       _textureId = result.textureId;
       _eventsSub = XVideoPlayerBackend.instance.events(result.handle).listen(
@@ -229,8 +232,10 @@ class XVideoPlayerController extends ChangeNotifier
               _setValue = _value.copyWith(errorDescription: error.toString());
             },
           );
-      final metadata =
-          await XVideoPlayerBackend.instance.initialize(result.handle);
+      final metadata = await _send(
+        'initialize',
+        (backend, handle) => backend.initialize(handle),
+      );
       _setValue = _value.copyWith(
         isInitialized: true,
         size: metadata.size,
@@ -272,50 +277,56 @@ class XVideoPlayerController extends ChangeNotifier
 
   /// Starts or resumes playback.
   Future<void> play() async {
-    final handle = _requireHandle('play');
-    await XVideoPlayerBackend.instance.play(handle);
+    await _send('play', (backend, handle) => backend.play(handle));
     _setValue = _value.copyWith(isPlaying: true);
   }
 
   /// Halts playback, leaving the playhead where it is.
   Future<void> pause() async {
-    final handle = _requireHandle('pause');
-    await XVideoPlayerBackend.instance.pause(handle);
+    await _send('pause', (backend, handle) => backend.pause(handle));
     _setValue = _value.copyWith(isPlaying: false);
   }
 
   /// Moves the playhead, clamped into the track.
   Future<void> seekTo(Duration position) async {
-    final handle = _requireHandle('seekTo');
     final clamped = position < Duration.zero
         ? Duration.zero
         : position > _value.duration && _value.duration > Duration.zero
             ? _value.duration
             : position;
-    await XVideoPlayerBackend.instance.seekTo(handle, clamped);
+    await _send(
+      'seekTo',
+      (backend, handle) => backend.seekTo(handle, clamped),
+    );
     _setValue = _value.copyWith(position: clamped);
   }
 
   /// Sets whether the track restarts on reaching its end.
   Future<void> setLooping(bool loop) async {
-    final handle = _requireHandle('setLooping');
-    await XVideoPlayerBackend.instance.setLooping(handle, loop);
+    await _send(
+      'setLooping',
+      (backend, handle) => backend.setLooping(handle, loop),
+    );
     _setValue = _value.copyWith(isLooping: loop);
   }
 
   /// Sets playback gain, clamped to 0–1.
   Future<void> setVolume(double volume) async {
-    final handle = _requireHandle('setVolume');
     final clamped = volume.clamp(0.0, 1.0).toDouble();
-    await XVideoPlayerBackend.instance.setVolume(handle, clamped);
+    await _send(
+      'setVolume',
+      (backend, handle) => backend.setVolume(handle, clamped),
+    );
     _setValue = _value.copyWith(volume: clamped);
   }
 
   /// Sets playback rate, clamped to 0.25–4.
   Future<void> setPlaybackSpeed(double rate) async {
-    final handle = _requireHandle('setPlaybackSpeed');
     final clamped = rate.clamp(0.25, 4.0).toDouble();
-    await XVideoPlayerBackend.instance.setPlaybackSpeed(handle, clamped);
+    await _send(
+      'setPlaybackSpeed',
+      (backend, handle) => backend.setPlaybackSpeed(handle, clamped),
+    );
     _setValue = _value.copyWith(playbackSpeed: clamped);
   }
 
@@ -325,19 +336,32 @@ class XVideoPlayerController extends ChangeNotifier
     _disposed = true;
     final handle = _handle;
     _handle = null;
-    final sub = _eventsSub;
+    final cancelled = _eventsSub?.cancel();
     _eventsSub = null;
-    if (handle != null) {
-      try {
-        await XVideoPlayerBackend.instance.disposeInstance(handle);
-      } on PlatformException catch (_) {
-        // Native side may have already torn down (e.g. engine
-        // detaching). Don't propagate — dispose() must be safe to
-        // call repeatedly.
-      }
-    }
-    await sub?.cancel();
+    if (handle != null) await _disposeInstance(handle);
+    await cancelled;
     super.dispose();
+  }
+
+  Future<void> _disposeInstance(int handle) async {
+    try {
+      await XVideoPlayerBackend.instance.disposeInstance(handle);
+    } on PlatformException catch (_) {
+      // Native side may have already torn down (e.g. engine
+      // detaching). Don't propagate — dispose() must be safe to
+      // call repeatedly.
+    }
+  }
+
+  /// Runs [call] against the native session and fails with `disposed`
+  /// when [dispose] ran before the native side answered.
+  Future<T> _send<T>(
+    String op,
+    Future<T> Function(XVideoPlayerBackend backend, int handle) call,
+  ) async {
+    final result = await call(XVideoPlayerBackend.instance, _requireHandle(op));
+    _throwIfDisposed(op);
+    return result;
   }
 
   /// Texture-backed (Apple) or platform-view-backed (Android) render

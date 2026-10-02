@@ -1,9 +1,45 @@
+import 'dart:async';
 import 'dart:io' as io;
 import 'dart:ui' show Size;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ux/testing.dart';
 import 'package:ux/video.dart';
+
+/// Holds create, initialize and disposeInstance while their completer is
+/// pending, and records every events subscription.
+class _HeldBackend extends FakeXVideoPlayerBackend {
+  Completer<void>? createHeld;
+  Completer<void>? initializeHeld;
+  Completer<void>? disposeHeld;
+  final List<int> eventsCalls = [];
+
+  @override
+  Future<XVideoPlayerCreateResult> create({required String uri}) async {
+    final result = await super.create(uri: uri);
+    await createHeld?.future;
+    return result;
+  }
+
+  @override
+  Future<XVideoPlayerMetadata> initialize(int handle) async {
+    final metadata = await super.initialize(handle);
+    await initializeHeld?.future;
+    return metadata;
+  }
+
+  @override
+  Future<void> disposeInstance(int handle) async {
+    await disposeHeld?.future;
+    await super.disposeInstance(handle);
+  }
+
+  @override
+  Stream<XVideoPlayerEvent> events(int handle) {
+    eventsCalls.add(handle);
+    return super.events(handle);
+  }
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -195,5 +231,84 @@ void main() {
     // The controller has a handle from `create` even though `initialize`
     // threw; dispose must have been called to release it.
     expect(fake.disposeCalls.single, 1);
+  });
+
+  group('dispose while a native call is pending', () {
+    late _HeldBackend held;
+    late XVideoPlayerController ctrl;
+    var notified = 0;
+
+    setUp(() {
+      held = _HeldBackend();
+      XVideoPlayerBackend.instance = held;
+      ctrl = XVideoPlayerController.file(io.File('/tmp/fake.mp4'));
+      notified = 0;
+      ctrl.addListener(() => notified++);
+    });
+
+    test('a handle created after dispose is disposed, never subscribed, '
+        'and initialize fails as disposed', () async {
+      held.createHeld = Completer<void>();
+      final init = ctrl.initialize();
+      await ctrl.dispose();
+
+      held.createHeld!.complete();
+      await expectLater(
+        init,
+        throwsA(
+          isA<XVideoPlayerException>().having(
+            (e) => e.code,
+            'code',
+            'disposed',
+          ),
+        ),
+      );
+
+      expect(held.disposeCalls, [1]);
+      expect(held.eventsCalls, isEmpty);
+      expect(held.initializeCalls, isEmpty);
+      expect(notified, 0);
+    });
+
+    test('metadata arriving after dispose leaves the controller '
+        'uninitialized and initialize fails as disposed', () async {
+      held.initializeHeld = Completer<void>();
+      final init = ctrl.initialize();
+      await pumpEventQueue();
+      expect(held.initializeCalls, [1]);
+      await ctrl.dispose();
+
+      held.initializeHeld!.complete();
+      await expectLater(
+        init,
+        throwsA(
+          isA<XVideoPlayerException>().having(
+            (e) => e.code,
+            'code',
+            'disposed',
+          ),
+        ),
+      );
+
+      expect(held.disposeCalls, [1]);
+      expect(ctrl.value.isInitialized, isFalse);
+      expect(notified, 0);
+    });
+
+    test('an event arriving while the native player is torn down '
+        'notifies nobody', () async {
+      await ctrl.initialize();
+      notified = 0;
+      held.disposeHeld = Completer<void>();
+      final disposed = ctrl.dispose();
+
+      held.emitState(1, isPlaying: true);
+      await pumpEventQueue();
+      held.disposeHeld!.complete();
+      await disposed;
+
+      expect(ctrl.value.isPlaying, isFalse);
+      expect(notified, 0);
+    });
   });
 }

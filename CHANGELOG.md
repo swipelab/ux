@@ -13,6 +13,11 @@
 - **Network video players open without blocking the UI on iOS and macOS.**
   The player loads the video's rotation once the header has downloaded, and
   `initialize` reports it with the size and duration.
+- **A disposed video player stays disposed.** A native player created after
+  `XVideoPlayerController.dispose` is disposed at once, and no listener hears
+  from the controller after `dispose`. A call the native side answers after
+  `dispose`, `initialize` included, changes nothing and fails with
+  `XVideoPlayerException('disposed')`.
 - **A `ScreenShell` keeps screens it hosts but does not show.**
   `ScreenShell.hosted` lists every screen a shell hosts and `pages` the ones
   it shows. A hosted screen left out of `pages` stays mounted offstage with
