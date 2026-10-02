@@ -161,7 +161,7 @@ class XVideoPlayerValue {
 ///
 /// Lifecycle: construct → [initialize] → use → [dispose]. After
 /// [dispose] every other method throws [XVideoPlayerException("disposed")],
-/// and a call still waiting on the native side fails with it.
+/// and so does a call the native side answers after [dispose].
 class XVideoPlayerController extends ChangeNotifier
     implements ValueListenable<XVideoPlayerValue> {
   /// Play a local file.
