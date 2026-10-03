@@ -108,7 +108,10 @@ class ComposeEntry with Emitter {
   /// back to `Image.file(input.file)`. Re-rendered after each tool
   /// apply.
   ui.Image? renderedPreview;
-  bool _previewRendering = false;
+  /// The running render of the current edits; absent when none runs.
+  Future<void>? _previewRender;
+  /// Counts invalidations; a render overtaken by one drops its image.
+  int _previewVersion = 0;
 
   /// Where in the editor surface (scaffold-body coords) the image
   /// should fit. Each screen pushes its own rect via [setFitRect] from
@@ -628,18 +631,28 @@ class ComposeEntry with Emitter {
   void _invalidatePreview() {
     final old = renderedPreview;
     renderedPreview = null;
+    _previewRender = null;
+    _previewVersion++;
     notifyListeners();
     old?.dispose();
   }
 
   Future<void> _renderPreview() async {
-    if (_previewRendering || input is! ImageMedia) return;
-    _previewRendering = true;
+    if (input is! ImageMedia) return;
+    int version;
+    do {
+      version = _previewVersion;
+      await (_previewRender ??= _composePreview());
+    } while (version != _previewVersion && !disposed);
+  }
+
+  Future<void> _composePreview() async {
+    final version = _previewVersion;
     try {
       final source = await ensureSource();
       if (source == null || disposed) return;
       final preview = await _composeLayers(source);
-      if (disposed) {
+      if (disposed || version != _previewVersion) {
         preview.dispose();
         return;
       }
@@ -647,7 +660,7 @@ class ComposeEntry with Emitter {
       renderedPreview = preview;
       notifyListeners();
     } finally {
-      _previewRendering = false;
+      if (version == _previewVersion) _previewRender = null;
     }
   }
 
@@ -698,9 +711,8 @@ class ComposeEntry with Emitter {
 
   /// In-memory composite for the send pipeline. Returns the cached
   /// [renderedPreview] when available (the common case — tool
-  /// applies eagerly rasterise into it); falls back to a fresh
-  /// `_renderPreview()` if the user tapped Send before the
-  /// preview finished. Null when there are no edits — callers
+  /// applies eagerly rasterise into it); otherwise waits for the
+  /// render of the current edits. Null when there are no edits — callers
   /// upload [input] as-is.
   ///
   /// The PNG encode + disk write that used to live here moved to
