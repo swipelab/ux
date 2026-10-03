@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io' as io;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter/widgets.dart';
 
 import 'x_video_player_backend.dart';
@@ -346,10 +345,9 @@ class XVideoPlayerController extends ChangeNotifier
   Future<void> _disposeInstance(int handle) async {
     try {
       await XVideoPlayerBackend.instance.disposeInstance(handle);
-    } on PlatformException catch (_) {
-      // Native side may have already torn down (e.g. engine
-      // detaching). Don't propagate — dispose() must be safe to
-      // call repeatedly.
+    } on XVideoPlayerException {
+      // The native side may already have torn down, e.g. while the engine
+      // detaches; dispose completes regardless.
     }
   }
 
