@@ -196,8 +196,8 @@ class XVideoPlayerController extends ChangeNotifier
   /// Native handle once [initialize] has resolved. Null otherwise.
   int? get handle => _handle;
 
-  /// Texture id on Apple platforms. On Android playback uses a platform
-  /// view (no texture id), and this stays null.
+  /// Flutter texture id the player renders into. Null until [initialize]
+  /// has created the native session.
   int? get textureId => _textureId;
 
   /// Configure the native session and load the file. Resolves once the
@@ -362,9 +362,8 @@ class XVideoPlayerController extends ChangeNotifier
     return result;
   }
 
-  /// Texture-backed (Apple) or platform-view-backed (Android) render
-  /// widget. Equivalent to `VideoPlayer(controller)` — wrap in
-  /// `AspectRatio` to control framing.
+  /// Texture-backed render widget. Equivalent to
+  /// `VideoPlayer(controller)` — wrap in `AspectRatio` to control framing.
   Widget buildPlayer() => XVideoPlayerView(controller: this);
 
   int _requireHandle(String op) {

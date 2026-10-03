@@ -18,10 +18,7 @@ abstract class XVideoPlayerBackend {
 
   /// Allocate a native player instance bound to [uri] (`file://...` for
   /// local playback, or an http(s) URL for network streaming). Returns
-  /// the handle and, on Apple platforms, the
-  /// Flutter texture id; Android returns `textureId: null` because the
-  /// render path is a platform view that takes the handle as creation
-  /// params.
+  /// the handle and the Flutter texture id the player renders into.
   Future<XVideoPlayerCreateResult> create({required String uri});
 
   /// Load the media. Resolves once the codec is configured and metadata
@@ -69,8 +66,7 @@ class XVideoPlayerCreateResult {
   /// Identifies the native session in every subsequent call.
   final int handle;
 
-  /// Apple-platform Flutter texture id, or null on Android (which uses
-  /// a platform view keyed off [handle] instead).
+  /// Flutter texture id the native session renders into.
   final int? textureId;
 }
 
