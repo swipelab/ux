@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io' as io;
 import 'dart:ui' show Size;
 
+import 'package:flutter/services.dart'
+    show EventChannel, MethodChannel, PlatformException;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ux/testing.dart';
 import 'package:ux/video.dart';
@@ -231,6 +233,51 @@ void main() {
     // The controller has a handle from `create` even though `initialize`
     // threw; dispose must have been called to release it.
     expect(fake.disposeCalls.single, 1);
+  });
+
+  test('a native dispose failure on the channel backend leaves dispose '
+      'completing its teardown', () async {
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    const channel = MethodChannel('ux/video');
+    final disposeCalls = <Object?>[];
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      switch (call.method) {
+        case 'create':
+          return {'handle': 1};
+        case 'initialize':
+          return {
+            'size': {'width': 720, 'height': 1280},
+            'durationMs': 1000,
+          };
+        case 'dispose':
+          disposeCalls.add(call.arguments);
+          throw PlatformException(code: 'native_error');
+      }
+      return null;
+    });
+    messenger.setMockStreamHandler(
+      const EventChannel('ux/video/events'),
+      MockStreamHandler.inline(onListen: (_, _) {}),
+    );
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(channel, null);
+      messenger.setMockStreamHandler(
+        const EventChannel('ux/video/events'),
+        null,
+      );
+    });
+    XVideoPlayerBackend.instance = MethodChannelXVideoPlayerBackend();
+    final ctrl = XVideoPlayerController.file(io.File('/tmp/fake.mp4'));
+    await ctrl.initialize();
+
+    await ctrl.dispose();
+    await ctrl.dispose();
+
+    expect(disposeCalls, [
+      {'handle': 1},
+    ]);
+    expect(() => ctrl.addListener(() {}), throwsFlutterError);
   });
 
   group('dispose while a native call is pending', () {
