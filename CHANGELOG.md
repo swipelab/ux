@@ -13,6 +13,13 @@
 - **Network video players open without blocking the UI on iOS and macOS.**
   The player loads the video's rotation once the header has downloaded, and
   `initialize` reports it with the size and duration.
+- **A video player's size is its display size.** `XVideoPlayerValue.size`,
+  `XVideoPlayerMetadata.size` and `XVideoPlayerSizeChanged.size` are the
+  dimensions after the track's rotation on every platform, so a portrait
+  recording reports portrait. `rotationQuarterTurns` is the correction
+  `XVideoPlayerView` applies to the texture: the track's rotation on iOS and
+  macOS, 0 on Android, where the texture arrives upright. Size a box from
+  `size` alone, without swapping it on odd turns.
 - **A disposed video player stays disposed.** A native player created after
   `XVideoPlayerController.dispose` is disposed at once, and no listener hears
   from the controller after `dispose`. A call the native side answers after

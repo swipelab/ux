@@ -76,7 +76,7 @@ class XVideoPlayerValue {
   /// to the underlying `Texture`. Populated from the native side at
   /// initialize-time — Android always 0 (codec + GLES blit handle
   /// rotation natively), Apple non-zero when the asset's
-  /// `preferredTransform` rotates the natural pixel buffer.
+  /// `preferredTransform` rotates the stored pixel buffer.
   final int rotationQuarterTurns;
 
   /// Last known playhead position. Reported by the native side on a
@@ -87,8 +87,8 @@ class XVideoPlayerValue {
   /// Total duration of the media. `Duration.zero` until [isInitialized].
   final Duration duration;
 
-  /// Natural pixel dimensions of the video frame. `Size.zero` until
-  /// the native side reports metadata.
+  /// Display-oriented dimensions of the video frame, after the track's
+  /// rotation. `Size.zero` until the native side reports metadata.
   final Size size;
 
   /// Playback gain, from 0 to 1.

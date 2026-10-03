@@ -84,7 +84,8 @@ class XVideoPlayerMetadata {
     this.rotationQuarterTurns = 0,
   });
 
-  /// Natural pixel dimensions of a video frame.
+  /// Display-oriented dimensions of a video frame, after the track's
+  /// rotation.
   final Size size;
 
   /// Total length of the media.
@@ -95,7 +96,7 @@ class XVideoPlayerMetadata {
   /// reports 0 (the codec + GLES blit apply the rotation upstream of
   /// Flutter). Apple reports the rotation derived from the video
   /// track's `preferredTransform` — `AVPlayerItemVideoOutput`
-  /// delivers pixel buffers in the file's natural orientation, so the
+  /// delivers pixel buffers in the track's stored orientation, so the
   /// `RotatedBox` wrapper applies it Dart-side.
   final int rotationQuarterTurns;
 }
@@ -144,7 +145,8 @@ class XVideoPlayerSizeChanged extends XVideoPlayerEvent {
   /// Carries the codec's revised frame dimensions.
   const XVideoPlayerSizeChanged(super.handle, this.size);
 
-  /// Natural pixel dimensions of a video frame.
+  /// Display-oriented dimensions of a video frame, after the track's
+  /// rotation.
   final Size size;
 }
 
