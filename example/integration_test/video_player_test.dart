@@ -2,8 +2,11 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:math';
+import 'dart:ui' as ui;
 
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:ux/video.dart';
@@ -27,7 +30,51 @@ void main() {
     final metadata = await backend.initialize(created.handle);
     expect(metadata.size, const Size(16, 32));
     expect(metadata.duration, const Duration(seconds: 1));
-    expect(metadata.rotationQuarterTurns, 1);
+    expect(metadata.rotationQuarterTurns, Platform.isAndroid ? 0 : 1);
+  });
+
+  testWidgets('a rotated video renders upright through XVideoPlayerView', (
+    tester,
+  ) async {
+    final video = await rootBundle.load('integration_test/assets/portrait.mp4');
+    final dir = await Directory.systemTemp.createTemp();
+    addTearDown(() => dir.delete(recursive: true));
+    final file = File('${dir.path}/portrait.mp4');
+    await file.writeAsBytes(video.buffer.asUint8List());
+    final controller = XVideoPlayerController.file(file);
+    addTearDown(controller.dispose);
+    await tester.runAsync(() async {
+      await controller.initialize();
+      await controller.play();
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+    });
+
+    final boundary = GlobalKey();
+    await tester.pumpWidget(
+      Center(
+        child: RepaintBoundary(
+          key: boundary,
+          child: SizedBox(
+            width: 160,
+            height: 320,
+            child: XVideoPlayerView(controller: controller),
+          ),
+        ),
+      ),
+    );
+    final pixels = (await tester.runAsync(() async {
+      final render =
+          boundary.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+      final image = await render.toImage();
+      return image.toByteData(format: ui.ImageByteFormat.rawRgba);
+    }))!;
+    int luma(int x, int y) => pixels.getUint8((y * 160 + x) * 4 + 1);
+
+    // portrait.mp4 shows white over black once its -90° display matrix applies.
+    expect(
+      [luma(40, 80), luma(120, 80), luma(40, 240), luma(120, 240)],
+      [greaterThan(200), greaterThan(200), lessThan(55), lessThan(55)],
+    );
   });
 
   testWidgets('disposing a player answers its pending initialize', (

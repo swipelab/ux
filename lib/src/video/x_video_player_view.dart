@@ -42,7 +42,7 @@ class XVideoPlayerView extends StatelessWidget {
         if (textureId == null) return SizedBox.expand();
         Widget child = Texture(textureId: textureId);
         // Apple's `AVPlayerItemVideoOutput` hands us `CVPixelBuffer`s in
-        // the file's natural orientation — the video track's
+        // the track's stored orientation — the video track's
         // `preferredTransform` rotation is NOT applied. The native side
         // reports the rotation as quarter-turns; we apply it here so
         // the rendered frame reads upright. Android always reports 0
