@@ -18,6 +18,11 @@
   from the controller after `dispose`. A call the native side answers after
   `dispose`, `initialize` included, changes nothing and fails with
   `XVideoPlayerException('disposed')`.
+- **A disposed compose entry stays disposed.** A `ComposeEntry` disposed
+  while its video, crop poster or draw overlay is still loading neither
+  notifies nor changes its state, and releases a poster that arrives late.
+  `ComposeEntry.disposeVideo` drops the player and notifies before the native
+  player finishes tearing down.
 - **A `ScreenShell` keeps screens it hosts but does not show.**
   `ScreenShell.hosted` lists every screen a shell hosts and `pages` the ones
   it shows. A hosted screen left out of `pages` stays mounted offstage with

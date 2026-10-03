@@ -1,9 +1,13 @@
+import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
+import 'dart:ui' as ui;
 
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ux/media.dart';
+import 'package:ux/testing.dart';
+import 'package:ux/video.dart';
 
 import 'fake_host.dart';
 
@@ -18,7 +22,36 @@ class _CaptionHost extends FakeMediaHost {
   }
 }
 
+/// Holds initialize and disposeInstance while their completer is pending.
+class _HeldBackend extends FakeXVideoPlayerBackend {
+  Completer<void>? initializeHeld;
+  Completer<void>? disposeHeld;
+
+  @override
+  Future<XVideoPlayerMetadata> initialize(int handle) async {
+    final metadata = await super.initialize(handle);
+    await initializeHeld?.future;
+    return metadata;
+  }
+
+  @override
+  Future<void> disposeInstance(int handle) async {
+    await disposeHeld?.future;
+    await super.disposeInstance(handle);
+  }
+}
+
+Future<Uint8List> _png(int width, int height) async {
+  final recorder = ui.PictureRecorder();
+  Canvas(recorder);
+  final image = await recorder.endRecording().toImage(width, height);
+  final data = await image.toByteData(format: ui.ImageByteFormat.png);
+  image.dispose();
+  return data!.buffer.asUint8List();
+}
+
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   test('an entry captions through the host\'s controller', () {
     final host = _CaptionHost();
     MediaHost.current = host;
@@ -48,5 +81,91 @@ void main() {
 
     hidden.release(under);
     expect(hidden.hidden, isNull);
+  });
+
+  group('a video entry disposed mid-flight', () {
+    const fileChannel = MethodChannel('ux/file');
+    const pathChannel = MethodChannel('plugins.flutter.io/path_provider');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    late _HeldBackend backend;
+    late ComposeEntry entry;
+
+    setUp(() {
+      MediaHost.current = FakeMediaHost();
+      backend = _HeldBackend();
+      XVideoPlayerBackend.instance = backend;
+      entry = ComposeEntry(input: VideoMedia(file: File('clip.mp4')));
+    });
+
+    tearDown(() {
+      XVideoPlayerBackend.instance = MethodChannelXVideoPlayerBackend();
+      messenger.setMockMethodCallHandler(fileChannel, null);
+      messenger.setMockMethodCallHandler(pathChannel, null);
+    });
+
+    test('settles its video load without notifying', () async {
+      final held = backend.initializeHeld = Completer<void>();
+      final load = entry.ensureVideoInitialized();
+      entry.dispose();
+      held.complete();
+      await load;
+    });
+
+    test('settles its video teardown without notifying', () async {
+      await entry.ensureVideoInitialized();
+      final held = backend.disposeHeld = Completer<void>();
+      final teardown = entry.disposeVideo();
+      entry.dispose();
+      held.complete();
+      await teardown;
+    });
+
+    test('drops its crop poster', () async {
+      final held = Completer<void>();
+      final png = await _png(4, 4);
+      messenger.setMockMethodCallHandler(fileChannel, (_) async {
+        await held.future;
+        return {'png': png, 'width': 4, 'height': 4};
+      });
+      final poster = entry.ensureVideoPosterForTest();
+      entry.dispose();
+      held.complete();
+      expect(await poster, isNull);
+      expect(entry.source, isNull);
+    });
+
+    test('leaves its edit unset when its draw overlay lands', () async {
+      final png = await _png(4, 4);
+      messenger.setMockMethodCallHandler(
+        fileChannel,
+        (_) async => {'png': png, 'width': 4, 'height': 4},
+      );
+      await entry.ensureVideoPosterForTest();
+      entry.entityLayer = EntityLayer(imageSize: entry.sourceSize!)
+        ..add(
+          TextEntity(
+            text: 'hi',
+            style: TextEntityStyle.regular,
+            align: TextAlign.center,
+            colour: const Color(0xFFFFFFFF),
+            fontSize: .5,
+            position: const Offset(2, 2),
+            width: 4,
+          ),
+        );
+      final held = Completer<void>();
+      final temporary = Directory.systemTemp.createTempSync('ux-compose-');
+      addTearDown(() => temporary.deleteSync(recursive: true));
+      messenger.setMockMethodCallHandler(pathChannel, (_) async {
+        await held.future;
+        return temporary.path;
+      });
+      final snapshot = entry.snapshotDrawOverlayForTest();
+      entry.dispose();
+      held.complete();
+      await snapshot;
+      expect(entry.videoEdit.overlay, isNull);
+    });
   });
 }
