@@ -25,6 +25,8 @@
   late. `ComposeEntry.captureImage` returns null once the entry is disposed.
   `ComposeEntry.disposeVideo` drops the player and notifies before the native
   player finishes tearing down.
+- **A video compose entry decodes its crop poster once.** Tools opened
+  together share the one poster.
 - **A `ScreenShell` keeps screens it hosts but does not show.**
   `ScreenShell.hosted` lists every screen a shell hosts and `pages` the ones
   it shows. A hosted screen left out of `pages` stays mounted offstage with

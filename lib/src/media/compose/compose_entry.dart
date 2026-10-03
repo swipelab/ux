@@ -531,6 +531,10 @@ class ComposeEntry with Emitter {
       poster.dispose();
       return null;
     }
+    if (_source != null) {
+      poster.dispose();
+      return _source;
+    }
     _source = poster;
     if (sourceSize != null && !fitRect.value.isEmpty) {
       cameraAnimator.cancel();

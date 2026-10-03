@@ -111,6 +111,30 @@ void main() {
     },
   );
 
+  test('concurrent poster loads of a video entry share one poster', () async {
+    const fileChannel = MethodChannel('ux/file');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    addTearDown(() => messenger.setMockMethodCallHandler(fileChannel, null));
+    MediaHost.current = FakeMediaHost();
+    final entry = ComposeEntry(input: VideoMedia(file: File('clip.mp4')));
+    final held = Completer<void>();
+    final png = await _png(4, 4);
+    messenger.setMockMethodCallHandler(fileChannel, (_) async {
+      await held.future;
+      return {'png': png, 'width': 4, 'height': 4};
+    });
+    final loads = [
+      entry.ensureVideoPosterForTest(),
+      entry.ensureVideoPosterForTest(),
+    ];
+    held.complete();
+    final posters = await Future.wait(loads);
+    expect(posters.first, same(entry.source));
+    expect(posters.last, same(entry.source));
+    entry.dispose();
+  });
+
   group('a video entry disposed mid-flight', () {
     const fileChannel = MethodChannel('ux/file');
     const pathChannel = MethodChannel('plugins.flutter.io/path_provider');
