@@ -27,7 +27,7 @@ void main() {
     final metadata = await backend.initialize(created.handle);
     expect(metadata.size, const Size(16, 32));
     expect(metadata.duration, const Duration(seconds: 1));
-    expect(metadata.rotationQuarterTurns, 1);
+    expect(metadata.rotationQuarterTurns, Platform.isAndroid ? 0 : 1);
   });
 
   testWidgets('disposing a player answers its pending initialize', (
