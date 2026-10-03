@@ -252,6 +252,12 @@ internal class VideoPlayerInstance(
   fun dispose() {
     if (disposed) return
     disposed = true
+    // Answered before release, which reports a release timeout through the
+    // prepare listener's onPlayerError.
+    pendingPrepare?.let {
+      pendingPrepare = null
+      it(PrepareResult.Disposed)
+    }
     mainHandler.removeCallbacks(tickRunnable)
     player.removeListener(listener)
     player.release()
@@ -262,9 +268,6 @@ internal class VideoPlayerInstance(
     outputSurface.release()
     textureEntry.release()
     onEvent = null
-    val cb = pendingPrepare ?: return
-    pendingPrepare = null
-    cb(PrepareResult.Disposed)
   }
 
   private fun emitPositionAndBuffer(forcePosition: Long? = null) {
