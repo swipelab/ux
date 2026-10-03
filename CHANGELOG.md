@@ -17,9 +17,18 @@
   `XVideoPlayerController.dispose` is disposed at once, and no listener hears
   from the controller after `dispose`. A call the native side answers after
   `dispose`, `initialize` included, changes nothing and fails with
-  `XVideoPlayerException('disposed')`. Disposing a player while its
-  `initialize` waits for the video fails that `initialize` with
+  `XVideoPlayerException('disposed')`. `dispose` completes when the native
+  player fails to tear down. Disposing a player while its `initialize` waits
+  for the video fails that `initialize` with
   `XVideoPlayerException('disposed')`.
+- **A disposed compose entry stays disposed.** A `ComposeEntry` disposed
+  while its video, crop poster, draw overlay or composite is still loading
+  neither notifies nor changes its state, and releases a poster that arrives
+  late. `ComposeEntry.captureImage` returns null once the entry is disposed.
+  `ComposeEntry.disposeVideo` drops the player and notifies before the native
+  player finishes tearing down.
+- **A video compose entry decodes its crop poster once.** Tools opened
+  together share the one poster.
 - **A `ScreenShell` keeps screens it hosts but does not show.**
   `ScreenShell.hosted` lists every screen a shell hosts and `pages` the ones
   it shows. A hosted screen left out of `pages` stays mounted offstage with
