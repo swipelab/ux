@@ -18,7 +18,9 @@
   from the controller after `dispose`. A call the native side answers after
   `dispose`, `initialize` included, changes nothing and fails with
   `XVideoPlayerException('disposed')`. `dispose` completes when the native
-  player fails to tear down.
+  player fails to tear down. Disposing a player while its `initialize` waits
+  for the video fails that `initialize` with
+  `XVideoPlayerException('disposed')`.
 - **A disposed compose entry stays disposed.** A `ComposeEntry` disposed
   while its video, crop poster, draw overlay or composite is still loading
   neither notifies nor changes its state, and releases a poster that arrives

@@ -10,6 +10,13 @@ import UIKit
 import FlutterMacOS
 #endif
 
+/// How [UxVideoPlayerInstance.prepare] ends.
+enum UxVideoPrepareResult {
+    case ready(size: CGSize, durationMs: Int64, rotationQuarterTurns: Int)
+    case failed(Error)
+    case disposed
+}
+
 /// One per Dart-side `XVideoPlayerController`. Owns the `AVPlayer`,
 /// an `AVPlayerItemVideoOutput` that pumps `CVPixelBuffer`s into the
 /// Flutter texture, and a periodic timer that fires position +
@@ -32,7 +39,7 @@ final class UxVideoPlayerInstance: NSObject {
     private var videoOutput: AVPlayerItemVideoOutput?
     private var pumpTimer: Timer?
     private var positionTimer: Timer?
-    private var prepareCompletion: ((Error?, CGSize, Int64, Int) -> Void)?
+    private var prepareCompletion: ((UxVideoPrepareResult) -> Void)?
 
     /// Quarter-turns of clockwise rotation the Flutter `Texture` needs
     /// so the rendered frame reads upright. AVPlayerItemVideoOutput
@@ -112,17 +119,16 @@ final class UxVideoPlayerInstance: NSObject {
         return (normalized / 90) % 4
     }
 
-    func prepare(completion: @escaping (Error?, CGSize, Int64, Int) -> Void) {
+    func prepare(completion: @escaping (UxVideoPrepareResult) -> Void) {
         guard item != nil else {
             completion(
-                NSError(
-                    domain: "ux.video",
-                    code: -1,
-                    userInfo: [NSLocalizedDescriptionKey: "no item"],
-                ),
-                .zero,
-                0,
-                0,
+                .failed(
+                    NSError(
+                        domain: "ux.video",
+                        code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "no item"],
+                    )
+                )
             )
             return
         }
@@ -146,7 +152,13 @@ final class UxVideoPlayerInstance: NSObject {
         startPumping()
         startPositionTimer()
         emitSizeChanged(dims)
-        completion(nil, dims, durMs, rotationQuarterTurns)
+        completion(
+            .ready(
+                size: dims,
+                durationMs: durMs,
+                rotationQuarterTurns: rotationQuarterTurns,
+            )
+        )
     }
 
     // MARK: - Controls
@@ -211,6 +223,10 @@ final class UxVideoPlayerInstance: NSObject {
         player.replaceCurrentItem(with: nil)
         sink.unregister()
         onEvent = nil
+        if let completion = prepareCompletion {
+            prepareCompletion = nil
+            completion(.disposed)
+        }
     }
 
     // MARK: - Observers / completion
@@ -288,15 +304,14 @@ final class UxVideoPlayerInstance: NSObject {
                 if let completion = prepareCompletion {
                     prepareCompletion = nil
                     completion(
-                        item.error
-                            ?? NSError(
-                                domain: "ux.video",
-                                code: -2,
-                                userInfo: [NSLocalizedDescriptionKey: "AVPlayerItem failed"],
-                            ),
-                        .zero,
-                        0,
-                        0,
+                        .failed(
+                            item.error
+                                ?? NSError(
+                                    domain: "ux.video",
+                                    code: -2,
+                                    userInfo: [NSLocalizedDescriptionKey: "AVPlayerItem failed"],
+                                )
+                        )
                     )
                 } else if let error = item.error {
                     emit([

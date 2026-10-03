@@ -55,9 +55,21 @@ public class UxVideoPlayerPlugin: NSObject, NativePlugin, FlutterStreamHandler {
             create(args: call.arguments, result: result)
         case "initialize":
             withInstance(call.arguments, result: result) { instance in
-                instance.prepare { error, size, durationMs, rotationQuarterTurns in
+                instance.prepare { prepared in
                     DispatchQueue.main.async {
-                        if let error = error {
+                        switch prepared {
+                        case let .ready(size, durationMs, rotationQuarterTurns):
+                            result(
+                                [
+                                    "size": [
+                                        "width": Double(size.width),
+                                        "height": Double(size.height),
+                                    ] as [String: Any],
+                                    "durationMs": durationMs,
+                                    "rotationQuarterTurns": rotationQuarterTurns,
+                                ] as [String: Any]
+                            )
+                        case let .failed(error):
                             result(
                                 FlutterError(
                                     code: "decode_failed",
@@ -65,18 +77,15 @@ public class UxVideoPlayerPlugin: NSObject, NativePlugin, FlutterStreamHandler {
                                     details: nil,
                                 )
                             )
-                            return
+                        case .disposed:
+                            result(
+                                FlutterError(
+                                    code: "disposed",
+                                    message: "player disposed before it was ready",
+                                    details: nil,
+                                )
+                            )
                         }
-                        result(
-                            [
-                                "size": [
-                                    "width": Double(size.width),
-                                    "height": Double(size.height),
-                                ] as [String: Any],
-                                "durationMs": durationMs,
-                                "rotationQuarterTurns": rotationQuarterTurns,
-                            ] as [String: Any]
-                        )
                     }
                 }
             }

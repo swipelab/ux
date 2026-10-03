@@ -117,29 +117,33 @@ class VideoPlayerPlugin :
 
   private fun handleInitialize(call: MethodCall, result: MethodChannel.Result) {
     withInstance(call, result) { instance ->
-      instance.prepare { error, size, durationMs ->
-        if (error != null) {
-          result.error(
+      instance.prepare { prepared ->
+        when (prepared) {
+          is PrepareResult.Ready -> result.success(
+            mapOf(
+              "size" to mapOf(
+                "width" to prepared.size.width.toDouble(),
+                "height" to prepared.size.height.toDouble(),
+              ),
+              "durationMs" to prepared.durationMs,
+              // Android rotation is applied by ExoPlayer's MediaCodec
+              // configuration + the SurfaceTexture transform matrix our
+              // compositor's GLES blit already honours, so the Flutter
+              // `Texture` widget needs no additional rotation.
+              "rotationQuarterTurns" to 0,
+            ),
+          )
+          is PrepareResult.Failed -> result.error(
             "decode_failed",
-            error.message ?: "ExoPlayer prepare failed",
+            prepared.error.message ?: "ExoPlayer prepare failed",
             null,
           )
-          return@prepare
+          PrepareResult.Disposed -> result.error(
+            "disposed",
+            "player disposed before it was ready",
+            null,
+          )
         }
-        result.success(
-          mapOf(
-            "size" to mapOf(
-              "width" to size.width.toDouble(),
-              "height" to size.height.toDouble(),
-            ),
-            "durationMs" to durationMs,
-            // Android rotation is applied by ExoPlayer's MediaCodec
-            // configuration + the SurfaceTexture transform matrix our
-            // compositor's GLES blit already honours, so the Flutter
-            // `Texture` widget needs no additional rotation.
-            "rotationQuarterTurns" to 0,
-          ),
-        )
       }
     }
   }

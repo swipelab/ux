@@ -14,6 +14,13 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import io.flutter.view.TextureRegistry
 
+/// How [VideoPlayerInstance.prepare] ends.
+internal sealed interface PrepareResult {
+  data class Ready(val size: VideoSize, val durationMs: Long) : PrepareResult
+  data class Failed(val error: Throwable) : PrepareResult
+  data object Disposed : PrepareResult
+}
+
 /// One per Dart-side `XVideoPlayerController`. Owns:
 ///   - the [ExoPlayer] built with our renderer-factory (decoder
 ///     fallback + `OMX.hisi.*` deprioritise)
@@ -88,7 +95,7 @@ internal class VideoPlayerInstance(
   private var disposed = false
   private var firstFrameRendered = false
   private var stateReady = false
-  private var pendingPrepare: ((Throwable?, VideoSize, Long) -> Unit)? = null
+  private var pendingPrepare: ((PrepareResult) -> Unit)? = null
   private var lastReportedWidth: Int = -1
   private var lastReportedHeight: Int = -1
   private var lastReportedBufferedMs: Long = -1L
@@ -173,7 +180,7 @@ internal class VideoPlayerInstance(
     player.setMediaItem(MediaItem.fromUri(uri))
   }
 
-  fun prepare(onReady: (Throwable?, VideoSize, Long) -> Unit) {
+  fun prepare(onReady: (PrepareResult) -> Unit) {
     check(!disposed)
     pendingPrepare = onReady
     val prepListener = object : Player.Listener {
@@ -190,7 +197,7 @@ internal class VideoPlayerInstance(
         player.removeListener(this)
         val cb = pendingPrepare ?: return
         pendingPrepare = null
-        cb(error, VideoSize.UNKNOWN, 0L)
+        cb(PrepareResult.Failed(error))
       }
     }
     player.addListener(prepListener)
@@ -207,7 +214,7 @@ internal class VideoPlayerInstance(
     val cb = pendingPrepare ?: return
     if (!stateReady || !firstFrameRendered) return
     pendingPrepare = null
-    cb(null, player.videoSize, player.duration.coerceAtLeast(0L))
+    cb(PrepareResult.Ready(player.videoSize, player.duration.coerceAtLeast(0L)))
     mainHandler.post(tickRunnable)
   }
 
@@ -245,6 +252,12 @@ internal class VideoPlayerInstance(
   fun dispose() {
     if (disposed) return
     disposed = true
+    // Answered before release, which reports a release timeout through the
+    // prepare listener's onPlayerError.
+    pendingPrepare?.let {
+      pendingPrepare = null
+      it(PrepareResult.Disposed)
+    }
     mainHandler.removeCallbacks(tickRunnable)
     player.removeListener(listener)
     player.release()
