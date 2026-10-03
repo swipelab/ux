@@ -362,6 +362,7 @@ class ComposeEntry with Emitter {
       // Leave the controller in its uninitialised state; the preview
       // falls back to an empty container which keeps layout stable.
     }
+    if (disposed) return;
     notifyListeners();
   }
 
@@ -432,10 +433,10 @@ class ComposeEntry with Emitter {
   Future<void> disposeVideo() async {
     final ctrl = videoController;
     if (ctrl == null) return;
-    await ctrl.dispose();
     videoController = null;
     _videoInitStarted = false;
     notifyListeners();
+    await ctrl.dispose();
   }
 
   /// Pauses the video preview.
@@ -513,6 +514,7 @@ class ComposeEntry with Emitter {
   Future<ui.Image?> _ensureVideoPoster() async {
     if (input is! VideoMedia) return null;
     if (_source != null) return _source;
+    final ui.Image poster;
     try {
       final thumb = await XFiles.videoThumbnail(
         path: input.file.path,
@@ -521,10 +523,19 @@ class ComposeEntry with Emitter {
       );
       final bytes = thumb?.pngBytes;
       if (bytes == null) return null;
-      _source = await _decodeBytes(bytes);
+      poster = await _decodeBytes(bytes);
     } catch (_) {
       return null;
     }
+    if (disposed) {
+      poster.dispose();
+      return null;
+    }
+    if (_source != null) {
+      poster.dispose();
+      return _source;
+    }
+    _source = poster;
     if (sourceSize != null && !fitRect.value.isEmpty) {
       cameraAnimator.cancel();
       final fit = _fitOf(fitRect.value, _cameraContentRect);
@@ -602,6 +613,7 @@ class ComposeEntry with Emitter {
         byteData.lengthInBytes,
       ),
     );
+    if (disposed) return;
     setVideoEdit(
       videoEdit.copyWith(
         overlay: VideoDrawOverlay(
@@ -625,7 +637,7 @@ class ComposeEntry with Emitter {
     _previewRendering = true;
     try {
       final source = await ensureSource();
-      if (source == null) return;
+      if (source == null || disposed) return;
       final preview = await _composeLayers(source);
       if (disposed) {
         preview.dispose();
@@ -707,7 +719,9 @@ class ComposeEntry with Emitter {
   /// metadata quirks. Null for a video or an image that cannot be decoded.
   Future<ui.Image?> captureImage() async {
     if (input is! ImageMedia) return null;
-    return (await composedImage() ?? await ensureSource())?.clone();
+    final image = await composedImage() ?? await ensureSource();
+    if (disposed) return null;
+    return image?.clone();
   }
 
   Future<ui.Image?> _decodeFile(io.File f) async {
