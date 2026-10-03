@@ -50,6 +50,22 @@ Future<Uint8List> _png(int width, int height) async {
   return data!.buffer.asUint8List();
 }
 
+/// A [width]×[height] PNG whose left half is opaque red.
+Future<Uint8List> _halfRedPng(int width, int height) async {
+  final recorder = ui.PictureRecorder();
+  Canvas(recorder).drawRect(
+    Rect.fromLTWH(0, 0, width / 2, height.toDouble()),
+    Paint()..color = const Color(0xFFFF0000),
+  );
+  final image = await recorder.endRecording().toImage(width, height);
+  final data = await image.toByteData(format: ui.ImageByteFormat.png);
+  image.dispose();
+  return data!.buffer.asUint8List();
+}
+
+Future<Uint8List> _rgba(ui.Image image) async =>
+    (await image.toByteData())!.buffer.asUint8List();
+
 TextEntity _caption() => TextEntity(
   text: 'hi',
   style: TextEntityStyle.regular,
@@ -108,6 +124,53 @@ void main() {
       final capture = entry.captureImage();
       entry.dispose();
       expect(await capture, isNull);
+    },
+  );
+
+  test(
+    'an image entry captured while its preview renders captures its edits',
+    () async {
+      MediaHost.current = FakeMediaHost();
+      final temporary = Directory.systemTemp.createTempSync('ux-compose-');
+      addTearDown(() => temporary.deleteSync(recursive: true));
+      final file = File('${temporary.path}/meal.png')
+        ..writeAsBytesSync(await _halfRedPng(4, 2));
+      final entry = ComposeEntry(input: ImageMedia(file: file));
+      final source = (await entry.ensureSourceForTest())!;
+      entry.cropLayer = CropImageLayer(image: source)..rotate90();
+      final render = entry.refreshPreviewForTest();
+      final capture = (await entry.captureImage())!;
+      await render;
+      expect(await _rgba(capture), await _rgba(entry.renderedPreview!));
+      capture.dispose();
+      entry.dispose();
+    },
+  );
+
+  test(
+    'an image entry edited while its preview renders captures the edit',
+    () async {
+      MediaHost.current = FakeMediaHost();
+      final temporary = Directory.systemTemp.createTempSync('ux-compose-');
+      addTearDown(() => temporary.deleteSync(recursive: true));
+      final file = File('${temporary.path}/meal.png')
+        ..writeAsBytesSync(await _halfRedPng(4, 2));
+      final entry = ComposeEntry(input: ImageMedia(file: file));
+      final source = (await entry.ensureSourceForTest())!;
+      entry.entityLayer = EntityLayer(imageSize: entry.sourceSize!)
+        ..add(_caption());
+      final render = entry.refreshPreviewForTest();
+      // The render reads its edits before the crop lands.
+      await Future<void>.value();
+      entry.cropLayer = CropImageLayer(image: source)..rotate90();
+      entry.invalidatePreviewForTest();
+      await render;
+      final capture = (await entry.captureImage())!;
+      entry.invalidatePreviewForTest();
+      await entry.refreshPreviewForTest();
+      expect(await _rgba(capture), await _rgba(entry.renderedPreview!));
+      capture.dispose();
+      entry.dispose();
     },
   );
 

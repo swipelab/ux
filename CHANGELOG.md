@@ -25,6 +25,9 @@
   late. `ComposeEntry.captureImage` returns null once the entry is disposed.
   `ComposeEntry.disposeVideo` drops the player and notifies before the native
   player finishes tearing down.
+- **A compose entry captures the edits its preview is still rendering.**
+  `ComposeEntry.composedImage` and `ComposeEntry.captureImage` wait for the
+  render of the current edits, and a render an edit overtakes is discarded.
 - **A video compose entry decodes its crop poster once.** Tools opened
   together share the one poster.
 - **A `ScreenShell` keeps screens it hosts but does not show.**
