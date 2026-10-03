@@ -633,7 +633,7 @@ class ComposeEntry with Emitter {
     _previewRendering = true;
     try {
       final source = await ensureSource();
-      if (source == null) return;
+      if (source == null || disposed) return;
       final preview = await _composeLayers(source);
       if (disposed) {
         preview.dispose();
@@ -715,7 +715,9 @@ class ComposeEntry with Emitter {
   /// metadata quirks. Null for a video or an image that cannot be decoded.
   Future<ui.Image?> captureImage() async {
     if (input is! ImageMedia) return null;
-    return (await composedImage() ?? await ensureSource())?.clone();
+    final image = await composedImage() ?? await ensureSource();
+    if (disposed) return null;
+    return image?.clone();
   }
 
   Future<ui.Image?> _decodeFile(io.File f) async {

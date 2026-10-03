@@ -50,6 +50,16 @@ Future<Uint8List> _png(int width, int height) async {
   return data!.buffer.asUint8List();
 }
 
+TextEntity _caption() => TextEntity(
+  text: 'hi',
+  style: TextEntityStyle.regular,
+  align: TextAlign.center,
+  colour: const Color(0xFFFFFFFF),
+  fontSize: .5,
+  position: const Offset(2, 2),
+  width: 4,
+);
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   test('an entry captions through the host\'s controller', () {
@@ -82,6 +92,24 @@ void main() {
     hidden.release(under);
     expect(hidden.hidden, isNull);
   });
+
+  test(
+    'an edited image entry disposed while capturing captures nothing',
+    () async {
+      MediaHost.current = FakeMediaHost();
+      final temporary = Directory.systemTemp.createTempSync('ux-compose-');
+      addTearDown(() => temporary.deleteSync(recursive: true));
+      final file = File('${temporary.path}/meal.png')
+        ..writeAsBytesSync(await _png(4, 4));
+      final entry = ComposeEntry(input: ImageMedia(file: file));
+      await entry.ensureSourceForTest();
+      entry.entityLayer = EntityLayer(imageSize: entry.sourceSize!)
+        ..add(_caption());
+      final capture = entry.captureImage();
+      entry.dispose();
+      expect(await capture, isNull);
+    },
+  );
 
   group('a video entry disposed mid-flight', () {
     const fileChannel = MethodChannel('ux/file');
@@ -143,17 +171,7 @@ void main() {
       );
       await entry.ensureVideoPosterForTest();
       entry.entityLayer = EntityLayer(imageSize: entry.sourceSize!)
-        ..add(
-          TextEntity(
-            text: 'hi',
-            style: TextEntityStyle.regular,
-            align: TextAlign.center,
-            colour: const Color(0xFFFFFFFF),
-            fontSize: .5,
-            position: const Offset(2, 2),
-            width: 4,
-          ),
-        );
+        ..add(_caption());
       final held = Completer<void>();
       final temporary = Directory.systemTemp.createTempSync('ux-compose-');
       addTearDown(() => temporary.deleteSync(recursive: true));

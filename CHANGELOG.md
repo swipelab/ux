@@ -20,8 +20,9 @@
   `XVideoPlayerException('disposed')`. `dispose` completes when the native
   player fails to tear down.
 - **A disposed compose entry stays disposed.** A `ComposeEntry` disposed
-  while its video, crop poster or draw overlay is still loading neither
-  notifies nor changes its state, and releases a poster that arrives late.
+  while its video, crop poster, draw overlay or composite is still loading
+  neither notifies nor changes its state, and releases a poster that arrives
+  late. `ComposeEntry.captureImage` returns null once the entry is disposed.
   `ComposeEntry.disposeVideo` drops the player and notifies before the native
   player finishes tearing down.
 - **A `ScreenShell` keeps screens it hosts but does not show.**
