@@ -17,6 +17,8 @@
   `XVideoPlayerController.dispose` is disposed at once, and no listener hears
   from the controller after `dispose`. A call the native side answers after
   `dispose`, `initialize` included, changes nothing and fails with
+  `XVideoPlayerException('disposed')`. Disposing a player while its
+  `initialize` waits for the video fails that `initialize` with
   `XVideoPlayerException('disposed')`.
 - **A `ScreenShell` keeps screens it hosts but does not show.**
   `ScreenShell.hosted` lists every screen a shell hosts and `pages` the ones

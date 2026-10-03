@@ -29,6 +29,25 @@ void main() {
     expect(metadata.duration, const Duration(seconds: 1));
     expect(metadata.rotationQuarterTurns, 1);
   });
+
+  testWidgets('disposing a player answers its pending initialize', (
+    tester,
+  ) async {
+    final video = await rootBundle.load('integration_test/assets/portrait.mp4');
+    final server = await _HeldVideoServer.start(video.buffer.asUint8List());
+    addTearDown(server.close);
+    final backend = MethodChannelXVideoPlayerBackend();
+
+    final created = await backend.create(uri: server.uri.toString());
+    final initialized = expectLater(
+      backend.initialize(created.handle).timeout(const Duration(seconds: 5)),
+      throwsA(
+        isA<XVideoPlayerException>().having((e) => e.code, 'code', 'disposed'),
+      ),
+    );
+    await backend.disposeInstance(created.handle);
+    await initialized;
+  });
 }
 
 /// Serves one video over HTTP byte ranges and holds every response until
