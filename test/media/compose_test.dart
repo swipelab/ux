@@ -174,6 +174,31 @@ void main() {
     },
   );
 
+  test('a capture waiting when an edit lands captures the new edits', () async {
+    MediaHost.current = FakeMediaHost();
+    final temporary = Directory.systemTemp.createTempSync('ux-compose-');
+    addTearDown(() => temporary.deleteSync(recursive: true));
+    final file = File('${temporary.path}/meal.png')
+      ..writeAsBytesSync(await _halfRedPng(4, 2));
+    final entry = ComposeEntry(input: ImageMedia(file: file));
+    final source = (await entry.ensureSourceForTest())!;
+    entry.entityLayer = EntityLayer(imageSize: entry.sourceSize!)
+      ..add(_caption());
+    final render = entry.refreshPreviewForTest();
+    final capture = entry.captureImage();
+    // The render reads its edits before the crop lands.
+    await Future<void>.value();
+    entry.cropLayer = CropImageLayer(image: source)..rotate90();
+    entry.invalidatePreviewForTest();
+    await render;
+    final captured = (await capture)!;
+    entry.invalidatePreviewForTest();
+    await entry.refreshPreviewForTest();
+    expect(await _rgba(captured), await _rgba(entry.renderedPreview!));
+    captured.dispose();
+    entry.dispose();
+  });
+
   test('concurrent poster loads of a video entry share one poster', () async {
     const fileChannel = MethodChannel('ux/file');
     final messenger =

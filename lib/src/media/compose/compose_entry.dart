@@ -639,7 +639,11 @@ class ComposeEntry with Emitter {
 
   Future<void> _renderPreview() async {
     if (input is! ImageMedia) return;
-    await (_previewRender ??= _composePreview());
+    int version;
+    do {
+      version = _previewVersion;
+      await (_previewRender ??= _composePreview());
+    } while (version != _previewVersion && !disposed);
   }
 
   Future<void> _composePreview() async {
