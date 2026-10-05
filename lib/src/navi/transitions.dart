@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:ux/src/navi/screen_stack.dart';
+
 /// Built-in transition builders for use in [Screen.buildTransition].
 abstract final class ScreenTransitions {
   /// Slide from right (push) / slide to right (pop).
@@ -11,7 +13,7 @@ abstract final class ScreenTransitions {
     final position = Tween<Offset>(
       begin: const Offset(1, 0),
       end: Offset.zero,
-    ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut));
+    ).animate(ScreenSlot.curved(context, animation, Curves.easeOut));
     return SlideTransition(position: position, child: child);
   }
 
@@ -22,7 +24,7 @@ abstract final class ScreenTransitions {
     Widget child,
   ) {
     return FadeTransition(
-      opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+      opacity: ScreenSlot.curved(context, animation, Curves.easeOut),
       child: child,
     );
   }
@@ -36,7 +38,7 @@ abstract final class ScreenTransitions {
     final position = Tween<Offset>(
       begin: const Offset(0, 1),
       end: Offset.zero,
-    ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut));
+    ).animate(ScreenSlot.curved(context, animation, Curves.easeOut));
     return SlideTransition(position: position, child: child);
   }
 
@@ -49,7 +51,7 @@ abstract final class ScreenTransitions {
     double breakpoint = 600,
   }) {
     final wide = MediaQuery.sizeOf(context).width >= breakpoint;
-    final curved = CurvedAnimation(parent: animation, curve: Curves.easeOut);
+    final curved = ScreenSlot.curved(context, animation, Curves.easeOut);
     final isExiting = animation.status == AnimationStatus.reverse;
     final position = Tween<Offset>(
       begin: wide ? Offset.zero : const Offset(1, 0),
