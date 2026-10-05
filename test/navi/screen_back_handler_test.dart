@@ -163,6 +163,26 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('a pop while a spring back runs moves the screen off from where '
+      'it shows', (tester) async {
+    final router = await _boot(tester);
+
+    final drag = await _edgeDrag(tester, _width / 4, steps: 24);
+    await drag.up();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 40));
+    var shown = _offset(tester);
+
+    router.stack.single.pop();
+    await tester.pump();
+    while (find.byKey(_pageKey).evaluate().isNotEmpty) {
+      expect(_offset(tester), greaterThanOrEqualTo(shown));
+      shown = _offset(tester);
+      await tester.pump(_frame);
+    }
+    expect(router.stack, isEmpty);
+  });
+
   testWidgets('a predictive back sets the screen at the gesture\'s progress, '
       'and its cancel springs it back on the transition\'s curve over 150 ms', (
     tester,

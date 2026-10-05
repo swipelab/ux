@@ -239,6 +239,9 @@ class ScreenStackState extends State<ScreenStack> with TickerProviderStateMixin 
 
   void _removeEntry(ScreenSlot entry) {
     entry.removing = true;
+    if (entry._backGesture case final gesture?) {
+      entry._backGesture = _Settling(gesture, entry.controller.value, 0);
+    }
     final exit =
         entry.hidden ? Future<void>.value() : entry.controller.reverse();
     exit.then((_) {
@@ -329,8 +332,8 @@ class ScreenSlot {
 
   /// [animation], the one a slot hands [Screen.buildTransition], on [curve];
   /// while a back gesture drives the slot at [context] it is the gesture's
-  /// own progress, and once the gesture lets go it runs [curve] from there to
-  /// where the transition settles.
+  /// own progress, and once the gesture lets go, or the screen leaves, it runs
+  /// [curve] from where the screen shows to where the transition settles.
   static Animation<double> curved(
     BuildContext context,
     Animation<double> animation,
@@ -440,19 +443,34 @@ class _SlotScope extends InheritedWidget {
 /// A back gesture driving a slot's transition.
 sealed class _BackGesture {
   const _BackGesture();
+
+  /// The transition's value on [curve] with the slot's controller at [t].
+  double at(double t, Curve curve);
 }
 
 /// The finger, or the predictive back's progress, sets the transition.
 final class _Tracking extends _BackGesture {
   const _Tracking();
+
+  @override
+  double at(double t, Curve curve) => t;
 }
 
-/// The gesture let go at [from], and the transition settles to [to].
+/// The transition settles to [to] on its curve, from where [from] shows it
+/// with the controller at [start].
 final class _Settling extends _BackGesture {
-  _Settling(this.from, this.to);
+  _Settling(this.from, this.start, this.to);
 
-  final double from;
+  final _BackGesture from;
+  final double start;
   final double to;
+
+  @override
+  double at(double t, Curve curve) {
+    if (start == to) return t;
+    final shown = from.at(start, curve);
+    return shown + (to - shown) * curve.transform((t - start) / (to - start));
+  }
 }
 
 /// [ScreenSlot.curved]'s animation.
@@ -466,16 +484,9 @@ class _GestureCurve extends Animation<double>
   final ScreenSlot slot;
 
   @override
-  double get value {
-    final t = parent.value;
-    return switch (slot._backGesture) {
-      null => curve.transform(t),
-      _Tracking() => t,
-      _Settling(:final from, :final to) => from == to
-          ? t
-          : from + (to - from) * curve.transform((t - from) / (to - from)),
-    };
-  }
+  double get value =>
+      slot._backGesture?.at(parent.value, curve) ??
+      curve.transform(parent.value);
 }
 
 /// Wraps a screen entry and, while it is the top one, drives its
@@ -553,13 +564,14 @@ class ScreenBackHandlerState extends State<ScreenBackHandler>
   }
 
   void _pop() {
-    widget.entry._backGesture = _Settling(widget.entry.controller.value, 0);
+    widget.entry._backGesture =
+        _Settling(const _Tracking(), widget.entry.controller.value, 0);
     widget.onPop();
   }
 
   void _springBack() {
     final entry = widget.entry;
-    final settling = _Settling(entry.controller.value, 1);
+    final settling = _Settling(const _Tracking(), entry.controller.value, 1);
     entry._backGesture = settling;
     entry.controller
         .animateTo(1.0, duration: const Duration(milliseconds: 150))
