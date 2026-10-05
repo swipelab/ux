@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart' show DragStartBehavior;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show PredictiveBackEvent;
 
@@ -238,6 +239,9 @@ class ScreenStackState extends State<ScreenStack> with TickerProviderStateMixin 
 
   void _removeEntry(ScreenSlot entry) {
     entry.removing = true;
+    if (entry._backGesture case final gesture?) {
+      entry._backGesture = _Settling(gesture, entry.controller.value, 0);
+    }
     final exit =
         entry.hidden ? Future<void>.value() : entry.controller.reverse();
     exit.then((_) {
@@ -326,6 +330,20 @@ class ScreenSlot {
   /// Binds the screen to the controller driving its transition.
   ScreenSlot({required this.page, required this.controller});
 
+  /// [animation], the one a slot hands [Screen.buildTransition], on [curve];
+  /// while a back gesture drives the slot at [context] it is the gesture's
+  /// own progress, and once the gesture lets go, or the screen leaves, it runs
+  /// [curve] from where the screen shows to where the transition settles.
+  static Animation<double> curved(
+    BuildContext context,
+    Animation<double> animation,
+    Curve curve,
+  ) {
+    final slot = context.getInheritedWidgetOfExactType<_SlotScope>()?.slot;
+    if (slot == null) return animation.drive(CurveTween(curve: curve));
+    return _GestureCurve(animation, curve, slot);
+  }
+
   /// The screen this slot holds; reassigned when an equal screen updates it.
   Screen page;
 
@@ -351,6 +369,9 @@ class ScreenSlot {
 
   /// Whether this slot is playing its exit animation.
   bool removing = false;
+
+  /// The back gesture driving [controller], while one does.
+  _BackGesture? _backGesture;
 
   /// Whether the screen is kept offstage: mounted with its State, but
   /// unpainted, out of hit testing and focus, its tickers muted.
@@ -386,28 +407,94 @@ class ScreenSlot {
       offstage: hidden,
       child: TickerMode(
         enabled: !hidden,
-        child: AnimatedBuilder(
-          animation: controller,
-          child: KeyedSubtree(
-            key: contentKey,
-            child: FocusScope(
-              node: focusScope,
-              parentNode: beside?.focusScope,
-              canRequestFocus: focusable,
-              descendantsAreFocusable: focusable,
-              child: child,
+        child: _SlotScope(
+          slot: this,
+          child: AnimatedBuilder(
+            animation: controller,
+            child: KeyedSubtree(
+              key: contentKey,
+              child: FocusScope(
+                node: focusScope,
+                parentNode: beside?.focusScope,
+                canRequestFocus: focusable,
+                descendantsAreFocusable: focusable,
+                child: child,
+              ),
             ),
+            builder: (context, child) =>
+                page.buildTransition(context, controller, child!),
           ),
-          builder: (context, child) =>
-              page.buildTransition(context, controller, child!),
         ),
       ),
     );
   }
 }
 
-/// Wraps the top screen entry and handles Android predictive back gestures.
-/// Drives the entry's [AnimationController] in response to gesture progress.
+/// The slot whose transition builds below it.
+class _SlotScope extends InheritedWidget {
+  const _SlotScope({required this.slot, required super.child});
+
+  final ScreenSlot slot;
+
+  @override
+  bool updateShouldNotify(_SlotScope oldWidget) => slot != oldWidget.slot;
+}
+
+/// A back gesture driving a slot's transition.
+sealed class _BackGesture {
+  const _BackGesture();
+
+  /// The transition's value on [curve] with the slot's controller at [t].
+  double at(double t, Curve curve);
+}
+
+/// The finger, or the predictive back's progress, sets the transition.
+final class _Tracking extends _BackGesture {
+  const _Tracking();
+
+  @override
+  double at(double t, Curve curve) => t;
+}
+
+/// The transition settles to [to] on its curve, from where [from] shows it
+/// with the controller at [start].
+final class _Settling extends _BackGesture {
+  _Settling(this.from, this.start, this.to);
+
+  final _BackGesture from;
+  final double start;
+  final double to;
+
+  @override
+  double at(double t, Curve curve) {
+    if (start == to) return t;
+    final shown = from.at(start, curve);
+    return shown + (to - shown) * curve.transform((t - start) / (to - start));
+  }
+}
+
+/// [ScreenSlot.curved]'s animation.
+class _GestureCurve extends Animation<double>
+    with AnimationWithParentMixin<double> {
+  _GestureCurve(this.parent, this.curve, this.slot);
+
+  @override
+  final Animation<double> parent;
+  final Curve curve;
+  final ScreenSlot slot;
+
+  @override
+  double get value =>
+      slot._backGesture?.at(parent.value, curve) ??
+      curve.transform(parent.value);
+}
+
+/// Wraps a screen entry and, while it is the top one, drives its
+/// [AnimationController] by the back gestures: the iOS edge swipe by the
+/// finger's travel since the touch went down, over the entry's width, and
+/// Android's predictive back by the gesture's progress. Once the gesture lets
+/// go the entry settles from there, popping when the gesture commits and
+/// otherwise returning to 1 over 150 ms.
 class ScreenBackHandler extends StatefulWidget {
   /// Binds the slot the gesture drags and the pop it commits to.
   const ScreenBackHandler({
@@ -451,6 +538,7 @@ class ScreenBackHandlerState extends State<ScreenBackHandler>
   bool handleStartBackGesture(PredictiveBackEvent backEvent) {
     if (!widget.enabled || backEvent.isButtonEvent) return false;
     _gestureInProgress = true;
+    widget.entry._backGesture = const _Tracking();
     widget.entry.controller.value = 1.0 - backEvent.progress;
     return true;
   }
@@ -465,43 +553,55 @@ class ScreenBackHandlerState extends State<ScreenBackHandler>
   void handleCommitBackGesture() {
     if (!_gestureInProgress) return;
     _gestureInProgress = false;
-    widget.onPop();
+    _pop();
   }
 
   @override
   void handleCancelBackGesture() {
     if (!_gestureInProgress) return;
     _gestureInProgress = false;
-    widget.entry.controller.animateTo(1.0,
-        duration: const Duration(milliseconds: 150), curve: Curves.easeOut);
+    _springBack();
+  }
+
+  void _pop() {
+    widget.entry._backGesture =
+        _Settling(const _Tracking(), widget.entry.controller.value, 0);
+    widget.onPop();
+  }
+
+  void _springBack() {
+    final entry = widget.entry;
+    final settling = _Settling(const _Tracking(), entry.controller.value, 1);
+    entry._backGesture = settling;
+    entry.controller
+        .animateTo(1.0, duration: const Duration(milliseconds: 150))
+        .whenCompleteOrCancel(() {
+      if (entry._backGesture == settling) entry._backGesture = null;
+    });
   }
 
   // ── iOS edge swipe ──
 
-  bool _swiping = false;
-  double _swipeStart = 0;
+  late double _swipeStart;
 
   static const _edgeWidth = 40.0;
 
+  void _onHorizontalDragStart(DragStartDetails d) {
+    _swipeStart = d.localPosition.dx;
+    widget.entry._backGesture = const _Tracking();
+  }
+
   void _onHorizontalDragUpdate(DragUpdateDetails d) {
-    if (!widget.enabled) return;
-    if (!_swiping) {
-      _swiping = true;
-      _swipeStart = 0;
-    }
-    final width = context.size?.width ?? 400;
-    final progress = ((d.localPosition.dx - _swipeStart) / width).clamp(0.0, 1.0);
-    widget.entry.controller.value = 1.0 - progress;
+    final travel = d.localPosition.dx - _swipeStart;
+    widget.entry.controller.value =
+        1.0 - (travel / context.size!.width).clamp(0.0, 1.0);
   }
 
   void _onHorizontalDragEnd(DragEndDetails d) {
-    if (!_swiping) return;
-    _swiping = false;
     if (widget.entry.controller.value < 0.5 || d.velocity.pixelsPerSecond.dx > 300) {
-      widget.onPop();
+      _pop();
     } else {
-      widget.entry.controller.animateTo(1.0,
-          duration: const Duration(milliseconds: 150), curve: Curves.easeOut);
+      _springBack();
     }
   }
 
@@ -525,6 +625,8 @@ class ScreenBackHandlerState extends State<ScreenBackHandler>
             bottom: 0,
             width: _edgeWidth,
             child: GestureDetector(
+              dragStartBehavior: DragStartBehavior.down,
+              onHorizontalDragStart: _onHorizontalDragStart,
               onHorizontalDragUpdate: _onHorizontalDragUpdate,
               onHorizontalDragEnd: _onHorizontalDragEnd,
               behavior: HitTestBehavior.translucent,

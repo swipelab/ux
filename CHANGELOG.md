@@ -60,6 +60,14 @@
   system back reaches the shell's `handleBack`. A screen keeps its State when
   its placement, its beside mark or the shape of its transition changes.
   `ScreenStack` takes `hidden`, `beside` and `place`.
+- **A back gesture moves a screen with the finger.** The iOS edge swipe
+  moves a screen by the finger's travel since the touch went down.
+  `ScreenSlot.curved(context, animation, curve)` is `animation` on `curve`:
+  while a back gesture drives the slot it is the gesture's own progress, and
+  once the gesture lets go, or the screen leaves, it runs the curve from where
+  the screen shows to where the transition settles. `ScreenTransitions` take
+  their curves through it. The spring back returns over 150 ms on the
+  transition's curve.
 
 ### 0.17.0
 - **`media.dart` holds one snapshot flight.** `GalleryTransition` uses

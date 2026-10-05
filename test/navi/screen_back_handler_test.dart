@@ -1,0 +1,218 @@
+import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ux/ux.dart';
+
+const _width = 400.0;
+const _frame = Duration(milliseconds: 16);
+final _pageKey = GlobalKey();
+
+class _Home with Screen<void> {
+  @override
+  Widget buildPresenter(BuildContext context) =>
+      ColoredBox(color: Colors.black);
+}
+
+/// A screen on the default transition, a slide on [Curves.easeOut] over
+/// 300 ms.
+class _Page with Screen<void> {
+  @override
+  Widget buildPresenter(BuildContext context) =>
+      ColoredBox(key: _pageKey, color: Colors.white);
+}
+
+/// Pumps a router on [platform] and pushes a [_Page], settled unless
+/// [settle] is false.
+Future<XRouter> _boot(
+  WidgetTester tester, {
+  TargetPlatform platform = TargetPlatform.iOS,
+  bool settle = true,
+}) async {
+  tester.view.physicalSize = const Size(_width, 800);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+  final router = XRouter(home: _Home());
+  await tester.pumpWidget(
+    XApp(
+      router: router,
+      theme: ThemeData(platform: platform),
+    ),
+  );
+  router.push(_Page());
+  if (settle) await tester.pumpAndSettle();
+  return router;
+}
+
+double _offset(WidgetTester tester) =>
+    tester.getTopLeft(find.byKey(_pageKey)).dx;
+
+/// Drags from x = 20 by [travel] in [steps] moves a frame apart, checking
+/// at every frame once the drag is recognized that the screen's offset is
+/// the finger's travel since the touch went down.
+Future<TestGesture> _edgeDrag(
+  WidgetTester tester,
+  double travel, {
+  required int steps,
+}) async {
+  var stamp = Duration.zero;
+  final drag = await tester.createGesture();
+  await drag.down(const Offset(20, 400), timeStamp: stamp);
+  for (var i = 1; i <= steps; i++) {
+    stamp += _frame;
+    await drag.moveBy(Offset(travel / steps, 0), timeStamp: stamp);
+    await tester.pump(_frame);
+    final moved = travel * i / steps;
+    if (moved > kTouchSlop) {
+      expect(
+        _offset(tester),
+        moreOrLessEquals(moved, epsilon: 0.5),
+        reason: 'at ${moved}px of travel',
+      );
+    }
+  }
+  return drag;
+}
+
+/// Checks the screen at each quarter of a settle over [span] that the frame
+/// after a release starts: it leaves [from] on [Curves.easeOut] towards [to].
+Future<void> _expectSettle(
+  WidgetTester tester,
+  double from,
+  double to,
+  Duration span,
+) async {
+  await tester.pump();
+  for (var quarter = 0; quarter < 4; quarter++) {
+    final expected = from + (to - from) * Curves.easeOut.transform(quarter / 4);
+    expect(
+      _offset(tester),
+      moreOrLessEquals(expected, epsilon: 0.5),
+      reason: 'at $quarter/4 of the settle',
+    );
+    await tester.pump(span * 0.25);
+  }
+  await tester.pumpAndSettle();
+}
+
+Future<void> _backGesture(
+  WidgetTester tester,
+  String method, [
+  double? progress,
+]) => tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+  SystemChannels.backGesture.name,
+  SystemChannels.backGesture.codec.encodeMethodCall(
+    MethodCall(
+      method,
+      progress == null
+          ? null
+          : {
+              'touchOffset': [0.0, 400.0],
+              'progress': progress,
+              'swipeEdge': 0,
+            },
+    ),
+  ),
+  (_) {},
+);
+
+void main() {
+  testWidgets('an edge swipe keeps the screen under the finger from where '
+      'the touch went down, and a release short of half springs it back on '
+      'the transition\'s curve over 150 ms', (tester) async {
+    final router = await _boot(tester);
+
+    final drag = await _edgeDrag(tester, _width / 4, steps: 24);
+    await drag.up();
+    await _expectSettle(
+      tester,
+      _width / 4,
+      0,
+      const Duration(milliseconds: 150),
+    );
+    expect(_offset(tester), 0);
+    expect(router.stack, hasLength(1));
+  });
+
+  testWidgets('an edge swipe released past half pops the screen on the '
+      'transition\'s curve from where the finger left it', (tester) async {
+    final router = await _boot(tester);
+
+    final drag = await _edgeDrag(tester, _width * 0.6, steps: 40);
+    await drag.up();
+    await _expectSettle(
+      tester,
+      _width * 0.6,
+      _width,
+      const Duration(milliseconds: 300) * 0.4,
+    );
+    expect(router.stack, isEmpty);
+  });
+
+  testWidgets('an edge swipe begun while a spring back runs keeps the screen '
+      'under the finger', (tester) async {
+    await _boot(tester);
+
+    final first = await _edgeDrag(tester, _width / 4, steps: 24);
+    await first.up();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 40));
+
+    final second = await _edgeDrag(tester, _width / 2, steps: 24);
+    await second.up();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('a pop while a spring back runs moves the screen off from where '
+      'it shows', (tester) async {
+    final router = await _boot(tester);
+
+    final drag = await _edgeDrag(tester, _width / 4, steps: 24);
+    await drag.up();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 40));
+    var shown = _offset(tester);
+
+    router.stack.single.pop();
+    await tester.pump();
+    while (find.byKey(_pageKey).evaluate().isNotEmpty) {
+      expect(_offset(tester), greaterThanOrEqualTo(shown));
+      shown = _offset(tester);
+      await tester.pump(_frame);
+    }
+    expect(router.stack, isEmpty);
+  });
+
+  testWidgets('a predictive back sets the screen at the gesture\'s progress, '
+      'and its cancel springs it back on the transition\'s curve over 150 ms', (
+    tester,
+  ) async {
+    final router = await _boot(tester, platform: TargetPlatform.android);
+
+    await _backGesture(tester, 'startBackGesture', 0);
+    await _backGesture(tester, 'updateBackGestureProgress', 0.25);
+    await tester.pump();
+    expect(_offset(tester), moreOrLessEquals(_width / 4, epsilon: 0.5));
+
+    await _backGesture(tester, 'cancelBackGesture');
+    await _expectSettle(
+      tester,
+      _width / 4,
+      0,
+      const Duration(milliseconds: 150),
+    );
+    expect(router.stack, hasLength(1));
+  });
+
+  testWidgets('a pushed screen slides in on its transition\'s curve', (
+    tester,
+  ) async {
+    await _boot(tester, settle: false);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 75));
+    expect(
+      _offset(tester),
+      moreOrLessEquals(_width * (1 - Curves.easeOut.transform(0.25))),
+    );
+  });
+}
