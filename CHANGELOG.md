@@ -68,6 +68,12 @@
   the screen shows to where the transition settles. `ScreenTransitions` take
   their curves through it. The spring back returns over 150 ms on the
   transition's curve.
+- **A media caption is what the host's caption field holds.**
+  `ComposeResult.caption` is what `MediaHost.caption` reads from the item's
+  caption controller when the page submits, in the host's own type: the host
+  trims it and keeps what its field holds beside the text, such as formats.
+  Breaking: hosts implement `MediaHost.caption`, and `ComposeResult.caption`
+  is an `Object?`.
 
 ### 0.17.0
 - **`media.dart` holds one snapshot flight.** `GalleryTransition` uses
