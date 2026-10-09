@@ -35,6 +35,10 @@ abstract class MediaHost {
   /// A controller for the caption of one composed item.
   TextEditingController captionController();
 
+  /// The caption a controller from [captionController] holds, as the app
+  /// sends it; absent when the app sends none.
+  Object? caption(TextEditingController controller);
+
   /// The caption field over a controller from [captionController].
   Widget captionField({
     required GlobalKey bubbleKey,

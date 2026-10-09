@@ -31,6 +31,10 @@ class FakeMediaHost
   TextEditingController captionController() => TextEditingController();
 
   @override
+  Object? caption(TextEditingController controller) =>
+      controller.text.isEmpty ? null : controller.text;
+
+  @override
   Widget confirmButton({required VoidCallback onPressed}) =>
       GestureDetector(onTap: onPressed, child: const Text('Confirm'));
 
