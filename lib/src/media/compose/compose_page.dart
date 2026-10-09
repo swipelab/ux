@@ -51,8 +51,9 @@ class ComposeResult {
   /// nothing was edited and [source] should be uploaded as-is.
   final ui.Image? composedImage;
 
-  /// The trimmed caption; absent when empty or when the page takes none.
-  final String? caption;
+  /// What [MediaHost.caption] read from the entry's caption controller on
+  /// submit; absent when it read none or the page takes none.
+  final Object? caption;
 
   /// Final visual bytes for flows that need to consume compose output
   /// after the owning entry has been disposed, such as avatars. Encoded
@@ -466,12 +467,13 @@ class ComposePage with Screen<List<ComposeResult>?>, Emitter {
     final results = <ComposeResult>[];
     for (final e in entries) {
       final composed = await e.composedImage();
-      final raw = _showsCaption ? e.composerController.text.trim() : '';
       results.add(
         ComposeResult(
           source: e.input,
           composedImage: composed,
-          caption: raw.isEmpty ? null : raw,
+          caption: _showsCaption
+              ? MediaHost.current.caption(e.composerController)
+              : null,
           videoEdit: e.videoEdit.hasEdits ? e.videoEdit : null,
           imageBytes: purpose == ComposePurpose.avatar
               ? (_avatarBytes(e.input, await e.captureImage(), maxImageExtent)

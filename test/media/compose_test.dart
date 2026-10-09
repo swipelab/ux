@@ -20,6 +20,10 @@ class _CaptionHost extends FakeMediaHost {
     made.add(controller);
     return controller;
   }
+
+  @override
+  Object? caption(TextEditingController controller) =>
+      (controller, controller.text);
 }
 
 /// Holds initialize and disposeInstance while their completer is pending.
@@ -84,6 +88,30 @@ void main() {
     final entry = ComposeEntry(input: ImageMedia(file: File('meal.jpg')));
     expect(entry.composerController, same(host.made.single));
     entry.dispose();
+  });
+
+  test("each submitted result carries what the host reads from its entry's caption controller", () async {
+    final host = _CaptionHost();
+    MediaHost.current = host;
+    late List<ComposeResult> submitted;
+    final page = ComposePage(
+      assets: [
+        ImageMedia(file: File('meal.jpg')),
+        ImageMedia(file: File('soup.jpg')),
+      ],
+      onSubmit: (results) async {
+        submitted = results;
+        return ChatSendResult(cids: [], sourceForCid: (_) => null);
+      },
+    );
+    page.entries.first.composerController.text = ' meal ';
+    page.entries.last.composerController.text = 'soup';
+    await page.handleSubmit();
+    expect(submitted.map((r) => r.caption), [
+      (host.made.first, ' meal '),
+      (host.made.last, 'soup'),
+    ]);
+    page.dispose();
   });
 
   test('a result with bytes resolves to them', () async {
