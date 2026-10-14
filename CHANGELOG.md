@@ -1,4 +1,14 @@
 ### 0.18.0
+- **Windows plays videos.** `XVideoPlayerController.file` plays on Windows
+  through Media Foundation's Media Engine into a Flutter texture. `initialize`
+  answers the display size and the duration, with `rotationQuarterTurns` 0
+  since the frames arrive upright, and fails with `decode_failed` for a file
+  Windows cannot decode. Play, pause, seek, looping, volume and speed act as on
+  the other platforms, and the player reports its state, size, completion and
+  errors. On Windows a network URI fails `initialize` with `bad_args`.
+- **A video player logs its metadata.** `XVideoPlayerController.initialize`
+  logs `initialized` at info level, tagged `video`, with the player's handle,
+  size, duration and quarter turns.
 - **Windows picks, opens, saves and reveals files.** `XFiles.pick` and the new
   `XFiles.pickMultiple`, which returns the picked files in order or an empty
   list when the user cancels and which Windows alone serves, open the Windows

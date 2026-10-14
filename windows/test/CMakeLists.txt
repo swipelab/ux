@@ -29,7 +29,7 @@ target_compile_options(ux_test PRIVATE /W4 /WX /wd4100 /EHsc)
 target_compile_definitions(ux_test PRIVATE UNICODE _UNICODE _HAS_EXCEPTIONS=0 "$<$<CONFIG:Debug>:_DEBUG>"
   ${UX_PLUGIN_DEFINITIONS})
 target_include_directories(ux_test PRIVATE "${ENGINE}" "${WRAPPER}/include")
-target_link_libraries(ux_test PRIVATE "${ENGINE}/flutter_windows.dll.lib" icu)
+target_link_libraries(ux_test PRIVATE "${ENGINE}/flutter_windows.dll.lib" ${UX_PLUGIN_LIBRARIES})
 add_custom_command(TARGET ux_test POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ENGINE}/flutter_windows.dll" "$<TARGET_FILE_DIR:ux_test>")
 
