@@ -5,6 +5,7 @@
 #include <mfreadwrite.h>
 #include <wrl/client.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cmath>
 #include <cstdint>
@@ -94,8 +95,8 @@ ComPtr<IMFMediaType> MediaType(const GUID& major, const GUID& subtype) {
 }
 
 // Writes the source: kSeconds of quadrants at kWidth×kHeight, its 100 ms
-// blocks counted in grey, over a 1 kHz tone.
-HRESULT WriteSource(const std::wstring& path) {
+// blocks counted in grey, over [tone] samples of a 1 kHz tone.
+HRESULT WriteSource(const std::wstring& path, UINT tone = kAudioRate * kSeconds) {
   ComPtr<IMFSinkWriter> writer;
   HRESULT hr = MFCreateSinkWriterFromURL(path.c_str(), nullptr, nullptr, &writer);
   if (FAILED(hr)) return hr;
@@ -136,17 +137,22 @@ HRESULT WriteSource(const std::wstring& path) {
   if (FAILED(hr)) return hr;
   constexpr LONGLONG kFrameTicks = kTicksPerSecond / kFramesPerSecond;
   constexpr UINT kFrameSamples = kAudioRate / kFramesPerSecond;
-  std::vector<int16_t> tone(kFrameSamples * 2);
-  for (int i = 0; i < kFramesPerSecond * kSeconds; i++) {
-    const ux::Image frame = SourceFrame(i);
-    hr = WriteSample(writer.Get(), video, frame.pixels.data(), frame.pixels.size(), i * kFrameTicks, kFrameTicks);
-    if (FAILED(hr)) return hr;
-    for (UINT s = 0; s < kFrameSamples; s++) {
-      const double t = static_cast<double>(i * kFrameSamples + s) / kAudioRate;
-      tone[s * 2] = tone[s * 2 + 1] = static_cast<int16_t>(8000 * std::sin(2 * 3.14159265358979 * 1000 * t));
+  constexpr UINT kFrames = kFramesPerSecond * kSeconds;
+  std::vector<int16_t> chunk(kFrameSamples * 2);
+  for (UINT i = 0; i < kFrames || i * kFrameSamples < tone; i++) {
+    if (i < kFrames) {
+      const ux::Image frame = SourceFrame(i);
+      hr = WriteSample(writer.Get(), video, frame.pixels.data(), frame.pixels.size(), i * kFrameTicks, kFrameTicks);
+      if (FAILED(hr)) return hr;
     }
-    hr = WriteSample(writer.Get(), audio, reinterpret_cast<const uint8_t*>(tone.data()), tone.size() * 2,
-                     i * kFrameTicks, kFrameTicks);
+    if (i * kFrameSamples >= tone) continue;
+    const UINT samples = std::min(kFrameSamples, tone - i * kFrameSamples);
+    for (UINT s = 0; s < samples; s++) {
+      const double t = static_cast<double>(i * kFrameSamples + s) / kAudioRate;
+      chunk[s * 2] = chunk[s * 2 + 1] = static_cast<int16_t>(8000 * std::sin(2 * 3.14159265358979 * 1000 * t));
+    }
+    hr = WriteSample(writer.Get(), audio, reinterpret_cast<const uint8_t*>(chunk.data()), samples * 4,
+                     i * kFrameTicks, samples * kTicksPerSecond / kAudioRate);
     if (FAILED(hr)) return hr;
   }
   return writer->Finalize();
@@ -299,6 +305,23 @@ void VideoExportSuite() {
     const auto* failed = std::get_if<ux::ExportFailed>(&outcome);
     CHECK(failed && failed->code == "cancelled");
     CHECK(Missing(out));
+  }
+
+  // A tone that ends just after the video is read to its end. When the reader
+  // ends the video before that tone varies from run to run, so it exports
+  // five times.
+  {
+    const std::wstring longer = TempPath(L"ux_video_export_longer.mp4");
+    CHECK(SUCCEEDED(WriteSource(longer, kAudioRate * kSeconds + 1300)));
+    ux::ExportRequest request;
+    request.path = longer;
+    request.out_path = out;
+    for (int i = 0; i < 5; i++) {
+      const ux::ExportOutcome outcome = ux::Export(request, [](double) {}, running);
+      const auto* done = std::get_if<ux::ExportDone>(&outcome);
+      CHECK(done && std::abs(done->duration_ms - kSeconds * 1000) <= 100);
+    }
+    DeleteFileW(longer.c_str());
   }
 
   {

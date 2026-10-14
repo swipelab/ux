@@ -71,10 +71,6 @@ class VideoReader {
   // reusing its buffers.
   HRESULT Read(Decoded& decoded);
 
-  // Stops reading the video or the audio track.
-  HRESULT StopVideo();
-  HRESULT StopAudio();
-
   // Decodes into [frame] the frame nearest [time], in 100 ns, when one lies
   // within [tolerance] of it.
   HRESULT FrameAt(LONGLONG time, LONGLONG tolerance, std::optional<Decoded>& frame);

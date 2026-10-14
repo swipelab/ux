@@ -261,15 +261,14 @@ ExportOutcome Export(const ExportRequest& request, const std::function<void(doub
   // at or after it.
   std::optional<Decoded> lead;
   bool wrote_frame = false;
+  // A track past its part stays selected and its samples are dropped: the
+  // reader fails a read of one track once the other is deselected near its end.
   bool video_open = true;
   const auto close_video = [&]() {
     video_open = false;
-    if (!wrote_frame && lead) {
-      wrote_frame = true;
-      const HRESULT written = write_frame(lead->frame, 0, span);
-      if (FAILED(written)) return written;
-    }
-    return reader->StopVideo();
+    if (wrote_frame || !lead) return S_OK;
+    wrote_frame = true;
+    return write_frame(lead->frame, 0, span);
   };
   std::optional<LONGLONG> audio_origin;
   uint64_t audio_frames = 0;
@@ -330,10 +329,7 @@ ExportOutcome Export(const ExportRequest& request, const std::function<void(doub
                                  (last - first) * kTicksPerSecond / format.rate);
           audio_frames += last - first;
         }
-        if (SUCCEEDED(hr) && chunk_end >= end) {
-          audio_open = false;
-          hr = reader->StopAudio();
-        }
+        if (chunk_end >= end) audio_open = false;
         break;
       }
       case Decoded::Kind::kAudioEnd:

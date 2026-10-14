@@ -224,12 +224,6 @@ HRESULT VideoReader::CopyFrame(IMFSample* sample, Image& frame) const {
   return buffer2d ? buffer2d->Unlock2D() : buffer->Unlock();
 }
 
-HRESULT VideoReader::StopVideo() { return reader_->SetStreamSelection(video_stream_, FALSE); }
-
-HRESULT VideoReader::StopAudio() {
-  return audio_stream_ ? reader_->SetStreamSelection(*audio_stream_, FALSE) : S_OK;
-}
-
 HRESULT VideoReader::FrameAt(LONGLONG time, LONGLONG tolerance, std::optional<Decoded>& frame) {
   HRESULT hr = Seek(time);
   if (FAILED(hr)) return hr;
