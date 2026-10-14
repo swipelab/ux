@@ -1,4 +1,12 @@
 ### 0.18.0
+- **ux has a Windows plugin.** The pubspec declares `windows: pluginClass:
+  XPluginCApi`, built as `ux_plugin.dll` on the Windows SDK alone, for Windows
+  10 1903 or later. `XUrl.match` detects web, email and phone links there with
+  AOSP's `Patterns.WEB_URL`, `EMAIL_ADDRESS` and `PHONE`, as Android does, so a
+  bare domain is a link where macOS's detector leaves it plain. `XUrl.launch`
+  opens a URL with the handler Windows has for its scheme, and
+  `openAppSettings` answers false. `windows/test` holds the plugin's native
+  tests.
 - **Avatar editors close on accept.** `ComposeResult.imageBytes` is a
   `Future<Uint8List>` encoded after `ComposePage` pops, so the caller shows
   progress where the image lands; it fails with a `FormatException` when the
