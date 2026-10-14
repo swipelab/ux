@@ -41,8 +41,9 @@ set(UX_PLUGIN_SOURCES
 # The SDK libraries the handlers link.
 set(UX_PLUGIN_LIBRARIES icu d3d11 mfplat mfreadwrite mfuuid windowscodecs delayimp)
 
-# Media Foundation loads at its first call, so the DLL loads on an N edition of
-# Windows without the Media Feature Pack.
+# MediaFoundation (media_foundation.cpp) loads Media Foundation's DLLs before
+# any call into them, so ux_plugin.dll loads on an N edition of Windows, which
+# lacks them without the Media Feature Pack.
 set(UX_PLUGIN_LINK_OPTIONS /DELAYLOAD:mfplat.dll /DELAYLOAD:mfreadwrite.dll)
 
 # The SDK headers declare only what Windows 10 1903 (build 18362) has, and no

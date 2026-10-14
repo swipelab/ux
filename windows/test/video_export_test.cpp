@@ -174,7 +174,7 @@ bool Missing(const std::wstring& path) { return GetFileAttributesW(path.c_str())
 }  // namespace
 
 void VideoExportSuite() {
-  ux::MediaFoundation media;
+  ux::MediaWork media;
   CHECK(SUCCEEDED(media.status()));
   const std::wstring source = TempPath(L"ux_video_export_source.mp4");
   const std::wstring out = TempPath(L"ux_video_export_out.mp4");

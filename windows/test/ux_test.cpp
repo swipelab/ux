@@ -4,10 +4,10 @@
 #include "check.h"
 
 void FileTypesSuite();
+void MediaFoundationSuite();
 void PlatformThreadSuite();
 void RasterSuite();
 void UrlDetectSuite();
-void VideoDeviceSuite();
 void VideoExportSuite();
 
 namespace {
@@ -19,10 +19,10 @@ struct Suite {
 
 constexpr Suite kSuites[] = {
     {"file_types", FileTypesSuite},
+    {"media_foundation", MediaFoundationSuite},
     {"platform_thread", PlatformThreadSuite},
     {"raster", RasterSuite},
     {"url_detect", UrlDetectSuite},
-    {"video_device", VideoDeviceSuite},
     {"video_export", VideoExportSuite},
 };
 

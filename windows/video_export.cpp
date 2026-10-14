@@ -207,7 +207,7 @@ class Writer {
 
 ExportOutcome Export(const ExportRequest& request, const std::function<void(double)>& progress,
                      const std::atomic<bool>& cancelled) {
-  MediaFoundation media;
+  MediaWork media;
   if (FAILED(media.status())) return Failure("session_failed", "Media Foundation is unavailable", media.status());
   std::unique_ptr<VideoReader> reader;
   HRESULT hr = VideoReader::Open(request.path, !request.remove_audio, reader);

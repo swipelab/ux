@@ -39,7 +39,7 @@ struct Decoded {
 
 // A file's first video track, decoded to BGRA by an IMFSourceReader, and,
 // when asked for, its first audio track decoded to 16-bit PCM. It runs on a
-// thread where MediaFoundation is started.
+// thread where a MediaWork has started.
 class VideoReader {
  public:
   // Sets [reader] to a reader of the file at [path], with its audio when

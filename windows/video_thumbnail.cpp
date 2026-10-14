@@ -57,7 +57,7 @@ std::optional<Thumbnail> Baked(const Image& frame, int turns, const ThumbnailBak
 
 ThumbnailResult VideoThumbnail(const std::wstring& path, int64_t at_ms, std::optional<UINT> max_width,
                                const std::optional<ThumbnailBake>& bake) {
-  MediaFoundation media;
+  MediaWork media;
   if (FAILED(media.status())) return ThumbnailFailed{"Media Foundation is unavailable (" + Hex(media.status()) + ")"};
   std::unique_ptr<VideoReader> reader;
   HRESULT hr = VideoReader::Open(path, false, reader);
@@ -72,7 +72,7 @@ ThumbnailResult VideoThumbnail(const std::wstring& path, int64_t at_ms, std::opt
 std::vector<std::optional<Thumbnail>> VideoThumbnails(const std::wstring& path,
                                                       const std::vector<int64_t>& timestamps_ms, UINT max_width) {
   std::vector<std::optional<Thumbnail>> thumbnails(timestamps_ms.size());
-  MediaFoundation media;
+  MediaWork media;
   std::unique_ptr<VideoReader> reader;
   if (FAILED(media.status()) || FAILED(VideoReader::Open(path, false, reader))) return thumbnails;
   for (size_t i = 0; i < timestamps_ms.size(); i++) {

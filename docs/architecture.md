@@ -152,11 +152,14 @@ with either separator.
   code, test frameworks included.
 - **Media Foundation.** `ux_plugin.dll` delay-loads `mfplat.dll` and
   `mfreadwrite.dll`, which an N edition of Windows lacks without the Media
-  Feature Pack, so the DLL loads there. Frame and export work starts it on its
-  own thread through `MediaFoundation`
-  ([windows/media_foundation.cpp](../windows/media_foundation.cpp)), which fails
-  before any Media Foundation call where those DLLs are missing, and the call
-  answers its error.
+  Feature Pack, so the DLL loads there. Every Media Foundation caller, the
+  players' device and the frame and export work, starts it through
+  `MediaFoundation` ([windows/media_foundation.cpp](../windows/media_foundation.cpp))
+  before its first Media Foundation call. `MediaFoundation` loads those DLLs
+  from the application's directory, the DLL directories it set or System32,
+  never the working directory or `PATH`, and fails where they do not load; the
+  caller then answers its error. Frame and export work, on a thread of its own,
+  also joins COM's multithreaded apartment there (`MediaWork`).
 - **Windows 10 1903.** The handlers compile against the SDK's declarations for
   build 18362 (`UX_PLUGIN_DEFINITIONS` in sources.cmake), and `ux_plugin.dll`
   imports `icu.dll`, which Windows has from 1903, so a host app needs 1903 or
@@ -324,9 +327,8 @@ handle, each an `IMFMediaEngine` in frame-server mode.
   first `create` on the adapter Flutter renders with
   (`PluginRegistrarWindows::GetGraphicsAdapter`), with multithread protection
   on, and handed to every engine through one DXGI device manager. Media
-  Foundation stays started while it lives. ux_plugin.dll delay-loads Media
-  Foundation (`mfplat.dll`), which a Windows N edition lacks without the Media
-  Feature Pack, so the plugin loads there and `create` fails with
+  Foundation stays started while it lives, and where it does not start, as on
+  a Windows N edition without the Media Feature Pack, `create` fails with
   `create_failed`.
 - **Frames.** A pump thread per player polls `OnVideoStreamTick` every 8 ms and
   transfers each new frame with `TransferVideoFrame` into a BGRA texture
