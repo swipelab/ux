@@ -13,6 +13,3 @@ set(UX_PLUGIN_DEFINITIONS
   _WIN32_WINNT=0x0A00
   NTDDI_VERSION=0x0A000007
 )
-
-# MSVC encodes a \u escape in a u"" literal as UTF-16 only under /utf-8.
-set(UX_PLUGIN_OPTIONS /utf-8)

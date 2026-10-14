@@ -23,7 +23,7 @@ add_executable(ux_test
   "${WRAPPER}/plugin_registrar.cc"
 )
 target_compile_features(ux_test PRIVATE cxx_std_17)
-target_compile_options(ux_test PRIVATE /W4 /WX /wd4100 /EHsc ${UX_PLUGIN_OPTIONS})
+target_compile_options(ux_test PRIVATE /W4 /WX /wd4100 /EHsc)
 target_compile_definitions(ux_test PRIVATE UNICODE _UNICODE _HAS_EXCEPTIONS=0 "$<$<CONFIG:Debug>:_DEBUG>"
   ${UX_PLUGIN_DEFINITIONS})
 target_include_directories(ux_test PRIVATE "${ENGINE}" "${WRAPPER}/include")

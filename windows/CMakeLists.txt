@@ -13,7 +13,6 @@ add_library(${PLUGIN_NAME} SHARED
   ${UX_PLUGIN_SOURCES}
 )
 apply_standard_settings(${PLUGIN_NAME})
-target_compile_options(${PLUGIN_NAME} PRIVATE ${UX_PLUGIN_OPTIONS})
 set_target_properties(${PLUGIN_NAME} PROPERTIES CXX_VISIBILITY_PRESET hidden)
 target_compile_definitions(${PLUGIN_NAME} PRIVATE FLUTTER_PLUGIN_IMPL ${UX_PLUGIN_DEFINITIONS})
 target_include_directories(${PLUGIN_NAME} INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/include")

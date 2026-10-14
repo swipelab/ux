@@ -49,9 +49,9 @@ URegularExpression* Compile(const std::u16string& pattern) {
 Detectors CompileDetectors() {
   const std::u16string ucs_char =
       u"["
-      u" -퟿"
-      u"豈-﷏"
-      u"ﷰ-￯"
+      u"\u00A0-\uD7FF"
+      u"\uF900-\uFDCF"
+      u"\uFDF0-\uFFEF"
       u"\U00010000-\U0001FFFD"
       u"\U00020000-\U0002FFFD"
       u"\U00030000-\U0003FFFD"
@@ -66,7 +66,7 @@ Detectors CompileDetectors() {
       u"\U000C0000-\U000CFFFD"
       u"\U000D0000-\U000DFFFD"
       u"\U000E1000-\U000EFFFD"
-      u"&&[^ [ - ]   　]]";
+      u"&&[^\u00A0[\u2000-\u200A]\u2028\u2029\u202F\u3000]]";
   const std::u16string ip_address_string =
       u"((25[0-5]|2[0-4][0-9]|[0-1][0-9]{2}|[1-9][0-9]|[1-9])\\.(25[0-5]|2[0-4]"
       u"[0-9]|[0-1][0-9]{2}|[1-9][0-9]|[1-9]|0)\\.(25[0-5]|2[0-4][0-9]|[0-1]"
