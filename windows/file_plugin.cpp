@@ -67,10 +67,11 @@ std::wstring FileName(const std::wstring& path) {
   return slash == std::wstring::npos ? path : path.substr(slash + 1);
 }
 
-// The extension of [name] without its dot, empty when it has none.
-std::wstring Extension(const std::wstring& name) {
+// The extension of [name] without its dot, when it has one.
+std::optional<std::wstring> Extension(const std::wstring& name) {
   const size_t dot = name.find_last_of(L'.');
-  return dot == std::wstring::npos || dot == 0 ? std::wstring() : name.substr(dot + 1);
+  if (dot == std::wstring::npos || dot == 0 || dot + 1 == name.size()) return std::nullopt;
+  return name.substr(dot + 1);
 }
 
 // A picked file as `pick` replies it: its path, name, MIME type and size.
@@ -83,8 +84,10 @@ std::optional<EncodableValue> PickedFile(const std::wstring& path) {
       {EncodableValue("path"), EncodableValue(*utf8_path)},
       {EncodableValue("name"), EncodableValue(*utf8_name)},
   };
-  if (const std::optional<std::string> mime_type = MimeTypeOf(Extension(name))) {
-    file[EncodableValue("mimeType")] = EncodableValue(*mime_type);
+  if (const std::optional<std::wstring> extension = Extension(name)) {
+    if (const std::optional<std::string> mime_type = MimeTypeOf(*extension)) {
+      file[EncodableValue("mimeType")] = EncodableValue(*mime_type);
+    }
   }
   WIN32_FILE_ATTRIBUTE_DATA data;
   if (GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &data)) {
@@ -94,13 +97,13 @@ std::optional<EncodableValue> PickedFile(const std::wstring& path) {
   return EncodableValue(file);
 }
 
-std::wstring PathOf(IShellItem* item, HRESULT& hr) {
-  PWSTR path = nullptr;
-  hr = item->GetDisplayName(SIGDN_FILESYSPATH, &path);
-  if (FAILED(hr)) return std::wstring();
-  std::wstring copy(path);
-  CoTaskMemFree(path);
-  return copy;
+HRESULT PathOf(IShellItem* item, std::wstring& path) {
+  PWSTR display_name = nullptr;
+  const HRESULT hr = item->GetDisplayName(SIGDN_FILESYSPATH, &display_name);
+  if (FAILED(hr)) return hr;
+  path = display_name;
+  CoTaskMemFree(display_name);
+  return S_OK;
 }
 
 // Shows an open dialog owned by [owner] and fills [picked] with the files the
@@ -117,11 +120,11 @@ HRESULT ShowOpenDialog(HWND owner, const std::vector<std::string>& mime_types, b
   if (multiple) options |= FOS_ALLOWMULTISELECT;
   hr = dialog->SetOptions(options);
   if (FAILED(hr)) return hr;
-  std::wstring spec;
-  for (const std::wstring& extension : PickExtensions(mime_types)) {
-    spec += (spec.empty() ? L"*." : L";*.") + extension;
-  }
-  if (!spec.empty()) {
+  if (const std::optional<std::vector<std::wstring>> extensions = PickExtensions(mime_types)) {
+    std::wstring spec;
+    for (const std::wstring& extension : *extensions) {
+      spec += (spec.empty() ? L"*." : L";*.") + extension;
+    }
     const COMDLG_FILTERSPEC filter = {spec.c_str(), spec.c_str()};
     hr = dialog->SetFileTypes(1, &filter);
     if (FAILED(hr)) return hr;
@@ -139,15 +142,17 @@ HRESULT ShowOpenDialog(HWND owner, const std::vector<std::string>& mime_types, b
     ComPtr<IShellItem> item;
     hr = items->GetItemAt(i, &item);
     if (FAILED(hr)) return hr;
-    picked.push_back(PathOf(item.Get(), hr));
+    std::wstring path;
+    hr = PathOf(item.Get(), path);
     if (FAILED(hr)) return hr;
+    picked.push_back(std::move(path));
   }
   return S_OK;
 }
 
 // Shows a save dialog owned by [owner] that holds [source]'s name, and sets
-// [destination] to the path the user chose; empty when the user cancelled.
-HRESULT ShowSaveDialog(HWND owner, const std::wstring& source, std::wstring& destination) {
+// [destination] to the path the user chose; none when the user cancelled.
+HRESULT ShowSaveDialog(HWND owner, const std::wstring& source, std::optional<std::wstring>& destination) {
   ComPtr<IFileSaveDialog> dialog;
   HRESULT hr = CoCreateInstance(CLSID_FileSaveDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog));
   if (FAILED(hr)) return hr;
@@ -159,9 +164,8 @@ HRESULT ShowSaveDialog(HWND owner, const std::wstring& source, std::wstring& des
   const std::wstring name = FileName(source);
   hr = dialog->SetFileName(name.c_str());
   if (FAILED(hr)) return hr;
-  const std::wstring extension = Extension(name);
-  if (!extension.empty()) {
-    hr = dialog->SetDefaultExtension(extension.c_str());
+  if (const std::optional<std::wstring> extension = Extension(name)) {
+    hr = dialog->SetDefaultExtension(extension->c_str());
     if (FAILED(hr)) return hr;
   }
   hr = dialog->Show(owner);
@@ -170,8 +174,11 @@ HRESULT ShowSaveDialog(HWND owner, const std::wstring& source, std::wstring& des
   ComPtr<IShellItem> item;
   hr = dialog->GetResult(&item);
   if (FAILED(hr)) return hr;
-  destination = PathOf(item.Get(), hr);
-  return hr;
+  std::wstring path;
+  hr = PathOf(item.Get(), path);
+  if (FAILED(hr)) return hr;
+  destination = std::move(path);
+  return S_OK;
 }
 
 }  // namespace
@@ -259,18 +266,18 @@ void FilePlugin::SaveCopy(const std::wstring& path, std::shared_ptr<Result> resu
           result->Error("not_found", "no file at path");
           return;
         }
-        std::wstring destination;
+        std::optional<std::wstring> destination;
         const HRESULT hr = ShowSaveDialog(Owner(), path, destination);
         if (FAILED(hr)) {
           result->Error("save_failed", Message(static_cast<DWORD>(hr)));
           return;
         }
-        if (destination.empty()) {
+        if (!destination) {
           result->Success(EncodableValue("cancelled"));
           return;
         }
         platform_.Background<DWORD>(
-            [path, destination]() {
+            [path, destination = std::move(*destination)]() {
               return CopyFileW(path.c_str(), destination.c_str(), FALSE) ? ERROR_SUCCESS : GetLastError();
             },
             [result](DWORD error) {

@@ -48,8 +48,8 @@ std::optional<std::wstring> ClassesValue(const std::wstring& key, const wchar_t*
   return value;
 }
 
-// The extensions of [mime_type], empty when they are unknown.
-std::vector<std::wstring> ExtensionsOf(const std::string& mime_type) {
+// The extensions of [mime_type], when they are known.
+std::optional<std::vector<std::wstring>> ExtensionsOf(const std::string& mime_type) {
   for (const FileType& type : MediaTypes()) {
     if (type.mime_type == mime_type) return type.extensions;
   }
@@ -61,23 +61,25 @@ std::vector<std::wstring> ExtensionsOf(const std::string& mime_type) {
         extensions.insert(extensions.end(), type.extensions.begin(), type.extensions.end());
       }
     }
+    if (extensions.empty()) return std::nullopt;
     return extensions;
   }
   const std::optional<std::wstring> wide = Utf16(mime_type);
-  if (!wide) return {};
+  if (!wide) return std::nullopt;
   const std::optional<std::wstring> extension = ClassesValue(L"MIME\\Database\\Content Type\\" + *wide, L"Extension");
-  if (!extension || extension->size() < 2 || extension->front() != L'.') return {};
-  return {AsciiLower(extension->substr(1))};
+  if (!extension || extension->size() < 2 || extension->front() != L'.') return std::nullopt;
+  return std::vector<std::wstring>{AsciiLower(extension->substr(1))};
 }
 
 }  // namespace
 
-std::vector<std::wstring> PickExtensions(const std::vector<std::string>& mime_types) {
+std::optional<std::vector<std::wstring>> PickExtensions(const std::vector<std::string>& mime_types) {
+  if (mime_types.empty()) return std::nullopt;
   std::vector<std::wstring> extensions;
   for (const std::string& mime_type : mime_types) {
-    const std::vector<std::wstring> more = ExtensionsOf(AsciiLower(mime_type));
-    if (more.empty()) return {};
-    for (const std::wstring& extension : more) {
+    const std::optional<std::vector<std::wstring>> more = ExtensionsOf(AsciiLower(mime_type));
+    if (!more) return std::nullopt;
+    for (const std::wstring& extension : *more) {
       if (std::find(extensions.begin(), extensions.end(), extension) == extensions.end()) {
         extensions.push_back(extension);
       }
@@ -88,7 +90,6 @@ std::vector<std::wstring> PickExtensions(const std::vector<std::string>& mime_ty
 
 std::optional<std::string> MimeTypeOf(const std::wstring& extension) {
   const std::wstring lower = AsciiLower(extension);
-  if (lower.empty()) return std::nullopt;
   for (const FileType& type : MediaTypes()) {
     if (std::find(type.extensions.begin(), type.extensions.end(), lower) != type.extensions.end()) {
       return type.mime_type;

@@ -27,14 +27,13 @@ void FileTypesSuite() {
   CHECK(PickExtensions({"image/png", "image/*"}) == Extensions({L"png", L"jpg", L"jpeg", L"gif", L"webp", L"bmp"}));
   CHECK(PickExtensions({"application/pdf"}) == Extensions({L"pdf"}));
 
-  CHECK(PickExtensions({}).empty());
-  CHECK(PickExtensions({"*/*"}).empty());
-  CHECK(PickExtensions({"audio/*"}).empty());
-  CHECK(PickExtensions({"image/png", "application/x-ux-unknown"}).empty());
+  CHECK(!PickExtensions({}));
+  CHECK(!PickExtensions({"*/*"}));
+  CHECK(!PickExtensions({"audio/*"}));
+  CHECK(!PickExtensions({"image/png", "application/x-ux-unknown"}));
 
   CHECK(MimeTypeOf(L"JPG") == std::optional<std::string>("image/jpeg"));
   CHECK(MimeTypeOf(L"mov") == std::optional<std::string>("video/quicktime"));
   CHECK(MimeTypeOf(L"txt") == std::optional<std::string>("text/plain"));
   CHECK(!MimeTypeOf(L"x-ux-unknown"));
-  CHECK(!MimeTypeOf(L""));
 }

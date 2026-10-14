@@ -4,6 +4,8 @@
 #include <chrono>
 #include <functional>
 #include <memory>
+#include <optional>
+#include <utility>
 
 #include "../platform_thread.h"
 #include "check.h"
@@ -27,21 +29,19 @@ bool PumpUntil(const std::function<bool()>& done, std::chrono::milliseconds limi
 void PlatformThreadSuite() {
   {
     ux::PlatformThread platform;
-    std::atomic<DWORD> worker{0};
-    DWORD receiver = 0;
-    int value = 0;
-    platform.Background<int>(
-        [&worker]() {
-          worker = GetCurrentThreadId();
-          return 42;
-        },
-        [&](int done) {
+    std::optional<DWORD> worker;
+    std::optional<DWORD> receiver;
+    std::optional<int> value;
+    platform.Background<std::pair<DWORD, int>>(
+        []() { return std::make_pair(GetCurrentThreadId(), 42); },
+        [&](std::pair<DWORD, int> done) {
+          worker = done.first;
           receiver = GetCurrentThreadId();
-          value = done;
+          value = done.second;
         });
-    CHECK(PumpUntil([&] { return value != 0; }));
+    CHECK(PumpUntil([&] { return value.has_value(); }));
     CHECK(value == 42);
-    CHECK(worker != 0 && worker != GetCurrentThreadId());
+    CHECK(worker && *worker != GetCurrentThreadId());
     CHECK(receiver == GetCurrentThreadId());
   }
 
