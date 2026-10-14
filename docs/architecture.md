@@ -324,7 +324,10 @@ handle, each an `IMFMediaEngine` in frame-server mode.
   first `create` on the adapter Flutter renders with
   (`PluginRegistrarWindows::GetGraphicsAdapter`), with multithread protection
   on, and handed to every engine through one DXGI device manager. Media
-  Foundation stays started while it lives.
+  Foundation stays started while it lives. ux_plugin.dll delay-loads Media
+  Foundation (`mfplat.dll`), which a Windows N edition lacks without the Media
+  Feature Pack, so the plugin loads there and `create` fails with
+  `create_failed`.
 - **Frames.** A pump thread per player polls `OnVideoStreamTick` every 8 ms and
   transfers each new frame with `TransferVideoFrame` into a BGRA texture
   ([windows/video_surface.cpp](../windows/video_surface.cpp)) that Flutter opens

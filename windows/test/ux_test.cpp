@@ -7,6 +7,7 @@ void FileTypesSuite();
 void PlatformThreadSuite();
 void RasterSuite();
 void UrlDetectSuite();
+void VideoDeviceSuite();
 void VideoExportSuite();
 
 namespace {
@@ -21,6 +22,7 @@ constexpr Suite kSuites[] = {
     {"platform_thread", PlatformThreadSuite},
     {"raster", RasterSuite},
     {"url_detect", UrlDetectSuite},
+    {"video_device", VideoDeviceSuite},
     {"video_export", VideoExportSuite},
 };
 
