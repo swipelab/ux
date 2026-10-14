@@ -82,8 +82,6 @@ VideoPlayerPlugin::VideoPlayerPlugin(flutter::PluginRegistrarWindows* registrar)
 }
 
 VideoPlayerPlugin::~VideoPlayerPlugin() {
-  channel_->SetMethodCallHandler(nullptr);
-  events_->SetStreamHandler(nullptr);
   for (auto& [handle, player] : players_) Release(player);
 }
 
