@@ -6,6 +6,7 @@
 void FileTypesSuite();
 void PlatformThreadSuite();
 void UrlDetectSuite();
+void VideoDeviceSuite();
 
 namespace {
 
@@ -18,6 +19,7 @@ constexpr Suite kSuites[] = {
     {"file_types", FileTypesSuite},
     {"platform_thread", PlatformThreadSuite},
     {"url_detect", UrlDetectSuite},
+    {"video_device", VideoDeviceSuite},
 };
 
 }  // namespace

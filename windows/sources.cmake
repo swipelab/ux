@@ -25,7 +25,11 @@ set(UX_PLUGIN_SOURCES
 )
 
 # The SDK libraries the handlers link.
-set(UX_PLUGIN_LIBRARIES icu d3d11 mfplat mfuuid)
+set(UX_PLUGIN_LIBRARIES icu d3d11 mfplat mfuuid delayimp)
+
+# Media Foundation loads at the first video `create`, since a Windows N edition
+# lacks it without the Media Feature Pack.
+set(UX_PLUGIN_LINK_OPTIONS /DELAYLOAD:mfplat.dll)
 
 # The SDK headers declare only what Windows 10 1903 (build 18362) has.
 set(UX_PLUGIN_DEFINITIONS

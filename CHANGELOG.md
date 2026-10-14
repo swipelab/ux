@@ -5,7 +5,10 @@
   since the frames arrive upright, and fails with `decode_failed` for a file
   Windows cannot decode. Play, pause, seek, looping, volume and speed act as on
   the other platforms, and the player reports its state, size, completion and
-  errors. On Windows a network URI fails `initialize` with `bad_args`.
+  errors. On Windows a network URI fails `initialize` with `bad_args`, and
+  where Media Foundation is missing, as on a Windows N edition without the
+  Media Feature Pack, `initialize` fails with `create_failed` while the rest of
+  the plugin works.
 - **A video player logs its metadata.** `XVideoPlayerController.initialize`
   logs `initialized` at info level, tagged `video`, with the player's handle,
   size, duration and quarter turns.
