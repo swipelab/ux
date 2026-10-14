@@ -1,4 +1,12 @@
 ### 0.18.0
+- **Windows picks, opens, saves and reveals files.** `XFiles.pick` and the new
+  `XFiles.pickMultiple`, which returns the picked files in order or an empty
+  list when the user cancels and which Windows alone serves, open the Windows
+  file dialog, filtered by extension. `XFiles.open` launches the file's
+  associated application through Windows's checks for a downloaded file,
+  `saveCopy` copies through the save dialog, and `showInFolder` selects the file
+  in Explorer. `supportsSaveCopy` and `supportsShowInFolder` are true on
+  Windows.
 - **ux has a Windows plugin.** The pubspec declares `windows: pluginClass:
   XPluginCApi`, built as `ux_plugin.dll` on the Windows SDK alone, for Windows
   10 1903 or later. `XUrl.match` detects web, email and phone links there with
