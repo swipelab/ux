@@ -3,6 +3,8 @@
 
 #include "check.h"
 
+void FileTypesSuite();
+void PlatformThreadSuite();
 void UrlDetectSuite();
 
 namespace {
@@ -13,6 +15,8 @@ struct Suite {
 };
 
 constexpr Suite kSuites[] = {
+    {"file_types", FileTypesSuite},
+    {"platform_thread", PlatformThreadSuite},
     {"url_detect", UrlDetectSuite},
 };
 

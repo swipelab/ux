@@ -2,11 +2,13 @@
 
 #include <memory>
 
+#include "file_plugin.h"
 #include "url_plugin.h"
 
 namespace ux {
 
 void XPlugin::RegisterWithRegistrar(flutter::PluginRegistrarWindows* registrar) {
+  registrar->AddPlugin(std::make_unique<FilePlugin>(registrar));
   registrar->AddPlugin(std::make_unique<UrlPlugin>(registrar->messenger()));
 }
 
