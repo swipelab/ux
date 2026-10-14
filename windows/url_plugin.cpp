@@ -6,15 +6,17 @@
 
 #include <flutter/standard_method_codec.h>
 
+#include <optional>
 #include <string>
 
 namespace ux {
 
 namespace {
 
-std::wstring Utf16(const std::string& utf8) {
+std::optional<std::wstring> Utf16(const std::string& utf8) {
   const int size = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8.data(), static_cast<int>(utf8.size()),
                                        nullptr, 0);
+  if (size == 0) return std::nullopt;
   std::wstring wide(size, L'\0');
   MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8.data(), static_cast<int>(utf8.size()), wide.data(), size);
   return wide;
@@ -22,9 +24,9 @@ std::wstring Utf16(const std::string& utf8) {
 
 // Whether the shell opened [url] with the handler registered for its scheme.
 bool Launch(const std::string& url) {
-  const std::wstring wide = Utf16(url);
-  if (wide.empty()) return false;
-  const HINSTANCE opened = ShellExecuteW(nullptr, L"open", wide.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+  const std::optional<std::wstring> wide = Utf16(url);
+  if (!wide) return false;
+  const HINSTANCE opened = ShellExecuteW(nullptr, L"open", wide->c_str(), nullptr, nullptr, SW_SHOWNORMAL);
   return reinterpret_cast<INT_PTR>(opened) > 32;
 }
 

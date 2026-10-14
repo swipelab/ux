@@ -8,6 +8,7 @@
 #include <cctype>
 #include <cstdlib>
 #include <cstring>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -142,8 +143,8 @@ std::string CanonicalWebUrl(const std::string& match) {
   return "http://" + match;
 }
 
-// tel: with the match's digits and plus signs, or empty below kMinPhoneDigits.
-std::string CanonicalPhone(const std::string& match) {
+// tel: with the match's digits and plus signs, or none below kMinPhoneDigits.
+std::optional<std::string> CanonicalPhone(const std::string& match) {
   std::string dialed;
   int digits = 0;
   for (const char c : match) {
@@ -154,7 +155,7 @@ std::string CanonicalPhone(const std::string& match) {
       dialed.push_back(c);
     }
   }
-  if (digits < kMinPhoneDigits) return {};
+  if (digits < kMinPhoneDigits) return std::nullopt;
   return "tel:" + dialed;
 }
 
@@ -169,10 +170,10 @@ void Find(const URegularExpression* detector, const UChar* text, int32_t len, ui
     const int32_t end = uregex_end(regex, 0, &status);
     if (U_FAILURE(status)) break;
     const std::string group = Utf8(text + start, end - start);
-    std::string url = kind == kKindWeb     ? CanonicalWebUrl(group)
-                      : kind == kKindEmail ? "mailto:" + group
-                                           : CanonicalPhone(group);
-    if (!url.empty()) out.push_back(RawMatch{start, end, kind, std::move(url)});
+    std::optional<std::string> url = kind == kKindWeb     ? CanonicalWebUrl(group)
+                                     : kind == kKindEmail ? "mailto:" + group
+                                                          : CanonicalPhone(group);
+    if (url) out.push_back(RawMatch{start, end, kind, std::move(*url)});
   }
   uregex_close(regex);
 }
