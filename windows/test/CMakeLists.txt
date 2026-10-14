@@ -17,6 +17,7 @@ add_executable(ux_test
   "ux_test.cpp"
   "check.h"
   "file_types_test.cpp"
+  "image_probe_test.cpp"
   "platform_thread_test.cpp"
   "url_detect_test.cpp"
   "video_device_test.cpp"
@@ -37,6 +38,7 @@ add_custom_command(TARGET ux_test POST_BUILD
 
 enable_testing()
 add_test(NAME file_types COMMAND ux_test file_types)
+add_test(NAME image_probe COMMAND ux_test image_probe)
 add_test(NAME platform_thread COMMAND ux_test platform_thread)
 add_test(NAME url_detect COMMAND ux_test url_detect)
 add_test(NAME video_device COMMAND ux_test video_device)

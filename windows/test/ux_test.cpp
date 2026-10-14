@@ -4,6 +4,7 @@
 #include "check.h"
 
 void FileTypesSuite();
+void ImageProbeSuite();
 void PlatformThreadSuite();
 void UrlDetectSuite();
 void VideoDeviceSuite();
@@ -17,6 +18,7 @@ struct Suite {
 
 constexpr Suite kSuites[] = {
     {"file_types", FileTypesSuite},
+    {"image_probe", ImageProbeSuite},
     {"platform_thread", PlatformThreadSuite},
     {"url_detect", UrlDetectSuite},
     {"video_device", VideoDeviceSuite},

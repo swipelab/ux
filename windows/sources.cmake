@@ -6,6 +6,10 @@ set(UX_PLUGIN_SOURCES
   "${CMAKE_CURRENT_LIST_DIR}/file_plugin.h"
   "${CMAKE_CURRENT_LIST_DIR}/file_types.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/file_types.h"
+  "${CMAKE_CURRENT_LIST_DIR}/image_probe.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/image_probe.h"
+  "${CMAKE_CURRENT_LIST_DIR}/image_probe_plugin.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/image_probe_plugin.h"
   "${CMAKE_CURRENT_LIST_DIR}/platform_thread.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/platform_thread.h"
   "${CMAKE_CURRENT_LIST_DIR}/text.cpp"
@@ -25,7 +29,7 @@ set(UX_PLUGIN_SOURCES
 )
 
 # The SDK libraries the handlers link.
-set(UX_PLUGIN_LIBRARIES icu d3d11 mfplat mfuuid delayimp)
+set(UX_PLUGIN_LIBRARIES icu d3d11 mfplat mfuuid windowscodecs delayimp)
 
 # Media Foundation loads at the first video `create`, since a Windows N edition
 # lacks it without the Media Feature Pack.

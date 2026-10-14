@@ -1,0 +1,102 @@
+#include "image_probe_plugin.h"
+
+#include <flutter/standard_method_codec.h>
+
+#include <algorithm>
+#include <optional>
+#include <string>
+#include <utility>
+
+#include "image_probe.h"
+#include "text.h"
+
+namespace ux {
+
+namespace {
+
+using flutter::EncodableMap;
+using flutter::EncodableValue;
+
+const EncodableValue* Arg(const EncodableMap* args, const char* key) {
+  if (args == nullptr) return nullptr;
+  const auto it = args->find(EncodableValue(key));
+  return it == args->end() ? nullptr : &it->second;
+}
+
+std::optional<int64_t> IntArg(const EncodableMap* args, const char* key) {
+  const EncodableValue* value = Arg(args, key);
+  if (const auto* int32 = std::get_if<int32_t>(value)) return *int32;
+  if (const auto* int64 = std::get_if<int64_t>(value)) return *int64;
+  return std::nullopt;
+}
+
+// The `path` argument as a Windows path, which Dart may give with either separator.
+std::optional<std::wstring> PathArg(const EncodableMap* args) {
+  const auto* path = std::get_if<std::string>(Arg(args, "path"));
+  if (path == nullptr) return std::nullopt;
+  std::optional<std::wstring> wide = Utf16(*path);
+  if (wide) std::replace(wide->begin(), wide->end(), L'/', L'\\');
+  return wide;
+}
+
+EncodableValue Dimension(uint32_t length) { return EncodableValue(static_cast<int64_t>(length)); }
+
+}  // namespace
+
+ImageProbePlugin::ImageProbePlugin(flutter::BinaryMessenger* messenger)
+    : channel_(std::make_unique<flutter::MethodChannel<EncodableValue>>(
+          messenger, "ux/image_probe", &flutter::StandardMethodCodec::GetInstance())) {
+  channel_->SetMethodCallHandler([this](const auto& call, auto result) { HandleMethodCall(call, std::move(result)); });
+}
+
+ImageProbePlugin::~ImageProbePlugin() { channel_->SetMethodCallHandler(nullptr); }
+
+void ImageProbePlugin::HandleMethodCall(const flutter::MethodCall<EncodableValue>& call,
+                                        std::unique_ptr<flutter::MethodResult<EncodableValue>> result) {
+  const std::string& method = call.method_name();
+  if (method != "size" && method != "thumbnail") {
+    result->NotImplemented();
+    return;
+  }
+  const auto* args = std::get_if<EncodableMap>(call.arguments());
+  std::optional<std::wstring> path = PathArg(args);
+  if (!path) {
+    result->Error("bad_args", "path is required");
+    return;
+  }
+  std::shared_ptr<flutter::MethodResult<EncodableValue>> reply = std::move(result);
+  const auto answer = [reply](EncodableValue value) { reply->Success(value); };
+  if (method == "size") {
+    platform_.Background<EncodableValue>(
+        [path = std::move(*path)]() {
+          const std::optional<UprightSize> size = ProbeSize(path);
+          if (!size) return EncodableValue();
+          return EncodableValue(EncodableMap{
+              {EncodableValue("width"), Dimension(size->width)},
+              {EncodableValue("height"), Dimension(size->height)},
+          });
+        },
+        answer);
+    return;
+  }
+  const std::optional<int64_t> max_longest = IntArg(args, "maxLongest");
+  if (!max_longest || *max_longest <= 0) {
+    reply->Error("bad_args", "maxLongest must be > 0");
+    return;
+  }
+  platform_.Background<EncodableValue>(
+      [path = std::move(*path), bound = static_cast<uint64_t>(*max_longest)]() {
+        std::optional<ImageThumbnail> thumbnail = ProbeThumbnail(path, bound);
+        if (!thumbnail) return EncodableValue();
+        return EncodableValue(EncodableMap{
+            {EncodableValue("sourceWidth"), Dimension(thumbnail->source.width)},
+            {EncodableValue("sourceHeight"), Dimension(thumbnail->source.height)},
+            {EncodableValue("width"), Dimension(thumbnail->size.width)},
+            {EncodableValue("height"), Dimension(thumbnail->size.height)},
+            {EncodableValue("png"), EncodableValue(std::move(thumbnail->png))},
+        });
+      },
+      answer);
+}
+
+}  // namespace ux

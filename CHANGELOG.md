@@ -1,4 +1,10 @@
 ### 0.18.0
+- **Windows probes images.** `XImageProbe.size` and `XImageProbe.thumbnail`
+  answer on Windows through WIC, upright with the image's orientation applied,
+  for every format an installed codec decodes, HEIC and HEIF included where
+  Windows has the HEIF and HEVC extensions, and null for a file none decodes.
+  `XImageProbe.supported` is true on Windows, and the file dialog's `image/*`
+  filter there allows heic and heif.
 - **Windows plays videos.** `XVideoPlayerController.file` plays on Windows
   through Media Foundation's Media Engine into a Flutter texture. `initialize`
   answers the display size and the duration, with `rotationQuarterTurns` 0
