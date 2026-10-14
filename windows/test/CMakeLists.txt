@@ -18,7 +18,10 @@ add_executable(ux_test
   "check.h"
   "file_types_test.cpp"
   "platform_thread_test.cpp"
+  "raster_test.cpp"
+  "support.h"
   "url_detect_test.cpp"
+  "video_export_test.cpp"
   ${UX_PLUGIN_SOURCES}
   "${WRAPPER}/core_implementations.cc"
   "${WRAPPER}/standard_codec.cc"
@@ -30,10 +33,13 @@ target_compile_definitions(ux_test PRIVATE UNICODE _UNICODE _HAS_EXCEPTIONS=0 "$
   ${UX_PLUGIN_DEFINITIONS})
 target_include_directories(ux_test PRIVATE "${ENGINE}" "${WRAPPER}/include")
 target_link_libraries(ux_test PRIVATE "${ENGINE}/flutter_windows.dll.lib" ${UX_PLUGIN_LIBRARIES})
+target_link_options(ux_test PRIVATE ${UX_PLUGIN_LINK_OPTIONS})
 add_custom_command(TARGET ux_test POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ENGINE}/flutter_windows.dll" "$<TARGET_FILE_DIR:ux_test>")
 
 enable_testing()
 add_test(NAME file_types COMMAND ux_test file_types)
 add_test(NAME platform_thread COMMAND ux_test platform_thread)
+add_test(NAME raster COMMAND ux_test raster)
 add_test(NAME url_detect COMMAND ux_test url_detect)
+add_test(NAME video_export COMMAND ux_test video_export)

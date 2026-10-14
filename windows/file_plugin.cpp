@@ -7,13 +7,14 @@
 
 #include <flutter/standard_method_codec.h>
 
-#include <algorithm>
 #include <optional>
 #include <utility>
 #include <vector>
 
 #include "file_types.h"
+#include "method_args.h"
 #include "text.h"
+#include "video_thumbnail.h"
 
 namespace ux {
 
@@ -23,21 +24,6 @@ using flutter::EncodableList;
 using flutter::EncodableMap;
 using flutter::EncodableValue;
 using Microsoft::WRL::ComPtr;
-
-const EncodableValue* Arg(const EncodableMap* args, const char* key) {
-  if (args == nullptr) return nullptr;
-  const auto it = args->find(EncodableValue(key));
-  return it == args->end() ? nullptr : &it->second;
-}
-
-// The `path` argument as a Windows path, which Dart may give with either separator.
-std::optional<std::wstring> PathArg(const EncodableMap* args) {
-  const auto* path = std::get_if<std::string>(Arg(args, "path"));
-  if (path == nullptr) return std::nullopt;
-  std::optional<std::wstring> wide = Utf16(*path);
-  if (wide) std::replace(wide->begin(), wide->end(), L'/', L'\\');
-  return wide;
-}
 
 std::vector<std::string> MimeTypesArg(const EncodableMap* args) {
   std::vector<std::string> mime_types;
@@ -95,6 +81,15 @@ std::optional<EncodableValue> PickedFile(const std::wstring& path) {
     file[EncodableValue("size")] = EncodableValue(static_cast<int64_t>(size));
   }
   return EncodableValue(file);
+}
+
+// A frame as `videoThumbnail` and `videoThumbnails` reply it.
+EncodableValue Reply(const Thumbnail& thumbnail) {
+  return EncodableValue(EncodableMap{
+      {EncodableValue("png"), EncodableValue(thumbnail.png)},
+      {EncodableValue("width"), EncodableValue(static_cast<int64_t>(thumbnail.width))},
+      {EncodableValue("height"), EncodableValue(static_cast<int64_t>(thumbnail.height))},
+  });
 }
 
 HRESULT PathOf(IShellItem* item, std::wstring& path) {
@@ -199,11 +194,12 @@ void FilePlugin::HandleMethodCall(const flutter::MethodCall<EncodableValue>& cal
     Pick(args, method == "pickMultiple", std::move(result));
     return;
   }
-  if (method != "open" && method != "saveCopy" && method != "showInFolder") {
+  if (method != "open" && method != "saveCopy" && method != "showInFolder" && method != "videoThumbnail" &&
+      method != "videoThumbnails") {
     result->NotImplemented();
     return;
   }
-  const std::optional<std::wstring> path = PathArg(args);
+  const std::optional<std::wstring> path = PathArg(args, "path");
   if (!path) {
     result->Error("bad_args", "path is required");
     return;
@@ -212,8 +208,12 @@ void FilePlugin::HandleMethodCall(const flutter::MethodCall<EncodableValue>& cal
     Open(*path, *result);
   } else if (method == "saveCopy") {
     SaveCopy(*path, std::move(result));
-  } else {
+  } else if (method == "showInFolder") {
     ShowInFolder(*path, *result);
+  } else if (method == "videoThumbnail") {
+    VideoThumbnail(*path, args, std::move(result));
+  } else {
+    VideoThumbnails(*path, args, std::move(result));
   }
 }
 
@@ -298,6 +298,64 @@ void FilePlugin::ShowInFolder(const std::wstring& path, Result& result) {
     CoTaskMemFree(item);
   }
   result.Success(EncodableValue(SUCCEEDED(hr)));
+}
+
+void FilePlugin::VideoThumbnail(const std::wstring& path, const EncodableMap* args, std::unique_ptr<Result> result) {
+  const std::optional<int64_t> max_width = IntArg(args, "maxWidth");
+  const std::optional<std::vector<double>> transform = DoublesArg(args, "transform");
+  const std::optional<int64_t> out_width = IntArg(args, "outWidth");
+  const std::optional<int64_t> out_height = IntArg(args, "outHeight");
+  const std::optional<int64_t> max_longest = IntArg(args, "maxLongest");
+  if ((max_width && *max_width <= 0) || (max_longest && *max_longest <= 0)) {
+    result->Error("bad_args", "maxWidth and maxLongest must be positive");
+    return;
+  }
+  std::optional<ThumbnailBake> bake;
+  if (transform && transform->size() == 9 && out_width && out_height) {
+    if (*out_width <= 0 || *out_height <= 0) {
+      result->Error("bad_args", "outWidth and outHeight must be positive");
+      return;
+    }
+    const std::vector<double>& t = *transform;
+    bake = ThumbnailBake{Affine{t[0], t[1], t[2], t[3], t[4], t[5]}, static_cast<UINT>(*out_width),
+                         static_cast<UINT>(*out_height), PathArg(args, "overlayPath"),
+                         max_longest ? std::optional<UINT>(static_cast<UINT>(*max_longest)) : std::nullopt};
+  }
+  platform_.Background<ThumbnailResult>(
+      [path, at_ms = IntArg(args, "atMs").value_or(0),
+       max_width = max_width ? std::optional<UINT>(static_cast<UINT>(*max_width)) : std::nullopt, bake]() {
+        return ux::VideoThumbnail(path, at_ms, max_width, bake);
+      },
+      [result = std::shared_ptr<Result>(std::move(result))](ThumbnailResult thumbnail) {
+        if (const auto* failed = std::get_if<ThumbnailFailed>(&thumbnail)) {
+          result->Error("decode_failed", "could not extract frame: " + failed->message);
+          return;
+        }
+        const auto* made = std::get_if<std::optional<Thumbnail>>(&thumbnail);
+        result->Success(*made ? Reply(**made) : EncodableValue());
+      });
+}
+
+void FilePlugin::VideoThumbnails(const std::wstring& path, const EncodableMap* args, std::unique_ptr<Result> result) {
+  const std::optional<std::vector<int64_t>> timestamps = IntsArg(args, "timestampsMs");
+  const int64_t max_width = IntArg(args, "maxWidth").value_or(128);
+  if (!timestamps) {
+    result->Error("bad_args", "path and timestampsMs required");
+    return;
+  }
+  if (max_width <= 0) {
+    result->Error("bad_args", "maxWidth must be positive");
+    return;
+  }
+  platform_.Background<EncodableValue>(
+      [path, timestamps = *timestamps, max_width = static_cast<UINT>(max_width)]() {
+        EncodableList frames;
+        for (const std::optional<Thumbnail>& thumbnail : ux::VideoThumbnails(path, timestamps, max_width)) {
+          frames.push_back(thumbnail ? Reply(*thumbnail) : EncodableValue());
+        }
+        return EncodableValue(std::move(frames));
+      },
+      [result = std::shared_ptr<Result>(std::move(result))](EncodableValue frames) { result->Success(frames); });
 }
 
 HWND FilePlugin::Owner() const {

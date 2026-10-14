@@ -5,7 +5,9 @@
 
 void FileTypesSuite();
 void PlatformThreadSuite();
+void RasterSuite();
 void UrlDetectSuite();
+void VideoExportSuite();
 
 namespace {
 
@@ -17,7 +19,9 @@ struct Suite {
 constexpr Suite kSuites[] = {
     {"file_types", FileTypesSuite},
     {"platform_thread", PlatformThreadSuite},
+    {"raster", RasterSuite},
     {"url_detect", UrlDetectSuite},
+    {"video_export", VideoExportSuite},
 };
 
 }  // namespace
