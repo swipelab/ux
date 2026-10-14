@@ -2,6 +2,8 @@
 
 #include <windows.h>
 
+#include <cstdio>
+
 namespace ux {
 
 std::optional<std::wstring> Utf16(const std::string& utf8) {
@@ -23,6 +25,12 @@ std::optional<std::string> Utf8(const std::wstring& utf16) {
   WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, utf16.data(), static_cast<int>(utf16.size()), narrow.data(), size,
                       nullptr, nullptr);
   return narrow;
+}
+
+std::string Hex(long code) {
+  char text[11];
+  std::snprintf(text, sizeof(text), "0x%08lX", static_cast<unsigned long>(code));
+  return text;
 }
 
 }  // namespace ux

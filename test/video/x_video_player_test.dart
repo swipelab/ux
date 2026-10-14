@@ -5,6 +5,7 @@ import 'dart:ui' show Size;
 import 'package:flutter/services.dart'
     show EventChannel, MethodChannel, PlatformException;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ux/log.dart';
 import 'package:ux/testing.dart';
 import 'package:ux/video.dart';
 
@@ -78,6 +79,31 @@ void main() {
     expect(ctrl.value.size, const Size(720, 1280));
     expect(ctrl.value.duration, const Duration(seconds: 30));
     expect(ctrl.value.aspectRatio, 720.0 / 1280.0);
+  });
+
+  test('initialize logs the handle, size, duration and quarter turns it '
+      'reports', () async {
+    final (minLevel, previous) = (Log.minLevel, Log.sink);
+    final sink = MemorySink();
+    Log.configure(minLevel: LogLevel.trace, sink: sink, captureCrashes: () {});
+    addTearDown(() =>
+        Log.configure(minLevel: minLevel, sink: previous, captureCrashes: () {}));
+    fake.rotationQuarterTurns = 3;
+    final ctrl = XVideoPlayerController.file(io.File('/tmp/fake.mp4'));
+    addTearDown(ctrl.dispose);
+
+    await ctrl.initialize();
+
+    final record = sink.snapshot().singleWhere((r) => r.tag == 'video');
+    expect(record.level, LogLevel.info);
+    expect(record.message, 'initialized');
+    expect(record.fields, {
+      'handle': 1,
+      'width': 720.0,
+      'height': 1280.0,
+      'durationMs': 30000,
+      'rotationQuarterTurns': 3,
+    });
   });
 
   test('play / pause flip isPlaying and forward to the backend', () async {

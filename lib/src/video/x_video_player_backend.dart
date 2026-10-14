@@ -88,12 +88,13 @@ class XVideoPlayerMetadata {
   final Duration duration;
 
   /// Number of 90° clockwise rotations the Flutter `Texture` widget
-  /// needs so the rendered frame reads upright. Android always
-  /// reports 0 (the codec + GLES blit apply the rotation upstream of
-  /// Flutter). Apple reports the rotation derived from the video
-  /// track's `preferredTransform` — `AVPlayerItemVideoOutput`
-  /// delivers pixel buffers in the track's stored orientation, so the
-  /// `RotatedBox` wrapper applies it Dart-side.
+  /// needs so the rendered frame reads upright. Android and Windows
+  /// always report 0 (the codec + GLES blit, and the Media Engine,
+  /// apply the rotation upstream of Flutter). Apple reports the
+  /// rotation derived from the video track's `preferredTransform` —
+  /// `AVPlayerItemVideoOutput` delivers pixel buffers in the track's
+  /// stored orientation, so the `RotatedBox` wrapper applies it
+  /// Dart-side.
   final int rotationQuarterTurns;
 }
 

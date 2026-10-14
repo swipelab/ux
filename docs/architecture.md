@@ -26,7 +26,7 @@ Conventions:
 | `XAudioCapture` — live PCM from one source: mono 16 kHz Int16 frames of 320 samples (20 ms) plus an RMS level, over `ux/audio_capture` (+`/events`). `sources()` lists the hardware inputs the OS names — Core Audio devices by UID, `AVAudioSession` ports by uid, `AudioDeviceInfo` ids behind `mic:<id>` — plus one `playback` source where the platform taps its own output, and `start({sourceId})` opens it: omitted is the system's default microphone, one tap at a time, no mixing, and an id naming nothing fails `unknown_source`. A microphone is a *tap*, not an owner of the capture graph: Apple installs it on the `AVAudioEngine` input node and resamples the hardware format through an `AVAudioConverter`; Android reads an `AudioRecord` on `VOICE_COMMUNICATION`, which leaves the communication route to whoever holds it. It runs under the platform voice processing — Apple's `setVoiceProcessingEnabled`, Android's `AcousticEchoCanceler` — so what the device plays does not re-enter as local speech. Playback is that output, captured raw: macOS opens an audio-only `SCStream` under the screen-recording grant, excluding the host's own output so a dub cannot loop; Android 10+ opens an `AudioPlaybackCaptureConfiguration` under a media-projection consent the capture plugin asks for itself, held up by `AudioProjectionService` and unrelated to a screen share's `ScreenShareService`; iOS lists no playback source at all. The level is computed in Dart from the samples so both platforms report the same number. `state` (`idle`/`running`/`interrupted`) is the single source of truth and never resumes on its own — iOS drops to `interrupted` on `AVAudioSession` interruption (call, Siri) and on `oldDeviceUnavailable` route changes, Android on `AudioRecordingConfiguration.isClientSilenced` (API 29+) or a failed `AudioRecord.read`, and both on the engine's configuration-change notification. macOS has no `AVAudioSession`, so there the configuration change (default input swapped or removed) is the only interruption signal; a playback tap drops to `interrupted` when the system ends the stream or the projection. Hosts declare their own access: `RECORD_AUDIO`, `NSMicrophoneUsageDescription`, and `com.apple.security.device.audio-input` plus `com.apple.security.screen-capture` for a sandboxed macOS playback tap. Consumer: transcript.chat's live captioning, reading the mic while flutter_webrtc holds it | [lib/src/audio/x_audio_capture.dart](../lib/src/audio/x_audio_capture.dart) | [android/.../AudioCapturePlugin.kt](../android/src/main/kotlin/io/swipelab/ux/AudioCapturePlugin.kt) | [darwin/ux/Sources/ux/Audio/AudioCapturePlugin.swift](../darwin/ux/Sources/ux/Audio/AudioCapturePlugin.swift) |
 | `XAudioSink` — push-based playback of mono 16 kHz Int16 PCM over `ux/audio_sink` (+`/events`): `enqueue(Int16List)` appends a chunk and opens the output on the first one, so a stream is audible long before it ends; `flush()` silences and empties the queue — including chunks Dart has not handed over yet, which a generation counter drops on their way to the channel — and releases the output; `drained` fires when the queue plays out, leaving the output open so the next chunk of a conversation skips the device warm-up. A *writer* on the output, not an owner of the route: Apple schedules converted buffers on an `AVAudioPlayerNode` connected to the main mixer, which resamples to the hardware rate, and on iOS only widens the shared `AVAudioSession` category to include playback with no added options, so a call keeps its `.voiceChat` mode and speaker choice; Android streams into an `AudioTrack` on `USAGE_MEDIA` + `CONTENT_TYPE_SPEECH` and never requests audio focus, so it neither claims the communication route nor ducks what is already playing — a consumer wanting exclusive playback asks for focus itself. `state` (`idle`/`playing`/`interrupted`) never resumes on its own: iOS drops to `interrupted` on an `AVAudioSession` interruption, macOS when a configuration change leaves the engine stopped, Android on a failed `AudioTrack.write`. Consumer: transcript.chat's dubbing, playing a TTS byte stream while a call holds the microphone | [lib/src/audio/x_audio_sink.dart](../lib/src/audio/x_audio_sink.dart) | [android/.../AudioSinkPlugin.kt](../android/src/main/kotlin/io/swipelab/ux/AudioSinkPlugin.kt) | [darwin/ux/Sources/ux/Audio/AudioSinkPlugin.swift](../darwin/ux/Sources/ux/Audio/AudioSinkPlugin.swift) |
 | `XScanner` — ZXing QR scanner (Android) / VNDetect (Apple) | [lib/src/scanner.dart](../lib/src/scanner.dart) | [android/src/main/kotlin/io/swipelab/ux/ScannerPlugin.kt](../android/src/main/kotlin/io/swipelab/ux/ScannerPlugin.kt) | [darwin/ux/Sources/ux/iOS/ScannerPlugin.swift](../darwin/ux/Sources/ux/iOS/ScannerPlugin.swift) |
-| `XVideoPlayer` — ExoPlayer (Android) / AVPlayer (Apple) | [lib/src/video/](../lib/src/video/) | [android/src/main/kotlin/io/swipelab/ux/video/](../android/src/main/kotlin/io/swipelab/ux/video/) | [darwin/ux/Sources/ux/Video/](../darwin/ux/Sources/ux/Video/) |
+| `XVideoPlayer` — ExoPlayer (Android) / AVPlayer (Apple) / Media Foundation's Media Engine (Windows, [windows/video_player_plugin.cpp](../windows/video_player_plugin.cpp); see *Video pipeline (Windows)*) | [lib/src/video/](../lib/src/video/) | [android/src/main/kotlin/io/swipelab/ux/video/](../android/src/main/kotlin/io/swipelab/ux/video/) | [darwin/ux/Sources/ux/Video/](../darwin/ux/Sources/ux/Video/) |
 | `XVideoExporter` — trim / mute / crop-rotate-flip video export: Media3 Transformer (Android) / AVAssetExportSession passthrough remux with re-encode fallback, `AVAssetReader`/`Writer` + per-frame `AVMutableVideoComposition` for the transform path (Apple). Trim+mute alone stays a passthrough remux; a crop/rotate/mirror request re-encodes at a telegram bitrate tier (480/640/848/1280/1920 · 400–6600 kbps H.264+AAC). Geometry is a caller-supplied source→output affine (`transform3x3` + `outWidth`/`outHeight`) in upright **native source pixels**, applied verbatim so the output matches the caller's on-screen preview. An optional `overlayPath` (transparent PNG at upright source dims, requires `transform`) is composited over each frame BEFORE the affine — caller-drawn paint strokes ride the crop. Session API: progress stream + cancel over `ux/video/export` (+`/events`). Consumer: banlu's compose video editing (telegram-parity trim/mute/crop). | [lib/src/video/x_video_exporter.dart](../lib/src/video/x_video_exporter.dart) | [android/.../video/VideoExporterPlugin.kt](../android/src/main/kotlin/io/swipelab/ux/video/VideoExporterPlugin.kt) | [darwin/ux/Sources/ux/Video/VideoExporterPlugin.swift](../darwin/ux/Sources/ux/Video/VideoExporterPlugin.swift) |
 | `XNotifications` — OS notifications: show / cancel / tap / authorization | [lib/src/notifications/](../lib/src/notifications/) | [android/.../NotificationsPlugin.kt](../android/src/main/kotlin/io/swipelab/ux/NotificationsPlugin.kt) | [darwin/ux/Sources/ux/macOS/NotificationsPlugin.swift](../darwin/ux/Sources/ux/macOS/NotificationsPlugin.swift) (macOS only) |
 | `XWindow` — host focus state (`focused`, macOS + Android) and `keepAwake(bool)`, the screen hold a call keeps while nobody touches the device. iOS disables the idle timer, Android sets `FLAG_KEEP_SCREEN_ON` on the activity window, macOS takes a `kIOPMAssertionTypeNoDisplaySleep` `IOPMAssertion`. Releasing is part of the contract, since a hold nobody drops keeps a display lit until the battery is flat: Android clears the flag when the activity detaches and drops the hold itself when the engine does, iOS clears the flag when the app leaves the foreground and re-applies it on return, macOS releases on `NSApplicationWillTerminate` and when the engine releases the plugin. All three are process-scoped, so a crash releases them too. Consumer: transcript.chat's call screen | [lib/src/window/](../lib/src/window/) | [android/.../WindowPlugin.kt](../android/src/main/kotlin/io/swipelab/ux/WindowPlugin.kt) | [darwin/.../macOS/WindowPlugin.swift](../darwin/ux/Sources/ux/macOS/WindowPlugin.swift) · [darwin/.../iOS/WindowPlugin+iOS.swift](../darwin/ux/Sources/ux/iOS/WindowPlugin+iOS.swift) |
@@ -126,8 +126,9 @@ enables `SymbolLinkageMarkers` for that attribute.
 handler sources [windows/sources.cmake](../windows/sources.cmake) lists.
 `XPluginCApiRegisterWithRegistrar` calls `XPlugin::RegisterWithRegistrar`
 ([windows/x_plugin.cpp](../windows/x_plugin.cpp)), which hands the registrar one
-handler per area, named after its darwin counterpart: `FilePlugin` (`ux/file`)
-and `UrlPlugin` (`ux/url`). A handler serves its channel's contract and answers
+handler per area, named after its darwin counterpart: `FilePlugin` (`ux/file`),
+`UrlPlugin` (`ux/url`) and `VideoPlayerPlugin` (`ux/video` and
+`ux/video/events`). A handler serves its channel's contract and answers
 not-implemented for a method it does not serve. Paths from Dart are accepted
 with either separator.
 
@@ -146,7 +147,8 @@ with either separator.
 - **Memory.** What a native call hands to Dart returns to the allocator that
   made it: `ux_free` frees the buffer `ux_match_url` returns.
 - **SDK only.** C++17, built by MSVC, on the Windows SDK alone (Win32, COM,
-  the shell, ICU). No third-party native code, test frameworks included.
+  the shell, ICU, Media Foundation, Direct3D 11). No third-party native code,
+  test frameworks included.
 - **Windows 10 1903.** The handlers compile against the SDK's declarations for
   build 18362 (`UX_PLUGIN_DEFINITIONS` in sources.cmake), and `ux_plugin.dll`
   imports `icu.dll`, which Windows has from 1903, so a host app needs 1903 or
@@ -301,6 +303,52 @@ fallback needed — `AVFoundation` handles iOS-produced H.264 (and HEVC)
 directly without the DPB-cap / full-range quirks the Android platform
 decoders trip over. See
 [darwin/ux/Sources/ux/Video/VideoPlayerInstance.swift](../darwin/ux/Sources/ux/Video/VideoPlayerInstance.swift).
+
+## Video pipeline (Windows)
+
+[windows/video_player_plugin.cpp](../windows/video_player_plugin.cpp) serves
+`ux/video` and `ux/video/events` with one `VideoPlayerInstance`
+([windows/video_player_instance.cpp](../windows/video_player_instance.cpp)) per
+handle, each an `IMFMediaEngine` in frame-server mode.
+
+- **Device.** The players share one Direct3D 11 device
+  ([windows/video_device.cpp](../windows/video_device.cpp)), created at the
+  first `create` on the adapter Flutter renders with
+  (`PluginRegistrarWindows::GetGraphicsAdapter`), with multithread protection
+  on, and handed to every engine through one DXGI device manager. Media
+  Foundation stays started while it lives. ux_plugin.dll delay-loads Media
+  Foundation (`mfplat.dll`), which a Windows N edition lacks without the Media
+  Feature Pack, so the plugin loads there and `create` fails with
+  `create_failed`.
+- **Frames.** A pump thread per player polls `OnVideoStreamTick` every 8 ms and
+  transfers each new frame with `TransferVideoFrame` into a BGRA texture
+  ([windows/video_surface.cpp](../windows/video_surface.cpp)) that Flutter opens
+  through its DXGI shared handle as a GPU-surface texture, then flushes and
+  marks the texture's frame available. A frame of a new size goes into a new
+  texture, shown once it is drawn; the one it replaces stays alive until
+  Flutter next asks for the surface. Flutter sees no surface until the first
+  frame.
+- **Rotation.** The engine applies the track's rotation
+  (`MF_MT_VIDEO_ROTATION`), so frames land upright and `initialize` answers
+  the display size with `rotationQuarterTurns` 0, as on Android.
+- **Sources.** `create` takes the `file://<path>` URI `XVideoPlayerController.file`
+  builds, with either separator, and the engine opens the path as it is, spaces
+  and non-ASCII characters included; any other URI answers `bad_args`.
+- **Initialize.** `initialize` answers once the engine can play
+  (`MF_MEDIA_ENGINE_EVENT_CANPLAY`), and fails with `decode_failed` and the
+  engine's error when it cannot, as for a codec Windows has no decoder for.
+- **Control.** `play` and `pause` act on the engine. `seekTo` seeks to the
+  position and reports it at once. `setLooping` wraps playback at the end with no
+  `completed`. `setPlaybackSpeed` sets the default rate as well as the current
+  one, since `Play` starts at the default rate.
+- **Events.** `stateChanged` carries `isPlaying` from the engine's play,
+  pause, playing and ended events, `isBuffering` from its waiting, can-play
+  and playing events, and the position with the buffered ranges every 100 ms once the player is
+  ready. `sizeChanged` fires at ready and on a format change, `completed` when
+  playback ends without looping, and `error` (`playback_failed`) for an engine
+  error after ready.
+- **Dispose.** `dispose` stops the pump, shuts the engine down and unregisters
+  the texture, which Flutter releases once it is done with it.
 
 ## Notifications + window focus
 

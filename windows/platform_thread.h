@@ -15,6 +15,10 @@ namespace ux {
 // thread through its message loop.
 class PlatformThread {
  public:
+  // Hands a task to the thread that created the PlatformThread, from any
+  // thread. The task does not run once that PlatformThread is destroyed.
+  using Poster = std::function<void(std::function<void()>)>;
+
   PlatformThread();
   ~PlatformThread();
 
@@ -29,6 +33,10 @@ class PlatformThread {
       auto value = std::make_shared<T>(work());
       Post(queue, [done, value]() { done(std::move(*value)); });
     }).detach();
+  }
+
+  Poster poster() const {
+    return [queue = queue_](std::function<void()> task) { Post(queue, std::move(task)); };
   }
 
  private:
