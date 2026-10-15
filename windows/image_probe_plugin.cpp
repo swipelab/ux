@@ -49,8 +49,6 @@ ImageProbePlugin::ImageProbePlugin(flutter::BinaryMessenger* messenger)
   channel_->SetMethodCallHandler([this](const auto& call, auto result) { HandleMethodCall(call, std::move(result)); });
 }
 
-ImageProbePlugin::~ImageProbePlugin() { channel_->SetMethodCallHandler(nullptr); }
-
 void ImageProbePlugin::HandleMethodCall(const flutter::MethodCall<EncodableValue>& call,
                                         std::unique_ptr<flutter::MethodResult<EncodableValue>> result) {
   const std::string& method = call.method_name();

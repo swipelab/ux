@@ -17,7 +17,6 @@ namespace ux {
 class ImageProbePlugin : public flutter::Plugin {
  public:
   explicit ImageProbePlugin(flutter::BinaryMessenger* messenger);
-  ~ImageProbePlugin() override;
 
   ImageProbePlugin(const ImageProbePlugin&) = delete;
   ImageProbePlugin& operator=(const ImageProbePlugin&) = delete;
