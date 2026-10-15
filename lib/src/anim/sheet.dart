@@ -37,10 +37,7 @@ class SheetController {
   /// is consuming the gesture.
   ScrollPhysics get physics => SheetScrollPhysics(controller: this);
 
-  void _registerUserOffsetGate(
-    Object owner,
-    _SheetUserOffsetGate gate,
-  ) {
+  void _registerUserOffsetGate(Object owner, _SheetUserOffsetGate gate) {
     _userOffsetGateOwner = owner;
     _userOffsetGate = gate;
   }
@@ -518,14 +515,17 @@ class SheetState extends State<Sheet> with SingleTickerProviderStateMixin {
   }) {
     if (!widget.isDismissible) return false;
 
-    if (fromExpanded && !listAbsorbsDown && velocity > _kExpandedFlingVelocity) {
+    if (fromExpanded &&
+        !listAbsorbsDown &&
+        velocity > _kExpandedFlingVelocity) {
       return true;
     }
     if (velocity < -_kPullBackVelocity) return false;
 
     final landing = currentTop + velocity * _kProjectionHorizon;
-    final threshold =
-        widget.isFullSize ? _kFullSizeDismissLanding : _kDismissLanding;
+    final threshold = widget.isFullSize
+        ? _kFullSizeDismissLanding
+        : _kDismissLanding;
     return landing > _edgeTopInset + threshold;
   }
 
@@ -635,8 +635,10 @@ class SheetState extends State<Sheet> with SingleTickerProviderStateMixin {
       final normalizedPosition =
           ((_screenHeight - currentTop) / (_screenHeight - _edgeTopInset))
               .clamp(0.0, double.infinity);
-      widget.controller
-          ?.setDismissState(normalizedPosition, _lastNormalizedVelocity);
+      widget.controller?.setDismissState(
+        normalizedPosition,
+        _lastNormalizedVelocity,
+      );
       _isDismissing = true;
       _isExpanded = false;
       _boundsOriginY = 0.0;
@@ -662,9 +664,12 @@ class SheetState extends State<Sheet> with SingleTickerProviderStateMixin {
     _animatedTop = currentTop;
     _boundsOriginY = 0.0;
 
-    const spring = SpringDescription(mass: 1.0, stiffness: 500.0, damping: 30.0);
-    final springVelocity =
-        initialVelocity * (targetTop - currentTop).sign;
+    const spring = SpringDescription(
+      mass: 1.0,
+      stiffness: 500.0,
+      damping: 30.0,
+    );
+    final springVelocity = initialVelocity * (targetTop - currentTop).sign;
     final normalizedSpring = SpringSimulation(
       spring,
       0.0,
@@ -730,11 +735,17 @@ class SheetState extends State<Sheet> with SingleTickerProviderStateMixin {
     final isPopping = widget.controller?.isPopping ?? false;
     final double topOffset;
     if ((_isDismissing || isPopping) && _hasRouteAnimation) {
-      topOffset = (_routeAnimatedTop ?? _restTopOffset).clamp(0.0, screenHeight);
+      topOffset = (_routeAnimatedTop ?? _restTopOffset).clamp(
+        0.0,
+        screenHeight,
+      );
     } else if (_animatedTop != null) {
       topOffset = _animatedTop!.clamp(0.0, screenHeight);
     } else if (_hasRouteAnimation && !_isExpanded && _boundsOriginY == 0.0) {
-      topOffset = (_routeAnimatedTop ?? _restTopOffset).clamp(0.0, screenHeight);
+      topOffset = (_routeAnimatedTop ?? _restTopOffset).clamp(
+        0.0,
+        screenHeight,
+      );
     } else {
       topOffset = (_restTopOffset - _boundsOriginY).clamp(0.0, screenHeight);
     }
@@ -752,11 +763,15 @@ class SheetState extends State<Sheet> with SingleTickerProviderStateMixin {
     final sheetPadding = collapsedPadding * (1.0 - expansionProgress);
 
     final collapsedHeight = screenHeight - edgeTopInset;
-    final cornerRadius =
-        (widget.borderRadius - sheetPadding).clamp(0.0, widget.borderRadius);
+    final cornerRadius = (widget.borderRadius - sheetPadding).clamp(
+      0.0,
+      widget.borderRadius,
+    );
 
-    final barrierProgress =
-        (1.0 - clampedTopOffset / edgeTopInset).clamp(0.0, 1.0);
+    final barrierProgress = (1.0 - clampedTopOffset / edgeTopInset).clamp(
+      0.0,
+      1.0,
+    );
 
     final sheetLeft = sheetPadding;
     final sheetTop = clampedTopOffset;
@@ -788,17 +803,18 @@ class SheetState extends State<Sheet> with SingleTickerProviderStateMixin {
             gestures: <Type, GestureRecognizerFactory<GestureRecognizer>>{
               _SheetPanRecognizer:
                   GestureRecognizerFactoryWithHandlers<_SheetPanRecognizer>(
-                _SheetPanRecognizer.new,
-                (r) => r
-                  ..onPointerDown = _latchGestureOrigin
-                  ..onStart = _onPanStart
-                  ..onUpdate = _onPanUpdate
-                  ..onEnd = _onPanEnd
-                  ..onCancel = _onPanCancel,
-              ),
+                    _SheetPanRecognizer.new,
+                    (r) => r
+                      ..onPointerDown = _latchGestureOrigin
+                      ..onStart = _onPanStart
+                      ..onUpdate = _onPanUpdate
+                      ..onEnd = _onPanEnd
+                      ..onCancel = _onPanCancel,
+                  ),
             },
             child: Material(
-              color: widget.backgroundColor ??
+              color:
+                  widget.backgroundColor ??
                   Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.vertical(
                 top: Radius.circular(widget.borderRadius),

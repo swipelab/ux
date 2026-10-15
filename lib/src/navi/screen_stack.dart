@@ -48,7 +48,7 @@ class ScreenStack extends StatefulWidget {
   /// Wraps the slot of a screen of [stack] to lay out where it draws. A
   /// leaving slot keeps the wrapper it last had.
   final Widget Function(BuildContext context, Screen screen, Widget slot)?
-      place;
+  place;
 
   /// Called once a popped screen's exit animation has finished.
   final ValueChanged<Screen>? onRemoved;
@@ -68,7 +68,8 @@ class ScreenStack extends StatefulWidget {
 }
 
 /// Slot bookkeeping and transition animations behind a [ScreenStack].
-class ScreenStackState extends State<ScreenStack> with TickerProviderStateMixin {
+class ScreenStackState extends State<ScreenStack>
+    with TickerProviderStateMixin {
   late ScreenSlot _homeSlot;
   final List<ScreenSlot> _entries = [];
 
@@ -122,7 +123,9 @@ class ScreenStackState extends State<ScreenStack> with TickerProviderStateMixin 
     if (canPop == _canPop) return;
     _canPop = canPop;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) NavigationNotification(canHandlePop: canPop).dispatch(context);
+      if (mounted) {
+        NavigationNotification(canHandlePop: canPop).dispatch(context);
+      }
     });
   }
 
@@ -152,7 +155,8 @@ class ScreenStackState extends State<ScreenStack> with TickerProviderStateMixin 
     final oldSet = <Screen>{...oldStack};
     final newSet = <Screen>{...newStack};
 
-    final hasChanges = oldStack.length != newStack.length ||
+    final hasChanges =
+        oldStack.length != newStack.length ||
         oldSet.any((p) => !newSet.contains(p)) ||
         newSet.any((p) => !oldSet.contains(p));
 
@@ -242,8 +246,9 @@ class ScreenStackState extends State<ScreenStack> with TickerProviderStateMixin 
     if (entry._backGesture case final gesture?) {
       entry._backGesture = _Settling(gesture, entry.controller.value, 0);
     }
-    final exit =
-        entry.hidden ? Future<void>.value() : entry.controller.reverse();
+    final exit = entry.hidden
+        ? Future<void>.value()
+        : entry.controller.reverse();
     exit.then((_) {
       if (!mounted) return;
       _entries.remove(entry);
@@ -285,8 +290,10 @@ class ScreenStackState extends State<ScreenStack> with TickerProviderStateMixin 
         DismissIntent: CallbackAction<DismissIntent>(
           onInvoke: (_) {
             final focus = FocusManager.instance.primaryFocus;
-            if (focus != null && focus.context != null &&
-                focus.context!.findAncestorWidgetOfExactType<EditableText>() != null) {
+            if (focus != null &&
+                focus.context != null &&
+                focus.context!.findAncestorWidgetOfExactType<EditableText>() !=
+                    null) {
               focus.unfocus();
               return null;
             }
@@ -564,8 +571,11 @@ class ScreenBackHandlerState extends State<ScreenBackHandler>
   }
 
   void _pop() {
-    widget.entry._backGesture =
-        _Settling(const _Tracking(), widget.entry.controller.value, 0);
+    widget.entry._backGesture = _Settling(
+      const _Tracking(),
+      widget.entry.controller.value,
+      0,
+    );
     widget.onPop();
   }
 
@@ -576,8 +586,8 @@ class ScreenBackHandlerState extends State<ScreenBackHandler>
     entry.controller
         .animateTo(1.0, duration: const Duration(milliseconds: 150))
         .whenCompleteOrCancel(() {
-      if (entry._backGesture == settling) entry._backGesture = null;
-    });
+          if (entry._backGesture == settling) entry._backGesture = null;
+        });
   }
 
   // ── iOS edge swipe ──
@@ -598,7 +608,8 @@ class ScreenBackHandlerState extends State<ScreenBackHandler>
   }
 
   void _onHorizontalDragEnd(DragEndDetails d) {
-    if (widget.entry.controller.value < 0.5 || d.velocity.pixelsPerSecond.dx > 300) {
+    if (widget.entry.controller.value < 0.5 ||
+        d.velocity.pixelsPerSecond.dx > 300) {
       _pop();
     } else {
       _springBack();

@@ -56,8 +56,11 @@ T? _walkJpeg<T>(
     // SOFn markers carry raw frame dimensions. Skip differential-encoding
     // (DHT, DAC) markers (0xFFC4, 0xFFCC) and SOI-family (0xFFC8 reserved).
     if (onSof != null &&
-        marker >= 0xFFC0 && marker <= 0xFFCF &&
-        marker != 0xFFC4 && marker != 0xFFC8 && marker != 0xFFCC) {
+        marker >= 0xFFC0 &&
+        marker <= 0xFFCF &&
+        marker != 0xFFC4 &&
+        marker != 0xFFC8 &&
+        marker != 0xFFCC) {
       final v = onSof(bytes, payloadStart, payloadEnd);
       if (v != null) return v;
     }
@@ -79,7 +82,9 @@ Uint8List stripJpegApp1(Uint8List bytes) {
     if ((marker & 0xFF00) != 0xFF00) return bytes;
 
     // Standalone markers (no length): SOI, EOI, TEM, RSTn — copy as-is.
-    if (marker == 0xFFD8 || marker == 0xFFD9 || marker == 0xFF01 ||
+    if (marker == 0xFFD8 ||
+        marker == 0xFFD9 ||
+        marker == 0xFF01 ||
         (marker >= 0xFFD0 && marker <= 0xFFD7)) {
       b.add([0xFF, marker & 0xFF]);
       cur += 2;
@@ -141,7 +146,9 @@ int? _readFromApp1(Uint8List bytes, int start, int end) {
   }
 
   final tiff = ByteData.sublistView(bytes, tiffStart, end);
-  if (tiff.lengthInBytes < 8 || tiff.getUint16(2, endian) != 0x002A) return null;
+  if (tiff.lengthInBytes < 8 || tiff.getUint16(2, endian) != 0x002A) {
+    return null;
+  }
 
   final ifd0Offset = tiff.getUint32(4, endian);
   if (ifd0Offset + 2 > tiff.lengthInBytes) return null;

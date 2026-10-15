@@ -90,8 +90,10 @@ class StrokePoint {
 
   /// Where the sample is, in image pixels.
   final Offset position;
+
   /// Smoothed speed of the drag at the sample, in image pixels per second.
   final double velocity;
+
   /// Rendered stroke width at the sample, in image pixels.
   final double width;
 }
@@ -122,19 +124,25 @@ class Stroke {
 
   /// The samples, in drag order.
   final List<StrokePoint> points;
+
   /// The brush that drew it.
   final BrushType brushType;
+
   /// The stroke's colour.
   final Color color;
+
   /// The chosen thickness, in image pixels.
   final double thickness;
+
   /// Whether the stroke ends in an arrowhead.
   final bool isArrow;
 
   /// How much of the arrowhead is drawn, 0 to 1.
   double arrowProgress = 0;
+
   /// The arrowhead's tip; absent until an arrow stroke ends.
   Offset? arrowAnchor;
+
   /// Angle in radians from the tip back along the stroke, which the arms open
   /// around; absent until an arrow stroke ends.
   double? arrowDirection;
@@ -162,10 +170,13 @@ class DrawSnapshot {
 
   /// The committed strokes at capture.
   final List<Stroke> strokes;
+
   /// The selected brush at capture.
   final BrushType currentBrush;
+
   /// Each brush's colour at capture.
   final Map<BrushType, Color> brushColors;
+
   /// Each brush's thickness at capture.
   final Map<BrushType, double> normalizedThickness;
 }
@@ -184,12 +195,16 @@ class DrawImageLayer with Emitter, Painter, Exporter {
 
   /// The source image.
   final ui.Image image;
+
   /// [image]'s size in pixels.
-  late final Size imageSize =
-      Size(image.width.toDouble(), image.height.toDouble());
+  late final Size imageSize = Size(
+    image.width.toDouble(),
+    image.height.toDouble(),
+  );
 
   /// The committed strokes, oldest first.
   final List<Stroke> strokes = <Stroke>[];
+
   /// The samples of the stroke in flight.
   final List<StrokePoint> currentPoints = <StrokePoint>[];
 
@@ -199,8 +214,9 @@ class DrawImageLayer with Emitter, Painter, Exporter {
   /// Per-brush color memory. The layer's [currentColor] is a view onto
   /// this map at [currentBrush]; switching brushes loads that brush's
   /// remembered color.
-  final Map<BrushType, Color> brushColors =
-      Map<BrushType, Color>.from(kBrushDefaultColors);
+  final Map<BrushType, Color> brushColors = Map<BrushType, Color>.from(
+    kBrushDefaultColors,
+  );
 
   /// The selected brush's colour.
   Color get currentColor => brushColors[currentBrush]!;
@@ -393,10 +409,7 @@ class DrawImageLayer with Emitter, Painter, Exporter {
     final scale = camera.storage[0];
     final tx = camera.storage[12];
     final ty = camera.storage[13];
-    return Offset(
-      (viewport.dx - tx) / scale,
-      (viewport.dy - ty) / scale,
-    );
+    return Offset((viewport.dx - tx) / scale, (viewport.dy - ty) / scale);
   }
 
   /// Starts a stroke at [imagePoint], sizing it for a camera at [cameraScale].
@@ -411,9 +424,7 @@ class DrawImageLayer with Emitter, Painter, Exporter {
     // the throttle is meant to thin high-frequency OS pointer events,
     // not the begin→first-add boundary.
     _lastInputMs = 0;
-    currentPoints.add(
-      StrokePoint(position: imagePoint, width: _previousWidth),
-    );
+    currentPoints.add(StrokePoint(position: imagePoint, width: _previousWidth));
     notifyListeners();
   }
 
@@ -424,7 +435,8 @@ class DrawImageLayer with Emitter, Painter, Exporter {
     if (now - _lastInputMs < _inputThrottleMs) return false;
 
     final scale = _activeCameraScale;
-    final filter = (_filterDistance[currentBrush] ?? 8.0) /
+    final filter =
+        (_filterDistance[currentBrush] ?? 8.0) /
         (scale.abs() < 1e-6 ? 1.0 : scale.abs());
     if (_previousPosition != null) {
       final d = (imagePoint - _previousPosition!).distance;
@@ -450,11 +462,9 @@ class DrawImageLayer with Emitter, Painter, Exporter {
     _previousTimestampMs = now;
     _previousVelocity = velocity;
     _previousWidth = width;
-    currentPoints.add(StrokePoint(
-      position: imagePoint,
-      velocity: velocity,
-      width: width,
-    ));
+    currentPoints.add(
+      StrokePoint(position: imagePoint, velocity: velocity, width: width),
+    );
     notifyListeners();
     return true;
   }
@@ -532,10 +542,7 @@ class DrawImageLayer with Emitter, Painter, Exporter {
     _animatingStroke = stroke;
     stroke.arrowProgress = 0;
     _arrowAnimator
-        .animate(
-          target: 1.0,
-          duration: const Duration(milliseconds: 200),
-        )
+        .animate(target: 1.0, duration: const Duration(milliseconds: 200))
         .then((_) => _animatingStroke = null);
   }
 
@@ -552,10 +559,7 @@ class DrawImageLayer with Emitter, Painter, Exporter {
   void _runDryingAnimation(Stroke stroke) {
     _dryingStroke = stroke;
     _dryingAnimator
-        .animate(
-          target: 1.0,
-          duration: const Duration(milliseconds: 400),
-        )
+        .animate(target: 1.0, duration: const Duration(milliseconds: 400))
         .then((_) => _dryingStroke = null);
   }
 
@@ -690,8 +694,11 @@ class DrawImageLayer with Emitter, Painter, Exporter {
   }
 
   @override
-  void paintViewport(Canvas canvas, Size size,
-      {required vmath.Matrix4 camera}) {
+  void paintViewport(
+    Canvas canvas,
+    Size size, {
+    required vmath.Matrix4 camera,
+  }) {
     canvas.save();
     canvas.transform(camera.storage);
     paintSourceAndStrokes(canvas);
@@ -716,11 +723,21 @@ class DrawImageLayer with Emitter, Painter, Exporter {
     }
     switch (type) {
       case BrushType.pen:
-        _paintTaperedFill(canvas, points, color, thickness,
-            tailFactor: tailFactor);
+        _paintTaperedFill(
+          canvas,
+          points,
+          color,
+          thickness,
+          tailFactor: tailFactor,
+        );
       case BrushType.arrow:
-        _paintTaperedFill(canvas, points, color, thickness,
-            tailFactor: tailFactor);
+        _paintTaperedFill(
+          canvas,
+          points,
+          color,
+          thickness,
+          tailFactor: tailFactor,
+        );
         if (stroke != null && stroke.isArrow) {
           _paintArrowHead(canvas, stroke);
         }
@@ -867,7 +884,12 @@ class DrawImageLayer with Emitter, Painter, Exporter {
       final step = 1.0 / segments;
       for (var t = 0.0; t < 1.0; t += step) {
         final pos = _cubicBezier(
-            p0.position, p1.position, p2.position, p3.position, t);
+          p0.position,
+          p1.position,
+          p2.position,
+          p3.position,
+          t,
+        );
         final v = p0.velocity + (p3.velocity - p0.velocity) * t;
         final w = _cubicBezierScalar(p0.width, p1.width, p2.width, p3.width, t);
         out.add(StrokePoint(position: pos, velocity: v, width: w));
@@ -890,7 +912,13 @@ class DrawImageLayer with Emitter, Painter, Exporter {
     );
   }
 
-  double _cubicBezierScalar(double a, double c1, double c2, double b, double t) {
+  double _cubicBezierScalar(
+    double a,
+    double c1,
+    double c2,
+    double b,
+    double t,
+  ) {
     final t1 = 1 - t;
     final tt = t * t;
     final ttt = tt * t;
@@ -940,8 +968,10 @@ class DrawImageLayer with Emitter, Painter, Exporter {
     canvas.saveLayer(
       null,
       Paint()
-        ..colorFilter =
-            ColorFilter.mode(glow.withValues(alpha: 0.87), BlendMode.srcIn),
+        ..colorFilter = ColorFilter.mode(
+          glow.withValues(alpha: 0.87),
+          BlendMode.srcIn,
+        ),
     );
     canvas.drawPath(
       path,
@@ -987,8 +1017,10 @@ class DrawImageLayer with Emitter, Painter, Exporter {
     canvas.saveLayer(
       null,
       Paint()
-        ..colorFilter =
-            ColorFilter.mode(glow.withValues(alpha: 0.87), BlendMode.srcIn),
+        ..colorFilter = ColorFilter.mode(
+          glow.withValues(alpha: 0.87),
+          BlendMode.srcIn,
+        ),
     );
     canvas.drawCircle(
       center,
@@ -1139,8 +1171,10 @@ class DrawGestures extends StatefulWidget {
 
   /// The layer strokes are drawn into.
   final DrawImageLayer layer;
+
   /// The host's image-to-viewport transform.
   final ValueListenable<vmath.Matrix4> hostCamera;
+
   /// The crop the scene is shown through.
   final CropImageLayer? crop;
 

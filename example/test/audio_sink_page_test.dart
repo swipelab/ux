@@ -17,10 +17,10 @@ void main() {
   final calls = <MethodCall>[];
 
   Future<void> sendEvent(Object? event) => messenger.handlePlatformMessage(
-        'ux/audio_sink/events',
-        const StandardMethodCodec().encodeSuccessEnvelope(event),
-        (_) {},
-      );
+    'ux/audio_sink/events',
+    const StandardMethodCodec().encodeSuccessEnvelope(event),
+    (_) {},
+  );
 
   setUp(() async {
     calls.clear();

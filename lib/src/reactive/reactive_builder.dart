@@ -39,7 +39,7 @@ class ReactiveBuilder<T extends Listenable> extends StatefulWidget {
     required this.builder,
     this.child,
     this.onUpdate,
-  })  : _value = null;
+  }) : _value = null;
 
   /// Listens to an externally-owned [value] and leaves its disposal to
   /// whoever created it.
@@ -49,8 +49,8 @@ class ReactiveBuilder<T extends Listenable> extends StatefulWidget {
     required this.builder,
     this.child,
     this.onUpdate,
-  })  : _value = value,
-        _create = null;
+  }) : _value = value,
+       _create = null;
 
   /// Creates the listenable once; dependencies captured at creation time.
   final ReactiveCreateDelegate<T>? _create;
@@ -139,10 +139,6 @@ class _ReactiveBuilderState<T extends Listenable>
 
   @override
   Widget build(BuildContext context) {
-    return widget.builder(
-      context,
-      reactive,
-      widget.child,
-    );
+    return widget.builder(context, reactive, widget.child);
   }
 }

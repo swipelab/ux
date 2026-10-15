@@ -7,9 +7,8 @@ import 'package:ux/src/screen/x_screen_sources_channel.dart';
 const _channel = MethodChannel('ux/screen_sources');
 
 Matcher get _unsupported => throwsA(
-      isA<XScreenSourcesException>()
-          .having((e) => e.code, 'code', 'unsupported'),
-    );
+  isA<XScreenSourcesException>().having((e) => e.code, 'code', 'unsupported'),
+);
 
 void main() {
   final messenger =

@@ -67,15 +67,18 @@ void Function(double)? uxLookupVoidDouble(String name) {
 }
 
 /// Binds `void f(void (*cb)(void))`, or `null` when it can't be resolved.
-void Function(Pointer<NativeFunction<Void Function()>>)?
-    uxLookupVoidCallback(String name) {
+void Function(Pointer<NativeFunction<Void Function()>>)? uxLookupVoidCallback(
+  String name,
+) {
   final lib = uxLib;
   if (lib == null) return null;
   try {
     return lib
         .lookup<
-            NativeFunction<
-                Void Function(Pointer<NativeFunction<Void Function()>>)>>(name)
+          NativeFunction<
+            Void Function(Pointer<NativeFunction<Void Function()>>)
+          >
+        >(name)
         .asFunction();
   } catch (_) {
     return null;

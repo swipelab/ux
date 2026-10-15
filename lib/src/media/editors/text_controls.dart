@@ -26,22 +26,31 @@ class TextControls extends StatelessWidget {
 
   /// The style the style button previews.
   final TextEntityStyle style;
+
   /// The alignment the alignment button shows.
   final TextAlign align;
+
   /// The colour selected in the colour row.
   final Color colour;
+
   /// Moves to the next style.
   final VoidCallback onStyle;
+
   /// Moves to the next alignment.
   final VoidCallback onAlign;
+
   /// Selects a colour.
   final ValueChanged<Color> onColour;
+
   /// Switches to the draw tool.
   final VoidCallback onDraw;
+
   /// A press on the text mode, the one that is active.
   final VoidCallback onText;
+
   /// Leaves the tool without applying.
   final VoidCallback onCancel;
+
   /// Applies the edits.
   final VoidCallback onSubmit;
 
@@ -101,8 +110,10 @@ class TextStyleButton extends StatelessWidget {
 
   /// The style previewed.
   final TextEntityStyle style;
+
   /// The colour the preview resolves [style] with.
   final Color colour;
+
   /// Called on a press.
   final VoidCallback onPress;
 
@@ -150,6 +161,7 @@ class TextAlignButton extends StatelessWidget {
 
   /// The alignment shown.
   final TextAlign align;
+
   /// Called on a press.
   final VoidCallback onPress;
 

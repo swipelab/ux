@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+
 import 'dispose.dart';
 import 'emitter.dart';
 
@@ -18,7 +19,8 @@ typedef TaskDelegate = Future<void> Function();
 
 /// [TaskDelegate] handed the token guarding its own run.
 typedef CancellableTaskDelegate = Future<void> Function(
-    CancellationToken token);
+  CancellationToken token,
+);
 
 /// [TaskDelegate] resolving to a [T].
 typedef TypedTaskDelegate<T> = Future<T> Function();
@@ -27,10 +29,7 @@ typedef TypedTaskDelegate<T> = Future<T> Function();
 class TaskCancelledException implements Exception {}
 
 class _Task<T> implements CancellationToken {
-  _Task(
-    this.task, {
-    this.onDone,
-  }) : _isCancelled = false;
+  _Task(this.task, {this.onDone}) : _isCancelled = false;
 
   final CancellableTaskDelegate task;
   final VoidCallback? onDone;

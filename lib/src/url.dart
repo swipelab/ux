@@ -94,9 +94,13 @@ class XUrl {
 }
 
 const Set<String> _kLaunchSchemes = {
-  'http', 'https',
-  'mailto', 'tel', 'sms',
-  'banlu', 'tg',
+  'http',
+  'https',
+  'mailto',
+  'tel',
+  'sms',
+  'banlu',
+  'tg',
 };
 
 bool _isLaunchable(String url) {
@@ -109,7 +113,8 @@ bool _isLaunchable(String url) {
   // elsewhere. Reject rather than guessing intent.
   for (int i = 0; i < url.length; i++) {
     final c = url.codeUnitAt(i);
-    if (c == 0x200E || c == 0x200F /* LRM / RLM */ ||
+    if (c == 0x200E ||
+        c == 0x200F /* LRM / RLM */ ||
         (c >= 0x202A && c <= 0x202E) ||
         (c >= 0x2066 && c <= 0x2069)) {
       return false;
@@ -225,9 +230,15 @@ enum UrlMatchKind {
 ///   u32 count
 ///   count * { i32 start, i32 end, u32 kind, u32 url_len, u8[url_len] url_utf8 }
 typedef _MatchUrlNative = Pointer<Uint8> Function(
-    Pointer<Uint16> utf16, Int32 len, Pointer<Int32> outSize);
+  Pointer<Uint16> utf16,
+  Int32 len,
+  Pointer<Int32> outSize,
+);
 typedef _MatchUrl = Pointer<Uint8> Function(
-    Pointer<Uint16> utf16, int len, Pointer<Int32> outSize);
+  Pointer<Uint16> utf16,
+  int len,
+  Pointer<Int32> outSize,
+);
 
 typedef _FreeNative = Void Function(Pointer<Uint8> buf);
 typedef _Free = void Function(Pointer<Uint8> buf);
@@ -236,7 +247,9 @@ _MatchUrl? _lookupMatchUrl() {
   final lib = uxLib;
   if (lib == null) return null;
   try {
-    return lib.lookup<NativeFunction<_MatchUrlNative>>('ux_match_url').asFunction();
+    return lib
+        .lookup<NativeFunction<_MatchUrlNative>>('ux_match_url')
+        .asFunction();
   } catch (_) {
     return null;
   }
@@ -262,7 +275,7 @@ bool _hasSigil(String text) {
     if (c == 0x2E /* . */ ||
         c == 0x3A /* : */ ||
         c == 0x40 /* @ */ ||
-        c == 0x2B /* + */) {
+        c == 0x2B /* + */ ) {
       return true;
     }
     // A phone number with no `+` and no separators (e.g. `0731098515`)
@@ -347,13 +360,15 @@ List<UrlMatch> _mergeCustomSchemeMatches(List<UrlMatch> native, String text) {
   final extra = <UrlMatch>[];
   for (final m in _kAnySchemeRegex.allMatches(text)) {
     final end = _trimUrlTrailingPunctuation(text, m.start, m.end);
-    if (end - m.start < 4 /* "x://" minimum */) continue;
-    extra.add(UrlMatch(
-      start: m.start,
-      end: end,
-      url: text.substring(m.start, end),
-      kind: UrlMatchKind.web,
-    ));
+    if (end - m.start < 4 /* "x://" minimum */ ) continue;
+    extra.add(
+      UrlMatch(
+        start: m.start,
+        end: end,
+        url: text.substring(m.start, end),
+        kind: UrlMatchKind.web,
+      ),
+    );
   }
   if (extra.isEmpty) return native;
   return _dedupeMatches([...native, ...extra]);
@@ -372,7 +387,7 @@ int _trimUrlTrailingPunctuation(String text, int start, int end) {
         c == 0x3F /* ? */ ||
         c == 0x29 /* ) */ ||
         c == 0x5D /* ] */ ||
-        c == 0x7D /* } */) {
+        c == 0x7D /* } */ ) {
       end--;
     } else {
       break;
@@ -408,7 +423,9 @@ List<UrlMatch> _decode(Uint8List buf) {
   final view = ByteData.sublistView(buf);
   final count = view.getUint32(0, Endian.little);
   if (count == 0) return const [];
-  final capped = count > _kMaxMatchesPerMessage ? _kMaxMatchesPerMessage : count;
+  final capped = count > _kMaxMatchesPerMessage
+      ? _kMaxMatchesPerMessage
+      : count;
   final out = <UrlMatch>[];
   int p = 4;
   for (int i = 0; i < capped; i++) {
@@ -423,12 +440,14 @@ List<UrlMatch> _decode(Uint8List buf) {
       utf8.decode(Uint8List.sublistView(buf, p, p + urlLen)),
     );
     p += urlLen;
-    out.add(UrlMatch(
-      start: start,
-      end: end,
-      url: url,
-      kind: UrlMatchKind.fromByte(kindByte),
-    ));
+    out.add(
+      UrlMatch(
+        start: start,
+        end: end,
+        url: url,
+        kind: UrlMatchKind.fromByte(kindByte),
+      ),
+    );
   }
   return out;
 }

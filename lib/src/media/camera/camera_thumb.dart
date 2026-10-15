@@ -29,8 +29,10 @@ class CameraThumb extends StatelessWidget {
 
   /// The camera previewed; [color] alone shows while absent.
   final ValueListenable<XCameraController?> controller;
+
   /// Drawn over the preview.
   final Widget? child;
+
   /// Fill behind the preview.
   final Color color;
 
@@ -81,11 +83,7 @@ class CameraThumb extends StatelessWidget {
                         fit: _preferLandscapePreview
                             ? BoxFit.contain
                             : BoxFit.cover,
-                        child: SizedBox(
-                          width: w,
-                          height: h,
-                          child: preview,
-                        ),
+                        child: SizedBox(width: w, height: h, child: preview),
                       );
                     }
                     return Stack(
@@ -98,10 +96,7 @@ class CameraThumb extends StatelessWidget {
                   },
                 );
 
-          return AnimatedSwitcher(
-            duration: kAnimation,
-            child: preview,
-          );
+          return AnimatedSwitcher(duration: kAnimation, child: preview);
         },
       ),
     );

@@ -53,8 +53,9 @@ void main() {
     expect(calls.last.arguments, {'enabled': false});
   });
 
-  testWidgets('the settings button reports what the OS answered',
-      (tester) async {
+  testWidgets('the settings button reports what the OS answered', (
+    tester,
+  ) async {
     await tester.pumpWidget(const MaterialApp(home: KeepAwakePage()));
 
     await tester.tap(find.text('Open app settings'));

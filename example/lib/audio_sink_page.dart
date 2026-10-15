@@ -58,10 +58,9 @@ class _AudioSinkPageState extends State<AudioSinkPage> {
   void dispose() {
     _timer?.cancel();
     unawaited(_drains?.cancel());
-    unawaited(_sink.flush().then<void>(
-          (_) {},
-          onError: (Object _, StackTrace _) {},
-        ));
+    unawaited(
+      _sink.flush().then<void>((_) {}, onError: (Object _, StackTrace _) {}),
+    );
     super.dispose();
   }
 
@@ -153,8 +152,9 @@ class _AudioSinkPageState extends State<AudioSinkPage> {
                   padding: const EdgeInsets.only(top: 12),
                   child: Text(
                     _error!,
-                    style: theme.textTheme.bodyMedium
-                        ?.copyWith(color: theme.colorScheme.error),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
                   ),
                 ),
             ],

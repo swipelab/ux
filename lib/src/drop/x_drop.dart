@@ -217,10 +217,14 @@ class XDrop {
   void _setNativeHasRegions(bool value) {
     if (_lastSentHasRegions == value) return;
     _lastSentHasRegions = value;
-    unawaited(_control.invokeMethod<void>('setHasRegions', value).catchError(
-      (Object e, StackTrace st) =>
-          _log.w('drop setHasRegions failed', error: e, stackTrace: st),
-    ));
+    unawaited(
+      _control
+          .invokeMethod<void>('setHasRegions', value)
+          .catchError(
+            (Object e, StackTrace st) =>
+                _log.w('drop setHasRegions failed', error: e, stackTrace: st),
+          ),
+    );
   }
 
   int _zipSeq = 0;
@@ -321,10 +325,14 @@ class XDrop {
 
   void _cancelZip(String id) {
     if (!_supported) return;
-    unawaited(_control.invokeMethod<void>('cancelZip', id).catchError(
-      (Object e, StackTrace st) =>
-          _log.w('drop cancelZip failed', error: e, stackTrace: st),
-    ));
+    unawaited(
+      _control
+          .invokeMethod<void>('cancelZip', id)
+          .catchError(
+            (Object e, StackTrace st) =>
+                _log.w('drop cancelZip failed', error: e, stackTrace: st),
+          ),
+    );
   }
 
   /// Native → Dart calls on [_control]: routes `zipProgress` to the job's

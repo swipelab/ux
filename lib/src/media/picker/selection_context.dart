@@ -26,10 +26,13 @@ class SelectionContext with Emitter {
 
   /// The picked assets in pick order.
   Iterable<XAsset> get picked => _picked;
+
   /// How many are picked.
   int get count => _picked.length;
+
   /// Whether nothing is picked.
   bool get isEmpty => _picked.isEmpty;
+
   /// Whether [limit] is reached.
   bool get isFull => _picked.length >= limit;
 

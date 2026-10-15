@@ -41,8 +41,10 @@ class TextEditOverlay extends StatefulWidget {
 
   /// The host's image-to-screen transform.
   final ValueListenable<vmath.Matrix4> camera;
+
   /// The draw screen's pinch and pan on top of [camera].
   final ValueListenable<vmath.Matrix4>? viewerCamera;
+
   /// The crop the image is shown through; its scale joins the presentation.
   final CropImageLayer? crop;
 
@@ -213,6 +215,7 @@ class TextEditPillPainter extends CustomPainter {
 
   /// The pill's outline.
   final Path path;
+
   /// The fill; absent paints nothing.
   final Color? colour;
 

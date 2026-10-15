@@ -22,12 +22,14 @@ void main() {
       flushInterval: const Duration(milliseconds: 1),
     );
 
-    sink.emit(LogRecord(
-      time: DateTime.utc(2026, 5, 10, 12, 0, 0),
-      level: LogLevel.error,
-      message: 'e2e-roundtrip',
-      tag: 'smoke',
-    ));
+    sink.emit(
+      LogRecord(
+        time: DateTime.utc(2026, 5, 10, 12, 0, 0),
+        level: LogLevel.error,
+        message: 'e2e-roundtrip',
+        tag: 'smoke',
+      ),
+    );
     await sink.flush();
   }, skip: skip);
 }

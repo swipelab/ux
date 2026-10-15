@@ -41,12 +41,14 @@ class _AnimatedColorState extends State<AnimatedColor>
   void initState() {
     super.initState();
 
-    _animationController =
-        AnimationController(duration: widget.duration, vsync: this);
-    _colorAnimation =
-        ColorTween(begin: widget.color, end: widget.color).animate(
-      CurvedAnimation(parent: _animationController, curve: widget.curve),
+    _animationController = AnimationController(
+      duration: widget.duration,
+      vsync: this,
     );
+    _colorAnimation = ColorTween(begin: widget.color, end: widget.color)
+        .animate(
+          CurvedAnimation(parent: _animationController, curve: widget.curve),
+        );
   }
 
   @override
@@ -54,10 +56,10 @@ class _AnimatedColorState extends State<AnimatedColor>
     super.didUpdateWidget(oldWidget);
 
     if (oldWidget.color != widget.color) {
-      _colorAnimation =
-          ColorTween(begin: oldWidget.color, end: widget.color).animate(
-        CurvedAnimation(parent: _animationController, curve: widget.curve),
-      );
+      _colorAnimation = ColorTween(begin: oldWidget.color, end: widget.color)
+          .animate(
+            CurvedAnimation(parent: _animationController, curve: widget.curve),
+          );
       _animationController.forward(from: 0);
     }
   }

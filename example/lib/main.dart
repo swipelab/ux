@@ -10,10 +10,9 @@ import 'package:ux_example/keep_awake_page.dart';
 import 'package:ux_example/screen_sources_page.dart';
 import 'package:ux_example/secure_store_page.dart';
 
-void main() => runApp(MaterialApp(
-      theme: ThemeData(useMaterial3: true),
-      home: ChatScreen(),
-    ));
+void main() => runApp(
+  MaterialApp(theme: ThemeData(useMaterial3: true), home: ChatScreen()),
+);
 
 /// Demonstrates XKeyboard in a chat UI:
 /// - Frame-accurate keyboard height tracking (no Flutter viewInsets lag)
@@ -74,23 +73,22 @@ class _ChatScreenState extends State<ChatScreen> {
           IconButton(
             icon: Icon(Icons.mic),
             tooltip: 'XAudioCapture',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const AudioCapturePage()),
-            ),
+            onPressed: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const AudioCapturePage())),
           ),
           IconButton(
             icon: Icon(Icons.volume_up),
             tooltip: 'XAudioSink',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const AudioSinkPage()),
-            ),
+            onPressed: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const AudioSinkPage())),
           ),
           IconButton(
             icon: Icon(Icons.lock),
             tooltip: 'XSecureStore',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const SecureStorePage()),
-            ),
+            onPressed: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const SecureStorePage())),
           ),
           IconButton(
             icon: Icon(Icons.screen_share),
@@ -102,9 +100,8 @@ class _ChatScreenState extends State<ChatScreen> {
           IconButton(
             icon: Icon(Icons.brightness_high),
             tooltip: 'Keep awake',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const KeepAwakePage()),
-            ),
+            onPressed: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const KeepAwakePage())),
           ),
         ],
       ),
@@ -134,8 +131,10 @@ class _ChatScreenState extends State<ChatScreen> {
                       final msg = _messages[i];
                       final isMe = msg.isMe;
                       return Padding(
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 4,
+                        ),
                         child: Align(
                           alignment: isMe
                               ? Alignment.centerRight
@@ -145,13 +144,17 @@ class _ChatScreenState extends State<ChatScreen> {
                               maxWidth: MediaQuery.sizeOf(context).width * 0.75,
                             ),
                             padding: EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 10),
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
                             decoration: BoxDecoration(
                               color: isMe
-                                  ? Theme.of(context).colorScheme.primaryContainer
+                                  ? Theme.of(context)
+                                        .colorScheme
+                                        .primaryContainer
                                   : Theme.of(context)
-                                      .colorScheme
-                                      .surfaceContainerHighest,
+                                        .colorScheme
+                                        .surfaceContainerHighest,
                               borderRadius: BorderRadius.circular(16),
                             ),
                             child: Text(msg.text),
@@ -191,7 +194,9 @@ class _ChatScreenState extends State<ChatScreen> {
                             borderRadius: BorderRadius.circular(24),
                           ),
                           contentPadding: EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 10),
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
                           isDense: true,
                         ),
                       ),

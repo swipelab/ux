@@ -5,11 +5,7 @@ import 'package:ux/src/core/core.dart';
 /// dependency (safe for `initState` reads).
 class StoreProvider extends StatelessWidget {
   /// Publishes [store] to the subtree [builder] produces.
-  const StoreProvider({
-    required this.store,
-    required this.builder,
-    super.key,
-  });
+  const StoreProvider({required this.store, required this.builder, super.key});
 
   /// The store this subtree resolves against.
   final Store store;

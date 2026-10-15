@@ -29,9 +29,12 @@ class CropImageLayer with Emitter, Painter, Exporter {
 
   /// The source image.
   final ui.Image image;
+
   /// [image]'s size in pixels.
-  late final Size imageSize =
-      Size(image.width.toDouble(), image.height.toDouble());
+  late final Size imageSize = Size(
+    image.width.toDouble(),
+    image.height.toDouble(),
+  );
 
   /// User-driven image-space transform: pan offset, scale, rotate, flip.
   /// Data state — tests and gestures observe synchronous changes here.
@@ -77,8 +80,8 @@ class CropImageLayer with Emitter, Painter, Exporter {
     return _renderAnimator
         .animate(target: target, duration: duration, curve: curve)
         .then((_) {
-      if (!disposed && spin == _renderSpin) _showBackdrop(animated: false);
-    });
+          if (!disposed && spin == _renderSpin) _showBackdrop(animated: false);
+        });
   }
 
   /// Y-axis tilt (radians) added on top of the data mirror during a
@@ -140,8 +143,10 @@ class CropImageLayer with Emitter, Painter, Exporter {
   /// while one surface tracks the other two must not engage —
   /// otherwise a second finger pans the image mid-resize.
   bool areaTracking = false;
+
   /// Whether the pan and pinch surface tracks a gesture.
   bool scrollTracking = false;
+
   /// Whether the rotation dial tracks a gesture.
   bool dialTracking = false;
 
@@ -190,7 +195,9 @@ class CropImageLayer with Emitter, Painter, Exporter {
   /// totalScale at which the un-rotated image exactly fills [crop] —
   /// telegram's `minimumZoomScale`. Pinching below it rubber-bands.
   double get fillScale => dartmath.max(
-      crop.width / imageSize.width, crop.height / imageSize.height);
+    crop.width / imageSize.width,
+    crop.height / imageSize.height,
+  );
 
   /// Hard pinch ceiling for the current [crop].
   double get maxTotalScale => fillScale * _maxZoomOverFill;
@@ -211,9 +218,9 @@ class CropImageLayer with Emitter, Painter, Exporter {
   /// the offset clamped per-axis in the image-aligned frame
   /// (telegram's `fitContentInsideBoundsAllowScale`).
   UserTransform _coveredTransform() => _coveredAt(
-        imageTransform.totalRotate,
-        scaleFloor: imageTransform.totalScale,
-      );
+    imageTransform.totalRotate,
+    scaleFloor: imageTransform.totalScale,
+  );
 
   /// [_coveredTransform] at an arbitrary [rotate], with [scaleFloor] as
   /// the smallest zoom the result may land on.
@@ -242,11 +249,13 @@ class CropImageLayer with Emitter, Painter, Exporter {
       crop.bottomRight,
       crop.bottomLeft,
     ]) {
-      final q = srInv.transform3(math.Vector3(
-        corner.dx - cx - t.offset.x,
-        corner.dy - cy - t.offset.y,
-        0,
-      ));
+      final q = srInv.transform3(
+        math.Vector3(
+          corner.dx - cx - t.offset.x,
+          corner.dy - cy - t.offset.y,
+          0,
+        ),
+      );
       minX = dartmath.min(minX, q.x);
       maxX = dartmath.max(maxX, q.x);
       minY = dartmath.min(minY, q.y);
@@ -354,8 +363,7 @@ class CropImageLayer with Emitter, Painter, Exporter {
 
   void _hideBackdrop({bool animated = true}) {
     if (animated) {
-      _backdropAnimator.animate(target: 0, duration: _backdropFade)
-          .unawaited();
+      _backdropAnimator.animate(target: 0, duration: _backdropFade).unawaited();
     } else {
       _backdropAnimator.cancel();
       backdropOpacity = 0;
@@ -365,8 +373,7 @@ class CropImageLayer with Emitter, Painter, Exporter {
 
   void _showBackdrop({bool animated = true}) {
     if (animated) {
-      _backdropAnimator.animate(target: 1, duration: _backdropFade)
-          .unawaited();
+      _backdropAnimator.animate(target: 1, duration: _backdropFade).unawaited();
     } else {
       _backdropAnimator.cancel();
       backdropOpacity = 1;
@@ -600,10 +607,12 @@ class CropImageLayer with Emitter, Painter, Exporter {
     captureRotationFloor();
     final preRender = _renderTransform.clone();
     _suppressMirror = true;
-    imageTransform.update(_coveredAt(
-      imageTransform.rotateZ - math.degrees2Radians * 90,
-      scaleFloor: imageTransform.totalScale,
-    ));
+    imageTransform.update(
+      _coveredAt(
+        imageTransform.rotateZ - math.degrees2Radians * 90,
+        scaleFloor: imageTransform.totalScale,
+      ),
+    );
     _suppressMirror = false;
     _renderAnimator.cancel();
     _renderTransform.update(preRender);
@@ -658,8 +667,7 @@ class CropImageLayer with Emitter, Painter, Exporter {
     _settleAnimator.cancel();
     imageTransform.flipX = imageTransform.flip ? 1 : -1;
     imageTransform.offset = math.Vector3(
-      2 * (crop.center.dx - imageSize.width / 2) -
-          imageTransform.offset.x,
+      2 * (crop.center.dx - imageSize.width / 2) - imageTransform.offset.x,
       imageTransform.offset.y,
       0,
     );
@@ -683,12 +691,8 @@ class CropImageLayer with Emitter, Painter, Exporter {
     } else {
       lockedAspectRatio = 1 / ratio;
       final imgRatio = imageSize.width / imageSize.height;
-      final w = ratio >= imgRatio
-          ? imageSize.width
-          : imageSize.height * ratio;
-      final h = ratio >= imgRatio
-          ? imageSize.width / ratio
-          : imageSize.height;
+      final w = ratio >= imgRatio ? imageSize.width : imageSize.height * ratio;
+      final h = ratio >= imgRatio ? imageSize.width / ratio : imageSize.height;
       crop = Rect.fromCenter(
         center: Offset(imageSize.width / 2, imageSize.height / 2),
         width: w,
@@ -755,8 +759,7 @@ class CropImageLayer with Emitter, Painter, Exporter {
   }
 
   @override
-  void paintViewport(Canvas canvas, Size size,
-      {required math.Matrix4 camera}) {
+  void paintViewport(Canvas canvas, Size size, {required math.Matrix4 camera}) {
     canvas.save();
     canvas.transform(camera.storage);
 
@@ -798,8 +801,7 @@ class CropImageLayer with Emitter, Painter, Exporter {
       image,
       Offset.zero,
       Paint()
-        ..color = const Color(0xFFFFFFFF)
-            .withValues(alpha: backdropOpacity)
+        ..color = const Color(0xFFFFFFFF).withValues(alpha: backdropOpacity)
         ..colorFilter = const ColorFilter.mode(
           Color(0xB3000000),
           BlendMode.srcATop,
@@ -863,8 +865,7 @@ class CropImageLayer with Emitter, Painter, Exporter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1 * scale;
     final thin = Paint()
-      ..color = colors.onMedia
-          .withValues(alpha: colors.onMedia.a * gridOpacity)
+      ..color = colors.onMedia.withValues(alpha: colors.onMedia.a * gridOpacity)
       ..style = PaintingStyle.stroke
       ..strokeWidth = .5 * scale;
     final thick = Paint()
@@ -911,23 +912,29 @@ class CropImageLayer with Emitter, Painter, Exporter {
 class UserTransform with Emitter {
   /// Pan, in image pixels.
   math.Vector3 offset = math.Vector3.zero();
+
   /// Committed zoom.
   double scale = 1;
+
   /// Committed rotation, in radians.
   double rotateZ = 0;
+
   /// Horizontal scale sign: -1 mirrors.
   double flipX = 1;
 
   // In-flight gesture deltas — not yet committed to [scale]/[rotateZ].
   /// Rotation of the gesture in flight, on top of [rotateZ].
   double activeRotateZ = 0;
+
   /// Zoom of the gesture in flight, on top of [scale].
   double activeScale = 1;
 
   /// Committed plus in-flight rotation.
   double get totalRotate => rotateZ + activeRotateZ;
+
   /// Committed times in-flight zoom.
   double get totalScale => scale * activeScale;
+
   /// Whether the image is mirrored.
   bool get flip => flipX < 0;
 
@@ -1012,14 +1019,8 @@ class UserTransform with Emitter {
   }
 
   @override
-  int get hashCode => Object.hash(
-        offset,
-        scale,
-        rotateZ,
-        flipX,
-        activeRotateZ,
-        activeScale,
-      );
+  int get hashCode =>
+      Object.hash(offset, scale, rotateZ, flipX, activeRotateZ, activeScale);
 }
 
 /// By-value snapshot of a [CropImageLayer]'s mutable user-edit state.
@@ -1028,13 +1029,11 @@ class UserTransform with Emitter {
 /// not part of the snapshot — only fields user gestures actually mutate
 /// are rolled back.
 class CropSnapshot {
-  CropSnapshot._({
-    required this.imageTransform,
-    required this.crop,
-  });
+  CropSnapshot._({required this.imageTransform, required this.crop});
 
   /// The image transform at capture.
   final UserTransform imageTransform;
+
   /// The crop rectangle at capture.
   final Rect crop;
 }
@@ -1053,6 +1052,7 @@ class CropGestures extends StatefulWidget {
 
   /// The layer whose image transform the gestures write.
   final CropImageLayer layer;
+
   /// The image-to-screen transform the gestures are read through.
   final ValueListenable<math.Matrix4> hostCamera;
 
@@ -1144,7 +1144,7 @@ class _CropGesturesState extends State<CropGestures> {
     final maxSize = layer.maxTotalScale * width;
     final size =
         dartmath.min(transform.scale * gestureScale, layer.maxTotalScale) *
-            width;
+        width;
     final constrained = size.clamp(minSize, maxSize);
     final banded =
         constrained + _rubberBand(size - constrained, maxSize - minSize);

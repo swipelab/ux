@@ -12,8 +12,12 @@ import 'dart:typed_data';
 /// `VideoMedia` / `FileMedia` / `AudioMedia`) — pattern-match
 /// exhaustiveness lets the compiler enforce dispatcher coverage.
 sealed class XMedia {
-  const XMedia(
-      {required this.file, this.bookmark, this.name, this.isTemporaryCopy = false});
+  const XMedia({
+    required this.file,
+    this.bookmark,
+    this.name,
+    this.isTemporaryCopy = false,
+  });
 
   /// Local file to read and upload. Always present.
   final io.File file;
@@ -42,27 +46,43 @@ sealed class XMedia {
 /// A still image.
 final class ImageMedia extends XMedia {
   /// Creates an image carrier.
-  const ImageMedia(
-      {required super.file, super.bookmark, super.name, super.isTemporaryCopy});
+  const ImageMedia({
+    required super.file,
+    super.bookmark,
+    super.name,
+    super.isTemporaryCopy,
+  });
 }
 
 /// A video.
 final class VideoMedia extends XMedia {
   /// Creates a video carrier.
-  const VideoMedia(
-      {required super.file, super.bookmark, super.name, super.isTemporaryCopy});
+  const VideoMedia({
+    required super.file,
+    super.bookmark,
+    super.name,
+    super.isTemporaryCopy,
+  });
 }
 
 /// A file of any other kind.
 final class FileMedia extends XMedia {
   /// Creates a file carrier.
-  const FileMedia(
-      {required super.file, super.bookmark, super.name, super.isTemporaryCopy});
+  const FileMedia({
+    required super.file,
+    super.bookmark,
+    super.name,
+    super.isTemporaryCopy,
+  });
 }
 
 /// An audio recording or file.
 final class AudioMedia extends XMedia {
   /// Creates an audio carrier.
-  const AudioMedia(
-      {required super.file, super.bookmark, super.name, super.isTemporaryCopy});
+  const AudioMedia({
+    required super.file,
+    super.bookmark,
+    super.name,
+    super.isTemporaryCopy,
+  });
 }

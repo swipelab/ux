@@ -22,10 +22,7 @@ typedef UriCanonicalConverter = String? Function(String slug);
 class UriParser<Out, State> {
   /// Binds the routes to try, in order, and the canonicalizers applied to
   /// their captured fields.
-  UriParser({
-    this.routes = const [],
-    this.canonical = const {},
-  });
+  UriParser({this.routes = const [], this.canonical = const {}});
 
   /// Tried in order; the first route whose builder yields non-null wins.
   final List<UriMap> routes;
@@ -82,11 +79,7 @@ typedef UriMapBuilder<Out, State> = Out? Function(UriMatch<State> match);
 /// Matched values & context provided to a [UriMapBuilder].
 class UriMatch<State> {
   /// Binds the matched URI to its captured fields and the parse-time state.
-  UriMatch(
-    this.uri,
-    this.pathParameters,
-    this.state,
-  );
+  UriMatch(this.uri, this.pathParameters, this.state);
 
   /// The URI that matched, whole.
   final Uri uri;
@@ -104,19 +97,14 @@ class UriMatch<State> {
 /// Associates one (or many) path patterns with a builder.
 class UriMap<Out, State> {
   /// Associates a single [pattern] with [builder].
-  UriMap(
-    String pattern,
-    this.builder, {
-    bool matchEnd = true,
-  }) : matchers = [PathMatcher(pattern, matchEnd: matchEnd)];
+  UriMap(String pattern, this.builder, {bool matchEnd = true})
+    : matchers = [PathMatcher(pattern, matchEnd: matchEnd)];
 
   /// Associates several [patterns] — aliases of one route — with [builder].
-  UriMap.many(
-    List<String> patterns,
-    this.builder, {
-    bool matchEnd = true,
-  }) : matchers =
-            patterns.map((e) => PathMatcher(e, matchEnd: matchEnd)).toList();
+  UriMap.many(List<String> patterns, this.builder, {bool matchEnd = true})
+    : matchers = patterns
+          .map((e) => PathMatcher(e, matchEnd: matchEnd))
+          .toList();
 
   /// The compiled patterns this route answers to.
   final List<PathMatcher> matchers;
@@ -137,10 +125,7 @@ class UriMap<Out, State> {
 class PathMatcher {
   /// Compiles [pattern]. With [matchEnd] the regex is anchored at the end, so
   /// the pattern must consume the whole path.
-  PathMatcher(
-    this.pattern, {
-    bool matchEnd = true,
-  }) {
+  PathMatcher(this.pattern, {bool matchEnd = true}) {
     var index = 0;
     final regex = StringBuffer();
     final fieldRegex = RegExp(r'{(?<field>([*]|(\w+)?(:[.*+#]+)?)+)}');

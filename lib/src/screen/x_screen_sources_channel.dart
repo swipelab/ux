@@ -29,8 +29,7 @@ class MethodChannelXScreenSourcesBackend implements XScreenSourcesBackend {
       : switch (defaultTargetPlatform) {
           TargetPlatform.macOS => XScreenCaptureMode.pickerDriven,
           TargetPlatform.android ||
-          TargetPlatform.iOS =>
-            XScreenCaptureMode.consentDriven,
+          TargetPlatform.iOS => XScreenCaptureMode.consentDriven,
           _ => null,
         };
 
@@ -40,8 +39,7 @@ class MethodChannelXScreenSourcesBackend implements XScreenSourcesBackend {
       switch (defaultTargetPlatform) {
         TargetPlatform.macOS ||
         TargetPlatform.android ||
-        TargetPlatform.iOS =>
-          true,
+        TargetPlatform.iOS => true,
         _ => false,
       };
 
@@ -107,8 +105,10 @@ class MethodChannelXScreenSourcesBackend implements XScreenSourcesBackend {
     return raw.map(_decodeSource).toList(growable: false);
   }
 
-  Future<Object?> _call(String method,
-      [Map<String, Object?>? arguments]) async {
+  Future<Object?> _call(
+    String method, [
+    Map<String, Object?>? arguments,
+  ]) async {
     try {
       return await _channel.invokeMethod<Object?>(method, arguments);
     } on PlatformException catch (e) {
@@ -164,7 +164,9 @@ class MethodChannelXScreenSourcesBackend implements XScreenSourcesBackend {
     final applicationName = m['applicationName'];
     if (applicationName is! String?) {
       throw _invalid(
-          'applicationName', 'expected String?, got $applicationName');
+        'applicationName',
+        'expected String?, got $applicationName',
+      );
     }
     final sourceWidth = m['sourceWidth'];
     if (sourceWidth is! int) {

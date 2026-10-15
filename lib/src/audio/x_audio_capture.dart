@@ -216,14 +216,19 @@ class MethodChannelXAudioCapture implements XAudioCapture {
   /// handler for it.
   MethodChannelXAudioCapture() {
     if (!supported) return;
-    _events.receiveBroadcastStream().listen(_onEvent, onError: (e, st) {
-      FlutterError.reportError(FlutterErrorDetails(
-        exception: e,
-        stack: st,
-        library: 'ux',
-        context: ErrorDescription('while receiving microphone audio'),
-      ));
-    });
+    _events.receiveBroadcastStream().listen(
+      _onEvent,
+      onError: (e, st) {
+        FlutterError.reportError(
+          FlutterErrorDetails(
+            exception: e,
+            stack: st,
+            library: 'ux',
+            context: ErrorDescription('while receiving microphone audio'),
+          ),
+        );
+      },
+    );
   }
 
   static const _methods = MethodChannel('ux/audio_capture');
@@ -243,8 +248,9 @@ class MethodChannelXAudioCapture implements XAudioCapture {
   Stream<XAudioFrame> get frames => _frames.stream;
 
   @override
-  final ValueEmitter<XAudioCaptureState> state =
-      ValueEmitter(XAudioCaptureState.idle);
+  final ValueEmitter<XAudioCaptureState> state = ValueEmitter(
+    XAudioCaptureState.idle,
+  );
 
   @override
   Future<List<XAudioSource>> sources() async {
@@ -262,10 +268,7 @@ class MethodChannelXAudioCapture implements XAudioCapture {
   }
 
   @override
-  Future<void> start({
-    String? sourceId,
-    bool voiceProcessing = true,
-  }) =>
+  Future<void> start({String? sourceId, bool voiceProcessing = true}) =>
       _enqueue(() async {
         if (!supported) {
           throw XAudioCaptureException('unsupported', '$defaultTargetPlatform');
@@ -298,18 +301,19 @@ class MethodChannelXAudioCapture implements XAudioCapture {
 
   @override
   Future<void> stop() => _enqueue(() async {
-        if (!supported) return;
-        try {
-          await _methods.invokeMethod<void>('stop');
-        } on PlatformException catch (e) {
-          throw XAudioCaptureException(e.code, e.message);
-        }
-      });
+    if (!supported) return;
+    try {
+      await _methods.invokeMethod<void>('stop');
+    } on PlatformException catch (e) {
+      throw XAudioCaptureException(e.code, e.message);
+    }
+  });
 
   Future<void> _enqueue(Future<void> Function() command) {
     final previous = _commandTail;
-    final operation =
-        previous == null ? command() : previous.then((_) => command());
+    final operation = previous == null
+        ? command()
+        : previous.then((_) => command());
     final tail = operation.then<void>(
       (_) {},
       onError: (Object _, StackTrace _) {},
@@ -352,15 +356,15 @@ class MethodChannelXAudioCapture implements XAudioCapture {
   }
 
   static XAudioSourceKind? _parseKind(Object? raw) => switch (raw) {
-        'microphone' => XAudioSourceKind.microphone,
-        'playback' => XAudioSourceKind.playback,
-        _ => null,
-      };
+    'microphone' => XAudioSourceKind.microphone,
+    'playback' => XAudioSourceKind.playback,
+    _ => null,
+  };
 
   static XAudioCaptureState? _parseState(String? raw) => switch (raw) {
-        'idle' => XAudioCaptureState.idle,
-        'running' => XAudioCaptureState.running,
-        'interrupted' => XAudioCaptureState.interrupted,
-        _ => null,
-      };
+    'idle' => XAudioCaptureState.idle,
+    'running' => XAudioCaptureState.running,
+    'interrupted' => XAudioCaptureState.interrupted,
+    _ => null,
+  };
 }

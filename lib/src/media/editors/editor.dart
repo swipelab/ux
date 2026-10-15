@@ -332,8 +332,8 @@ class Editor with Emitter {
         ListenableBuilder(
           listenable: this,
           builder: (context, _) => CustomPaint(
-            painter: _customPainter ??
-                EditorPainter(scene: this, camera: camera),
+            painter:
+                _customPainter ?? EditorPainter(scene: this, camera: camera),
           ),
         ),
         ?gestures,
@@ -372,13 +372,13 @@ class Editor with Emitter {
 class EditorPainter extends CustomPainter {
   /// Paints [scene]'s layers through [camera].
   EditorPainter({required this.scene, this.camera})
-      : super(
-          repaint:
-              camera == null ? scene : Listenable.merge([scene, camera]),
-        );
+    : super(
+        repaint: camera == null ? scene : Listenable.merge([scene, camera]),
+      );
 
   /// The editor whose [Painter] layers are painted.
   final Editor scene;
+
   /// The host's image-to-viewport transform; the identity when absent.
   final ValueListenable<vmath.Matrix4>? camera;
 
@@ -423,23 +423,27 @@ class DrawScenePainter extends CustomPainter {
     this.entities,
     this.viewerCamera,
   }) : super(
-          repaint: Listenable.merge([
-            draw,
-            camera,
-            ?crop,
-            ?entities,
-            ?viewerCamera,
-          ]),
-        );
+         repaint: Listenable.merge([
+           draw,
+           camera,
+           ?crop,
+           ?entities,
+           ?viewerCamera,
+         ]),
+       );
 
   /// The source image and its strokes.
   final DrawImageLayer draw;
+
   /// The host's image-to-viewport transform.
   final ValueListenable<vmath.Matrix4> camera;
+
   /// The crop the scene is shown through.
   final CropImageLayer? crop;
+
   /// The overlays painted with the strokes.
   final EntityLayer? entities;
+
   /// The pinch and pan applied on top of [camera].
   final ValueListenable<vmath.Matrix4>? viewerCamera;
 
@@ -505,10 +509,13 @@ class CropScenePainter extends CustomPainter {
 
   /// The crop scene painted first.
   final CropImageLayer crop;
+
   /// The host's image-to-viewport transform.
   final ValueListenable<vmath.Matrix4> camera;
+
   /// The strokes overlaid through the crop's image transform.
   final DrawImageLayer? draw;
+
   /// The overlays painted through the crop's image transform.
   final EntityLayer? entities;
 

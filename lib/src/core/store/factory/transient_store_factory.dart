@@ -4,10 +4,7 @@ import 'package:ux/src/core/core.dart';
 class TransientStoreFactory<T> extends StoreFactory<T> with TransientFactory {
   /// Binds the [delegate] that builds each instance to the [locator] it
   /// resolves dependencies through.
-  TransientStoreFactory({
-    required this.locator,
-    required this.delegate,
-  });
+  TransientStoreFactory({required this.locator, required this.delegate});
 
   /// Builds one instance per access.
   final LocatorCreateDelegate<T> delegate;

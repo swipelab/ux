@@ -106,13 +106,13 @@ class _XScannerState extends State<XScanner> {
         },
         onCreatePlatformView: (params) {
           return PlatformViewsService.initSurfaceAndroidView(
-            id: params.id,
-            viewType: 'ux/scanner',
-            layoutDirection: TextDirection.ltr,
-            creationParams: creationParams,
-            creationParamsCodec: const StandardMessageCodec(),
-            onFocus: () => params.onFocusChanged(true),
-          )
+              id: params.id,
+              viewType: 'ux/scanner',
+              layoutDirection: TextDirection.ltr,
+              creationParams: creationParams,
+              creationParamsCodec: const StandardMessageCodec(),
+              onFocus: () => params.onFocusChanged(true),
+            )
             ..addOnPlatformViewCreatedListener(params.onPlatformViewCreated)
             ..create();
         },

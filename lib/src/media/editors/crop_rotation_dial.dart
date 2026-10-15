@@ -74,11 +74,10 @@ void paintCropRotationDial(
     final p2 = center + _onCircle(r, a2);
     final labelled = angle % 10 == 0;
 
-    canvas.drawPoints(
-      ui.PointMode.points,
-      [p1, p2],
-      labelled ? dotBig : dotSmall,
-    );
+    canvas.drawPoints(ui.PointMode.points, [
+      p1,
+      p2,
+    ], labelled ? dotBig : dotSmall);
     if (labelled) {
       _drawAngleLabel(canvas, '${-angle}', a1, center, p1, scale);
       _drawAngleLabel(canvas, '$angle', a2, center, p2, scale);
@@ -168,6 +167,7 @@ class CropRotationDial extends StatefulWidget {
 
   /// The layer whose rotation is dragged.
   final CropImageLayer layer;
+
   /// The image-to-screen transform the band is placed through.
   final ValueListenable<vmath.Matrix4> hostCamera;
 
@@ -246,8 +246,7 @@ class CropRotationDialState extends State<CropRotationDial> {
 
   /// Pointer travel past the device hit slop is a drag; within it the
   /// lift is a tap (and a second tap resets rotation).
-  double get _hitSlop =>
-      computeHitSlop(_kind ?? PointerDeviceKind.touch, null);
+  double get _hitSlop => computeHitSlop(_kind ?? PointerDeviceKind.touch, null);
 
   void _update(Offset delta) {
     if (!_tracking) return;
@@ -266,8 +265,7 @@ class CropRotationDialState extends State<CropRotationDial> {
       _totalDx += delta.dx;
     }
     layer.rotateCovered(
-      _baseRotate +
-          vmath.degrees2Radians * (-_totalDx / _kDialPixelsPerDegree),
+      _baseRotate + vmath.degrees2Radians * (-_totalDx / _kDialPixelsPerDegree),
       scaleFloor: layer.rotationScaleFloor,
     );
   }
@@ -299,34 +297,38 @@ class CropRotationDialState extends State<CropRotationDial> {
     if (widget.hostCamera.value.storage[0].abs() < 1e-9) {
       return SizedBox.shrink();
     }
-    return LayoutBuilder(builder: (context, constraints) {
-      final viewport = constraints.biggest;
-      final band = Rect.fromLTRB(
-        0,
-        _areaBottom,
-        viewport.width,
-        viewport.height,
-      );
-      if (band.isEmpty) return SizedBox.shrink();
-      return Stack(children: [
-        Positioned.fromRect(
-          rect: band,
-          child: RawGestureDetector(
-            behavior: HitTestBehavior.opaque,
-            gestures: <Type, GestureRecognizerFactory>{
-              _DialDragRecognizer:
-                  GestureRecognizerFactoryWithHandlers<_DialDragRecognizer>(
-                _DialDragRecognizer.new,
-                (r) => r
-                  ..onStart = _begin
-                  ..onUpdate = ((d) => _update(d.delta))
-                  ..onEnd = ((_) => _end())
-                  ..onCancel = _end,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final viewport = constraints.biggest;
+        final band = Rect.fromLTRB(
+          0,
+          _areaBottom,
+          viewport.width,
+          viewport.height,
+        );
+        if (band.isEmpty) return SizedBox.shrink();
+        return Stack(
+          children: [
+            Positioned.fromRect(
+              rect: band,
+              child: RawGestureDetector(
+                behavior: HitTestBehavior.opaque,
+                gestures: <Type, GestureRecognizerFactory>{
+                  _DialDragRecognizer:
+                      GestureRecognizerFactoryWithHandlers<_DialDragRecognizer>(
+                        _DialDragRecognizer.new,
+                        (r) => r
+                          ..onStart = _begin
+                          ..onUpdate = ((d) => _update(d.delta))
+                          ..onEnd = ((_) => _end())
+                          ..onCancel = _end,
+                      ),
+                },
               ),
-            },
-          ),
-        ),
-      ]);
-    });
+            ),
+          ],
+        );
+      },
+    );
   }
 }

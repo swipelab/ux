@@ -125,6 +125,7 @@ Future<Uint8List> _avatarBytes(
 enum ComposePurpose {
   /// A message: the page takes a caption.
   mediaMessage,
+
   /// A profile picture: no caption, and results carry their bytes.
   avatar,
 }
@@ -141,6 +142,7 @@ class ChatSendResult {
 
   /// Client message ids of the placeholder bubbles, one per result.
   final List<String> cids;
+
   /// Finds the bubble of a cid to fly the close transition to.
   final GallerySource? Function(String cid) sourceForCid;
 }
@@ -151,8 +153,9 @@ class ChatSendResult {
 /// pattern from `MediaEditorScreen.swift:7664`. Returns the per-result
 /// cids + bubble-source finders so compose can target the close hero
 /// at the just-mounted bubbles without consulting any global registry.
-typedef ComposeSubmitCallback =
-    Future<ChatSendResult> Function(List<ComposeResult>);
+typedef ComposeSubmitCallback = Future<ChatSendResult> Function(
+  List<ComposeResult>,
+);
 
 /// Folded single + multi compose page. Accepts a list of `XMedia`
 /// (1..N); single-asset callers wrap with `[m]`. The `PageView` is
@@ -254,12 +257,16 @@ class ComposePage with Screen<List<ComposeResult>?>, Emitter {
 
   /// Pages between entries.
   late final PageController pageController = PageController();
+
   /// Index of the entry in front.
   late final ValueNotifier<int> currentIndex = ValueNotifier<int>(0);
+
   /// Focus of the caption field.
   late final FocusNode composerFocus = FocusNode();
+
   /// Key of the caption field's bubble.
   late final GlobalKey composerBubbleKey = GlobalKey();
+
   /// Vertical offset of a drag-to-dismiss in progress.
   late final ValueNotifier<double> dragOffset = ValueNotifier<double>(0);
 
@@ -573,8 +580,10 @@ class ComposePage with Screen<List<ComposeResult>?>, Emitter {
                                 physics: entries.length > 1
                                     ? null
                                     : NeverScrollableScrollPhysics(),
-                                itemBuilder: (ctx5, i) =>
-                                    ComposeEntryView(entry: entries[i], flightEnabled: i == currentIndex.value),
+                                itemBuilder: (ctx5, i) => ComposeEntryView(
+                                  entry: entries[i],
+                                  flightEnabled: i == currentIndex.value,
+                                ),
                               ),
                             ),
                           ),

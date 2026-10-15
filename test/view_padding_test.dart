@@ -5,7 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ux/src/view_padding.dart';
 
 void main() {
-  testWidgets('animated viewPadding advances past _from on subsequent frames', (tester) async {
+  testWidgets('animated viewPadding advances past _from on subsequent frames', (
+    tester,
+  ) async {
     final binding = TestWidgetsFlutterBinding.ensureInitialized();
     final insets = XInsets.instance;
 
@@ -18,10 +20,12 @@ void main() {
     expect(insets.viewPadding.top, 0);
 
     // Arm a 200ms animation, then change the system padding.
-    unawaited(insets.setSystemUiMode(
-      SystemUiMode.edgeToEdge,
-      animate: const Duration(milliseconds: 200),
-    ));
+    unawaited(
+      insets.setSystemUiMode(
+        SystemUiMode.edgeToEdge,
+        animate: const Duration(milliseconds: 200),
+      ),
+    );
     tester.view.viewPadding = const FakeViewPadding(top: 100);
     binding.handleMetricsChanged();
 

@@ -27,7 +27,7 @@ class FakeXCameraBackend implements XCameraBackend {
 
   /// Arguments of every [create] call, in order.
   final List<({String cameraId, bool enableAudio, XResolutionPreset preset})>
-      createCalls = [];
+  createCalls = [];
 
   /// Handles passed to [initialize], in order.
   final List<int> initializeCalls = [];
@@ -43,18 +43,18 @@ class FakeXCameraBackend implements XCameraBackend {
 
   /// Arguments of every [lockCaptureOrientation] call, in order.
   final List<({int handle, DeviceOrientation orientation})>
-      lockCaptureOrientationCalls = [];
+  lockCaptureOrientationCalls = [];
 
   /// Handles passed to [unlockCaptureOrientation], in order.
   final List<int> unlockCaptureOrientationCalls = [];
 
   /// Arguments of every [takePicture] call, in order.
   final List<({int handle, DeviceOrientation snapshotOrientation})>
-      takePictureCalls = [];
+  takePictureCalls = [];
 
   /// Arguments of every [startVideoRecording] call, in order.
   final List<({int handle, DeviceOrientation snapshotOrientation})>
-      startVideoRecordingCalls = [];
+  startVideoRecordingCalls = [];
 
   /// Handles passed to [stopVideoRecording], in order.
   final List<int> stopVideoRecordingCalls = [];
@@ -67,6 +67,7 @@ class FakeXCameraBackend implements XCameraBackend {
   /// Cameras returned by [availableCameras]. Mutable so tests can swap
   /// the set between assertions.
   List<XCameraDescription> cameras;
+
   /// Preview size every [create] reports.
   Size previewSize;
 
@@ -114,6 +115,7 @@ class FakeXCameraBackend implements XCameraBackend {
   /// Audio permission state returned by [audioPermissionGranted].
   /// Tests mutate this to drive the mic-permission UI banner.
   bool audioPermission = true;
+
   /// How many times [audioPermissionGranted] has been called.
   int audioPermissionCalls = 0;
 
@@ -237,8 +239,7 @@ class FakeXCameraBackend implements XCameraBackend {
     int handle,
     DeviceOrientation orientation,
   ) async {
-    lockCaptureOrientationCalls
-        .add((handle: handle, orientation: orientation));
+    lockCaptureOrientationCalls.add((handle: handle, orientation: orientation));
   }
 
   @override
@@ -251,8 +252,10 @@ class FakeXCameraBackend implements XCameraBackend {
     int handle,
     DeviceOrientation snapshotOrientation,
   ) async {
-    takePictureCalls
-        .add((handle: handle, snapshotOrientation: snapshotOrientation));
+    takePictureCalls.add((
+      handle: handle,
+      snapshotOrientation: snapshotOrientation,
+    ));
     final err = takePictureError;
     if (err != null) throw err;
     return XFile(picturePath);
@@ -263,8 +266,10 @@ class FakeXCameraBackend implements XCameraBackend {
     int handle,
     DeviceOrientation snapshotOrientation,
   ) async {
-    startVideoRecordingCalls
-        .add((handle: handle, snapshotOrientation: snapshotOrientation));
+    startVideoRecordingCalls.add((
+      handle: handle,
+      snapshotOrientation: snapshotOrientation,
+    ));
     final err = startVideoRecordingError;
     if (err != null) throw err;
   }

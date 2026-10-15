@@ -29,11 +29,11 @@ class VideoCropGeometry {
   /// widget and `Canvas.transform` consume — the live cropped preview
   /// and the baked poster thumb apply the identical mapping through it.
   Float64List get transformColumnMajor4x4 => Float64List.fromList(<double>[
-        transform[0], transform[3], 0, 0, // column 0
-        transform[1], transform[4], 0, 0, // column 1
-        0, 0, 1, 0, // column 2
-        transform[2], transform[5], 0, 1, // column 3 (translation)
-      ]);
+    transform[0], transform[3], 0, 0, // column 0
+    transform[1], transform[4], 0, 0, // column 1
+    0, 0, 1, 0, // column 2
+    transform[2], transform[5], 0, 1, // column 3 (translation)
+  ]);
 
   @override
   bool operator ==(Object other) =>
@@ -43,7 +43,8 @@ class VideoCropGeometry {
       listEquals(other.transform, transform);
 
   @override
-  int get hashCode => Object.hash(outWidth, outHeight, Object.hashAll(transform));
+  int get hashCode =>
+      Object.hash(outWidth, outHeight, Object.hashAll(transform));
 }
 
 /// Rasterised paint strokes for a video export — a transparent PNG at

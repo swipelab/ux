@@ -42,15 +42,18 @@ class ThumbnailCache {
     if (cached != null) return Future<XAssetThumbnail>.value(cached);
     final pending = _inflight[k];
     if (pending != null) return pending;
-    final future = XGallery.thumbnail(assetId, sizePx: sizePx).then((thumb) {
-      _entries[k] = thumb;
-      if (_entries.length > capacity) _entries.remove(_entries.keys.first);
-      _inflight.remove(k);
-      return thumb;
-    }, onError: (Object err, StackTrace st) {
-      _inflight.remove(k);
-      throw err;
-    });
+    final future = XGallery.thumbnail(assetId, sizePx: sizePx).then(
+      (thumb) {
+        _entries[k] = thumb;
+        if (_entries.length > capacity) _entries.remove(_entries.keys.first);
+        _inflight.remove(k);
+        return thumb;
+      },
+      onError: (Object err, StackTrace st) {
+        _inflight.remove(k);
+        throw err;
+      },
+    );
     _inflight[k] = future;
     return future;
   }

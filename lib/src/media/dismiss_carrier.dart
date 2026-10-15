@@ -63,7 +63,8 @@ class DismissCarrierState extends State<DismissCarrier>
     _dragging = false;
     final viewport = MediaQuery.sizeOf(context);
     final distanceThreshold = viewport.height / 4;
-    final shouldDismiss = velocity.abs() > kGalleryDismissVelocity ||
+    final shouldDismiss =
+        velocity.abs() > kGalleryDismissVelocity ||
         _drag.value.abs() > distanceThreshold;
     if (shouldDismiss) {
       _commitDismiss();
@@ -139,7 +140,8 @@ class DismissCarrierState extends State<DismissCarrier>
     final velocity = details.velocity.pixelsPerSecond.dy;
     final viewport = MediaQuery.sizeOf(context);
     final distanceThreshold = viewport.height / 4;
-    final shouldDismiss = velocity.abs() > kGalleryDismissVelocity ||
+    final shouldDismiss =
+        velocity.abs() > kGalleryDismissVelocity ||
         _drag.value.abs() > distanceThreshold;
     if (shouldDismiss) {
       _commitDismiss();
@@ -209,21 +211,21 @@ class DismissCarrierState extends State<DismissCarrier>
       child: RawGestureDetector(
         behavior: HitTestBehavior.translucent,
         gestures: enabled
-          ? <Type, GestureRecognizerFactory>{
-              _AxisLockedVerticalDragRecognizer:
-                  GestureRecognizerFactoryWithHandlers<
-                      _AxisLockedVerticalDragRecognizer>(
-                () => _AxisLockedVerticalDragRecognizer(),
-                (_AxisLockedVerticalDragRecognizer instance) {
-                  instance
-                    ..onStart = _onPanStart
-                    ..onUpdate = _onPanUpdate
-                    ..onEnd = _onPanEnd
-                    ..onCancel = _onPanCancel;
-                },
-              ),
-            }
-          : const <Type, GestureRecognizerFactory>{},
+            ? <Type, GestureRecognizerFactory>{
+                _AxisLockedVerticalDragRecognizer:
+                    GestureRecognizerFactoryWithHandlers<
+                      _AxisLockedVerticalDragRecognizer
+                    >(() => _AxisLockedVerticalDragRecognizer(), (
+                      _AxisLockedVerticalDragRecognizer instance,
+                    ) {
+                      instance
+                        ..onStart = _onPanStart
+                        ..onUpdate = _onPanUpdate
+                        ..onEnd = _onPanEnd
+                        ..onCancel = _onPanCancel;
+                    }),
+              }
+            : const <Type, GestureRecognizerFactory>{},
         child: child,
       ),
     );
@@ -243,9 +245,9 @@ class DismissCarrierState extends State<DismissCarrier>
   @visibleForTesting
   void simulateReleaseForTest({required double velocity}) {
     _onPanStart(DragStartDetails(globalPosition: Offset.zero));
-    _onPanEnd(DragEndDetails(
-      velocity: Velocity(pixelsPerSecond: Offset(0, velocity)),
-    ));
+    _onPanEnd(
+      DragEndDetails(velocity: Velocity(pixelsPerSecond: Offset(0, velocity))),
+    );
   }
 }
 

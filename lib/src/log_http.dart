@@ -32,7 +32,7 @@ class HttpSink extends LogSink {
     this._device,
     this._app,
     HttpSender? sender,
-  })  : _sender = sender ?? _defaultSender;
+  }) : _sender = sender ?? _defaultSender;
 
   /// The full URL the batched POST hits (e.g. `http://nas:8000/log`).
   final Uri _endpoint;
@@ -130,17 +130,16 @@ class HttpSink extends LogSink {
   }
 
   Map<String, Object?> _serialize(LogRecord r) => {
-        'time': r.time.toUtc().toIso8601String(),
-        'level': r.level.letter,
-        if (r.tag != null) 'tag': r.tag,
-        'message': r.message,
-        if (r.fields != null && r.fields!.isNotEmpty)
-          'fields': _jsonify(r.fields!),
-        if (r.error != null) 'error': r.error.toString(),
-        if (r.stackTrace != null) 'stackTrace': r.stackTrace.toString(),
-        if (_device != null) 'device': _device,
-        if (_app != null) 'app': _app,
-      };
+    'time': r.time.toUtc().toIso8601String(),
+    'level': r.level.letter,
+    if (r.tag != null) 'tag': r.tag,
+    'message': r.message,
+    if (r.fields != null && r.fields!.isNotEmpty) 'fields': _jsonify(r.fields!),
+    if (r.error != null) 'error': r.error.toString(),
+    if (r.stackTrace != null) 'stackTrace': r.stackTrace.toString(),
+    if (_device != null) 'device': _device,
+    if (_app != null) 'app': _app,
+  };
 
   static Object? _jsonify(Object? v) {
     if (v == null || v is num || v is bool || v is String) return v;

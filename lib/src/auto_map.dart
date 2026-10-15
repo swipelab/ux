@@ -76,7 +76,7 @@ class AutoMap<K, V> extends Iterable<V> {
   }
 
   /// Adds each item. Use `..clear()..addAll(xs)` for replace-all semantics.
-  void addAll(Iterable<V> items) {    
+  void addAll(Iterable<V> items) {
     for (final v in items) {
       add(v);
     }

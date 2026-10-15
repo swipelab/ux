@@ -29,8 +29,9 @@ void main() {
 
   tearDown(() => messenger.setMockMethodCallHandler(methods, null));
 
-  testWidgets('a written value reads back and a deleted one does not',
-      (tester) async {
+  testWidgets('a written value reads back and a deleted one does not', (
+    tester,
+  ) async {
     await tester.pumpWidget(const MaterialApp(home: SecureStorePage()));
 
     await tester.tap(find.text('Write'));

@@ -70,6 +70,8 @@ class _TextGoldenMatcher extends Matcher {
         .add(matchState['expected']?.toString() ?? '')
         .add('\n--- actual ---\n')
         .add(matchState['actual']?.toString() ?? '')
-        .add('\nPass `update: true` (or `autoUpdateGoldenFiles`) to regenerate.');
+        .add(
+          '\nPass `update: true` (or `autoUpdateGoldenFiles`) to regenerate.',
+        );
   }
 }

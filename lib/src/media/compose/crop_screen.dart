@@ -67,8 +67,7 @@ class CropScreen with Screen<bool>, Emitter {
   /// a handle drag, immediately on an aspect snap) with the TgSpring.
   final void Function({Curve? curve, Duration? duration})? refitCamera;
 
-  late final ValueNotifier<double> _chromeHeight =
-      ValueNotifier<double>(0);
+  late final ValueNotifier<double> _chromeHeight = ValueNotifier<double>(0);
 
   Size? _lastBody;
   bool _active = true;

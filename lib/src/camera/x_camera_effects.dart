@@ -37,16 +37,14 @@ final class XCameraEffectStatus {
     required this.phase,
     required this.effect,
     this.code,
-  })  : assert(code == null || phase == XCameraEffectPhase.failed),
-        assert(
-          phase != XCameraEffectPhase.idle || effect == XCameraEffect.none,
-        );
+  }) : assert(code == null || phase == XCameraEffectPhase.failed),
+       assert(phase != XCameraEffectPhase.idle || effect == XCameraEffect.none);
 
   /// Nothing applied, nothing pending.
   const XCameraEffectStatus.idle()
-      : phase = XCameraEffectPhase.idle,
-        effect = XCameraEffect.none,
-        code = null;
+    : phase = XCameraEffectPhase.idle,
+      effect = XCameraEffect.none,
+      code = null;
 
   /// How far [effect] has got.
   final XCameraEffectPhase phase;

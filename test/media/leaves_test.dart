@@ -21,7 +21,9 @@ void main() {
       ),
     );
 
-    final press = await tester.startGesture(tester.getCenter(find.byType(Touch)));
+    final press = await tester.startGesture(
+      tester.getCenter(find.byType(Touch)),
+    );
     await tester.pumpAndSettle();
     expect(
       tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity)).opacity,
@@ -37,8 +39,9 @@ void main() {
     );
   });
 
-  testWidgets('the microphone banner paints with the host and reports a tap',
-      (tester) async {
+  testWidgets('the microphone banner paints with the host and reports a tap', (
+    tester,
+  ) async {
     var taps = 0;
     await tester.pumpWidget(
       Directionality(

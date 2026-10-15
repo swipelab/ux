@@ -9,9 +9,7 @@ const kDefaultDebounce = Duration(milliseconds: 100);
 /// [duration] has elapsed without a new schedule.
 class Debouncer {
   /// Binds the quiet period every [run] waits for by default.
-  Debouncer({
-    this.duration = kDefaultDebounce,
-  });
+  Debouncer({this.duration = kDefaultDebounce});
 
   /// Quiet period [run] waits for when it is given no override.
   final Duration duration;

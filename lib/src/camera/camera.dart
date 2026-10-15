@@ -159,21 +159,21 @@ class XCameraValue {
     bool? audioPermissionGranted,
     int? previewRotationQuarterTurns,
     Object? errorDescription = _unset,
-  }) =>
-      XCameraValue(
-        description: description ?? this.description,
-        previewSize: previewSize ?? this.previewSize,
-        isInitialized: isInitialized ?? this.isInitialized,
-        isRecordingVideo: isRecordingVideo ?? this.isRecordingVideo,
-        deviceOrientation: deviceOrientation ?? this.deviceOrientation,
-        enableAudio: enableAudio ?? this.enableAudio,
-        audioPermissionGranted: audioPermissionGranted ?? this.audioPermissionGranted,
-        previewRotationQuarterTurns:
-            previewRotationQuarterTurns ?? this.previewRotationQuarterTurns,
-        errorDescription: identical(errorDescription, _unset)
-            ? this.errorDescription
-            : errorDescription as String?,
-      );
+  }) => XCameraValue(
+    description: description ?? this.description,
+    previewSize: previewSize ?? this.previewSize,
+    isInitialized: isInitialized ?? this.isInitialized,
+    isRecordingVideo: isRecordingVideo ?? this.isRecordingVideo,
+    deviceOrientation: deviceOrientation ?? this.deviceOrientation,
+    enableAudio: enableAudio ?? this.enableAudio,
+    audioPermissionGranted:
+        audioPermissionGranted ?? this.audioPermissionGranted,
+    previewRotationQuarterTurns:
+        previewRotationQuarterTurns ?? this.previewRotationQuarterTurns,
+    errorDescription: identical(errorDescription, _unset)
+        ? this.errorDescription
+        : errorDescription as String?,
+  );
 
   static const _unset = Object();
 }
@@ -215,10 +215,7 @@ class XCameraController extends ValueNotifier<XCameraValue> {
     XCameraDescription description,
     this.resolutionPreset, {
     required bool enableAudio,
-  }) : super(XCameraValue(
-          description: description,
-          enableAudio: enableAudio,
-        ));
+  }) : super(XCameraValue(description: description, enableAudio: enableAudio));
 
   /// Resolution the session is opened at.
   final XResolutionPreset resolutionPreset;
@@ -252,15 +249,17 @@ class XCameraController extends ValueNotifier<XCameraValue> {
       );
       _handle = result.handle;
       _textureId = result.textureId;
-      _eventsSub = XCameraBackend.instance.events(result.handle).listen(
+      _eventsSub = XCameraBackend.instance
+          .events(result.handle)
+          .listen(
             _onEvent,
             onError: (Object error, StackTrace? stack) {
               value = value.copyWith(errorDescription: error.toString());
             },
           );
       await XCameraBackend.instance.initialize(result.handle);
-      final audioGranted =
-          await XCameraBackend.instance.audioPermissionGranted();
+      final audioGranted = await XCameraBackend.instance
+          .audioPermissionGranted();
       value = value.copyWith(
         isInitialized: true,
         previewSize: result.previewSize,
@@ -313,7 +312,10 @@ class XCameraController extends ValueNotifier<XCameraValue> {
   /// recording is in flight — call [stopVideoRecording] first.
   Future<void> setDescription(XCameraDescription description) async {
     final handle = _requireHandle('setDescription');
-    final r = await XCameraBackend.instance.setDescription(handle, description.id);
+    final r = await XCameraBackend.instance.setDescription(
+      handle,
+      description.id,
+    );
     value = value.copyWith(
       description: description,
       previewSize: r.previewSize,

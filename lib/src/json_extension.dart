@@ -15,16 +15,20 @@ class Json {
   /// Returns an empty map if [json] is null.
   static Map<String, T> map<T>(Map? json, JsonConvert<T> fromJson) =>
       json == null
-          ? {}
-          : Map.fromEntries(
-              json.entries.map((e) => MapEntry(e.key, fromJson(e.value))));
+      ? {}
+      : Map.fromEntries(
+          json.entries.map((e) => MapEntry(e.key, fromJson(e.value))),
+        );
 
   /// Reads a value at a dot-separated [path] from a nested JSON structure.
   ///
   /// Supports both map keys and list indices (numeric segments).
   /// Returns [defaultValue] if the path doesn't exist.
-  static dynamic path<T>(Map<String, dynamic> json, String path,
-      {dynamic defaultValue}) {
+  static dynamic path<T>(
+    Map<String, dynamic> json,
+    String path, {
+    dynamic defaultValue,
+  }) {
     try {
       dynamic current = json;
       path.split('.').forEach((segment) {
