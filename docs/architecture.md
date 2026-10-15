@@ -131,9 +131,9 @@ handler per area, named after its darwin counterpart: `DropPlugin` (`ux/drop`
 and `ux/drop/events`), `FilePlugin` (`ux/file`),
 `ImageProbePlugin` (`ux/image_probe`), `NotificationsPlugin`
 (`ux/notifications` and `ux/notifications/events`), `UrlPlugin` (`ux/url`),
-`VideoPlayerPlugin` (`ux/video` and `ux/video/events`), `VideoExporterPlugin`
-(`ux/video/export` and `ux/video/export/events`) and `WindowPlugin`
-(`ux/window` and `ux/window/events`). A handler serves its
+`VideoPlayerPlugin` (`ux/video` and `ux/video/events`),
+`VideoExporterPlugin` (`ux/video/export` and `ux/video/export/events`) and
+`WindowPlugin` (`ux/window` and `ux/window/events`). A handler serves its
 channel's contract and answers not-implemented for a method it does not serve.
 Paths from Dart are accepted with either separator.
 
@@ -162,7 +162,7 @@ Paths from Dart are accepted with either separator.
 - **Memory.** What a native call hands to Dart returns to the allocator that
   made it: `ux_free` frees the buffer `ux_match_url` returns.
 - **SDK only.** C++17, built by MSVC, on the Windows SDK alone (Win32, COM and
-  OLE, the shell, ICU, Media Foundation, Direct3D 11, WIC, and C++/WinRT for
+  OLE, the shell, ICU, WIC, Media Foundation, Direct3D 11, and C++/WinRT for
   toasts). No third-party native code, test frameworks included.
 - **Media Foundation.** `ux_plugin.dll` delay-loads `mfplat.dll` and
   `mfreadwrite.dll`, which an N edition of Windows lacks without the Media
