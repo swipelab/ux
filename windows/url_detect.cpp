@@ -10,6 +10,7 @@
 #include <cstring>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace {
@@ -159,21 +160,124 @@ std::optional<std::string> CanonicalPhone(const std::string& match) {
   return "tel:" + dialed;
 }
 
+// Whether the detector matches [start, end) of the text whole.
+bool MatchesWhole(const URegularExpression* detector, const UChar* text, int32_t len, int32_t start, int32_t end) {
+  UErrorCode status = U_ZERO_ERROR;
+  URegularExpression* regex = uregex_clone(detector, &status);
+  uregex_setText(regex, text, len, &status);
+  uregex_setRegion(regex, start, end, &status);
+  const bool whole = uregex_matches(regex, -1, &status) && U_SUCCESS(status);
+  uregex_close(regex);
+  return whole;
+}
+
+// Whether c is path punctuation a URL may end in, or sentence punctuation or
+// ')' that WebEnd weighs. A quote or '(' after a link belongs to the text
+// around it.
+bool IsPathEnd(UChar c) { return std::u16string_view(u"/?:@&=#~-+*$).,;!").find(c) != std::u16string_view::npos; }
+
+// The end of the web match [start, end) in the region that ends at `to`.
+// Patterns.WEB_URL ends a match on a word boundary, which leaves out a path's
+// trailing punctuation where text follows it. The match runs on through the
+// IsPathEnd punctuation after it when the detector matches the span to there
+// whole, then ends before a trailing '.', ',', ';' or '!' and a trailing ')'
+// it does not open.
+int32_t WebEnd(const URegularExpression* detector, const UChar* text, int32_t len, int32_t start, int32_t end,
+               int32_t to) {
+  int32_t tail = end;
+  while (tail < to && IsPathEnd(text[tail])) tail++;
+  if (tail > end && MatchesWhole(detector, text, len, start, tail)) end = tail;
+  int32_t unopened = 0;
+  for (int32_t i = start; i < end; i++) {
+    if (text[i] == u')') unopened++;
+    if (text[i] == u'(') unopened--;
+  }
+  while (end > start) {
+    const UChar c = text[end - 1];
+    if (c == u')' && unopened > 0) {
+      unopened--;
+    } else if (!(c == u'.' || c == u',' || c == u';' || c == u'!')) {
+      break;
+    }
+    end--;
+  }
+  return end;
+}
+
+// U+3000's block's punctuation and the vertical, compatibility, small,
+// fullwidth and halfwidth forms of punctuation.
+bool IsCjkPunctuation(UChar c) {
+  return (c >= 0x3001 && c <= 0x3003) || (c >= 0x3008 && c <= 0x3011) || (c >= 0x3014 && c <= 0x301F) ||
+         (c >= 0xFE10 && c <= 0xFE19) || (c >= 0xFE30 && c <= 0xFE6B) || (c >= 0xFF01 && c <= 0xFF0F) ||
+         (c >= 0xFF1A && c <= 0xFF20) || (c >= 0xFF3B && c <= 0xFF40) || (c >= 0xFF5B && c <= 0xFF65);
+}
+
+// Han, kana, Bopomofo and Hangul by block, and an ideograph of the
+// supplementary planes by its high surrogate.
+bool IsCjk(UChar c) {
+  return (c >= 0x1100 && c <= 0x11FF) || (c >= 0x2E80 && c <= 0x9FFF) || (c >= 0xA960 && c <= 0xA97F) ||
+         (c >= 0xAC00 && c <= 0xD7FF) || (c >= 0xD840 && c <= 0xD8BF) || (c >= 0xF900 && c <= 0xFAFF) ||
+         (c >= 0xFF66 && c <= 0xFFDC);
+}
+
+// The glue of the host that begins the web match [start, end), which ends at
+// its first change between CJK letters and other characters inside a label:
+// the '.' after the CJK labels that begin the host, else the '.' before those
+// that end it, else that change. A low surrogate goes with its high surrogate.
+std::optional<int32_t> HostGlue(const UChar* text, int32_t start, int32_t end) {
+  const bool leading = IsCjk(text[start]);
+  bool cjk = leading;
+  std::optional<int32_t> glue;
+  for (int32_t i = start + 1; i < end; i++) {
+    const UChar c = text[i];
+    if (c == u'.' || (c >= 0xDC00 && c <= 0xDFFF)) continue;
+    if (c < 0x80 && !(std::isalnum(c) || c == u'-' || c == u'_')) break;
+    if (IsCjk(c) == cjk) continue;
+    cjk = !cjk;
+    if (text[i - 1] != u'.') return glue.value_or(i);
+    if (leading) return i - 1;
+    if (cjk) {
+      glue = i - 1;
+    } else {
+      glue.reset();
+    }
+  }
+  return glue;
+}
+
 // A clone per call, since a URegularExpression holds its matcher's state.
+// Each stretch of the text between CJK punctuation is a region the detector
+// matches as a text of its own, so no link takes a mark in. No host runs
+// across its glue: the web match is the part before the glue where the
+// detector matches that whole, and the search goes on from the glue.
 void Find(const URegularExpression* detector, const UChar* text, int32_t len, uint32_t kind,
           std::vector<RawMatch>& out) {
   UErrorCode status = U_ZERO_ERROR;
   URegularExpression* regex = uregex_clone(detector, &status);
   uregex_setText(regex, text, len, &status);
-  while (uregex_findNext(regex, &status)) {
-    const int32_t start = uregex_start(regex, 0, &status);
-    const int32_t end = uregex_end(regex, 0, &status);
-    if (U_FAILURE(status)) break;
-    const std::string group = Utf8(text + start, end - start);
-    std::optional<std::string> url = kind == kKindWeb     ? CanonicalWebUrl(group)
-                                     : kind == kKindEmail ? "mailto:" + group
-                                                          : CanonicalPhone(group);
-    if (url) out.push_back(RawMatch{start, end, kind, std::move(*url)});
+  for (int32_t from = 0; from <= len;) {
+    int32_t to = from;
+    while (to < len && !IsCjkPunctuation(text[to])) to++;
+    uregex_setRegion(regex, from, to, &status);
+    while (uregex_findNext(regex, &status)) {
+      const int32_t start = uregex_start(regex, 0, &status);
+      int32_t end = uregex_end(regex, 0, &status);
+      if (U_FAILURE(status)) break;
+      if (kind == kKindWeb) {
+        if (const std::optional<int32_t> glue = HostGlue(text, start, end)) {
+          uregex_setRegion(regex, *glue, to, &status);
+          if (!MatchesWhole(detector, text, len, start, *glue)) continue;
+          end = *glue;
+        }
+        end = WebEnd(detector, text, len, start, end, to);
+      }
+      const std::string group = Utf8(text + start, end - start);
+      std::optional<std::string> url = kind == kKindWeb     ? CanonicalWebUrl(group)
+                                       : kind == kKindEmail ? "mailto:" + group
+                                                            : CanonicalPhone(group);
+      if (url) out.push_back(RawMatch{start, end, kind, std::move(*url)});
+    }
+    from = to + 1;
   }
   uregex_close(regex);
 }
