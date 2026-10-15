@@ -196,6 +196,48 @@ void main() {
   );
 
   testWidgets(
+    "a bare domain past a web link's fullwidth parentheses, another mark and "
+    'a path delimiter links on its own',
+    (tester) async {
+      expect(XUrl.match('https://example.com/a（1）。/example.org'), const [
+        UrlMatch(
+          start: 0,
+          end: 21,
+          url: 'https://example.com/a',
+          kind: UrlMatchKind.web,
+        ),
+        UrlMatch(
+          start: 26,
+          end: 37,
+          url: 'http://example.org',
+          kind: UrlMatchKind.web,
+        ),
+      ]);
+    },
+  );
+
+  testWidgets(
+    "a bare domain past a web link's fullwidth closing parenthesis and a path "
+    'delimiter links on its own',
+    (tester) async {
+      expect(XUrl.match('https://example.com/a）/page.com'), const [
+        UrlMatch(
+          start: 0,
+          end: 21,
+          url: 'https://example.com/a',
+          kind: UrlMatchKind.web,
+        ),
+        UrlMatch(
+          start: 23,
+          end: 31,
+          url: 'http://page.com',
+          kind: UrlMatchKind.web,
+        ),
+      ]);
+    },
+  );
+
+  testWidgets(
     "a bare domain past a web link's CJK punctuation with no path delimiter "
     'before it links on its own',
     (tester) async {
