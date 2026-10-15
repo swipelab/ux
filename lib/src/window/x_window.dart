@@ -19,6 +19,8 @@ abstract interface class XWindow {
   /// - macOS: tracks `NSApplication` active / resign via the native plugin.
   /// - Android: tracks app foreground / background via `ProcessLifecycleOwner`,
   ///   so a backgrounded-but-alive process reports `false`.
+  /// - Windows: tracks `WM_ACTIVATEAPP` on the app's window, so a minimized
+  ///   window or another app in front reports `false`.
   /// - iOS: the native plugin serves [keepAwake] only, so the emitter stays
   ///   at its `true` default.
   ValueListenable<bool> get focused;
@@ -27,11 +29,12 @@ abstract interface class XWindow {
   /// the user watches without touching the device. Idempotent.
   ///
   /// iOS disables the idle timer, Android sets `FLAG_KEEP_SCREEN_ON` on the
-  /// activity window, macOS takes an `IOPMAssertion` against display sleep.
+  /// activity window, macOS takes an `IOPMAssertion` against display sleep,
+  /// Windows sets `ES_DISPLAY_REQUIRED` with `SetThreadExecutionState`.
   /// No hold outlives the app that took it: Android drops it when the
   /// activity or the engine detaches, iOS while the app is out of the
-  /// foreground, macOS on termination, and every platform when the process
-  /// dies.
+  /// foreground, macOS on termination, Windows when the window is destroyed,
+  /// and every platform when the process dies.
   Future<void> keepAwake(bool enabled);
 }
 
@@ -45,11 +48,12 @@ class MethodChannelXWindow implements XWindow {
     });
   }
 
-  /// Only macOS and Android register a native stream handler for the events
-  /// channel; activating it elsewhere throws `MissingPluginException`.
+  /// Only macOS, Android and Windows register a native stream handler for the
+  /// events channel; activating it elsewhere throws `MissingPluginException`.
   static bool get _hasNativeHandler =>
       defaultTargetPlatform == TargetPlatform.macOS ||
-      defaultTargetPlatform == TargetPlatform.android;
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.windows;
 
   static bool get _hasKeepAwake =>
       _hasNativeHandler || defaultTargetPlatform == TargetPlatform.iOS;
@@ -75,7 +79,9 @@ class MethodChannelXWindow implements XWindow {
     final m = event.cast<Object?, Object?>();
     if (m['type'] == 'focus') {
       final f = m['focused'];
-      if (f is bool) focused.value = f;
+      if (f is! bool) return;
+      _log.i('focused: $f');
+      focused.value = f;
     }
   }
 }
