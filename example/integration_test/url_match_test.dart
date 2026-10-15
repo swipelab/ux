@@ -44,6 +44,21 @@ void main() {
   });
 
   testWidgets(
+    'a closing parenthesis a web link with a scheme does not open stays out '
+    'of it',
+    (tester) async {
+      expect(XUrl.match('(see https://example.com/a_(b)).'), const [
+        UrlMatch(
+          start: 5,
+          end: 30,
+          url: 'https://example.com/a_(b)',
+          kind: UrlMatchKind.web,
+        ),
+      ]);
+    },
+  );
+
+  testWidgets(
     'a slash ending the path stays in the web link where text follows',
     (tester) async {
       expect(XUrl.match('see www.example.com/ x'), const [

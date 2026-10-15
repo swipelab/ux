@@ -68,7 +68,7 @@ static NSRegularExpression *ux_url_bare_domain_regex(void) {
 
 // The end of the web match [start, end) before a trailing '.', ',', ';' or '!'
 // and a trailing ')' it does not open, which the bare-domain regex's suffix
-// takes in.
+// and NSDataDetector, in a link that holds a '(', take in.
 static NSUInteger ux_web_end(const uint16_t *chars, NSUInteger start, NSUInteger end) {
     NSInteger unopened = 0;
     for (NSUInteger i = start; i < end; i++) {
@@ -116,6 +116,7 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
                 const NSRange r = result.range;
                 if (r.location == NSNotFound || r.length == 0) return;
 
+                NSUInteger end = NSMaxRange(r);
                 NSString *url = nil;
                 uint32_t kind = kKindWeb;
                 if (result.resultType == NSTextCheckingTypePhoneNumber) {
@@ -151,6 +152,12 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
                     NSString *scheme = u.scheme.lowercaseString ?: @"";
                     kind = [scheme isEqualToString:@"mailto"] ? kKindEmail : kKindWeb;
                     url = u.absoluteString;
+                    if (kind == kKindWeb) {
+                        end = ux_web_end(utf16, r.location, end);
+                        // The URL ends in the characters trimmed off the
+                        // match, as the text does.
+                        url = [url substringToIndex:url.length - (NSMaxRange(r) - end)];
+                    }
                 } else {
                     return;
                 }
@@ -158,7 +165,7 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
 
                 XUrlRawMatch *m = [[XUrlRawMatch alloc] init];
                 m.start = (int32_t)r.location;
-                m.end   = (int32_t)(r.location + r.length);
+                m.end   = (int32_t)end;
                 m.kind  = kind;
                 m.urlUtf8 = ux_utf8(url);
                 [raws addObject:m];
