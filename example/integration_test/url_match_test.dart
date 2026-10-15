@@ -16,6 +16,17 @@ void main() {
     ]);
   });
 
+  testWidgets('a question mark ending the text stays in the web link',
+      (tester) async {
+    expect(XUrl.match('see https://example.com/a?'), const [
+      UrlMatch(
+          start: 4,
+          end: 26,
+          url: 'https://example.com/a?',
+          kind: UrlMatchKind.web),
+    ]);
+  });
+
   testWidgets(
       'a closing parenthesis a bare domain link opens stays in it, '
       'one it does not open goes', (tester) async {
