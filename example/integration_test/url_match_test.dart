@@ -78,7 +78,20 @@ void main() {
     expect(XUrl.match('see example.com.Then you'), const <UrlMatch>[]);
   });
 
-  testWidgets('a bare domain links on its TLD in capitals', (tester) async {
+  testWidgets(
+      'a capitalised word a period glues to a bare domain makes it no link, '
+      'though its lowercase is a TLD', (tester) async {
+    expect(XUrl.match('see example.com.It works'), const <UrlMatch>[]);
+  });
+
+  testWidgets(
+      'a word outside ASCII a period glues to a bare domain makes it no link',
+      (tester) async {
+    expect(XUrl.match('see example.com.Über x'), const <UrlMatch>[]);
+  });
+
+  testWidgets('a bare domain links on com, edu, gov, net or org in capitals',
+      (tester) async {
     expect(XUrl.match('see EXAMPLE.COM x'), const [
       UrlMatch(
           start: 4,
