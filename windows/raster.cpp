@@ -260,6 +260,14 @@ HRESULT EncodePng(const Image& image, std::vector<uint8_t>& png) {
   hr = straight->Initialize(bitmap.Get(), GUID_WICPixelFormat32bppBGRA, WICBitmapDitherTypeNone, nullptr, 0,
                             WICBitmapPaletteTypeCustom);
   if (FAILED(hr)) return hr;
+  return EncodePng(factory.Get(), straight.Get(), png);
+}
+
+HRESULT EncodePng(IWICImagingFactory* factory, IWICBitmapSource* source, std::vector<uint8_t>& png) {
+  UINT width = 0;
+  UINT height = 0;
+  HRESULT hr = source->GetSize(&width, &height);
+  if (FAILED(hr)) return hr;
   ComPtr<IStream> stream;
   hr = CreateStreamOnHGlobal(nullptr, TRUE, &stream);
   if (FAILED(hr)) return hr;
@@ -273,13 +281,13 @@ HRESULT EncodePng(const Image& image, std::vector<uint8_t>& png) {
   if (FAILED(hr)) return hr;
   hr = frame->Initialize(nullptr);
   if (FAILED(hr)) return hr;
-  hr = frame->SetSize(image.width, image.height);
+  hr = frame->SetSize(width, height);
   if (FAILED(hr)) return hr;
   WICPixelFormatGUID format = GUID_WICPixelFormat32bppBGRA;
   hr = frame->SetPixelFormat(&format);
   if (FAILED(hr)) return hr;
   if (format != GUID_WICPixelFormat32bppBGRA) return WINCODEC_ERR_UNSUPPORTEDPIXELFORMAT;
-  hr = frame->WriteSource(straight.Get(), nullptr);
+  hr = frame->WriteSource(source, nullptr);
   if (FAILED(hr)) return hr;
   hr = frame->Commit();
   if (FAILED(hr)) return hr;
