@@ -23,6 +23,9 @@ std::optional<std::vector<double>> DoublesArg(const flutter::EncodableMap* args,
 // The integers under [key], from a list of integers.
 std::optional<std::vector<int64_t>> IntsArg(const flutter::EncodableMap* args, const char* key);
 
+// The string under [key], in UTF-16.
+std::optional<std::wstring> StringArg(const flutter::EncodableMap* args, const char* key);
+
 // The path under [key] as a Windows path, which Dart may give with either
 // separator.
 std::optional<std::wstring> PathArg(const flutter::EncodableMap* args, const char* key);
