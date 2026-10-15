@@ -1,4 +1,15 @@
 ### 0.18.0
+- **Windows takes dropped files.** `XDrop` on Windows reports a drag of files
+  over the app's window, at Flutter's logical coordinates, and delivers the
+  dropped files and folders, answering copy while a drop region is active and
+  none otherwise. A file a source offers only as a virtual file, such as an
+  Outlook attachment or an image from a browser, is written to
+  `%TEMP%\ux_drops\<GUID>\<name>` and delivered with `isTemporaryCopy`.
+  `XDrop.startZip` on Windows zips a dropped folder in an isolate into
+  `<temp>\ux_drops\<uuid>\<folder>.zip`, deflated, with the folder as the
+  archive's root and zip64 records past 4 GiB or 65,535 entries, reporting the
+  fraction of bytes read; a cancel answers null and a failure throws, and
+  either removes that directory.
 - **Windows shows toasts.** `XNotifications` on Windows shows a toast under the
   process's explicit AppUserModelID, with the title and the body as its lines;
   a later toast with the same id and thread replaces it, `cancelByThread`

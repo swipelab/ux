@@ -3,6 +3,7 @@
 
 #include "check.h"
 
+void DropSuite();
 void FileTypesSuite();
 void ImageProbeSuite();
 void MediaFoundationSuite();
@@ -24,6 +25,7 @@ struct Suite {
 constexpr int kSkipped = 77;
 
 constexpr Suite kSuites[] = {
+    {"drop", DropSuite},
     {"file_types", FileTypesSuite},
     {"image_probe", ImageProbeSuite},
     {"media_foundation", MediaFoundationSuite},
