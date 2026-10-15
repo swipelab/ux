@@ -1,8 +1,11 @@
-#if os(iOS)
-
 import CommonCrypto
-import Flutter
 import Foundation
+
+#if os(iOS)
+import Flutter
+#else
+import FlutterMacOS
+#endif
 
 /// Native AES-256-CTR for chat-attachment upload encryption. Mirrors, byte for
 /// byte, the app's pure-Dart `encryptChunk`: encrypts a slice as if a single
@@ -18,7 +21,12 @@ public class CryptoPlugin: NSObject {
         label: "ux.crypto", qos: .userInitiated, attributes: .concurrent)
 
     public func register(with registrar: FlutterPluginRegistrar) {
-        let c = FlutterMethodChannel(name: "ux/crypto", binaryMessenger: registrar.messenger())
+        #if os(iOS)
+        let messenger = registrar.messenger()
+        #else
+        let messenger = registrar.messenger
+        #endif
+        let c = FlutterMethodChannel(name: "ux/crypto", binaryMessenger: messenger)
         c.setMethodCallHandler { [weak self] call, result in
             self?.handle(call, result: result)
         }
@@ -172,5 +180,3 @@ public class CryptoPlugin: NSObject {
         return c
     }
 }
-
-#endif
