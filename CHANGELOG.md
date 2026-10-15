@@ -1,4 +1,9 @@
 ### 0.18.0
+- **A web link leaves out a `)` it does not open.** On iOS and macOS,
+  `XUrl.match` ends a web link `NSDataDetector` finds before a trailing `)` the
+  link does not open and a trailing `.`, `,`, `;` or `!`, as on Android and
+  Windows, so `(see https://example.com/a_(b)).` links
+  `https://example.com/a_(b)`.
 - **A video export cancelled as it starts ends cancelled.** On iOS and macOS,
   `XVideoExportSession.cancel` fails `done` with `cancelled` and leaves no file
   whenever it comes after `XVideoExporter.start`, right after it included, on
