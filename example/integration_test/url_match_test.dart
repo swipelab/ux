@@ -95,6 +95,52 @@ void main() {
     ]);
   });
 
+  testWidgets(
+      'the path a web link runs on into past CJK punctuation does not link '
+      'on its own', (tester) async {
+    expect(XUrl.match('https://example.com/a（1）/page.html'), const [
+      UrlMatch(
+          start: 0,
+          end: 21,
+          url: 'https://example.com/a',
+          kind: UrlMatchKind.web),
+    ]);
+  });
+
+  testWidgets(
+      "a bare domain past a web link's CJK punctuation with no path delimiter "
+      'before it links on its own', (tester) async {
+    expect(XUrl.match('https://example.com/a，备用:example.org'), const [
+      UrlMatch(
+          start: 0,
+          end: 21,
+          url: 'https://example.com/a',
+          kind: UrlMatchKind.web),
+      UrlMatch(
+          start: 25,
+          end: 36,
+          url: 'http://example.org',
+          kind: UrlMatchKind.web),
+    ]);
+  });
+
+  testWidgets(
+      "a bare domain past a web link's CJK punctuation and a space links on "
+      'its own', (tester) async {
+    expect(XUrl.match('https://example.com/a（1） see/example.org'), const [
+      UrlMatch(
+          start: 0,
+          end: 21,
+          url: 'https://example.com/a',
+          kind: UrlMatchKind.web),
+      UrlMatch(
+          start: 29,
+          end: 40,
+          url: 'http://example.org',
+          kind: UrlMatchKind.web),
+    ]);
+  });
+
   testWidgets('a bare domain glued after CJK letters leaves them out',
       (tester) async {
     expect(XUrl.match('访问example.com，然后'), const [
