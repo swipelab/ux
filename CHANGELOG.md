@@ -67,13 +67,13 @@
   `XVideoPlayerController.play` plays at the speed `setPlaybackSpeed` last
   set, a speed set while paused included, so the speed holds after a pause and
   when a looping video restarts, as on Android and Windows.
-- **A link's path past fullwidth parentheses is no second link.** On Android
-  and Windows, `XUrl.match` links no part of the path a web link runs on into
+- **A link's path past fullwidth parentheses is no second link.** On every
+  platform, `XUrl.match` links no part of the path a web link runs on into
   past fullwidth parentheses, `（` and `）`, so
   `https://example.com/a（1）/page.com` links `https://example.com/a` alone,
   not also `http://page.com`. A domain past any other ideographic, fullwidth
   or halfwidth punctuation, or with no `/`, `?`, `#`, `&` or `=` between it and
-  the mark before it, links on its own, as on macOS:
+  the mark before it, links on its own:
   `https://example.com/a，/example.org` and
   `https://example.com/a，备用:example.org` link `http://example.org`.
 - **Windows pastes images and files.** `XClipboard.readFiles` on Windows

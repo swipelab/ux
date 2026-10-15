@@ -50,10 +50,9 @@ static NSRegularExpression *ux_url_bare_domain_regex(void) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         // Hostname segment + at least one dot-segment + `/` or `?` suffix,
-        // which ends before whitespace, CJK punctuation (U+3000's block's
-        // punctuation and the vertical, compatibility, small, fullwidth and
-        // halfwidth forms of punctuation) and the ASCII marks ux_web_end ends
-        // a path before, so a bare domain glued after one links on its own.
+        // which ends before whitespace, ux_is_cjk_punctuation's CJK
+        // punctuation and the ASCII marks ux_web_end ends a path before, so a
+        // bare domain glued after one links on its own.
         // ASCII-only; bare IDN domains stay undetected.
         NSString *pattern = @"\\b[a-z0-9-]+(\\.[a-z0-9-]+)+([/?](?:[^\\s\"%<>\\[\\\\\\]^`{|}"
                             @"\\u3001-\\u3003\\u3008-\\u3011\\u3014-\\u301F\\uFE10-\\uFE19\\uFE30-\\uFE6B"
@@ -81,22 +80,67 @@ static BOOL ux_is_hex(uint16_t c) {
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 }
 
-// The end of the web match [start, end), which the bare-domain regex's suffix
-// and NSDataDetector run past. The match ends before the first '"', '<', '>',
-// '[', '\', ']', '^', '`', '{', '|', '}' or '%' that two hex digits do not
-// follow in its path, which Patterns.WEB_URL's path does not take, then before
-// a trailing '.', ',', ';', '!', '\'' or '(' and a trailing ')' it does not
-// open.
-static NSUInteger ux_web_end(const uint16_t *chars, NSUInteger start, NSUInteger end) {
-    for (NSUInteger i = ux_path_start(chars, start, end); i < end; i++) {
+// The first character in [i, end) that Patterns.WEB_URL's path does not take:
+// whitespace, '"', '<', '>', '[', '\', ']', '^', '`', '{', '|', '}' or a '%'
+// that two hex digits do not follow; `end` where there is none.
+static NSUInteger ux_path_mark(const uint16_t *chars, NSUInteger i, NSUInteger end) {
+    NSCharacterSet *whitespace = [NSCharacterSet whitespaceAndNewlineCharacterSet];
+    for (; i < end; i++) {
         const uint16_t c = chars[i];
         if (c == '%' ? !(i + 2 < end && ux_is_hex(chars[i + 1]) && ux_is_hex(chars[i + 2]))
                      : (c == '"' || c == '<' || c == '>' || c == '[' || c == '\\' || c == ']' ||
-                        c == '^' || c == '`' || c == '{' || c == '|' || c == '}')) {
-            end = i;
+                        c == '^' || c == '`' || c == '{' || c == '|' || c == '}' ||
+                        [whitespace characterIsMember:c])) {
             break;
         }
     }
+    return i;
+}
+
+// U+3000's block's punctuation and the vertical, compatibility, small,
+// fullwidth and halfwidth forms of punctuation.
+static BOOL ux_is_cjk_punctuation(uint16_t c) {
+    return (c >= 0x3001 && c <= 0x3003) || (c >= 0x3008 && c <= 0x3011) ||
+           (c >= 0x3014 && c <= 0x301F) || (c >= 0xFE10 && c <= 0xFE19) ||
+           (c >= 0xFE30 && c <= 0xFE6B) || (c >= 0xFF01 && c <= 0xFF0F) ||
+           (c >= 0xFF1A && c <= 0xFF20) || (c >= 0xFF3B && c <= 0xFF40) ||
+           (c >= 0xFF5B && c <= 0xFF65);
+}
+
+static BOOL ux_is_path_delimiter(uint16_t c) {
+    return c == '/' || c == '?' || c == '#' || c == '&' || c == '=';
+}
+
+// The fullwidth '(' that ends the stretch of the text between CJK punctuation
+// the web link [start, end) ends in, where the link has a path that runs on to
+// it; nil otherwise.
+static NSNumber *ux_path_paren(const uint16_t *chars, NSUInteger len, NSUInteger start, NSUInteger end) {
+    if (ux_path_start(chars, start, end) == end) return nil;
+    NSUInteger paren = end;
+    while (paren < len && !ux_is_cjk_punctuation(chars[paren])) paren++;
+    if (paren == len || chars[paren] != 0xFF08 || ux_path_mark(chars, end, paren) < paren) return nil;
+    return @(paren);
+}
+
+// Whether the web match [start, end) continues the path that runs on to the
+// fullwidth '(' at `paren`: the match lies past `paren` in a stretch of the
+// text right after a fullwidth ')' that holds a path delimiter before the
+// match, and the path runs on from `paren` through the match.
+static BOOL ux_continues_path(const uint16_t *chars, NSUInteger paren, NSUInteger start, NSUInteger end) {
+    if (start <= paren) return NO;
+    NSUInteger from = start;
+    while (!ux_is_cjk_punctuation(chars[from - 1])) from--;
+    if (chars[from - 1] != 0xFF09) return NO;
+    while (from < start && !ux_is_path_delimiter(chars[from])) from++;
+    return from < start && ux_path_mark(chars, paren, end) == end;
+}
+
+// The end of the web match [start, end), which the bare-domain regex's suffix
+// and NSDataDetector run past. The match ends before the first character its
+// path does not take, then before a trailing '.', ',', ';', '!', '\'' or '('
+// and a trailing ')' it does not open.
+static NSUInteger ux_web_end(const uint16_t *chars, NSUInteger start, NSUInteger end) {
+    end = ux_path_mark(chars, ux_path_start(chars, start, end), end);
     NSInteger unopened = 0;
     for (NSUInteger i = start; i < end; i++) {
         if (chars[i] == ')') unopened++;
@@ -243,15 +287,20 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
             return NSOrderedSame;
         }];
 
-        // Greedy de-overlap.
+        // Greedy de-overlap. Past a web link whose path runs on to a fullwidth
+        // '(', a web match that continues that path is no link of its own.
         NSMutableArray<XUrlRawMatch *> *kept = [NSMutableArray arrayWithCapacity:raws.count];
         int32_t lastEnd = 0;
         BOOL haveAny = NO;
+        NSNumber *cut = nil;
         for (XUrlRawMatch *m in raws) {
             if (haveAny && m.start < lastEnd) continue;
+            if (m.kind == kKindWeb && cut != nil &&
+                ux_continues_path(utf16, cut.unsignedIntegerValue, m.start, m.end)) continue;
             [kept addObject:m];
             lastEnd = m.end;
             haveAny = YES;
+            if (m.kind == kKindWeb) cut = ux_path_paren(utf16, text.length, m.start, m.end) ?: cut;
         }
 
         NSUInteger total = 4;
