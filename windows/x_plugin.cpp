@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include "drop_plugin.h"
 #include "file_plugin.h"
 #include "image_probe_plugin.h"
 #include "notifications_plugin.h"
@@ -12,6 +13,7 @@
 namespace ux {
 
 void XPlugin::RegisterWithRegistrar(flutter::PluginRegistrarWindows* registrar) {
+  registrar->AddPlugin(std::make_unique<DropPlugin>(registrar));
   registrar->AddPlugin(std::make_unique<FilePlugin>(registrar));
   registrar->AddPlugin(std::make_unique<ImageProbePlugin>(registrar->messenger()));
   registrar->AddPlugin(std::make_unique<NotificationsPlugin>(registrar));

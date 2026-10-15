@@ -16,6 +16,7 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/../sources.cmake")
 add_executable(ux_test
   "ux_test.cpp"
   "check.h"
+  "drop_test.cpp"
   "file_types_test.cpp"
   "image_probe_test.cpp"
   "platform_thread_test.cpp"
@@ -39,6 +40,7 @@ add_custom_command(TARGET ux_test POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ENGINE}/flutter_windows.dll" "$<TARGET_FILE_DIR:ux_test>")
 
 enable_testing()
+add_test(NAME drop COMMAND ux_test drop)
 add_test(NAME file_types COMMAND ux_test file_types)
 add_test(NAME image_probe COMMAND ux_test image_probe)
 add_test(NAME platform_thread COMMAND ux_test platform_thread)
