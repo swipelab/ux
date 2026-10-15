@@ -22,6 +22,31 @@
   counter blocks into the keystream XORed over the data, and
   `aesCtrEncryptRange` reads the file's range itself, so only ciphertext crosses
   the channel. `XCrypto.isSupported` is true on Windows.
+- **The AES-CTR counter carries across all 128 bits on iOS and macOS.**
+  `XCrypto.aesCtrEncryptRange` and `XCrypto.aesCtrBytes` on iOS and macOS
+  carry the counter from its low 64 bits into its high 64 bits where they wrap,
+  so their ciphertext equals `encryptChunk`'s for every `iv` and `pos`, as on
+  Android and Windows.
+- **A word a period glues to a bare domain makes it no link.** On Android and
+  Windows, `XUrl.match` links a web match with no scheme only where its host is
+  an IP address or ends in a top-level domain on IANA's list, in lowercase or as
+  its Unicode label, or in com, edu, gov, net or org in any case.
+  `see example.com.Then you`, `see example.com.It works` and
+  `see example.com.Über x` link nothing, as on macOS.
+- **A cancelled video export ends.** On iOS and macOS, cancelling an export
+  that re-encodes with a `transform` while it runs fails `done` with
+  `cancelled` and deletes the partial file, as on Android and Windows.
+- **A video keeps its speed when it starts playing.** On iOS and macOS,
+  `XVideoPlayerController.play` plays at the speed `setPlaybackSpeed` last
+  set, a speed set while paused included, so the speed holds after a pause and
+  when a looping video restarts, as on Android and Windows.
+- **A link's path past CJK punctuation is no second link.** On Android and
+  Windows, `XUrl.match` links no part of the path a web link runs on into past
+  ideographic, fullwidth or halfwidth punctuation, so
+  `https://example.com/路径（1）/page.html` links `https://example.com/路径`
+  alone, not also `http://page.html`. A domain with no `/`, `?`, `#`, `&` or
+  `=` between it and the mark before it links on its own, as in
+  `https://example.com/a，备用:example.org`.
 - **Windows pastes images and files.** `XClipboard.readFiles` on Windows
   answers the path and name of each file an Explorer copy put on the
   clipboard. `XClipboard.readImage` answers the bytes of the clipboard's

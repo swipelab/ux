@@ -16,6 +16,7 @@ apply_standard_settings(${PLUGIN_NAME})
 set_target_properties(${PLUGIN_NAME} PROPERTIES CXX_VISIBILITY_PRESET hidden)
 target_compile_definitions(${PLUGIN_NAME} PRIVATE FLUTTER_PLUGIN_IMPL ${UX_PLUGIN_DEFINITIONS})
 target_include_directories(${PLUGIN_NAME} INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/include")
+target_include_directories(${PLUGIN_NAME} PRIVATE ${UX_PLUGIN_INCLUDE_DIRECTORIES})
 target_link_libraries(${PLUGIN_NAME} PRIVATE flutter flutter_wrapper_plugin ${UX_PLUGIN_LIBRARIES})
 target_link_options(${PLUGIN_NAME} PRIVATE ${UX_PLUGIN_LINK_OPTIONS})
 

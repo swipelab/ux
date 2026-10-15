@@ -439,7 +439,7 @@ void main() {
         for (final sample in landmarks) {
           _expectLandmark(sample.landmark, sample.media, dimensions);
         }
-      });
+      }, tags: 'golden');
     }
   }
 
@@ -613,6 +613,7 @@ void main() {
           HiddenMediaController.instance.clearForTest();
         }
       },
+      tags: 'golden',
     );
   }
   testWidgets('without an opening source the image fades at its destination', (
@@ -638,7 +639,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     host.router.dispose();
     host.lifecycle.dispose();
-  });
+  }, tags: 'golden');
 
   testWidgets(
     'without an opening snapshot readiness preserves the destination fade',
@@ -677,6 +678,7 @@ void main() {
       host.router.dispose();
       host.lifecycle.dispose();
     },
+    tags: 'golden',
   );
 
   testWidgets(
@@ -726,6 +728,7 @@ void main() {
       host.router.dispose();
       host.lifecycle.dispose();
     },
+    tags: 'golden',
   );
 
   testWidgets(
@@ -763,6 +766,7 @@ void main() {
       host.router.dispose();
       host.lifecycle.dispose();
     },
+    tags: 'golden',
   );
 
   testWidgets(
@@ -805,6 +809,7 @@ void main() {
       host.router.dispose();
       host.lifecycle.dispose();
     },
+    tags: 'golden',
   );
 
   testWidgets(
@@ -846,5 +851,6 @@ void main() {
       host.router.dispose();
       host.lifecycle.dispose();
     },
+    tags: 'golden',
   );
 }
