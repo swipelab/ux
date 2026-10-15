@@ -1,4 +1,9 @@
 ### 0.18.0
+- **Windows shares files.** `XFiles.share` on Windows opens the Windows share
+  window over the app's window and hands it the file, titled with `title` or
+  else the file's name. The window places itself, so `sourceRect` is ignored,
+  as `mimeType` is; `share` answers false when the app has no window.
+  `XFiles.supportsShare` is true on Windows.
 - **Windows encrypts uploads natively.** `XCrypto.aesCtrEncryptRange` and
   `XCrypto.aesCtrBytes` on Windows run AES-256-CTR through CNG off the platform
   thread: AES in ECB mode, with AES-NI where the CPU has it, encrypts the

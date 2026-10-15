@@ -3,6 +3,7 @@
 #include <shellapi.h>
 #include <shlobj.h>
 #include <shobjidl.h>
+#include <winrt/Windows.Foundation.Collections.h>
 #include <wrl/client.h>
 
 #include <flutter/standard_method_codec.h>
@@ -10,6 +11,7 @@
 #include <algorithm>
 #include <optional>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "file_types.h"
@@ -23,6 +25,13 @@ using flutter::EncodableList;
 using flutter::EncodableMap;
 using flutter::EncodableValue;
 using Microsoft::WRL::ComPtr;
+using winrt::Windows::ApplicationModel::DataTransfer::DataPackage;
+using winrt::Windows::ApplicationModel::DataTransfer::DataRequestedEventArgs;
+using winrt::Windows::ApplicationModel::DataTransfer::DataTransferManager;
+using winrt::Windows::Storage::StorageFile;
+
+// A file to share, or the error that kept it from opening.
+using SharedFile = std::variant<StorageFile, HRESULT>;
 
 const EncodableValue* Arg(const EncodableMap* args, const char* key) {
   if (args == nullptr) return nullptr;
@@ -30,13 +39,17 @@ const EncodableValue* Arg(const EncodableMap* args, const char* key) {
   return it == args->end() ? nullptr : &it->second;
 }
 
+std::optional<std::wstring> StringArg(const EncodableMap* args, const char* key) {
+  const auto* value = std::get_if<std::string>(Arg(args, key));
+  if (value == nullptr) return std::nullopt;
+  return Utf16(*value);
+}
+
 // The `path` argument as a Windows path, which Dart may give with either separator.
 std::optional<std::wstring> PathArg(const EncodableMap* args) {
-  const auto* path = std::get_if<std::string>(Arg(args, "path"));
-  if (path == nullptr) return std::nullopt;
-  std::optional<std::wstring> wide = Utf16(*path);
-  if (wide) std::replace(wide->begin(), wide->end(), L'/', L'\\');
-  return wide;
+  std::optional<std::wstring> path = StringArg(args, "path");
+  if (path) std::replace(path->begin(), path->end(), L'/', L'\\');
+  return path;
 }
 
 std::vector<std::string> MimeTypesArg(const EncodableMap* args) {
@@ -197,7 +210,7 @@ void FilePlugin::HandleMethodCall(const flutter::MethodCall<EncodableValue>& cal
     Pick(args, method == "pickMultiple", std::move(result));
     return;
   }
-  if (method != "open" && method != "saveCopy" && method != "showInFolder") {
+  if (method != "open" && method != "saveCopy" && method != "share" && method != "showInFolder") {
     result->NotImplemented();
     return;
   }
@@ -210,6 +223,8 @@ void FilePlugin::HandleMethodCall(const flutter::MethodCall<EncodableValue>& cal
     Open(*path, *result);
   } else if (method == "saveCopy") {
     SaveCopy(*path, std::move(result));
+  } else if (method == "share") {
+    Share(*path, StringArg(args, "title"), std::move(result));
   } else {
     ShowInFolder(*path, *result);
   }
@@ -286,6 +301,51 @@ void FilePlugin::SaveCopy(const std::wstring& path, std::shared_ptr<Result> resu
               }
             });
       });
+}
+
+// The share window needs a title, which is the file's name when Dart gives
+// none. It places itself, so `sourceRect` has no role.
+void FilePlugin::Share(const std::wstring& path, std::optional<std::wstring> title, std::shared_ptr<Result> result) {
+  platform_.Background<SharedFile>(
+      [path]() -> SharedFile {
+        try {
+          return StorageFile::GetFileFromPathAsync(path).get();
+        } catch (const winrt::hresult_error& error) {
+          return static_cast<HRESULT>(error.code());
+        }
+      },
+      [this, title = std::move(title), result](SharedFile shared) {
+        if (const HRESULT* error = std::get_if<HRESULT>(&shared)) {
+          result->Error("share_failed", Message(static_cast<DWORD>(*error)));
+          return;
+        }
+        const HWND owner = Owner();
+        if (owner == nullptr) {
+          result->Success(EncodableValue(false));
+          return;
+        }
+        const StorageFile& file = std::get<StorageFile>(shared);
+        try {
+          ShowShareWindow(owner, file, title ? *title : std::wstring(file.Name()));
+        } catch (const winrt::hresult_error& error) {
+          result->Error("share_failed", Message(static_cast<DWORD>(error.code())));
+          return;
+        }
+        result->Success(EncodableValue(true));
+      });
+}
+
+void FilePlugin::ShowShareWindow(HWND owner, const StorageFile& file, const std::wstring& title) {
+  const auto interop = winrt::get_activation_factory<DataTransferManager, IDataTransferManagerInterop>();
+  DataTransferManager manager{nullptr};
+  winrt::check_hresult(interop->GetForWindow(owner, winrt::guid_of<DataTransferManager>(), winrt::put_abi(manager)));
+  share_request_ = manager.DataRequested(
+      winrt::auto_revoke, [file, title](const DataTransferManager&, const DataRequestedEventArgs& args) {
+        const DataPackage data = args.Request().Data();
+        data.Properties().Title(title);
+        data.SetStorageItems({file});
+      });
+  winrt::check_hresult(interop->ShowShareUIForWindow(owner));
 }
 
 void FilePlugin::ShowInFolder(const std::wstring& path, Result& result) {
