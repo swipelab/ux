@@ -8,6 +8,8 @@
 #include <algorithm>
 #include <utility>
 
+#include "raster.h"
+
 namespace ux {
 
 namespace {
@@ -143,47 +145,6 @@ HRESULT Render(const Frame& frame, UINT width, UINT height, ComPtr<IWICBitmapSou
   return Convert(factory, GUID_WICPixelFormat32bppBGRA, source);
 }
 
-HRESULT EncodePng(IWICImagingFactory* factory, IWICBitmapSource* source, std::vector<uint8_t>& png) {
-  ComPtr<IStream> stream;
-  HRESULT hr = CreateStreamOnHGlobal(nullptr, TRUE, &stream);
-  if (FAILED(hr)) return hr;
-  ComPtr<IWICBitmapEncoder> encoder;
-  hr = factory->CreateEncoder(GUID_ContainerFormatPng, nullptr, &encoder);
-  if (FAILED(hr)) return hr;
-  hr = encoder->Initialize(stream.Get(), WICBitmapEncoderNoCache);
-  if (FAILED(hr)) return hr;
-  ComPtr<IWICBitmapFrameEncode> frame;
-  hr = encoder->CreateNewFrame(&frame, nullptr);
-  if (FAILED(hr)) return hr;
-  hr = frame->Initialize(nullptr);
-  if (FAILED(hr)) return hr;
-  UINT width = 0;
-  UINT height = 0;
-  hr = source->GetSize(&width, &height);
-  if (FAILED(hr)) return hr;
-  hr = frame->SetSize(width, height);
-  if (FAILED(hr)) return hr;
-  WICPixelFormatGUID format = GUID_WICPixelFormat32bppBGRA;
-  hr = frame->SetPixelFormat(&format);
-  if (FAILED(hr)) return hr;
-  hr = frame->WriteSource(source, nullptr);
-  if (FAILED(hr)) return hr;
-  hr = frame->Commit();
-  if (FAILED(hr)) return hr;
-  hr = encoder->Commit();
-  if (FAILED(hr)) return hr;
-  STATSTG stat;
-  hr = stream->Stat(&stat, STATFLAG_NONAME);
-  if (FAILED(hr)) return hr;
-  hr = stream->Seek(LARGE_INTEGER{}, STREAM_SEEK_SET, nullptr);
-  if (FAILED(hr)) return hr;
-  png.resize(static_cast<size_t>(stat.cbSize.QuadPart));
-  ULONG read = 0;
-  hr = stream->Read(png.data(), static_cast<ULONG>(png.size()), &read);
-  if (FAILED(hr)) return hr;
-  return read == png.size() ? S_OK : E_UNEXPECTED;
-}
-
 }  // namespace
 
 std::optional<UprightSize> ProbeSize(const std::wstring& path) {
@@ -197,10 +158,10 @@ std::optional<ImageThumbnail> ProbeThumbnail(const std::wstring& path, uint64_t 
   ComScope com;
   Frame frame;
   if (FAILED(Open(path, frame))) return std::nullopt;
-  const UINT longest = (std::max)(frame.width, frame.height);
-  const auto target = static_cast<UINT>((std::min)(max_longest, uint64_t{longest}));
+  const UINT longest = std::max(frame.width, frame.height);
+  const auto target = static_cast<UINT>(std::min(max_longest, uint64_t{longest}));
   const auto scaled = [&](UINT length) {
-    return (std::max)(1u, static_cast<UINT>((uint64_t{length} * target + longest / 2) / longest));
+    return std::max(1u, static_cast<UINT>((uint64_t{length} * target + longest / 2) / longest));
   };
   const UINT width = scaled(frame.width);
   const UINT height = scaled(frame.height);

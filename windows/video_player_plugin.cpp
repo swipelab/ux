@@ -11,6 +11,7 @@
 #include <string>
 #include <utility>
 
+#include "method_args.h"
 #include "text.h"
 
 namespace ux {
@@ -20,19 +21,6 @@ namespace {
 using flutter::EncodableMap;
 using flutter::EncodableValue;
 using Microsoft::WRL::ComPtr;
-
-const EncodableValue* Arg(const EncodableMap* args, const char* key) {
-  if (args == nullptr) return nullptr;
-  const auto it = args->find(EncodableValue(key));
-  return it == args->end() ? nullptr : &it->second;
-}
-
-std::optional<int64_t> IntArg(const EncodableMap* args, const char* key) {
-  const EncodableValue* value = Arg(args, key);
-  if (const auto* int32 = std::get_if<int32_t>(value)) return *int32;
-  if (const auto* int64 = std::get_if<int64_t>(value)) return *int64;
-  return std::nullopt;
-}
 
 // The path of a `file://<path>` URI, with either separator, or none for any
 // other URI.
