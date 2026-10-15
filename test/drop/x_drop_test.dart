@@ -33,7 +33,8 @@ List<_Entry> _readZip(Uint8List zip) {
     final comment = bytes.getUint16(at + 32, Endian.little);
     final local = bytes.getUint32(at + 42, Endian.little);
     final name = utf8.decode(zip.sublist(at + 46, at + 46 + nameLength));
-    final start = local +
+    final start =
+        local +
         30 +
         bytes.getUint16(local + 26, Endian.little) +
         bytes.getUint16(local + 28, Endian.little);
@@ -127,8 +128,13 @@ void main() {
       );
       addTearDown(() {
         messenger.setMockMethodCallHandler(
-            const MethodChannel('ux/drop/events'), null);
-        messenger.setMockMethodCallHandler(const MethodChannel('ux/drop'), null);
+          const MethodChannel('ux/drop/events'),
+          null,
+        );
+        messenger.setMockMethodCallHandler(
+          const MethodChannel('ux/drop'),
+          null,
+        );
       });
       await tester.pumpWidget(
         XDropRegion(builder: (context, isOver) => const SizedBox()),
@@ -147,8 +153,10 @@ void main() {
       tree = Directory(p.join(root.path, 'tree'));
       final files = {
         'readme.txt': utf8.encode('The fixture tree.\n' * 40),
-        'nested/deeper/data.bin':
-            List<int>.generate(3 << 20, (i) => (i * 7919) >> 5 & 0xff),
+        'nested/deeper/data.bin': List<int>.generate(
+          3 << 20,
+          (i) => (i * 7919) >> 5 & 0xff,
+        ),
         '资料/笔记.txt': utf8.encode('非 ASCII 名称\n'),
       };
       for (final MapEntry(:key, :value) in files.entries) {
@@ -165,8 +173,8 @@ void main() {
     });
 
     ZipJob zip() => XDrop.instance.startZip(
-          XDropFile(path: tree.path, name: 'tree', isDirectory: true),
-        );
+      XDropFile(path: tree.path, name: 'tree', isDirectory: true),
+    );
 
     test('writes the tree under its own per-drop directory, and the zip reads '
         'back and passes unzip -t', () async {
@@ -197,9 +205,8 @@ void main() {
           expect(entry.size, 0);
           continue;
         }
-        final source = File(
-          p.join(root.path, p.joinAll(entry.name.split('/'))),
-        ).readAsBytesSync();
+        final source = File(p.join(root.path, p.joinAll(entry.name.split('/'))))
+            .readAsBytesSync();
         expect(entry.size, source.length, reason: entry.name);
         expect(entry.data, source, reason: entry.name);
       }

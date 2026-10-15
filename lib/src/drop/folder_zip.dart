@@ -32,10 +32,12 @@ Future<String?> zipFolder(
       onProgress(message);
     }
   });
-  unawaited(cancel.then((_) async {
-    cancelled = true;
-    (await control.future).send(null);
-  }));
+  unawaited(
+    cancel.then((_) async {
+      cancelled = true;
+      (await control.future).send(null);
+    }),
+  );
   try {
     await _spawn(folder, zip, messages.sendPort);
     if (!cancelled) {
@@ -150,8 +152,8 @@ Future<void> _writeZip(String folder, String zip, SendPort reports) async {
       final input = await File(source.path).open();
       try {
         final deflated = <List<int>>[];
-        final deflater =
-            ZLibEncoder(raw: true).startChunkedConversion(_Collect(deflated));
+        final deflater = ZLibEncoder(raw: true)
+            .startChunkedConversion(_Collect(deflated));
         Future<void> flush() async {
           for (final bytes in deflated) {
             entry.compressed += bytes.length;
@@ -215,14 +217,17 @@ Future<List<_Source>> _sources(String folder) async {
     _Source('$root/', folder, null, (await Directory(folder).stat()).modified),
   ];
   final found = <_Source>[];
-  await for (final entity
-      in Directory(folder).list(recursive: true, followLinks: true)) {
+  await for (final entity in Directory(
+    folder,
+  ).list(recursive: true, followLinks: true)) {
     if (entity is Link) continue;
     final below = p.split(p.relative(entity.path, from: folder)).join('/');
     final stat = await entity.stat();
-    found.add(entity is Directory
-        ? _Source('$root/$below/', entity.path, null, stat.modified)
-        : _Source('$root/$below', entity.path, stat.size, stat.modified));
+    found.add(
+      entity is Directory
+          ? _Source('$root/$below/', entity.path, null, stat.modified)
+          : _Source('$root/$below', entity.path, stat.size, stat.modified),
+    );
   }
   found.sort((a, b) => a.name.compareTo(b.name));
   return sources..addAll(found);
@@ -266,11 +271,12 @@ Uint8List _crcAndSizes(_Entry entry, {required bool zip64}) =>
         .asUint8List();
 
 /// The sizes of a written entry, as its local header's zip64 field holds them.
-Uint8List _wideSizes(_Entry entry) => (ByteData(16)
-      ..setUint64(0, entry.size, Endian.little)
-      ..setUint64(8, entry.compressed, Endian.little))
-    .buffer
-    .asUint8List();
+Uint8List _wideSizes(_Entry entry) =>
+    (ByteData(16)
+          ..setUint64(0, entry.size, Endian.little)
+          ..setUint64(8, entry.compressed, Endian.little))
+        .buffer
+        .asUint8List();
 
 Uint8List _centralHeader(_Entry entry) {
   final wide = [
@@ -340,8 +346,9 @@ Uint8List _end(int count, int offset, int size) {
 }
 
 /// [time] as an MS-DOS time, in two-second steps.
-int _dosTime(DateTime time) =>
-    time.year < 1980 ? 0 : time.hour << 11 | time.minute << 5 | time.second ~/ 2;
+int _dosTime(DateTime time) => time.year < 1980
+    ? 0
+    : time.hour << 11 | time.minute << 5 | time.second ~/ 2;
 
 /// [time] as an MS-DOS date, which starts in 1980.
 int _dosDate(DateTime time) => time.year < 1980
