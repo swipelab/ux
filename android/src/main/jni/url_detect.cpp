@@ -21,6 +21,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -259,8 +260,44 @@ bool is_cjk_punctuation(jchar c) {
          (c >= 0xFF5B && c <= 0xFF65);
 }
 
+// Han, kana, Bopomofo and Hangul by block, and an ideograph of the
+// supplementary planes by its high surrogate.
+bool is_cjk(jchar c) {
+  return (c >= 0x1100 && c <= 0x11FF) || (c >= 0x2E80 && c <= 0x9FFF) ||
+         (c >= 0xA960 && c <= 0xA97F) || (c >= 0xAC00 && c <= 0xD7FF) ||
+         (c >= 0xD840 && c <= 0xD8BF) || (c >= 0xF900 && c <= 0xFAFF) ||
+         (c >= 0xFF66 && c <= 0xFFDC);
+}
+
+// The glue of the host that begins the web match [start, end), which ends at
+// its first change between CJK letters and other characters inside a label:
+// the '.' after the CJK labels that begin the host, else the '.' before those
+// that end it, else that change. A low surrogate goes with its high surrogate.
+std::optional<jint> host_glue(const jchar* chars, jint start, jint end) {
+  const bool leading = is_cjk(chars[start]);
+  bool cjk = leading;
+  std::optional<jint> glue;
+  for (jint i = start + 1; i < end; i++) {
+    const jchar c = chars[i];
+    if (c == u'.' || (c >= 0xDC00 && c <= 0xDFFF)) continue;
+    if (c < 0x80 && !(std::isalnum(c) || c == u'-' || c == u'_')) break;
+    if (is_cjk(c) == cjk) continue;
+    cjk = !cjk;
+    if (chars[i - 1] != u'.') return glue.value_or(i);
+    if (leading) return i - 1;
+    if (cjk) {
+      glue = i - 1;
+    } else {
+      glue.reset();
+    }
+  }
+  return glue;
+}
+
 // Each stretch of the text between CJK punctuation is a region the pattern
-// matches as a text of its own, so no link takes a mark in.
+// matches as a text of its own, so no link takes a mark in. No host runs
+// across its glue: the web match is the part before the glue where the pattern
+// matches that whole, and the search goes on from the glue.
 void run_pattern(JNIEnv* env, jstring text, const jchar* chars, jint len, jobject pattern,
                  uint32_t kind, std::vector<RawMatch>& out) {
   jobject matcher = env->CallObjectMethod(pattern, g_matcher_method, text);
@@ -282,7 +319,15 @@ void run_pattern(JNIEnv* env, jstring text, const jchar* chars, jint len, jobjec
       if (env->ExceptionCheck()) { clear_exception(env); break; }
       jint end = env->CallIntMethod(matcher, g_end_method);
       if (env->ExceptionCheck()) { clear_exception(env); break; }
-      if (kind == kKindWeb) end = web_end(env, pattern, text, chars, start, end, to);
+      if (kind == kKindWeb) {
+        if (std::optional<jint> glue = host_glue(chars, start, end)) {
+          env->DeleteLocalRef(env->CallObjectMethod(matcher, g_region_method, *glue, to));
+          if (env->ExceptionCheck()) { clear_exception(env); break; }
+          if (!matches_whole(env, pattern, text, start, *glue)) continue;
+          end = *glue;
+        }
+        end = web_end(env, pattern, text, chars, start, end, to);
+      }
 
       std::string group = utf16_to_utf8(chars + start, end - start);
 
