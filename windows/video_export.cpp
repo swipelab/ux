@@ -27,9 +27,8 @@ constexpr LONGLONG kTicksPerSecond = 10000000;
 // 128 kbit/s, a rate Windows's AAC encoder takes.
 constexpr UINT32 kAudioBytesPerSecond = 16000;
 constexpr uint32_t kOpaqueBlack = 0xFF000000;
-// The density of Telegram's export tiers. Windows's encoder needs about this
-// much: at the bitrate of a source that compressed further, it quantizes
-// colours visibly off.
+// The density of Telegram's export tiers. Windows's encoder renders flat
+// colours visibly off at 0.01 bit per pixel per frame.
 constexpr double kMinBitsPerPixel = 0.1;
 
 ExportFailed Failure(const char* code, const std::string& what, HRESULT hr) {

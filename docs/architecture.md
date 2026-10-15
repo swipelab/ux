@@ -405,7 +405,7 @@ bands across up to 8 threads.
   latency mode, which keeps it from queueing frames ahead, so an export's memory
   does not grow with its length. The bitrate is
   `videoBitrate`, or else the source's, at least 0.1 bit per pixel per frame,
-  the density of Telegram's tiers, below which Windows's encoder quantizes
+  the density of Telegram's tiers; at 0.01 Windows's encoder renders flat
   colours visibly off. H.264 sides are even, so an odd side is rounded down.
 - **Colour.** Windows's H.264 encoder states no colour space, and decoders,
   Media Foundation's among them, take BT.709 for frames over 576 rows and
