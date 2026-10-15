@@ -17,6 +17,7 @@ add_executable(ux_test
   "ux_test.cpp"
   "check.h"
   "png.h"
+  "camera_test.cpp"
   "crypto_test.cpp"
   "dib_test.cpp"
   "drop_test.cpp"
@@ -30,6 +31,7 @@ add_executable(ux_test
   "url_detect_test.cpp"
   "video_export_test.cpp"
   "window_test.cpp"
+  "work_queue_test.cpp"
   ${UX_PLUGIN_SOURCES}
   "${WRAPPER}/core_implementations.cc"
   "${WRAPPER}/standard_codec.cc"
@@ -46,6 +48,7 @@ add_custom_command(TARGET ux_test POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ENGINE}/flutter_windows.dll" "$<TARGET_FILE_DIR:ux_test>")
 
 enable_testing()
+add_test(NAME camera COMMAND ux_test camera)
 add_test(NAME crypto COMMAND ux_test crypto)
 add_test(NAME dib COMMAND ux_test dib)
 add_test(NAME drop COMMAND ux_test drop)
@@ -58,4 +61,5 @@ add_test(NAME toast COMMAND ux_test toast)
 add_test(NAME url_detect COMMAND ux_test url_detect)
 add_test(NAME video_export COMMAND ux_test video_export)
 add_test(NAME window COMMAND ux_test window)
+add_test(NAME work_queue COMMAND ux_test work_queue)
 set_tests_properties(window PROPERTIES SKIP_RETURN_CODE 77)

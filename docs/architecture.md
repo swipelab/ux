@@ -22,7 +22,7 @@ Conventions:
 |---|---|---|---|
 | `XKeyboard` — frame-accurate keyboard tracking + interactive dismiss | [lib/src/keyboard.dart](../lib/src/keyboard.dart) | [android/src/main/jni/keyboard_bridge.c](../android/src/main/jni/keyboard_bridge.c) | [darwin/ux/Sources/ux/iOS/KeyboardPlugin.swift](../darwin/ux/Sources/ux/iOS/KeyboardPlugin.swift) |
 | `XSensors` — gyro / accelerometer over JNI/FFI | [lib/src/sensor.dart](../lib/src/sensor.dart) | [android/src/main/jni/sensor_bridge.c](../android/src/main/jni/sensor_bridge.c) | [darwin/ux/Sources/ux/iOS/SensorPlugin.swift](../darwin/ux/Sources/ux/iOS/SensorPlugin.swift) |
-| `XCamera` — CameraX (Android) / AVCaptureSession (Apple). `XCameraController.cameraPermissionGranted()` queries authorization without prompting, microphone access or session creation. `requestCameraPermission()` prompts when permitted, otherwise opens camera/app Settings, and returns current authorization; re-query on foreground return. Hosts declare Android `android.permission.CAMERA`, Apple `NSCameraUsageDescription`, and macOS `com.apple.security.device.camera` in debug and release entitlements. | [lib/src/camera/](../lib/src/camera/) | [android/src/main/kotlin/io/swipelab/ux/camera/](../android/src/main/kotlin/io/swipelab/ux/camera/) | [darwin/ux/Sources/ux/Camera/](../darwin/ux/Sources/ux/Camera/) |
+| `XCamera` — CameraX (Android) / AVCaptureSession (Apple) / Media Foundation's capture engine (Windows, [windows/camera_plugin.cpp](../windows/camera_plugin.cpp); see *Camera (Windows)*). `XCameraController.cameraPermissionGranted()` queries authorization without prompting, microphone access or session creation. `requestCameraPermission()` prompts when permitted, otherwise opens camera/app Settings (on Windows, which shows a desktop app no prompt, the camera's Privacy & security page), and returns current authorization; re-query on foreground return. Hosts declare Android `android.permission.CAMERA`, Apple `NSCameraUsageDescription`, and macOS `com.apple.security.device.camera` in debug and release entitlements. | [lib/src/camera/](../lib/src/camera/) | [android/src/main/kotlin/io/swipelab/ux/camera/](../android/src/main/kotlin/io/swipelab/ux/camera/) | [darwin/ux/Sources/ux/Camera/](../darwin/ux/Sources/ux/Camera/) |
 | `XAudioCapture` — live PCM from one source: mono 16 kHz Int16 frames of 320 samples (20 ms) plus an RMS level, over `ux/audio_capture` (+`/events`). `sources()` lists the hardware inputs the OS names — Core Audio devices by UID, `AVAudioSession` ports by uid, `AudioDeviceInfo` ids behind `mic:<id>` — plus one `playback` source where the platform taps its own output, and `start({sourceId})` opens it: omitted is the system's default microphone, one tap at a time, no mixing, and an id naming nothing fails `unknown_source`. A microphone is a *tap*, not an owner of the capture graph: Apple installs it on the `AVAudioEngine` input node and resamples the hardware format through an `AVAudioConverter`; Android reads an `AudioRecord` on `VOICE_COMMUNICATION`, which leaves the communication route to whoever holds it. It runs under the platform voice processing — Apple's `setVoiceProcessingEnabled`, Android's `AcousticEchoCanceler` — so what the device plays does not re-enter as local speech. Playback is that output, captured raw: macOS opens an audio-only `SCStream` under the screen-recording grant, excluding the host's own output so a dub cannot loop; Android 10+ opens an `AudioPlaybackCaptureConfiguration` under a media-projection consent the capture plugin asks for itself, held up by `AudioProjectionService` and unrelated to a screen share's `ScreenShareService`; iOS lists no playback source at all. The level is computed in Dart from the samples so both platforms report the same number. `state` (`idle`/`running`/`interrupted`) is the single source of truth and never resumes on its own — iOS drops to `interrupted` on `AVAudioSession` interruption (call, Siri) and on `oldDeviceUnavailable` route changes, Android on `AudioRecordingConfiguration.isClientSilenced` (API 29+) or a failed `AudioRecord.read`, and both on the engine's configuration-change notification. macOS has no `AVAudioSession`, so there the configuration change (default input swapped or removed) is the only interruption signal; a playback tap drops to `interrupted` when the system ends the stream or the projection. Hosts declare their own access: `RECORD_AUDIO`, `NSMicrophoneUsageDescription`, and `com.apple.security.device.audio-input` plus `com.apple.security.screen-capture` for a sandboxed macOS playback tap. Consumer: transcript.chat's live captioning, reading the mic while flutter_webrtc holds it | [lib/src/audio/x_audio_capture.dart](../lib/src/audio/x_audio_capture.dart) | [android/.../AudioCapturePlugin.kt](../android/src/main/kotlin/io/swipelab/ux/AudioCapturePlugin.kt) | [darwin/ux/Sources/ux/Audio/AudioCapturePlugin.swift](../darwin/ux/Sources/ux/Audio/AudioCapturePlugin.swift) |
 | `XAudioSink` — push-based playback of mono 16 kHz Int16 PCM over `ux/audio_sink` (+`/events`): `enqueue(Int16List)` appends a chunk and opens the output on the first one, so a stream is audible long before it ends; `flush()` silences and empties the queue — including chunks Dart has not handed over yet, which a generation counter drops on their way to the channel — and releases the output; `drained` fires when the queue plays out, leaving the output open so the next chunk of a conversation skips the device warm-up. A *writer* on the output, not an owner of the route: Apple schedules converted buffers on an `AVAudioPlayerNode` connected to the main mixer, which resamples to the hardware rate, and on iOS only widens the shared `AVAudioSession` category to include playback with no added options, so a call keeps its `.voiceChat` mode and speaker choice; Android streams into an `AudioTrack` on `USAGE_MEDIA` + `CONTENT_TYPE_SPEECH` and never requests audio focus, so it neither claims the communication route nor ducks what is already playing — a consumer wanting exclusive playback asks for focus itself. `state` (`idle`/`playing`/`interrupted`) never resumes on its own: iOS drops to `interrupted` on an `AVAudioSession` interruption, macOS when a configuration change leaves the engine stopped, Android on a failed `AudioTrack.write`. Consumer: transcript.chat's dubbing, playing a TTS byte stream while a call holds the microphone | [lib/src/audio/x_audio_sink.dart](../lib/src/audio/x_audio_sink.dart) | [android/.../AudioSinkPlugin.kt](../android/src/main/kotlin/io/swipelab/ux/AudioSinkPlugin.kt) | [darwin/ux/Sources/ux/Audio/AudioSinkPlugin.swift](../darwin/ux/Sources/ux/Audio/AudioSinkPlugin.swift) |
 | `XScanner` — ZXing QR scanner (Android) / VNDetect (Apple) | [lib/src/scanner.dart](../lib/src/scanner.dart) | [android/src/main/kotlin/io/swipelab/ux/ScannerPlugin.kt](../android/src/main/kotlin/io/swipelab/ux/ScannerPlugin.kt) | [darwin/ux/Sources/ux/iOS/ScannerPlugin.swift](../darwin/ux/Sources/ux/iOS/ScannerPlugin.swift) |
@@ -129,10 +129,11 @@ enables `SymbolLinkageMarkers` for that attribute.
 handler sources [windows/sources.cmake](../windows/sources.cmake) lists.
 `XPluginCApiRegisterWithRegistrar` calls `XPlugin::RegisterWithRegistrar`
 ([windows/x_plugin.cpp](../windows/x_plugin.cpp)), which hands the registrar one
-handler per area, named after its darwin counterpart: `ClipboardPlugin`
-(`ux/clipboard`), `CryptoPlugin` (`ux/crypto`), `DropPlugin` (`ux/drop` and
-`ux/drop/events`), `FilePlugin` (`ux/file`), `ImageProbePlugin`
-(`ux/image_probe`), `NotificationsPlugin`
+handler per area, named after its darwin counterpart: `CameraPlugin`
+(`ux/camera` and `ux/camera/events`), `ClipboardPlugin` (`ux/clipboard`),
+`CryptoPlugin` (`ux/crypto`), `DropPlugin` (`ux/drop` and `ux/drop/events`),
+`FilePlugin` (`ux/file`), `ImageProbePlugin` (`ux/image_probe`),
+`NotificationsPlugin`
 (`ux/notifications` and `ux/notifications/events`), `UrlPlugin` (`ux/url`),
 `VideoPlayerPlugin` (`ux/video` and `ux/video/events`),
 `VideoExporterPlugin` (`ux/video/export` and `ux/video/export/events`) and
@@ -168,16 +169,16 @@ Paths from Dart are accepted with either separator.
   OLE, the shell, ICU, CNG, WIC, Media Foundation, Direct3D 11, and C++/WinRT
   for toasts and the share window). No third-party native code, test
   frameworks included.
-- **Media Foundation.** `ux_plugin.dll` delay-loads `mfplat.dll` and
-  `mfreadwrite.dll`, which an N edition of Windows lacks without the Media
-  Feature Pack, so the DLL loads there. Every Media Foundation caller, the
-  players' device and the frame and export work, starts it through
-  `MediaFoundation` ([windows/media_foundation.cpp](../windows/media_foundation.cpp))
-  before its first Media Foundation call. `MediaFoundation` loads those DLLs
-  from the application's directory, the DLL directories it set or System32,
-  never the working directory or `PATH`, and fails where they do not load; the
-  caller then answers its error. Frame and export work, on a thread of its own,
-  also joins COM's multithreaded apartment there (`MediaWork`).
+- **Media Foundation.** `ux_plugin.dll` delay-loads `mfplat.dll`,
+  `mfreadwrite.dll` and `mf.dll`, which an N edition of Windows lacks without
+  the Media Feature Pack, so the DLL loads there. Every Media Foundation caller
+  starts it through `MediaFoundation`
+  ([windows/media_foundation.cpp](../windows/media_foundation.cpp)) before its
+  first Media Foundation call. `MediaFoundation` loads those DLLs from the
+  application's directory, the DLL directories it set or System32, never the
+  working directory or `PATH`, and fails where they do not load; the caller
+  then answers its error. Work on a thread of its own also joins COM's
+  multithreaded apartment there (`MediaWork`).
 - **Windows 10 1903.** The handlers compile against the SDK's declarations for
   build 18362 (`UX_PLUGIN_DEFINITIONS` in sources.cmake), and `ux_plugin.dll`
   imports `icu.dll`, which Windows has from 1903, so a host app needs 1903 or
@@ -433,6 +434,67 @@ bands across up to 8 threads.
   cancelled export deletes its partial file. A `start` under the id of a
   running session, as Dart's numbering after a hot restart gives, cancels that
   session, whose events are dropped.
+
+## Camera (Windows)
+
+[windows/camera_plugin.cpp](../windows/camera_plugin.cpp) serves `ux/camera`
+and `ux/camera/events` under darwin's `CameraPlugin` contract, with one
+`CameraInstance` ([windows/camera_instance.cpp](../windows/camera_instance.cpp))
+per handle, each a Media Foundation capture engine (`IMFCaptureEngine`).
+
+- **Threads.** Each instance runs its engine on a `WorkQueue`
+  ([windows/work_queue.cpp](../windows/work_queue.cpp)), a thread of its own in
+  COM's multithreaded apartment that runs its tasks in order, as darwin's
+  per-instance `sessionQueue` does. The engine's events reach that thread, and
+  replies and events go to the platform thread. `availableCameras` enumerates
+  off the platform thread.
+- **Media Foundation.** Where Windows lacks it, as an N edition without the
+  Media Feature Pack does, `availableCameras` fails with `no_camera`.
+- **Devices.** `availableCameras` lists `MFEnumDeviceSources`'s video capture
+  devices by symbolic link, each as darwin lists a camera with no position: the
+  back lens, with a `sensorOrientation` of 0. With none it answers an empty
+  list and emits darwin's plugin-level `diagnostic` (handle -1). As on darwin,
+  one handle at a time holds a device (`device_busy`) and one the microphone
+  (`audio_busy`), and `dispose` frees both at once.
+- **Open.** `create` opens the device, and with `enableAudio` the default
+  microphone, the console's default capture endpoint; a microphone that does
+  not open leaves recordings silent. The preview stream takes the device's
+  format with the most pixels within 1920×1080, then the highest rate, among
+  those of at least 15 frames a second where any is. `create` answers the
+  handle, a pixel-buffer texture's id and the stream's size, with
+  `previewRotationQuarterTurns` 0, and `permission_denied` for a camera
+  Windows's privacy settings refuse.
+- **Preview.** `initialize` starts the preview sink on top-down RGB32 samples,
+  which the engine's thread converts to RGBA in the texture
+  ([windows/camera_texture.cpp](../windows/camera_texture.cpp));
+  `previewSizeChanged` fires with the first frame and whenever a frame's size
+  changes. A webcam's frames are upright and unmirrored, as on macOS.
+- **Capture.** `takePicture` writes a JPEG through the photo sink, and
+  `startVideoRecording` and `stopVideoRecording` an MP4 through the record
+  sink: H.264 at the record stream's size and rate, at 0.15 bits a pixel a
+  frame, with the first AAC type Media Foundation's encoders offer where the
+  microphone opened. Each file is `ux_camera_<GUID>.jpg` or `.mp4` in the
+  directory `GetTempPathW` answers, as darwin writes into
+  `NSTemporaryDirectory()`. A failure answers `take_picture_failed` or
+  `recorder_failed`.
+- **Switching.** `setDescription` releases the engine and opens one on the new
+  device, previewing if the last one was, and refuses while recording.
+- **Flash and orientation.** `setFlashMode`, `lockCaptureOrientation` and
+  `unlockCaptureOrientation` succeed and change nothing, since a webcam has
+  neither.
+- **Permissions.** `cameraPermissionStatus` and `audioPermissionStatus` answer
+  whether Privacy & security lets desktop apps use the camera and the
+  microphone: no `Value` of the device's, the user's or the user's desktop
+  apps' (`NonPackaged`) `CapabilityAccessManager\ConsentStore\webcam` (or
+  `microphone`) key reads `Deny`. Windows shows a desktop app no prompt, so
+  `requestCameraPermission` and `requestAudioPermission` answer the same, first
+  opening a denied capability's page, `ms-settings:privacy-webcam` or
+  `ms-settings:privacy-microphone`, as darwin's requests open Settings on a
+  permanent denial. `openSettings` opens `ms-settings:privacy-webcam`.
+- **Errors.** An engine error while no operation waits emits `sessionError`
+  (`session_runtime_error`).
+- **Dispose.** `dispose` ends a recording and deletes its file, releases the
+  engine and the devices, and unregisters the texture.
 
 ## Notifications + window focus
 

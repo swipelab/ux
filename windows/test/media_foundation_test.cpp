@@ -10,9 +10,13 @@
 #include <optional>
 #include <string>
 #include <system_error>
+#include <utility>
 #include <variant>
 
+#include "../camera_instance.h"
+#include "../camera_texture.h"
 #include "../media_foundation.h"
+#include "../platform_thread.h"
 #include "../text.h"
 #include "../video_device.h"
 #include "../video_export.h"
@@ -51,6 +55,22 @@ void MediaFoundationSuite() {
   const ux::ExportOutcome outcome = ux::Export(request, [](double) {}, std::atomic<bool>{false});
   const auto* export_failed = std::get_if<ux::ExportFailed>(&outcome);
   CHECK(export_failed && export_failed->code == "session_failed" && export_failed->message == unavailable);
+  {
+    ux::PlatformThread platform;
+    ux::CameraInstance camera(platform.poster(), [](flutter::EncodableMap) {}, std::make_shared<ux::CameraTexture>());
+    std::optional<ux::CameraResult<ux::FrameSize>> opened;
+    camera.Open(L"\\\\?\\ux#no-such-camera", false,
+                [&opened](ux::CameraResult<ux::FrameSize> result) { opened = std::move(result); });
+    CHECK(PumpUntil([&opened] { return opened.has_value(); }));
+    const auto* camera_failed = opened ? std::get_if<ux::CameraError>(&*opened) : nullptr;
+    CHECK(camera_failed && camera_failed->message == unavailable);
+  }
+
+  // So does an mf.dll that is no image, beside System32's mfplat.dll and
+  // mfreadwrite.dll.
+  std::filesystem::remove(dir / L"mfplat.dll", error);
+  std::ofstream(dir / L"mf.dll") << "not an image";
+  CHECK(ux::MediaFoundation().status() == missing);
 
   CHECK(SetDllDirectoryW(nullptr));
   CHECK(SUCCEEDED(ux::MediaFoundation().status()));

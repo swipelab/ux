@@ -16,7 +16,8 @@ constexpr DWORD kSearch = LOAD_LIBRARY_SEARCH_DEFAULT_DIRS;
 MediaFoundation::MediaFoundation()
     : platform_(LoadLibraryExW(L"mfplat.dll", nullptr, kSearch)),
       read_write_(platform_ ? LoadLibraryExW(L"mfreadwrite.dll", nullptr, kSearch) : nullptr),
-      status_(read_write_ ? MFStartup(MF_VERSION, MFSTARTUP_LITE) : HRESULT_FROM_WIN32(GetLastError())) {}
+      core_(read_write_ ? LoadLibraryExW(L"mf.dll", nullptr, kSearch) : nullptr),
+      status_(core_ ? MFStartup(MF_VERSION, MFSTARTUP_LITE) : HRESULT_FROM_WIN32(GetLastError())) {}
 
 MediaFoundation::~MediaFoundation() {
   if (SUCCEEDED(status_)) MFShutdown();

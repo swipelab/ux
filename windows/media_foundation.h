@@ -10,9 +10,9 @@
 namespace ux {
 
 // Media Foundation, loaded and started for this object's life, on any thread.
-// ux_plugin.dll delay-loads mfplat.dll and mfreadwrite.dll, which an N edition
-// of Windows lacks without the Media Feature Pack, so a Media Foundation call
-// runs only while one of these has started.
+// ux_plugin.dll delay-loads mfplat.dll, mfreadwrite.dll and mf.dll, which an N
+// edition of Windows lacks without the Media Feature Pack, so a Media
+// Foundation call runs only while one of these has started.
 class MediaFoundation {
  public:
   MediaFoundation();
@@ -33,12 +33,13 @@ class MediaFoundation {
 
   Module platform_;
   Module read_write_;
+  Module core_;
   HRESULT status_;
 };
 
 // COM's multithreaded apartment joined on the calling thread, and Media
-// Foundation started, for this object's life: what frame and export work needs
-// on a thread of its own.
+// Foundation started, for this object's life: what Media Foundation work on a
+// thread of its own needs.
 class MediaWork {
  public:
   MediaWork();
