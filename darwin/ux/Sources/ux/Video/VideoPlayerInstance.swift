@@ -165,7 +165,7 @@ final class UxVideoPlayerInstance: NSObject {
 
     func play() {
         guard !disposed else { return }
-        player.play()
+        player.rate = defaultRate
     }
 
     func pause() {
@@ -232,6 +232,8 @@ final class UxVideoPlayerInstance: NSObject {
     // MARK: - Observers / completion
 
     private var loopingEnabled = false
+    /// The rate [play] starts at, in place of `AVPlayer.defaultRate`, which
+    /// needs iOS 16 and macOS 13.
     private var defaultRate: Float = 1.0
     private var statusContext = 0
     private var bufferEmptyContext = 1
@@ -358,7 +360,7 @@ final class UxVideoPlayerInstance: NSObject {
     @objc private func playbackEnded(_ note: Notification) {
         if loopingEnabled {
             player.seek(to: .zero) { [weak self] _ in
-                self?.player.play()
+                self?.play()
             }
             return
         }

@@ -1,4 +1,8 @@
 ### 0.18.0
+- **A video keeps its speed when it starts playing.** On iOS and macOS,
+  `XVideoPlayerController.play` plays at the speed `setPlaybackSpeed` last
+  set, a speed set while paused included, so the speed holds after a pause and
+  when a looping video restarts, as on Android and Windows.
 - **A bare domain leaves out the CJK letters glued to it.** On Android and
   Windows, a host in `XUrl.match` ends at a change between CJK letters and
   other characters inside a label, and leaves out the CJK labels that begin or
