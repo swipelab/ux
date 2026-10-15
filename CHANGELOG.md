@@ -1,4 +1,27 @@
 ### 0.18.0
+- **Windows captures from cameras.** `uxAvailableCameras` lists Windows's
+  video capture devices, each as the back lens with a `sensorOrientation` of 0,
+  as macOS lists an external camera, and `XCameraController` previews, takes
+  JPEG photos and records H.264/AAC MP4s on Windows through Media Foundation's
+  capture engine, writing `ux_camera_<GUID>.jpg` and `.mp4` in the temporary
+  directory. Flash and orientation locks succeed and change nothing. The
+  permission checks answer whether Windows's Privacy & security settings let
+  desktop apps use the camera and the microphone, and the requests answer the
+  same, since Windows shows no prompt, first opening the camera's or the
+  microphone's privacy page where it is denied; `openSystemSettings` opens the
+  camera's privacy page. Where Media Foundation is missing,
+  `uxAvailableCameras` throws `no_camera`.
+- **Windows shares files.** `XFiles.share` on Windows opens the Windows share
+  window over the app's window and hands it the file, titled with `title` or
+  else the file's name. The window places itself, so `sourceRect` is ignored,
+  as `mimeType` is; `share` answers false when the app has no window.
+  `XFiles.supportsShare` is true on Windows.
+- **Windows encrypts uploads natively.** `XCrypto.aesCtrEncryptRange` and
+  `XCrypto.aesCtrBytes` on Windows run AES-256-CTR through CNG off the platform
+  thread: AES in ECB mode, with AES-NI where the CPU has it, encrypts the
+  counter blocks into the keystream XORed over the data, and
+  `aesCtrEncryptRange` reads the file's range itself, so only ciphertext crosses
+  the channel. `XCrypto.isSupported` is true on Windows.
 - **The AES-CTR counter carries across all 128 bits on iOS and macOS.**
   `XCrypto.aesCtrEncryptRange` and `XCrypto.aesCtrBytes` on iOS and macOS
   carry the counter from its low 64 bits into its high 64 bits where they wrap,

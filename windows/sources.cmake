@@ -2,9 +2,21 @@
 set(UX_PLUGIN_SOURCES
   "${CMAKE_CURRENT_LIST_DIR}/x_plugin.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/x_plugin.h"
+  "${CMAKE_CURRENT_LIST_DIR}/aes_ctr.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/aes_ctr.h"
+  "${CMAKE_CURRENT_LIST_DIR}/camera_devices.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/camera_devices.h"
+  "${CMAKE_CURRENT_LIST_DIR}/camera_instance.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/camera_instance.h"
+  "${CMAKE_CURRENT_LIST_DIR}/camera_plugin.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/camera_plugin.h"
+  "${CMAKE_CURRENT_LIST_DIR}/camera_texture.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/camera_texture.h"
   "${CMAKE_CURRENT_LIST_DIR}/clipboard_plugin.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/clipboard_plugin.h"
   "${CMAKE_CURRENT_LIST_DIR}/com_scope.h"
+  "${CMAKE_CURRENT_LIST_DIR}/crypto_plugin.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/crypto_plugin.h"
   "${CMAKE_CURRENT_LIST_DIR}/dib.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/dib.h"
   "${CMAKE_CURRENT_LIST_DIR}/drop_data.cpp"
@@ -55,6 +67,8 @@ set(UX_PLUGIN_SOURCES
   "${CMAKE_CURRENT_LIST_DIR}/video_thumbnail.h"
   "${CMAKE_CURRENT_LIST_DIR}/window_plugin.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/window_plugin.h"
+  "${CMAKE_CURRENT_LIST_DIR}/work_queue.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/work_queue.h"
   "${CMAKE_CURRENT_LIST_DIR}/../src/tld.h"
 )
 
@@ -62,12 +76,12 @@ set(UX_PLUGIN_SOURCES
 set(UX_PLUGIN_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_LIST_DIR}/../src")
 
 # The SDK libraries the handlers link.
-set(UX_PLUGIN_LIBRARIES icu d3d11 mfplat mfreadwrite mfuuid windowscodecs runtimeobject delayimp)
+set(UX_PLUGIN_LIBRARIES bcrypt icu d3d11 mf mfplat mfreadwrite mfuuid windowscodecs runtimeobject delayimp)
 
 # MediaFoundation (media_foundation.cpp) loads Media Foundation's DLLs before
 # any call into them, so ux_plugin.dll loads on an N edition of Windows, which
 # lacks them without the Media Feature Pack.
-set(UX_PLUGIN_LINK_OPTIONS /DELAYLOAD:mfplat.dll /DELAYLOAD:mfreadwrite.dll)
+set(UX_PLUGIN_LINK_OPTIONS /DELAYLOAD:mfplat.dll /DELAYLOAD:mfreadwrite.dll /DELAYLOAD:mf.dll)
 
 # The SDK headers declare only what Windows 10 1903 (build 18362) has, and no
 # min or max macro.

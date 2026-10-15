@@ -1,6 +1,7 @@
 import 'dart:io' as io;
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ux/crypto.dart';
 // White-box: the software fallback is not part of the public API, but the
@@ -9,6 +10,43 @@ import 'package:ux/crypto.dart';
 import 'package:ux/src/crypto_range_io.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('Windows encrypts a range through ux/crypto aesCtrRange', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    const channel = MethodChannel('ux/crypto');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    final calls = <MethodCall>[];
+    final cipher = Uint8List.fromList([1, 2, 3]);
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call);
+      return cipher;
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    final key = Uint8List(32);
+    final iv = Uint8List(16);
+
+    final result = await XCrypto.aesCtrEncryptRange(
+      path: r'C:\in\a.bin',
+      pos: 17,
+      size: 3,
+      key: key,
+      iv: iv,
+    );
+
+    expect(result, cipher);
+    expect(calls.single.method, 'aesCtrRange');
+    expect(calls.single.arguments, {
+      'path': r'C:\in\a.bin',
+      'pos': 17,
+      'size': 3,
+      'key': key,
+      'iv': iv,
+    });
+  });
+
   group('encryptChunk counter math (chunked == streaming)', () {
     test('aligned chunks (1 MiB partSize) round-trip', () {
       _roundTrip(plainSize: 4 * 1024 * 1024 + 123, partSize: 1024 * 1024);
