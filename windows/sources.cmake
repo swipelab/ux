@@ -2,8 +2,12 @@
 set(UX_PLUGIN_SOURCES
   "${CMAKE_CURRENT_LIST_DIR}/x_plugin.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/x_plugin.h"
+  "${CMAKE_CURRENT_LIST_DIR}/aes_ctr.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/aes_ctr.h"
   "${CMAKE_CURRENT_LIST_DIR}/clipboard_plugin.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/clipboard_plugin.h"
+  "${CMAKE_CURRENT_LIST_DIR}/crypto_plugin.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/crypto_plugin.h"
   "${CMAKE_CURRENT_LIST_DIR}/dib.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/dib.h"
   "${CMAKE_CURRENT_LIST_DIR}/drop_data.cpp"
@@ -45,7 +49,7 @@ set(UX_PLUGIN_SOURCES
 )
 
 # The SDK libraries the handlers link.
-set(UX_PLUGIN_LIBRARIES icu d3d11 mfplat mfuuid windowscodecs runtimeobject delayimp)
+set(UX_PLUGIN_LIBRARIES bcrypt icu d3d11 mfplat mfuuid windowscodecs runtimeobject delayimp)
 
 # Media Foundation loads at the first video `create`, since a Windows N edition
 # lacks it without the Media Feature Pack.

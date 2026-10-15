@@ -17,6 +17,7 @@ add_executable(ux_test
   "ux_test.cpp"
   "check.h"
   "png.h"
+  "crypto_test.cpp"
   "dib_test.cpp"
   "drop_test.cpp"
   "file_types_test.cpp"
@@ -42,6 +43,7 @@ add_custom_command(TARGET ux_test POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ENGINE}/flutter_windows.dll" "$<TARGET_FILE_DIR:ux_test>")
 
 enable_testing()
+add_test(NAME crypto COMMAND ux_test crypto)
 add_test(NAME dib COMMAND ux_test dib)
 add_test(NAME drop COMMAND ux_test drop)
 add_test(NAME file_types COMMAND ux_test file_types)

@@ -3,6 +3,7 @@
 
 #include "check.h"
 
+void CryptoSuite();
 void DibSuite();
 void DropSuite();
 void FileTypesSuite();
@@ -24,6 +25,7 @@ struct Suite {
 constexpr int kSkipped = 77;
 
 constexpr Suite kSuites[] = {
+    {"crypto", CryptoSuite},
     {"dib", DibSuite},
     {"drop", DropSuite},
     {"file_types", FileTypesSuite},
