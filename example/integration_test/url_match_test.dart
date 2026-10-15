@@ -256,4 +256,17 @@ void main() {
       ),
     ]);
   });
+
+  testWidgets('a bare domain glued after Thai letters leaves them out', (
+    tester,
+  ) async {
+    expect(XUrl.match('ข้อมูลที่example.com'), const [
+      UrlMatch(
+        start: 9,
+        end: 20,
+        url: 'http://example.com',
+        kind: UrlMatchKind.web,
+      ),
+    ]);
+  });
 }

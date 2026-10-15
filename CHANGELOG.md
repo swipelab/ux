@@ -85,16 +85,17 @@
   `SetThreadExecutionState` until it is released or the window is destroyed.
 - **XWindow logs focus.** Each focus event logs `focused: <bool>` at info
   level, tagged `window`.
-- **A bare domain leaves out the CJK letters glued to it.** On Android and
-  Windows, a host in `XUrl.match` ends at a change between CJK letters and
-  other characters inside a label, and leaves out the CJK labels that begin or
-  end it and the `.` beside them, as on macOS, so a domain written straight
-  before, after or between Chinese, Japanese or Korean text opens the right
-  host: `访问example.com，然后`, `example.com然后` and `请看example.com.谢谢`
-  link `http://example.com`, and `访问example.com和google.com` links
-  `http://example.com` and `http://google.com`. A host that begins or ends
-  with a CJK label beside labels of other characters, such as `例子.com` or
-  `example.中国`, is not linked, as on macOS. A CJK label between a host's
+- **A bare domain leaves out the letters glued to it.** On Android and
+  Windows, a host in `XUrl.match` ends at a change between Chinese, Japanese,
+  Korean, Thai, Lao, Khmer or Myanmar letters and other characters inside a
+  label, and leaves out the labels in these scripts that begin or end it and
+  the `.` beside them, so a domain written straight before, after or between
+  such text opens the right host: `访问example.com，然后`, `example.com然后`,
+  `请看example.com.谢谢` and `ข้อมูลที่example.com` link `http://example.com`,
+  and `访问example.com和google.com` links `http://example.com` and
+  `http://google.com`, as on macOS. A host that begins or ends with a label in
+  these scripts beside labels of other characters, such as `例子.com` or
+  `example.中国`, is not linked, as on macOS. Such a label between a host's
   other labels stays in it, as in `www.例子.com`.
 - **A web link keeps the slash that ends it.** On Android and Windows, a web
   match that text follows keeps its path's trailing `/`, the other path
