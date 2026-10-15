@@ -1,4 +1,8 @@
 ### 0.18.0
+- **A video export cancelled as it starts ends cancelled.** On iOS and macOS,
+  `XVideoExportSession.cancel` fails `done` with `cancelled` and leaves no file
+  whenever it comes after `XVideoExporter.start`, right after it included, on
+  the pass-through and the re-encoding path, as on Android and Windows.
 - **Windows captures from cameras.** `uxAvailableCameras` lists Windows's
   video capture devices, each as the back lens with a `sensorOrientation` of 0,
   as macOS lists an external camera, and `XCameraController` previews, takes

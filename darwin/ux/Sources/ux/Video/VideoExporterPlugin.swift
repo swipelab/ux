@@ -70,8 +70,28 @@ public class UxVideoExporterPlugin: NSObject, NativePlugin, FlutterStreamHandler
         }
     }
 
-    private func fail(_ sessionId: Int, _ code: String, _ message: String) {
-        emit(["sessionId": sessionId, "type": "error", "code": code, "message": message])
+    /// Ends [task]'s session on the main queue with [event], unless a cancel
+    /// reached [task] first, which ends it as cancelled and deletes its output.
+    private func finish(_ sessionId: Int, _ task: ExportTask, _ event: [String: Any]) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            task.progressTimer?.cancel()
+            self.sessions[sessionId] = nil
+            if task.cancelled {
+                try? FileManager.default.removeItem(atPath: task.outPath)
+                self.eventSink?(Self.errorEvent(sessionId, "cancelled", "export cancelled"))
+            } else {
+                self.eventSink?(event)
+            }
+        }
+    }
+
+    private func fail(_ sessionId: Int, _ task: ExportTask, _ code: String, _ message: String) {
+        finish(sessionId, task, Self.errorEvent(sessionId, code, message))
+    }
+
+    private static func errorEvent(_ sessionId: Int, _ code: String, _ message: String) -> [String: Any] {
+        ["sessionId": sessionId, "type": "error", "code": code, "message": message]
     }
 
     private func start(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -90,13 +110,15 @@ public class UxVideoExporterPlugin: NSObject, NativePlugin, FlutterStreamHandler
         let videoBitrate = (args["videoBitrate"] as? NSNumber)?.intValue
         let overlayPath = args["overlayPath"] as? String
 
+        let task = ExportTask(outPath: outPath)
+        sessions[sessionId] = task
         result(nil)
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self else { return }
             let asset = AVURLAsset(url: URL(fileURLWithPath: path))
             guard let videoTrack = asset.tracks(withMediaType: .video).first else {
-                return self.fail(sessionId, "no_video_track", "no video track in \(path)")
+                return self.fail(sessionId, task, "no_video_track", "no video track in \(path)")
             }
 
             let fullDuration = asset.duration
@@ -104,7 +126,7 @@ public class UxVideoExporterPlugin: NSObject, NativePlugin, FlutterStreamHandler
             let endTime = trimEndMs.map { CMTime(value: $0, timescale: 1000) } ?? fullDuration
             let range = CMTimeRange(start: startTime, end: CMTimeMinimum(endTime, fullDuration))
             guard range.duration.seconds > 0 else {
-                return self.fail(sessionId, "bad_trim", "empty trim range")
+                return self.fail(sessionId, task, "bad_trim", "empty trim range")
             }
 
             // 0-based composition: the trimmed range inserted at .zero so
@@ -120,7 +142,7 @@ public class UxVideoExporterPlugin: NSObject, NativePlugin, FlutterStreamHandler
                     try compAudio?.insertTimeRange(range, of: audioTrack, at: .zero)
                 }
             } catch {
-                return self.fail(sessionId, "compose_failed", error.localizedDescription)
+                return self.fail(sessionId, task, "compose_failed", error.localizedDescription)
             }
 
             let durationMs = Int((range.duration.seconds * 1000).rounded())
@@ -128,7 +150,7 @@ public class UxVideoExporterPlugin: NSObject, NativePlugin, FlutterStreamHandler
             if let transform, transform.count == 9,
                let outWidth, let outHeight, let compVideo {
                 self.exportTransformed(
-                    sessionId: sessionId, composition: composition,
+                    sessionId: sessionId, task: task, composition: composition,
                     compVideo: compVideo, sourceTransform: Self.uprightTransform(of: videoTrack),
                     affine: transform, outWidth: outWidth, outHeight: outHeight,
                     videoBitrate: videoBitrate ?? 3_000_000, hasAudio: !removeAudio,
@@ -137,7 +159,7 @@ public class UxVideoExporterPlugin: NSObject, NativePlugin, FlutterStreamHandler
             } else {
                 compVideo?.preferredTransform = videoTrack.preferredTransform
                 self.exportPassthrough(
-                    sessionId: sessionId, composition: composition,
+                    sessionId: sessionId, task: task, composition: composition,
                     videoTrack: videoTrack, outPath: outPath, durationMs: durationMs)
             }
         }
@@ -146,13 +168,13 @@ public class UxVideoExporterPlugin: NSObject, NativePlugin, FlutterStreamHandler
     // MARK: - Passthrough (trim / mute) — lossless remux
 
     private func exportPassthrough(
-        sessionId: Int, composition: AVMutableComposition,
+        sessionId: Int, task: ExportTask, composition: AVMutableComposition,
         videoTrack: AVAssetTrack, outPath: String, durationMs: Int
     ) {
         guard let session = AVAssetExportSession(
             asset: composition, presetName: AVAssetExportPresetPassthrough
         ) else {
-            return fail(sessionId, "session_failed", "could not create export session")
+            return fail(sessionId, task, "session_failed", "could not create export session")
         }
 
         let outUrl = URL(fileURLWithPath: outPath)
@@ -164,9 +186,6 @@ public class UxVideoExporterPlugin: NSObject, NativePlugin, FlutterStreamHandler
         let outWidth = Int(abs(natural.width).rounded())
         let outHeight = Int(abs(natural.height).rounded())
 
-        let task = ExportTask(outPath: outPath) { session.cancelExport() }
-        DispatchQueue.main.async { self.sessions[sessionId] = task }
-
         let timer = DispatchSource.makeTimerSource(queue: .main)
         timer.schedule(deadline: .now() + 0.1, repeating: 0.1)
         timer.setEventHandler { [weak self, weak session] in
@@ -174,34 +193,34 @@ public class UxVideoExporterPlugin: NSObject, NativePlugin, FlutterStreamHandler
             self?.emit(["sessionId": sessionId, "type": "progress", "value": Double(session.progress)])
         }
         timer.resume()
-        task.progressTimer = timer
 
-        session.exportAsynchronously { [weak self] in
-            guard let self else { return }
-            DispatchQueue.main.async {
-                self.sessions[sessionId]?.progressTimer?.cancel()
-                self.sessions[sessionId] = nil
+        // exportAsynchronously raises after a cancelExport, so the abort attaches after it.
+        DispatchQueue.main.async {
+            task.progressTimer = timer
+            session.exportAsynchronously { [weak self] in
+                guard let self else { return }
+                switch session.status {
+                case .completed:
+                    self.finish(sessionId, task, [
+                        "sessionId": sessionId, "type": "done", "path": outPath,
+                        "width": outWidth, "height": outHeight, "durationMs": durationMs,
+                    ])
+                case .cancelled:
+                    try? FileManager.default.removeItem(at: outUrl)
+                    self.fail(sessionId, task, "cancelled", "export cancelled")
+                default:
+                    try? FileManager.default.removeItem(at: outUrl)
+                    self.fail(sessionId, task, "export_failed", session.error?.localizedDescription ?? "unknown")
+                }
             }
-            switch session.status {
-            case .completed:
-                self.emit([
-                    "sessionId": sessionId, "type": "done", "path": outPath,
-                    "width": outWidth, "height": outHeight, "durationMs": durationMs,
-                ])
-            case .cancelled:
-                try? FileManager.default.removeItem(at: outUrl)
-                self.fail(sessionId, "cancelled", "export cancelled")
-            default:
-                try? FileManager.default.removeItem(at: outUrl)
-                self.fail(sessionId, "export_failed", session.error?.localizedDescription ?? "unknown")
-            }
+            task.attach { session.cancelExport() }
         }
     }
 
     // MARK: - Transform (crop / rotate / flip) — re-encode
 
     private func exportTransformed(
-        sessionId: Int, composition: AVMutableComposition,
+        sessionId: Int, task: ExportTask, composition: AVMutableComposition,
         compVideo: AVMutableCompositionTrack, sourceTransform: CGAffineTransform,
         affine: [Double], outWidth: Int, outHeight: Int, videoBitrate: Int,
         hasAudio: Bool, overlayPath: String?, outPath: String, durationMs: Int
@@ -244,7 +263,7 @@ public class UxVideoExporterPlugin: NSObject, NativePlugin, FlutterStreamHandler
             reader = try AVAssetReader(asset: composition)
             writer = try AVAssetWriter(url: outUrl, fileType: .mp4)
         } catch {
-            return fail(sessionId, "session_failed", error.localizedDescription)
+            return fail(sessionId, task, "session_failed", error.localizedDescription)
         }
 
         let videoOut = AVAssetReaderVideoCompositionOutput(
@@ -253,7 +272,7 @@ public class UxVideoExporterPlugin: NSObject, NativePlugin, FlutterStreamHandler
         videoOut.videoComposition = videoComposition
         videoOut.alwaysCopiesSampleData = false
         guard reader.canAdd(videoOut) else {
-            return fail(sessionId, "session_failed", "reader rejects video output")
+            return fail(sessionId, task, "session_failed", "reader rejects video output")
         }
         reader.add(videoOut)
 
@@ -277,7 +296,7 @@ public class UxVideoExporterPlugin: NSObject, NativePlugin, FlutterStreamHandler
         ])
         videoIn.expectsMediaDataInRealTime = false
         guard writer.canAdd(videoIn) else {
-            return fail(sessionId, "session_failed", "writer rejects video input")
+            return fail(sessionId, task, "session_failed", "writer rejects video input")
         }
         writer.add(videoIn)
 
@@ -295,7 +314,7 @@ public class UxVideoExporterPlugin: NSObject, NativePlugin, FlutterStreamHandler
 
         guard reader.startReading(), writer.startWriting() else {
             try? FileManager.default.removeItem(at: outUrl)
-            return fail(sessionId, "session_failed",
+            return fail(sessionId, task, "session_failed",
                         reader.error?.localizedDescription ?? writer.error?.localizedDescription ?? "start failed")
         }
         writer.startSession(atSourceTime: .zero)
@@ -321,36 +340,34 @@ public class UxVideoExporterPlugin: NSObject, NativePlugin, FlutterStreamHandler
         }
         pumps.forEach { $0.start() }
 
-        let task = ExportTask(outPath: outPath) { [pumps] in
-            reader.cancelReading()
-            writer.cancelWriting()
-            pumps.forEach { $0.cancel() }
+        DispatchQueue.main.async {
+            task.attach { [pumps] in
+                pumps.forEach { $0.cancel() }
+                reader.cancelReading()
+                writer.cancelWriting()
+            }
         }
-        DispatchQueue.main.async { self.sessions[sessionId] = task }
 
         group.notify(queue: .main) { [weak self] in
             guard let self else { return }
-            self.sessions[sessionId] = nil
             if writer.status == .cancelled {
                 try? FileManager.default.removeItem(at: outUrl)
-                return self.fail(sessionId, "cancelled", "export cancelled")
+                return self.fail(sessionId, task, "cancelled", "export cancelled")
             }
             if reader.status == .failed {
                 try? FileManager.default.removeItem(at: outUrl)
-                return self.fail(sessionId, "export_failed", reader.error?.localizedDescription ?? "read failed")
+                return self.fail(sessionId, task, "export_failed", reader.error?.localizedDescription ?? "read failed")
             }
             writer.finishWriting {
-                DispatchQueue.main.async {
-                    if writer.status == .completed {
-                        self.emit([
-                            "sessionId": sessionId, "type": "done", "path": outPath,
-                            "width": outWidth, "height": outHeight, "durationMs": durationMs,
-                        ])
-                    } else {
-                        try? FileManager.default.removeItem(at: outUrl)
-                        self.fail(sessionId, "export_failed",
-                                  writer.error?.localizedDescription ?? "write failed")
-                    }
+                if writer.status == .completed {
+                    self.finish(sessionId, task, [
+                        "sessionId": sessionId, "type": "done", "path": outPath,
+                        "width": outWidth, "height": outHeight, "durationMs": durationMs,
+                    ])
+                } else {
+                    try? FileManager.default.removeItem(at: outUrl)
+                    self.fail(sessionId, task, "export_failed",
+                              writer.error?.localizedDescription ?? "write failed")
                 }
             }
         }
@@ -423,8 +440,8 @@ public class UxVideoExporterPlugin: NSObject, NativePlugin, FlutterStreamHandler
 
 /// Moves one reader output's samples into one writer input on [queue],
 /// holding [group] until the output runs dry, an append fails or [cancel]
-/// ends it. A cancelled writer never asks a waiting input for more data, so
-/// [cancel] finishes the pump itself. Its state is only touched on [queue].
+/// ends it. [cancel] returns with no append in flight, since a writer must not
+/// be cancelled during one. Its state is only touched on [queue].
 private final class SamplePump {
     init(
         output: AVAssetReaderOutput, input: AVAssetWriterInput,
@@ -457,7 +474,7 @@ private final class SamplePump {
     }
 
     func cancel() {
-        queue.async { [self] in finish() }
+        queue.sync { finish() }
     }
 
     private func finish() {
@@ -468,13 +485,25 @@ private final class SamplePump {
     }
 }
 
+/// One export session's state, touched only on the main queue. A cancel that
+/// comes before [attach] aborts the pipeline as soon as it attaches.
 private final class ExportTask {
-    init(outPath: String, cancel: @escaping () -> Void) {
+    init(outPath: String) {
         self.outPath = outPath
-        self.cancel = cancel
     }
 
     let outPath: String
-    let cancel: () -> Void
+    private(set) var cancelled = false
+    private var abort: (() -> Void)?
     var progressTimer: DispatchSourceTimer?
+
+    func attach(abort: @escaping () -> Void) {
+        self.abort = abort
+        if cancelled { abort() }
+    }
+
+    func cancel() {
+        cancelled = true
+        abort?()
+    }
 }
