@@ -297,11 +297,9 @@ std::optional<jint> host_glue(const jchar* chars, jint start, jint end) {
 }
 
 // Whether the web match [start, end) has the TLD it needs: a match with a
-// scheme or an IP address needs none, and a host's last label of ASCII is one
-// when, lowercased, it is one of kTlds. A last label with another character
-// passes, since kTlds holds an IDN TLD as punycode. Patterns.WEB_URL takes any
-// letters after a host's last '.' for its TLD, so a word a period glues to a
-// bare domain joins it.
+// scheme or an IP address needs none, and a host's last label is one where
+// IsTld holds. Patterns.WEB_URL takes any letters after a host's last '.' for
+// its TLD, so a word a period glues to a bare domain joins it.
 bool has_tld(const jchar* chars, jint start, jint end) {
   jint host_end = start;
   while (host_end < end && std::u16string_view(u":/?").find(chars[host_end]) == std::u16string_view::npos) {
@@ -313,12 +311,8 @@ bool has_tld(const jchar* chars, jint start, jint end) {
   }
   jint label = host_end;
   while (label > start && chars[label - 1] != u'.') label--;
-  std::string tld;
-  for (jint i = label; i < host_end; i++) {
-    if (chars[i] >= 0x80) return true;
-    tld.push_back((char)std::tolower(chars[i]));
-  }
-  return std::isdigit((unsigned char)tld[0]) || IsTld(tld);
+  return (chars[label] >= u'0' && chars[label] <= u'9') ||
+         IsTld(std::u16string(chars + label, chars + host_end));
 }
 
 bool is_path_delimiter(jchar c) {
