@@ -15,8 +15,9 @@
 namespace ux {
 
 // `ux/file`: `pick` and `pickMultiple` through the open dialog, `open` with
-// the file's associated application, `saveCopy` through the save dialog, and
-// `showInFolder` in Explorer.
+// the file's associated application, `saveCopy` through the save dialog,
+// `showInFolder` in Explorer, and `videoThumbnail` and `videoThumbnails`
+// through Media Foundation.
 class FilePlugin : public flutter::Plugin {
  public:
   explicit FilePlugin(flutter::PluginRegistrarWindows* registrar);
@@ -32,6 +33,8 @@ class FilePlugin : public flutter::Plugin {
   void Open(const std::wstring& path, Result& result);
   void SaveCopy(const std::wstring& path, std::shared_ptr<Result> result);
   void ShowInFolder(const std::wstring& path, Result& result);
+  void VideoThumbnail(const std::wstring& path, const flutter::EncodableMap* args, std::unique_ptr<Result> result);
+  void VideoThumbnails(const std::wstring& path, const flutter::EncodableMap* args, std::unique_ptr<Result> result);
 
   // The window that owns the dialogs: the top-level window of the Flutter view.
   HWND Owner() const;

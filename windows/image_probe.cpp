@@ -8,7 +8,8 @@
 #include <algorithm>
 #include <utility>
 
-#include "wic.h"
+#include "com_scope.h"
+#include "raster.h"
 
 namespace ux {
 
@@ -142,10 +143,10 @@ std::optional<ImageThumbnail> ProbeThumbnail(const std::wstring& path, uint64_t 
   ComScope com;
   Frame frame;
   if (FAILED(Open(path, frame))) return std::nullopt;
-  const UINT longest = (std::max)(frame.width, frame.height);
-  const auto target = static_cast<UINT>((std::min)(max_longest, uint64_t{longest}));
+  const UINT longest = std::max(frame.width, frame.height);
+  const auto target = static_cast<UINT>(std::min(max_longest, uint64_t{longest}));
   const auto scaled = [&](UINT length) {
-    return (std::max)(1u, static_cast<UINT>((uint64_t{length} * target + longest / 2) / longest));
+    return std::max(1u, static_cast<UINT>((uint64_t{length} * target + longest / 2) / longest));
   };
   const UINT width = scaled(frame.width);
   const UINT height = scaled(frame.height);
