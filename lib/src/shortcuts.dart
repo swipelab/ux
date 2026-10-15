@@ -7,11 +7,7 @@ import 'package:flutter/services.dart';
 /// the OS to offer in the share sheet.
 class XShortcutTarget {
   /// Binds the target's routing id to what the share sheet shows.
-  const XShortcutTarget({
-    required this.id,
-    required this.label,
-    this.iconPath,
-  });
+  const XShortcutTarget({required this.id, required this.label, this.iconPath});
 
   /// Stable identifier. The share sheet hands it back as `EXTRA_SHORTCUT_ID`
   /// (Android) or as the donated intent's `conversationIdentifier` (iOS), so
@@ -27,10 +23,10 @@ class XShortcutTarget {
 
   /// This target in the channel's wire shape.
   Map<String, Object?> toMap() => {
-        'id': id,
-        'label': label,
-        'iconPath': iconPath,
-      };
+    'id': id,
+    'label': label,
+    'iconPath': iconPath,
+  };
 }
 
 /// The per-conversation targets the system share sheet offers above the app

@@ -18,7 +18,5 @@ double get editorSafeAreaBottom => insets.viewPadding.bottom;
 /// Keyboard height net of the safe-area bottom it covers — how far
 /// bottom-anchored chrome rides up for its visible edge to sit on the
 /// keyboard's top.
-double get editorKeyboardLift => math.max(
-  0.0,
-  insets.keyboardInset - editorSafeAreaBottom,
-);
+double get editorKeyboardLift =>
+    math.max(0.0, insets.keyboardInset - editorSafeAreaBottom);

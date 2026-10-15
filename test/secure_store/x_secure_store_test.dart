@@ -91,16 +91,21 @@ void main() {
     messenger.setMockMethodCallHandler(methods, (call) async {
       calls.add(call);
       if (call.method == 'write') {
-        throw PlatformException(code: 'store_failed', message: 'OSStatus -25299');
+        throw PlatformException(
+          code: 'store_failed',
+          message: 'OSStatus -25299',
+        );
       }
       return null;
     });
 
     await expectLater(
       store.write('session', 'token-1'),
-      throwsA(isA<XSecureStoreException>()
-          .having((e) => e.code, 'code', 'store_failed')
-          .having((e) => e.message, 'message', 'OSStatus -25299')),
+      throwsA(
+        isA<XSecureStoreException>()
+            .having((e) => e.code, 'code', 'store_failed')
+            .having((e) => e.message, 'message', 'OSStatus -25299'),
+      ),
     );
     expect(await store.read('session'), isNull);
   });
@@ -117,8 +122,13 @@ void main() {
     ]) {
       await expectLater(
         command(),
-        throwsA(isA<XSecureStoreException>()
-            .having((e) => e.code, 'code', 'unsupported')),
+        throwsA(
+          isA<XSecureStoreException>().having(
+            (e) => e.code,
+            'code',
+            'unsupported',
+          ),
+        ),
       );
     }
     expect(calls, isEmpty);

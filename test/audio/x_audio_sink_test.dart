@@ -52,10 +52,10 @@ void main() {
     });
 
     Future<void> sendEvent(Object? event) => messenger.handlePlatformMessage(
-          'ux/audio_sink/events',
-          const StandardMethodCodec().encodeSuccessEnvelope(event),
-          (_) {},
-        );
+      'ux/audio_sink/events',
+      const StandardMethodCodec().encodeSuccessEnvelope(event),
+      (_) {},
+    );
 
     List<String> methodNames() => [for (final call in calls) call.method];
 
@@ -237,10 +237,15 @@ void main() {
 
       await expectLater(
         sink.enqueue(_pcm([1])),
-        throwsA(isA<XAudioSinkException>()
-            .having((e) => e.code, 'code', 'no_output_device')
-            .having((e) => e.message, 'message',
-                '16 kHz mono PCM16 unavailable')),
+        throwsA(
+          isA<XAudioSinkException>()
+              .having((e) => e.code, 'code', 'no_output_device')
+              .having(
+                (e) => e.message,
+                'message',
+                '16 kHz mono PCM16 unavailable',
+              ),
+        ),
       );
     });
 
@@ -252,8 +257,13 @@ void main() {
       expect(calls, isEmpty);
       await expectLater(
         sink.enqueue(_pcm([1])),
-        throwsA(isA<XAudioSinkException>()
-            .having((e) => e.code, 'code', 'unsupported')),
+        throwsA(
+          isA<XAudioSinkException>().having(
+            (e) => e.code,
+            'code',
+            'unsupported',
+          ),
+        ),
       );
       await sink.flush();
       expect(calls, isEmpty);

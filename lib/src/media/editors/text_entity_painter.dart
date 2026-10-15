@@ -89,12 +89,16 @@ class TextEntityLayout {
 
   /// [TextEntity.displayFontSize] against the source image.
   final double fontSize;
+
   /// Horizontal inset of the glyphs from each edge.
   final double padding;
+
   /// Width of the outline a stroke style draws.
   final double strokeWidth;
+
   /// Colour of the frame behind the lines; absent when the style has none.
   final Color? frameColor;
+
   /// The non-empty lines, top to bottom.
   final List<TextEntityLine> lines;
 

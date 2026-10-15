@@ -135,24 +135,22 @@ class XVideoPlayerValue {
     double? playbackSpeed,
     List<XDurationRange>? buffered,
     Object? errorDescription = _unset,
-  }) =>
-      XVideoPlayerValue(
-        isInitialized: isInitialized ?? this.isInitialized,
-        isPlaying: isPlaying ?? this.isPlaying,
-        isBuffering: isBuffering ?? this.isBuffering,
-        isLooping: isLooping ?? this.isLooping,
-        rotationQuarterTurns:
-            rotationQuarterTurns ?? this.rotationQuarterTurns,
-        position: position ?? this.position,
-        duration: duration ?? this.duration,
-        size: size ?? this.size,
-        volume: volume ?? this.volume,
-        playbackSpeed: playbackSpeed ?? this.playbackSpeed,
-        buffered: buffered ?? this.buffered,
-        errorDescription: identical(errorDescription, _unset)
-            ? this.errorDescription
-            : errorDescription as String?,
-      );
+  }) => XVideoPlayerValue(
+    isInitialized: isInitialized ?? this.isInitialized,
+    isPlaying: isPlaying ?? this.isPlaying,
+    isBuffering: isBuffering ?? this.isBuffering,
+    isLooping: isLooping ?? this.isLooping,
+    rotationQuarterTurns: rotationQuarterTurns ?? this.rotationQuarterTurns,
+    position: position ?? this.position,
+    duration: duration ?? this.duration,
+    size: size ?? this.size,
+    volume: volume ?? this.volume,
+    playbackSpeed: playbackSpeed ?? this.playbackSpeed,
+    buffered: buffered ?? this.buffered,
+    errorDescription: identical(errorDescription, _unset)
+        ? this.errorDescription
+        : errorDescription as String?,
+  );
 
   static const _unset = Object();
 }
@@ -225,14 +223,14 @@ class XVideoPlayerController extends ChangeNotifier
 
   Future<void> _initInternal() async {
     try {
-      final result = await XVideoPlayerBackend.instance.create(
-        uri: _uri,
-      );
+      final result = await XVideoPlayerBackend.instance.create(uri: _uri);
       if (_disposed) await _disposeInstance(result.handle);
       _throwIfDisposed('initialize');
       _handle = result.handle;
       _textureId = result.textureId;
-      _eventsSub = XVideoPlayerBackend.instance.events(result.handle).listen(
+      _eventsSub = XVideoPlayerBackend.instance
+          .events(result.handle)
+          .listen(
             _onEvent,
             onError: (Object error, StackTrace? stack) {
               _setValue = _value.copyWith(errorDescription: error.toString());
@@ -248,13 +246,16 @@ class XVideoPlayerController extends ChangeNotifier
         duration: metadata.duration,
         rotationQuarterTurns: metadata.rotationQuarterTurns,
       );
-      _log.i('initialized', fields: {
-        'handle': result.handle,
-        'width': metadata.size.width,
-        'height': metadata.size.height,
-        'durationMs': metadata.duration.inMilliseconds,
-        'rotationQuarterTurns': metadata.rotationQuarterTurns,
-      });
+      _log.i(
+        'initialized',
+        fields: {
+          'handle': result.handle,
+          'width': metadata.size.width,
+          'height': metadata.size.height,
+          'durationMs': metadata.duration.inMilliseconds,
+          'rotationQuarterTurns': metadata.rotationQuarterTurns,
+        },
+      );
     } catch (_) {
       // Tear down anything the native side allocated mid-failure so a
       // retry isn't blocked by leaked resources.
@@ -266,11 +267,11 @@ class XVideoPlayerController extends ChangeNotifier
   void _onEvent(XVideoPlayerEvent event) {
     switch (event) {
       case XVideoPlayerStateChanged(
-          :final isPlaying,
-          :final isBuffering,
-          :final position,
-          :final buffered
-        ):
+        :final isPlaying,
+        :final isBuffering,
+        :final position,
+        :final buffered,
+      ):
         _setValue = _value.copyWith(
           isPlaying: isPlaying ?? _value.isPlaying,
           isBuffering: isBuffering ?? _value.isBuffering,
@@ -305,12 +306,9 @@ class XVideoPlayerController extends ChangeNotifier
     final clamped = position < Duration.zero
         ? Duration.zero
         : position > _value.duration && _value.duration > Duration.zero
-            ? _value.duration
-            : position;
-    await _send(
-      'seekTo',
-      (backend, handle) => backend.seekTo(handle, clamped),
-    );
+        ? _value.duration
+        : position;
+    await _send('seekTo', (backend, handle) => backend.seekTo(handle, clamped));
     _setValue = _value.copyWith(position: clamped);
   }
 

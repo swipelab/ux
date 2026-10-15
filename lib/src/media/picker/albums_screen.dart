@@ -156,7 +156,8 @@ class _AlbumListState extends State<_AlbumList> {
         final album = widget.albums[index];
         return _AlbumRow(
           album: album,
-          isSelected: album.id == widget.selectedId ||
+          isSelected:
+              album.id == widget.selectedId ||
               (album.id == 'recents' && widget.selectedId == null),
           onPress: () => widget.onSelect(album),
         );
@@ -182,10 +183,7 @@ class _AlbumRow extends StatelessWidget {
       fade: 0.5,
       onPress: onPress,
       child: Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: space.md,
-          vertical: space.xs,
-        ),
+        padding: EdgeInsets.symmetric(horizontal: space.md, vertical: space.xs),
         child: Row(
           children: [
             ClipRRect(
@@ -215,20 +213,13 @@ class _AlbumRow extends StatelessWidget {
                   SizedBox(height: 2),
                   Text(
                     '${album.count}',
-                    style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: 13,
-                    ),
+                    style: TextStyle(color: colors.textSecondary, fontSize: 13),
                   ),
                 ],
               ),
             ),
             if (isSelected)
-              Icon(
-                CupertinoIcons.checkmark,
-                color: colors.brand,
-                size: 20,
-              ),
+              Icon(CupertinoIcons.checkmark, color: colors.brand, size: 20),
           ],
         ),
       ),

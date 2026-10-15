@@ -46,8 +46,9 @@ The full text of the LGPL v2.1 follows.''';
 Stream<LicenseEntry> _ffmpegLicenseEntries() async* {
   String lgpl;
   try {
-    lgpl = await rootBundle
-        .loadString('packages/ux/assets/licenses/ffmpeg_LGPL-2.1.txt');
+    lgpl = await rootBundle.loadString(
+      'packages/ux/assets/licenses/ffmpeg_LGPL-2.1.txt',
+    );
   } catch (error, stack) {
     // A missing asset must never break license collection; the attribution
     // paragraph below still names FFmpeg and its license.
@@ -57,8 +58,7 @@ Stream<LicenseEntry> _ffmpegLicenseEntries() async* {
     lgpl = '';
   }
 
-  yield LicenseEntryWithLineBreaks(
-    const <String>['FFmpeg (libavcodec, libavutil, libswresample)'],
-    lgpl.isEmpty ? _attribution : '$_attribution\n\n$lgpl',
-  );
+  yield LicenseEntryWithLineBreaks(const <String>[
+    'FFmpeg (libavcodec, libavutil, libswresample)',
+  ], lgpl.isEmpty ? _attribution : '$_attribution\n\n$lgpl');
 }

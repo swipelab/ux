@@ -19,8 +19,7 @@ class ToolTransition extends InheritedWidget {
 
   /// The nearest [ToolTransition]'s animation; stopped at 1 when there is none.
   static Animation<double> of(BuildContext context) {
-    final widget = context
-        .dependOnInheritedWidgetOfExactType<ToolTransition>();
+    final widget = context.dependOnInheritedWidgetOfExactType<ToolTransition>();
     return widget?.animation ?? const AlwaysStoppedAnimation<double>(1.0);
   }
 

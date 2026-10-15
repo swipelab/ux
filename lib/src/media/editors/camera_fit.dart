@@ -33,8 +33,10 @@ class CameraFit {
 
   /// Translation along x.
   final double tx;
+
   /// Translation along y.
   final double ty;
+
   /// Uniform scale.
   final double scale;
 
@@ -47,11 +49,8 @@ class CameraFit {
   /// matrix has no rotation and `m[0] == m[5]` — true for the host
   /// camera and the draw viewer (both built by composing translate
   /// and uniform-scale only).
-  factory CameraFit.fromMatrix(vmath.Matrix4 m) => CameraFit(
-        tx: m.storage[12],
-        ty: m.storage[13],
-        scale: m.storage[0],
-      );
+  factory CameraFit.fromMatrix(vmath.Matrix4 m) =>
+      CameraFit(tx: m.storage[12], ty: m.storage[13], scale: m.storage[0]);
 
   /// The element-wise sum.
   CameraFit operator +(CameraFit o) =>

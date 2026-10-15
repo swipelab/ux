@@ -58,13 +58,12 @@ class _TouchState extends State<Touch> {
       onTapDown: widget.onPress == null ? null : _handleTapDown,
       onTapCancel: widget.onPress == null ? null : _handleTapCancel,
       onTapUp: widget.onPress == null ? null : _handleTapUp,
-      onLongPressDown:
-          widget.onLongPress == null ? null : _handleLongPressDown,
+      onLongPressDown: widget.onLongPress == null ? null : _handleLongPressDown,
       onLongPress: widget.onLongPress == null ? null : _handleLongPress,
-      onLongPressCancel:
-          widget.onLongPress == null ? null : _handleLongPressCancel,
-      onLongPressUp:
-          widget.onLongPress == null ? null : _handleLongPressUp,
+      onLongPressCancel: widget.onLongPress == null
+          ? null
+          : _handleLongPressCancel,
+      onLongPressUp: widget.onLongPress == null ? null : _handleLongPressUp,
       behavior: HitTestBehavior.translucent,
       child: AnimatedContainer(
         duration: kAnimation,

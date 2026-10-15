@@ -14,8 +14,8 @@ class MethodChannelXVideoPlayerBackend implements XVideoPlayerBackend {
   static const _channel = MethodChannel('ux/video');
   static const _eventsChannel = EventChannel('ux/video/events');
 
-  late final Stream<Object?> _rawEvents =
-      _eventsChannel.receiveBroadcastStream();
+  late final Stream<Object?> _rawEvents = _eventsChannel
+      .receiveBroadcastStream();
 
   @override
   Future<XVideoPlayerCreateResult> create({required String uri}) async {
@@ -36,8 +36,7 @@ class MethodChannelXVideoPlayerBackend implements XVideoPlayerBackend {
         (s['height'] as num).toDouble(),
       ),
       duration: Duration(milliseconds: (m['durationMs'] as num).toInt()),
-      rotationQuarterTurns:
-          (m['rotationQuarterTurns'] as num?)?.toInt() ?? 0,
+      rotationQuarterTurns: (m['rotationQuarterTurns'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -46,19 +45,16 @@ class MethodChannelXVideoPlayerBackend implements XVideoPlayerBackend {
       _invokeVoid('dispose', {'handle': handle});
 
   @override
-  Future<void> play(int handle) =>
-      _invokeVoid('play', {'handle': handle});
+  Future<void> play(int handle) => _invokeVoid('play', {'handle': handle});
 
   @override
-  Future<void> pause(int handle) =>
-      _invokeVoid('pause', {'handle': handle});
+  Future<void> pause(int handle) => _invokeVoid('pause', {'handle': handle});
 
   @override
-  Future<void> seekTo(int handle, Duration position) =>
-      _invokeVoid('seekTo', {
-        'handle': handle,
-        'positionMs': position.inMilliseconds,
-      });
+  Future<void> seekTo(int handle, Duration position) => _invokeVoid('seekTo', {
+    'handle': handle,
+    'positionMs': position.inMilliseconds,
+  });
 
   @override
   Future<void> setLooping(int handle, bool loop) =>
@@ -97,10 +93,7 @@ class MethodChannelXVideoPlayerBackend implements XVideoPlayerBackend {
         final s = (m['size'] as Map).cast<Object?, Object?>();
         return XVideoPlayerSizeChanged(
           handle,
-          Size(
-            (s['width'] as num).toDouble(),
-            (s['height'] as num).toDouble(),
-          ),
+          Size((s['width'] as num).toDouble(), (s['height'] as num).toDouble()),
         );
       case 'completed':
         return XVideoPlayerCompleted(handle);

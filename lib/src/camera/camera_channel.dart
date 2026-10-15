@@ -46,14 +46,16 @@ class MethodChannelXCameraBackend implements XCameraBackend {
   @override
   Future<List<XCameraDescription>> availableCameras() async {
     final raw = await _invoke<List<Object?>>('availableCameras');
-    return raw.map((e) {
-      final m = (e as Map).cast<Object?, Object?>();
-      return XCameraDescription(
-        id: m['id'] as String,
-        lens: _parseLens(m['lens'] as String?),
-        sensorOrientation: (m['sensorOrientation'] as num?)?.toInt() ?? 0,
-      );
-    }).toList(growable: false);
+    return raw
+        .map((e) {
+          final m = (e as Map).cast<Object?, Object?>();
+          return XCameraDescription(
+            id: m['id'] as String,
+            lens: _parseLens(m['lens'] as String?),
+            sensorOrientation: (m['sensorOrientation'] as num?)?.toInt() ?? 0,
+          );
+        })
+        .toList(growable: false);
   }
 
   @override
@@ -110,20 +112,16 @@ class MethodChannelXCameraBackend implements XCameraBackend {
 
   @override
   Future<void> setFlashMode(int handle, XFlashMode mode) =>
-      _invokeVoid('setFlashMode', {
-        'handle': handle,
-        'mode': _flashArg(mode),
-      });
+      _invokeVoid('setFlashMode', {'handle': handle, 'mode': _flashArg(mode)});
 
   @override
   Future<void> lockCaptureOrientation(
     int handle,
     DeviceOrientation orientation,
-  ) =>
-      _invokeVoid('lockCaptureOrientation', {
-        'handle': handle,
-        'orientation': _orientationArg(orientation),
-      });
+  ) => _invokeVoid('lockCaptureOrientation', {
+    'handle': handle,
+    'orientation': _orientationArg(orientation),
+  });
 
   @override
   Future<void> unlockCaptureOrientation(int handle) =>
@@ -145,11 +143,10 @@ class MethodChannelXCameraBackend implements XCameraBackend {
   Future<void> startVideoRecording(
     int handle,
     DeviceOrientation snapshotOrientation,
-  ) =>
-      _invokeVoid('startVideoRecording', {
-        'handle': handle,
-        'snapshotOrientation': _orientationArg(snapshotOrientation),
-      });
+  ) => _invokeVoid('startVideoRecording', {
+    'handle': handle,
+    'snapshotOrientation': _orientationArg(snapshotOrientation),
+  });
 
   @override
   Future<XFile> stopVideoRecording(int handle) async {
@@ -166,10 +163,12 @@ class MethodChannelXCameraBackend implements XCameraBackend {
       _invoke<bool>('requestCameraPermission');
 
   @override
-  Future<bool> audioPermissionGranted() => _invoke<bool>('audioPermissionStatus');
+  Future<bool> audioPermissionGranted() =>
+      _invoke<bool>('audioPermissionStatus');
 
   @override
-  Future<bool> requestAudioPermission() => _invoke<bool>('requestAudioPermission');
+  Future<bool> requestAudioPermission() =>
+      _invoke<bool>('requestAudioPermission');
 
   @override
   Future<void> openSettings() => _invokeVoid('openSettings');
@@ -199,25 +198,16 @@ class MethodChannelXCameraBackend implements XCameraBackend {
           m['description'] as String?,
         );
       case 'sessionInterrupted':
-        return XCameraSessionInterrupted(
-          handle,
-          m['reason'] as String? ?? '',
-        );
+        return XCameraSessionInterrupted(handle, m['reason'] as String? ?? '');
       case 'sessionResumed':
         return XCameraSessionResumed(handle);
       case 'diagnostic':
-        return XCameraDiagnostic(
-          handle,
-          m['message'] as String? ?? '',
-        );
+        return XCameraDiagnostic(handle, m['message'] as String? ?? '');
       case 'previewSizeChanged':
         final s = (m['previewSize'] as Map).cast<Object?, Object?>();
         return XCameraPreviewSizeChanged(
           handle,
-          Size(
-            (s['width'] as num).toDouble(),
-            (s['height'] as num).toDouble(),
-          ),
+          Size((s['width'] as num).toDouble(), (s['height'] as num).toDouble()),
         );
       default:
         return XCameraSessionError(handle, 'unknown_event', null);
@@ -225,32 +215,32 @@ class MethodChannelXCameraBackend implements XCameraBackend {
   }
 
   static XCameraLens _parseLens(String? raw) => switch (raw) {
-        'front' => XCameraLens.front,
-        _ => XCameraLens.back,
-      };
+    'front' => XCameraLens.front,
+    _ => XCameraLens.back,
+  };
 
   static DeviceOrientation _parseOrientation(String? raw) => switch (raw) {
-        'landscapeLeft' => DeviceOrientation.landscapeLeft,
-        'landscapeRight' => DeviceOrientation.landscapeRight,
-        'portraitDown' => DeviceOrientation.portraitDown,
-        _ => DeviceOrientation.portraitUp,
-      };
+    'landscapeLeft' => DeviceOrientation.landscapeLeft,
+    'landscapeRight' => DeviceOrientation.landscapeRight,
+    'portraitDown' => DeviceOrientation.portraitDown,
+    _ => DeviceOrientation.portraitUp,
+  };
 
   static String _orientationArg(DeviceOrientation o) => switch (o) {
-        DeviceOrientation.portraitUp => 'portraitUp',
-        DeviceOrientation.landscapeLeft => 'landscapeLeft',
-        DeviceOrientation.portraitDown => 'portraitDown',
-        DeviceOrientation.landscapeRight => 'landscapeRight',
-      };
+    DeviceOrientation.portraitUp => 'portraitUp',
+    DeviceOrientation.landscapeLeft => 'landscapeLeft',
+    DeviceOrientation.portraitDown => 'portraitDown',
+    DeviceOrientation.landscapeRight => 'landscapeRight',
+  };
 
   static String _flashArg(XFlashMode m) => switch (m) {
-        XFlashMode.off => 'off',
-        XFlashMode.always => 'always',
-      };
+    XFlashMode.off => 'off',
+    XFlashMode.always => 'always',
+  };
 
   static String _presetArg(XResolutionPreset p) => switch (p) {
-        XResolutionPreset.high => 'high',
-      };
+    XResolutionPreset.high => 'high',
+  };
 
   // ---- channel adapter --------------------------------------------
 

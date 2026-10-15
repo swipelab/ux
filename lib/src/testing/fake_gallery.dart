@@ -29,15 +29,13 @@ class FakeXGalleryBackend implements XGalleryBackend {
     this.onSaveToLibrary,
     XAssetThumbnail Function(String assetId, int sizePx)? thumbnailFor,
     io.File Function(String assetId)? fileFor,
-  })  : _albums = List.unmodifiable(albums),
-        _assetsByAlbum = Map.unmodifiable(
-          assetsByAlbum.map(
-            (k, v) => MapEntry(k, List<XAsset>.unmodifiable(v)),
-          ),
-        ),
-        _recents = List.unmodifiable(recents),
-        _thumbnailFor = thumbnailFor ?? _defaultThumbnail,
-        _fileFor = fileFor ?? _defaultFile;
+  }) : _albums = List.unmodifiable(albums),
+       _assetsByAlbum = Map.unmodifiable(
+         assetsByAlbum.map((k, v) => MapEntry(k, List<XAsset>.unmodifiable(v))),
+       ),
+       _recents = List.unmodifiable(recents),
+       _thumbnailFor = thumbnailFor ?? _defaultThumbnail,
+       _fileFor = fileFor ?? _defaultFile;
 
   /// Mutable so tests can simulate user grant after `requestPermission`.
   XGalleryPermission permissionState;
@@ -62,6 +60,7 @@ class FakeXGalleryBackend implements XGalleryBackend {
   /// Optional hook fired on `requestPermission`. Default updates
   /// `permissionState` to [XGalleryPermission.granted].
   final XGalleryPermission Function()? onRequestPermission;
+
   /// Optional hook fired on `openSettings`.
   final void Function()? onOpenSettings;
 
@@ -71,17 +70,13 @@ class FakeXGalleryBackend implements XGalleryBackend {
   /// Optional hook deciding [saveToLibrary]'s outcome; defaults to
   /// [XGallerySaveStatus.saved].
   final XGallerySaveStatus Function(String path, XAssetKind kind)?
-      onSaveToLibrary;
+  onSaveToLibrary;
 
   /// Paths handed to [saveToLibrary], in call order.
   final List<String> savedToLibrary = [];
 
   static XAssetThumbnail _defaultThumbnail(String _, int sizePx) =>
-      XAssetThumbnail(
-        bytes: _placeholderPng,
-        width: sizePx,
-        height: sizePx,
-      );
+      XAssetThumbnail(bytes: _placeholderPng, width: sizePx, height: sizePx);
 
   static io.File _defaultFile(String assetId) => io.File('/dev/null/$assetId');
 
@@ -127,7 +122,7 @@ class FakeXGalleryBackend implements XGalleryBackend {
         ? source
         : [
             for (final a in source)
-              if (a.kind == filter) a
+              if (a.kind == filter) a,
           ];
     if (start >= filtered.length) return const [];
     return filtered.sublist(start, end.clamp(start, filtered.length));
@@ -137,8 +132,7 @@ class FakeXGalleryBackend implements XGalleryBackend {
   Future<XAssetThumbnail> thumbnail(
     String assetId, {
     required int sizePx,
-  }) async =>
-      _thumbnailFor(assetId, sizePx);
+  }) async => _thumbnailFor(assetId, sizePx);
 
   @override
   Future<io.File> resolveFile(String assetId) async => _fileFor(assetId);

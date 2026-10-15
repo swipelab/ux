@@ -99,9 +99,9 @@ class CubicBezier extends Bezier {
 
   @override
   Offset point(double t) => Offset(
-        _cubicBezier(t, p0.dx, p1.dx, p2.dx, p3.dx),
-        _cubicBezier(t, p0.dy, p1.dy, p2.dy, p3.dy),
-      );
+    _cubicBezier(t, p0.dx, p1.dx, p2.dx, p3.dx),
+    _cubicBezier(t, p0.dy, p1.dy, p2.dy, p3.dy),
+  );
 }
 
 /// A composite path of multiple bezier segments.
@@ -128,17 +128,25 @@ class PathBezier extends Bezier {
   static PathBezier roundedRect(RRect rrect) {
     return PathBezier(Offset(rrect.left + rrect.width / 2, rrect.top))
       ..lineTo(Offset(rrect.right - rrect.trRadiusX, rrect.top))
-      ..quadTo(Offset(rrect.right, rrect.top),
-          Offset(rrect.right, rrect.top + rrect.trRadiusY))
+      ..quadTo(
+        Offset(rrect.right, rrect.top),
+        Offset(rrect.right, rrect.top + rrect.trRadiusY),
+      )
       ..lineTo(Offset(rrect.right, rrect.bottom - rrect.brRadiusY))
-      ..quadTo(Offset(rrect.right, rrect.bottom),
-          Offset(rrect.right - rrect.brRadiusX, rrect.bottom))
+      ..quadTo(
+        Offset(rrect.right, rrect.bottom),
+        Offset(rrect.right - rrect.brRadiusX, rrect.bottom),
+      )
       ..lineTo(Offset(rrect.left + rrect.brRadiusX, rrect.bottom))
-      ..quadTo(Offset(rrect.left, rrect.bottom),
-          Offset(rrect.left, rrect.bottom - rrect.blRadiusY))
+      ..quadTo(
+        Offset(rrect.left, rrect.bottom),
+        Offset(rrect.left, rrect.bottom - rrect.blRadiusY),
+      )
       ..lineTo(Offset(rrect.left, rrect.top + rrect.tlRadiusX))
-      ..quadTo(Offset(rrect.left, rrect.top),
-          Offset(rrect.left + rrect.tlRadiusX, rrect.top))
+      ..quadTo(
+        Offset(rrect.left, rrect.top),
+        Offset(rrect.left + rrect.tlRadiusX, rrect.top),
+      )
       ..lineTo(Offset(rrect.left + rrect.width / 2, rrect.top));
   }
 
@@ -154,8 +162,7 @@ class PathBezier extends Bezier {
   void lineTo(Offset p1) => _add(LinearBezier(_p0, p1), p1);
 
   /// Appends a quadratic curve with control point [p1] to endpoint [p2].
-  void quadTo(Offset p1, Offset p2) =>
-      _add(QuadraticBezier(_p0, p1, p2), p2);
+  void quadTo(Offset p1, Offset p2) => _add(QuadraticBezier(_p0, p1, p2), p2);
 
   /// Appends a cubic curve with control points [p1], [p2] to endpoint [p3].
   void cubeTo(Offset p1, Offset p2, Offset p3) =>
@@ -165,8 +172,7 @@ class PathBezier extends Bezier {
   void relativeLineTo(Offset p1) => lineTo(p1 + _p0);
 
   /// Appends a quadratic curve with relative control and end points.
-  void relativeQuadTo(Offset p1, Offset p2) =>
-      quadTo(p1 + p0, p1 + p2 + p0);
+  void relativeQuadTo(Offset p1, Offset p2) => quadTo(p1 + p0, p1 + p2 + p0);
 
   /// Appends a cubic curve with relative control and end points.
   void relativeCubeTo(Offset p1, Offset p2, Offset p3) =>

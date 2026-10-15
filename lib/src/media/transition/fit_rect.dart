@@ -16,16 +16,16 @@ Rect fitRect(Size? contentSize, Rect viewport) {
       contentSize.height <= 0) {
     return viewport;
   }
-  final scale = (viewport.width / contentSize.width)
-      .clamp(0.0, double.infinity);
-  final scaleH = (viewport.height / contentSize.height)
-      .clamp(0.0, double.infinity);
+  final scale = (viewport.width / contentSize.width).clamp(
+    0.0,
+    double.infinity,
+  );
+  final scaleH = (viewport.height / contentSize.height).clamp(
+    0.0,
+    double.infinity,
+  );
   final fit = scale < scaleH ? scale : scaleH;
   final w = contentSize.width * fit;
   final h = contentSize.height * fit;
-  return Rect.fromCenter(
-    center: viewport.center,
-    width: w,
-    height: h,
-  );
+  return Rect.fromCenter(center: viewport.center, width: w, height: h);
 }

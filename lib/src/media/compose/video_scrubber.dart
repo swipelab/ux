@@ -120,14 +120,16 @@ class _VideoTrimScrubberState extends State<VideoTrimScrubber> {
     final e = (end ?? _endFraction).clamp(0.0, 1.0);
     final startMs = (s * _durationMs).round();
     final endMs = (e * _durationMs).round();
-    widget.entry.setVideoEdit(_edit.copyWith(
-      trimStart: startMs <= 0 ? null : Duration(milliseconds: startMs),
-      trimEnd: endMs >= _durationMs.round()
-          ? null
-          : Duration(milliseconds: endMs),
-      clearTrimStart: startMs <= 0,
-      clearTrimEnd: endMs >= _durationMs.round(),
-    ));
+    widget.entry.setVideoEdit(
+      _edit.copyWith(
+        trimStart: startMs <= 0 ? null : Duration(milliseconds: startMs),
+        trimEnd: endMs >= _durationMs.round()
+            ? null
+            : Duration(milliseconds: endMs),
+        clearTrimStart: startMs <= 0,
+        clearTrimEnd: endMs >= _durationMs.round(),
+      ),
+    );
   }
 
   void _onDragStart(double localX, double innerWidth) {
@@ -158,16 +160,19 @@ class _VideoTrimScrubberState extends State<VideoTrimScrubber> {
       case _DragTarget.startHandle:
         final capped = f.clamp(0.0, _endFraction - _minTrimFraction);
         _writeTrim(start: capped);
-        ctrl?.seekTo(Duration(milliseconds: (capped * _durationMs).round()))
+        ctrl
+            ?.seekTo(Duration(milliseconds: (capped * _durationMs).round()))
             .unawaited();
       case _DragTarget.endHandle:
         final capped = f.clamp(_startFraction + _minTrimFraction, 1.0);
         _writeTrim(end: capped);
-        ctrl?.seekTo(Duration(milliseconds: (capped * _durationMs).round()))
+        ctrl
+            ?.seekTo(Duration(milliseconds: (capped * _durationMs).round()))
             .unawaited();
       case _DragTarget.playhead:
         final capped = f.clamp(_startFraction, _endFraction);
-        ctrl?.seekTo(Duration(milliseconds: (capped * _durationMs).round()))
+        ctrl
+            ?.seekTo(Duration(milliseconds: (capped * _durationMs).round()))
             .unawaited();
       case null:
         break;
@@ -180,11 +185,14 @@ class _VideoTrimScrubberState extends State<VideoTrimScrubber> {
     _drag = null;
     if (target != _DragTarget.playhead) {
       final edit = widget.entry.videoEdit;
-      _log.i('trim', fields: {
-        'durationMs': _durationMs.round(),
-        'startMs': edit.trimStart?.inMilliseconds,
-        'endMs': edit.trimEnd?.inMilliseconds,
-      });
+      _log.i(
+        'trim',
+        fields: {
+          'durationMs': _durationMs.round(),
+          'startMs': edit.trimStart?.inMilliseconds,
+          'endMs': edit.trimEnd?.inMilliseconds,
+        },
+      );
     }
     // Only a video that was playing when the drag grabbed it resumes —
     // a paused video stays paused on its play disc (telegram gating).
@@ -195,8 +203,10 @@ class _VideoTrimScrubberState extends State<VideoTrimScrubber> {
   Widget build(BuildContext context) {
     final position =
         widget.entry.videoController?.value.position ?? Duration.zero;
-    final positionFraction =
-        (position.inMilliseconds / _durationMs).clamp(0.0, 1.0);
+    final positionFraction = (position.inMilliseconds / _durationMs).clamp(
+      0.0,
+      1.0,
+    );
 
     return Padding(
       padding: EdgeInsets.fromLTRB(space.md, space.sm, space.md, space.xs),
@@ -207,27 +217,33 @@ class _VideoTrimScrubberState extends State<VideoTrimScrubber> {
           Expanded(
             child: SizedBox(
               height: _kStripHeight,
-              child: LayoutBuilder(builder: (context, constraints) {
-                final width = constraints.maxWidth;
-                final innerWidth = width - 2 * _kHandleWidth;
-                return GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onHorizontalDragStart: (d) => _onDragStart(
-                      d.localPosition.dx - _kHandleWidth, innerWidth),
-                  onHorizontalDragUpdate: (d) => _onDragUpdate(
-                      d.localPosition.dx - _kHandleWidth, innerWidth),
-                  onHorizontalDragEnd: (_) => _onDragEnd(),
-                  onHorizontalDragCancel: _onDragEnd,
-                  child: CustomPaint(
-                    painter: _ScrubberPainter(
-                      thumbs: _thumbs,
-                      startFraction: _startFraction,
-                      endFraction: _endFraction,
-                      positionFraction: positionFraction,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final width = constraints.maxWidth;
+                  final innerWidth = width - 2 * _kHandleWidth;
+                  return GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onHorizontalDragStart: (d) => _onDragStart(
+                      d.localPosition.dx - _kHandleWidth,
+                      innerWidth,
                     ),
-                  ),
-                );
-              }),
+                    onHorizontalDragUpdate: (d) => _onDragUpdate(
+                      d.localPosition.dx - _kHandleWidth,
+                      innerWidth,
+                    ),
+                    onHorizontalDragEnd: (_) => _onDragEnd(),
+                    onHorizontalDragCancel: _onDragEnd,
+                    child: CustomPaint(
+                      painter: _ScrubberPainter(
+                        thumbs: _thumbs,
+                        startFraction: _startFraction,
+                        endFraction: _endFraction,
+                        positionFraction: positionFraction,
+                      ),
+                    ),
+                  );
+                },
+              ),
             ),
           ),
         ],
@@ -248,8 +264,7 @@ class _MuteButton extends StatelessWidget {
     final muted = entry.videoEdit.muted;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () =>
-          entry.setVideoEdit(entry.videoEdit.copyWith(muted: !muted)),
+      onTap: () => entry.setVideoEdit(entry.videoEdit.copyWith(muted: !muted)),
       child: Container(
         width: 36,
         height: 36,
@@ -303,8 +318,7 @@ class _ScrubberPainter extends CustomPainter {
     final startX = inner.left + startFraction * inner.width;
     final endX = inner.left + endFraction * inner.width;
     final dim = Paint()..color = const Color(0x99000000);
-    canvas.drawRect(
-        Rect.fromLTRB(inner.left, 0, startX, size.height), dim);
+    canvas.drawRect(Rect.fromLTRB(inner.left, 0, startX, size.height), dim);
     canvas.drawRect(Rect.fromLTRB(endX, 0, inner.right, size.height), dim);
     canvas.restore();
 
@@ -312,14 +326,21 @@ class _ScrubberPainter extends CustomPainter {
     // handles as solid caps extending past the strip edges.
     final frame = RRect.fromRectAndRadius(
       Rect.fromLTRB(
-          startX - _kHandleWidth, 0, endX + _kHandleWidth, size.height),
+        startX - _kHandleWidth,
+        0,
+        endX + _kHandleWidth,
+        size.height,
+      ),
       const Radius.circular(8),
     );
     final white = Paint()..color = colors.onMedia;
-    canvas.drawRRect(frame, Paint()
-      ..color = colors.onMedia
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2);
+    canvas.drawRRect(
+      frame,
+      Paint()
+        ..color = colors.onMedia
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
     canvas.drawRRect(
       RRect.fromRectAndCorners(
         Rect.fromLTWH(startX - _kHandleWidth, 0, _kHandleWidth, size.height),
@@ -379,8 +400,7 @@ class _ScrubberPainter extends CustomPainter {
       final bytes = list[i];
       if (bytes == null) continue;
       final image = _decoded[bytes.hashCode];
-      final dst =
-          Rect.fromLTWH(inner.left + i * cellW, 0, cellW, inner.height);
+      final dst = Rect.fromLTWH(inner.left + i * cellW, 0, cellW, inner.height);
       if (image != null) {
         _drawCover(canvas, image, dst);
       } else {
@@ -395,12 +415,10 @@ class _ScrubberPainter extends CustomPainter {
     Rect src;
     if (srcAspect > dstAspect) {
       final w = image.height * dstAspect;
-      src = Rect.fromLTWH(
-          (image.width - w) / 2, 0, w, image.height.toDouble());
+      src = Rect.fromLTWH((image.width - w) / 2, 0, w, image.height.toDouble());
     } else {
       final h = image.width / dstAspect;
-      src = Rect.fromLTWH(
-          0, (image.height - h) / 2, image.width.toDouble(), h);
+      src = Rect.fromLTWH(0, (image.height - h) / 2, image.width.toDouble(), h);
     }
     canvas.save();
     canvas.clipRect(dst);

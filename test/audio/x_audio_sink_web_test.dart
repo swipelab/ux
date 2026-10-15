@@ -20,8 +20,11 @@ void main() {
     await expectLater(
       sink.enqueue(Int16List.fromList([1, 2])),
       throwsA(
-        isA<XAudioSinkException>()
-            .having((error) => error.code, 'code', 'unsupported'),
+        isA<XAudioSinkException>().having(
+          (error) => error.code,
+          'code',
+          'unsupported',
+        ),
       ),
     );
     await sink.flush();

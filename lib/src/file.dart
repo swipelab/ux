@@ -132,8 +132,9 @@ class XFiles {
     try {
       return await body(resolvedPath);
     } finally {
-      await _channel
-          .invokeMethod<void>('endScopedAccess', {'path': resolvedPath});
+      await _channel.invokeMethod<void>('endScopedAccess', {
+        'path': resolvedPath,
+      });
     }
   }
 
@@ -272,9 +273,7 @@ class XFiles {
   /// wildcards. Windows filters by extension: `image/*` and `video/*`
   /// allow the image and video files the app handles there, and a type
   /// whose extensions Windows does not know allows every file.
-  static Future<XPickedFile?> pick({
-    List<String>? mimeTypes,
-  }) async {
+  static Future<XPickedFile?> pick({List<String>? mimeTypes}) async {
     final result = await _channel.invokeMapMethod<String, Object?>('pick', {
       'mimeTypes': ?mimeTypes,
     });
@@ -369,8 +368,10 @@ class XFiles {
     String? overlayPath,
     int? maxLongest,
   }) async {
-    assert((transform == null) == (outWidth == null) &&
-        (outWidth == null) == (outHeight == null));
+    assert(
+      (transform == null) == (outWidth == null) &&
+          (outWidth == null) == (outHeight == null),
+    );
     assert(transform == null || transform.length == 9);
     assert(overlayPath == null || transform != null);
     final result = await _channel.invokeMapMethod<String, Object?>(

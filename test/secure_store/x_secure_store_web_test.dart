@@ -18,8 +18,11 @@ void main() {
     await expectLater(
       store.write('session', 'token-1'),
       throwsA(
-        isA<XSecureStoreException>()
-            .having((error) => error.code, 'code', 'unsupported'),
+        isA<XSecureStoreException>().having(
+          (error) => error.code,
+          'code',
+          'unsupported',
+        ),
       ),
     );
   });

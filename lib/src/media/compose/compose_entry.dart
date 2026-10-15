@@ -98,8 +98,10 @@ class ComposeEntry with Emitter {
   /// Strokes and entities are recorded in source-space coordinates, so a
   /// re-crop only changes what is clipped away.
   CropImageLayer? cropLayer;
+
   /// The draw tool's strokes; absent until the draw tool first opens.
   DrawImageLayer? drawLayer;
+
   /// The text overlays; absent until the draw tool first opens.
   EntityLayer? entityLayer;
 
@@ -108,8 +110,10 @@ class ComposeEntry with Emitter {
   /// back to `Image.file(input.file)`. Re-rendered after each tool
   /// apply.
   ui.Image? renderedPreview;
+
   /// The running render of the current edits; absent when none runs.
   Future<void>? _previewRender;
+
   /// Counts invalidations; a render overtaken by one drops its image.
   int _previewVersion = 0;
 
@@ -142,6 +146,7 @@ class ComposeEntry with Emitter {
   /// a visible "shrink-then-enlarge" detour during the compose↔tool
   /// transition.
   CameraFit _animatedFit = CameraFit.zero;
+
   /// Animates [camera] between fits.
   late final cameraAnimator = Animator<CameraFit>(
     getter: () => _animatedFit,
@@ -226,10 +231,12 @@ class ComposeEntry with Emitter {
       rect.height / content.height,
     );
     return CameraFit(
-      tx: rect.left +
+      tx:
+          rect.left +
           (rect.width - content.width * scale) / 2 -
           content.left * scale,
-      ty: rect.top +
+      ty:
+          rect.top +
           (rect.height - content.height * scale) / 2 -
           content.top * scale,
       scale: scale,
@@ -270,12 +277,13 @@ class ComposeEntry with Emitter {
           (entityLayer?.hasAppliedEdits ?? false));
 
   /// The caption's text, from the host's caption controller.
-  final TextEditingController composerController =
-      MediaHost.current.captionController();
+  final TextEditingController composerController = MediaHost.current
+      .captionController();
 
   /// Pinch-zoom transform of the preview.
   late final TransformationController viewerController =
       TransformationController()..addListener(_onZoomChanged);
+
   /// Whether the preview is zoomed in.
   final ValueNotifier<bool> isZoomed = ValueNotifier<bool>(false);
 
@@ -444,6 +452,7 @@ class ComposeEntry with Emitter {
 
   /// Pauses the video preview.
   void pauseVideo() => videoController?.pause();
+
   /// Plays the video preview.
   void resumeVideo() => videoController?.play();
 
@@ -478,9 +487,11 @@ class ComposeEntry with Emitter {
     if (applied != true) return;
     if (input is VideoMedia) {
       final cl = cropLayer!;
-      setVideoEdit(cl.hasAppliedEdits
-          ? videoEdit.copyWith(crop: cropGeometryFrom(cl))
-          : videoEdit.copyWith(clearCrop: true));
+      setVideoEdit(
+        cl.hasAppliedEdits
+            ? videoEdit.copyWith(crop: cropGeometryFrom(cl))
+            : videoEdit.copyWith(clearCrop: true),
+      );
     } else {
       _invalidatePreview();
       await _renderPreview();
@@ -497,9 +508,15 @@ class ComposeEntry with Emitter {
     final size = layer.exportSize;
     return VideoCropGeometry(
       transform: <double>[
-        m.entry(0, 0), m.entry(0, 1), m.entry(0, 3),
-        m.entry(1, 0), m.entry(1, 1), m.entry(1, 3),
-        0, 0, 1,
+        m.entry(0, 0),
+        m.entry(0, 1),
+        m.entry(0, 3),
+        m.entry(1, 0),
+        m.entry(1, 1),
+        m.entry(1, 3),
+        0,
+        0,
+        1,
       ],
       outWidth: size.width.round(),
       outHeight: size.height.round(),
@@ -792,7 +809,11 @@ class ComposeEntry with Emitter {
 /// jump. For [VideoMedia], renders the player when initialised.
 class ComposeEntryView extends StatelessWidget {
   /// Creates the preview of [entry].
-  const ComposeEntryView({required this.entry, this.flightEnabled = true, super.key});
+  const ComposeEntryView({
+    required this.entry,
+    this.flightEnabled = true,
+    super.key,
+  });
 
   /// Whether this entry is the current route flight surface.
   final bool flightEnabled;
@@ -864,7 +885,12 @@ class ComposeEntryView extends StatelessWidget {
               child: MediaFlightSurface(enabled: flightEnabled, child: player),
             ),
           )
-        : CroppedVideoPreview(entry: entry, crop: crop, flightEnabled: flightEnabled, child: player);
+        : CroppedVideoPreview(
+            entry: entry,
+            crop: crop,
+            flightEnabled: flightEnabled,
+            child: player,
+          );
     return ComposePlayOverlay(controller: ctrl, child: video);
   }
 }
@@ -884,6 +910,7 @@ class ComposePlayOverlay extends StatelessWidget {
 
   /// The player the gate plays and pauses.
   final XVideoPlayerController controller;
+
   /// The video preview.
   final Widget child;
 
@@ -932,11 +959,8 @@ class ComposePlayOverlay extends StatelessWidget {
 /// overlay (recorded in source pixels) lands on the same frame pixels
 /// the export composites it onto.
 class _VideoDrawOverlayPainter extends CustomPainter {
-  _VideoDrawOverlayPainter({
-    this.draw,
-    this.entities,
-    required this.sourceSize,
-  }) : super(repaint: Listenable.merge([?draw, ?entities]));
+  _VideoDrawOverlayPainter({this.draw, this.entities, required this.sourceSize})
+    : super(repaint: Listenable.merge([?draw, ?entities]));
 
   final DrawImageLayer? draw;
   final EntityLayer? entities;
@@ -945,7 +969,9 @@ class _VideoDrawOverlayPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     canvas.scale(
-        size.width / sourceSize.width, size.height / sourceSize.height);
+      size.width / sourceSize.width,
+      size.height / sourceSize.height,
+    );
     draw?.paintStrokesOnly(canvas, sourceSize);
     entities?.paintEntitiesOnly(canvas, sourceSize);
   }
@@ -983,8 +1009,10 @@ class CroppedVideoPreview extends StatelessWidget {
 
   /// The video entry, which places the crop on screen.
   final ComposeEntry entry;
+
   /// The crop applied to the video.
   final VideoCropGeometry crop;
+
   /// The uncropped video.
   final Widget child;
 

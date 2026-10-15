@@ -67,6 +67,7 @@ class XRouter extends BackButtonDispatcher
   /// app extension, which links neither its FFI nor its channel — and the
   /// ordinary `Scaffold`-style `viewInsets` arithmetic works instead.
   final bool keepKeyboardInsets;
+
   /// Screens pushed above [home], bottom to top.
   late final stack = ListEmitter<Screen>()..disposeBy(this);
 
@@ -120,9 +121,9 @@ class XRouter extends BackButtonDispatcher
   /// instance to substitute an auth screen for [home].
   @override
   List<Screen> get pages => [
-        ..._expand(home),
-        for (final page in stack) ..._expand(page),
-      ];
+    ..._expand(home),
+    for (final page in stack) ..._expand(page),
+  ];
 
   /// Every screen the router holds: [pages], with the hidden screens of
   /// each [ScreenShell] among them listed after that shell.
@@ -130,13 +131,13 @@ class XRouter extends BackButtonDispatcher
   List<Screen> get hosted => _withHidden(pages);
 
   List<Screen> _withHidden(List<Screen> shown) => [
-        for (final page in shown) ...[
-          page,
-          if (page case final ScreenShell shell)
-            for (final screen in shell.hosted)
-              if (!screen.popped && !shell.pages.contains(screen)) screen,
-        ],
-      ];
+    for (final page in shown) ...[
+      page,
+      if (page case final ScreenShell shell)
+        for (final screen in shell.hosted)
+          if (!screen.popped && !shell.pages.contains(screen)) screen,
+    ],
+  ];
 
   /// Re-renders [pages] and recomputes the active screen, the system-back
   /// state and the orientations.
@@ -464,7 +465,8 @@ class XRouteParser extends RouteInformationParser<Object> {
 
   @override
   Future<Object> parseRouteInformation(
-      RouteInformation routeInformation) async {
+    RouteInformation routeInformation,
+  ) async {
     return parse(routeInformation.uri) as Object;
   }
 

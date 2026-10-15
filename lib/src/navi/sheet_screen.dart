@@ -95,8 +95,7 @@ mixin SheetScreen<T> on Screen<T> {
     BuildContext context,
     Animation<double> animation,
     Widget child,
-  ) =>
-      ScreenTransitions.none(context, animation, child);
+  ) => ScreenTransitions.none(context, animation, child);
 
   /// Zero-duration route transition — the [Sheet] widget self-manages
   /// its slide-up entry via its own internal animation controller.
@@ -118,10 +117,8 @@ mixin SheetScreen<T> on Screen<T> {
       // reconciles `home` by type+key.
       child: ListenableBuilder(
         listenable: _nestedHost.pages,
-        builder: (context, _) => ScreenStack(
-          home: _SheetBody(this),
-          stack: [..._nestedHost.pages],
-        ),
+        builder: (context, _) =>
+            ScreenStack(home: _SheetBody(this), stack: [..._nestedHost.pages]),
       ),
     );
   }

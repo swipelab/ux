@@ -62,17 +62,18 @@ class _SecureStorePageState extends State<SecureStorePage> {
             FilledButton.icon(
               onPressed: _store.supported
                   ? () => _run('write', () async {
-                        await _store.write(key, _value.text);
-                        return _value.text;
-                      })
+                      await _store.write(key, _value.text);
+                      return _value.text;
+                    })
                   : null,
               icon: const Icon(Icons.lock),
               label: const Text('Write'),
             ),
             const SizedBox(height: 12),
             OutlinedButton.icon(
-              onPressed:
-                  _store.supported ? () => _run('read', () => _store.read(key)) : null,
+              onPressed: _store.supported
+                  ? () => _run('read', () => _store.read(key))
+                  : null,
               icon: const Icon(Icons.lock_open),
               label: const Text('Read'),
             ),
@@ -80,9 +81,9 @@ class _SecureStorePageState extends State<SecureStorePage> {
             OutlinedButton.icon(
               onPressed: _store.supported
                   ? () => _run('delete', () async {
-                        await _store.delete(key);
-                        return null;
-                      })
+                      await _store.delete(key);
+                      return null;
+                    })
                   : null,
               icon: const Icon(Icons.delete_outline),
               label: const Text('Delete'),

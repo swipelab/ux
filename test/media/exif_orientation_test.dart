@@ -10,7 +10,10 @@ import 'package:ux/media.dart';
 ///     + IFD0: 1 entry: tag=0x0112, type=3 (SHORT), count=1, value=orient
 ///     + next-IFD offset (0)
 ///   EOI (FFD9)
-Uint8List _jpegWithOrientation(int orientation, {Endian endian = Endian.little}) {
+Uint8List _jpegWithOrientation(
+  int orientation, {
+  Endian endian = Endian.little,
+}) {
   final b = BytesBuilder();
 
   // SOI

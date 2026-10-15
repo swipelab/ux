@@ -24,52 +24,64 @@ void main() {
     void handle(Object? Function(MethodCall) reply) {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (call) async {
-        calls.add(call);
-        return reply(call);
-      });
+            calls.add(call);
+            return reply(call);
+          });
     }
 
     test('availableCameras decodes the platform list', () async {
-      handle((_) => [
-            {'id': 'a', 'lens': 'front', 'sensorOrientation': 270},
-            {'id': 'b', 'lens': 'back', 'sensorOrientation': 90},
-          ]);
+      handle(
+        (_) => [
+          {'id': 'a', 'lens': 'front', 'sensorOrientation': 270},
+          {'id': 'b', 'lens': 'back', 'sensorOrientation': 90},
+        ],
+      );
 
       final result = await backend.availableCameras();
 
       expect(calls.single.method, 'availableCameras');
       expect(result, [
         const XCameraDescription(
-            id: 'a', lens: XCameraLens.front, sensorOrientation: 270),
+          id: 'a',
+          lens: XCameraLens.front,
+          sensorOrientation: 270,
+        ),
         const XCameraDescription(
-            id: 'b', lens: XCameraLens.back, sensorOrientation: 90),
+          id: 'b',
+          lens: XCameraLens.back,
+          sensorOrientation: 90,
+        ),
       ]);
     });
 
-    test('create sends cameraId/enableAudio/preset and decodes the tuple',
-        () async {
-      handle((_) => {
+    test(
+      'create sends cameraId/enableAudio/preset and decodes the tuple',
+      () async {
+        handle(
+          (_) => {
             'handle': 42,
             'textureId': 7,
             'previewSize': {'width': 1920, 'height': 1080},
-          });
+          },
+        );
 
-      final result = await backend.create(
-        cameraId: 'cam-1',
-        enableAudio: true,
-        preset: XResolutionPreset.high,
-      );
+        final result = await backend.create(
+          cameraId: 'cam-1',
+          enableAudio: true,
+          preset: XResolutionPreset.high,
+        );
 
-      expect(calls.single.method, 'create');
-      expect(calls.single.arguments, {
-        'cameraId': 'cam-1',
-        'enableAudio': true,
-        'preset': 'high',
-      });
-      expect(result.handle, 42);
-      expect(result.textureId, 7);
-      expect(result.previewSize, const Size(1920, 1080));
-    });
+        expect(calls.single.method, 'create');
+        expect(calls.single.arguments, {
+          'cameraId': 'cam-1',
+          'enableAudio': true,
+          'preset': 'high',
+        });
+        expect(result.handle, 42);
+        expect(result.textureId, 7);
+        expect(result.previewSize, const Size(1920, 1080));
+      },
+    );
 
     test('initialize / dispose send only the handle', () async {
       handle((_) => null);
@@ -82,10 +94,12 @@ void main() {
     });
 
     test('setDescription returns previewSize + rotation', () async {
-      handle((_) => {
-            'previewSize': {'width': 1280, 'height': 720},
-            'previewRotationQuarterTurns': 1,
-          });
+      handle(
+        (_) => {
+          'previewSize': {'width': 1280, 'height': 720},
+          'previewRotationQuarterTurns': 1,
+        },
+      );
 
       final r = await backend.setDescription(7, 'next');
 
@@ -101,39 +115,58 @@ void main() {
       await backend.setFlashMode(3, XFlashMode.always);
       await backend.setFlashMode(3, XFlashMode.off);
 
-      expect(calls.map((c) => (c.arguments as Map)['mode']).toList(),
-          ['always', 'off']);
+      expect(calls.map((c) => (c.arguments as Map)['mode']).toList(), [
+        'always',
+        'off',
+      ]);
     });
 
-    test('lock/unlockCaptureOrientation encode the orientation string',
-        () async {
-      handle((_) => null);
+    test(
+      'lock/unlockCaptureOrientation encode the orientation string',
+      () async {
+        handle((_) => null);
 
-      await backend.lockCaptureOrientation(5, DeviceOrientation.portraitUp);
-      await backend.lockCaptureOrientation(5, DeviceOrientation.landscapeLeft);
-      await backend.lockCaptureOrientation(5, DeviceOrientation.landscapeRight);
-      await backend.lockCaptureOrientation(5, DeviceOrientation.portraitDown);
-      await backend.unlockCaptureOrientation(5);
+        await backend.lockCaptureOrientation(5, DeviceOrientation.portraitUp);
+        await backend.lockCaptureOrientation(
+          5,
+          DeviceOrientation.landscapeLeft,
+        );
+        await backend.lockCaptureOrientation(
+          5,
+          DeviceOrientation.landscapeRight,
+        );
+        await backend.lockCaptureOrientation(5, DeviceOrientation.portraitDown);
+        await backend.unlockCaptureOrientation(5);
 
-      expect(
-        calls.take(4).map((c) => (c.arguments as Map)['orientation']).toList(),
-        ['portraitUp', 'landscapeLeft', 'landscapeRight', 'portraitDown'],
-      );
-      expect(calls.last.method, 'unlockCaptureOrientation');
-    });
+        expect(
+          calls
+              .take(4)
+              .map((c) => (c.arguments as Map)['orientation'])
+              .toList(),
+          ['portraitUp', 'landscapeLeft', 'landscapeRight', 'portraitDown'],
+        );
+        expect(calls.last.method, 'unlockCaptureOrientation');
+      },
+    );
 
-    test('takePicture sends snapshotOrientation and decodes the file path',
-        () async {
-      handle((_) => {'path': '/tmp/a.jpg'});
+    test(
+      'takePicture sends snapshotOrientation and decodes the file path',
+      () async {
+        handle((_) => {'path': '/tmp/a.jpg'});
 
-      final file = await backend.takePicture(
-          9, DeviceOrientation.landscapeLeft);
+        final file = await backend.takePicture(
+          9,
+          DeviceOrientation.landscapeLeft,
+        );
 
-      expect(calls.single.method, 'takePicture');
-      expect(calls.single.arguments,
-          {'handle': 9, 'snapshotOrientation': 'landscapeLeft'});
-      expect(file.path, '/tmp/a.jpg');
-    });
+        expect(calls.single.method, 'takePicture');
+        expect(calls.single.arguments, {
+          'handle': 9,
+          'snapshotOrientation': 'landscapeLeft',
+        });
+        expect(file.path, '/tmp/a.jpg');
+      },
+    );
 
     test('startVideoRecording sends snapshotOrientation', () async {
       handle((_) => null);
@@ -141,8 +174,10 @@ void main() {
       await backend.startVideoRecording(9, DeviceOrientation.landscapeRight);
 
       expect(calls.single.method, 'startVideoRecording');
-      expect(calls.single.arguments,
-          {'handle': 9, 'snapshotOrientation': 'landscapeRight'});
+      expect(calls.single.arguments, {
+        'handle': 9,
+        'snapshotOrientation': 'landscapeRight',
+      });
     });
 
     test('stopVideoRecording decodes the file path', () async {
@@ -154,40 +189,42 @@ void main() {
       expect(file.path, '/tmp/v.mp4');
     });
 
-    test('events stream filters by handle and decodes diagnostic events',
-        () async {
-      const eventsChannel = EventChannel('ux/camera/events');
-      final messenger =
-          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    test(
+      'events stream filters by handle and decodes diagnostic events',
+      () async {
+        const eventsChannel = EventChannel('ux/camera/events');
+        final messenger =
+            TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
 
-      messenger.setMockStreamHandler(
-        eventsChannel,
-        MockStreamHandler.inline(
-          onListen: (_, sink) {
-            sink.success({
-              'event': 'diagnostic',
-              'handle': 4,
-              'message': 'video input added',
-            });
-            sink.success({
-              'event': 'diagnostic',
-              'handle': 7,
-              'message': 'audio input added sr=44100 ch=1',
-            });
-            sink.endOfStream();
-          },
-        ),
-      );
-      addTearDown(() => messenger.setMockStreamHandler(eventsChannel, null));
+        messenger.setMockStreamHandler(
+          eventsChannel,
+          MockStreamHandler.inline(
+            onListen: (_, sink) {
+              sink.success({
+                'event': 'diagnostic',
+                'handle': 4,
+                'message': 'video input added',
+              });
+              sink.success({
+                'event': 'diagnostic',
+                'handle': 7,
+                'message': 'audio input added sr=44100 ch=1',
+              });
+              sink.endOfStream();
+            },
+          ),
+        );
+        addTearDown(() => messenger.setMockStreamHandler(eventsChannel, null));
 
-      final received = <XCameraEvent>[];
-      await backend.events(4).forEach(received.add);
+        final received = <XCameraEvent>[];
+        await backend.events(4).forEach(received.add);
 
-      expect(received, hasLength(1));
-      final e = received.single as XCameraDiagnostic;
-      expect(e.handle, 4);
-      expect(e.message, 'video input added');
-    });
+        expect(received, hasLength(1));
+        final e = received.single as XCameraDiagnostic;
+        expect(e.handle, 4);
+        expect(e.message, 'video input added');
+      },
+    );
 
     test('audioPermissionStatus + openSettings round-trip', () async {
       var permissionReply = true;
@@ -202,10 +239,11 @@ void main() {
       expect(await backend.audioPermissionGranted(), isFalse);
       await backend.openSettings();
 
-      expect(
-        calls.map((c) => c.method).toList(),
-        ['audioPermissionStatus', 'audioPermissionStatus', 'openSettings'],
-      );
+      expect(calls.map((c) => c.method).toList(), [
+        'audioPermissionStatus',
+        'audioPermissionStatus',
+        'openSettings',
+      ]);
     });
 
     test(
@@ -264,19 +302,29 @@ void main() {
       },
     );
 
-    test('PlatformException maps to XCameraException carrying code/message',
-        () async {
-      handle((_) => throw PlatformException(
+    test(
+      'PlatformException maps to XCameraException carrying code/message',
+      () async {
+        handle(
+          (_) => throw PlatformException(
             code: 'device_busy',
             message: 'front camera in use',
-          ));
+          ),
+        );
 
-      await expectLater(
-        backend.initialize(1),
-        throwsA(isA<XCameraException>()
-            .having((e) => e.code, 'code', 'device_busy')
-            .having((e) => e.description, 'description', 'front camera in use')),
-      );
-    });
+        await expectLater(
+          backend.initialize(1),
+          throwsA(
+            isA<XCameraException>()
+                .having((e) => e.code, 'code', 'device_busy')
+                .having(
+                  (e) => e.description,
+                  'description',
+                  'front camera in use',
+                ),
+          ),
+        );
+      },
+    );
   });
 }

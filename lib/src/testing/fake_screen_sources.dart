@@ -22,16 +22,18 @@ class FakeXScreenSourcesBackend implements XScreenSourcesBackend {
 
   /// Every [list] call, in order, with the arguments it was given.
   final List<
-      ({
-        Set<String> allowedDisplayIds,
-        Set<String> allowedWindowIds,
-        int thumbnailWidth,
-        int thumbnailHeight,
-      })> listCalls = [];
+    ({
+      Set<String> allowedDisplayIds,
+      Set<String> allowedWindowIds,
+      int thumbnailWidth,
+      int thumbnailHeight,
+    })
+  >
+  listCalls = [];
 
   /// Every [startShare] call, in order, with the notification it was given.
   final List<({String notificationTitle, String? notificationText})>
-      startShareCalls = [];
+  startShareCalls = [];
 
   /// Number of [available] calls.
   int availableCalls = 0;

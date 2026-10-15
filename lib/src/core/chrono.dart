@@ -15,10 +15,10 @@ abstract class Chrono with WidgetsBindingObserver implements Timer {
   factory Chrono(
     Duration duration,
     VoidCallback callback, [
+
     /// in case we have a faster way to subscribe to WidgetsBinding.instance.addObserver
     ValueListenable<AppLifecycleState>? appLifecycle,
-  ]) =>
-      _ScheduledTimer(duration, callback, appLifecycle);
+  ]) => _ScheduledTimer(duration, callback, appLifecycle);
 
   /// Periodic variant. Fires [callback] every [interval] of resumed time.
   factory Chrono.periodic(
@@ -28,8 +28,7 @@ abstract class Chrono with WidgetsBindingObserver implements Timer {
 
     /// in case we have a faster way to subscribe to WidgetsBinding.instance.addObserver
     ValueListenable<AppLifecycleState>? appLifecycle,
-  }) =>
-      _PeriodicTimer(interval, callback, fireOnStart, appLifecycle);
+  }) => _PeriodicTimer(interval, callback, fireOnStart, appLifecycle);
 
   Chrono._([this._appLifecycle]) {
     if (_appLifecycle == null) {
@@ -106,7 +105,7 @@ abstract class Chrono with WidgetsBindingObserver implements Timer {
 
 class _ScheduledTimer extends Chrono {
   _ScheduledTimer(this.duration, this.callback, super.appLifecycle)
-      : super._() {
+    : super._() {
     if (isActive) {
       _timer = Timer(duration, execute);
     }

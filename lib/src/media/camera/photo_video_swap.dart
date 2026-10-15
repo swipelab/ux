@@ -14,6 +14,7 @@ class PhotoVideoSwap extends StatefulWidget {
 
   /// Whether photo is chosen.
   final bool isPhoto;
+
   /// Called with the chosen mode, true for photo, on a tap or a settled swipe.
   final ValueChanged<bool> onChanged;
 
@@ -30,9 +31,10 @@ class _PhotoVideoSwapState extends State<PhotoVideoSwap>
   void initState() {
     super.initState();
     _controller = AnimationController(duration: kAnimation, vsync: this);
-    _slideAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _slideAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
     if (!widget.isPhoto) _controller.value = 1.0;
   }
 
@@ -69,8 +71,8 @@ class _PhotoVideoSwapState extends State<PhotoVideoSwap>
           final shouldBeVideo = velocity < -500
               ? true
               : velocity > 500
-                  ? false
-                  : _controller.value > 0.5;
+              ? false
+              : _controller.value > 0.5;
           final targetIsPhoto = !shouldBeVideo;
           if (targetIsPhoto != widget.isPhoto) {
             widget.onChanged(targetIsPhoto);

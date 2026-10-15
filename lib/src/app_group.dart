@@ -26,8 +26,6 @@ class XAppGroup {
   /// subdirectories are the caller's to make.
   static Future<String?> containerPath(String groupId) async {
     if (!supported) return null;
-    return _channel.invokeMethod<String>('containerPath', {
-      'groupId': groupId,
-    });
+    return _channel.invokeMethod<String>('containerPath', {'groupId': groupId});
   }
 }

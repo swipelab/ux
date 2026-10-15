@@ -7,9 +7,8 @@ import 'package:ux/src/camera/x_camera_effects_channel.dart';
 const _methods = MethodChannel('ux/camera_effects');
 const _events = MethodChannel('ux/camera_effects/events');
 
-Matcher _failsWith(String code) => throwsA(
-      isA<XCameraEffectsException>().having((e) => e.code, 'code', code),
-    );
+Matcher _failsWith(String code) =>
+    throwsA(isA<XCameraEffectsException>().having((e) => e.code, 'code', code));
 
 void main() {
   final messenger =
@@ -64,20 +63,22 @@ void main() {
           expect(backend.supported, isFalse);
         });
 
-        test('every method throws unsupported and touches no channel',
-            () async {
-          await expectLater(backend.available(), _failsWith('unsupported'));
-          await expectLater(
-            backend.setEffect('track:1', XCameraEffect.blur),
-            _failsWith('unsupported'),
-          );
-          await expectLater(
-            backend.setEffect('track:1', XCameraEffect.none),
-            _failsWith('unsupported'),
-          );
-          await expectLater(backend.clear(), _failsWith('unsupported'));
-          expect(calls, isEmpty);
-        });
+        test(
+          'every method throws unsupported and touches no channel',
+          () async {
+            await expectLater(backend.available(), _failsWith('unsupported'));
+            await expectLater(
+              backend.setEffect('track:1', XCameraEffect.blur),
+              _failsWith('unsupported'),
+            );
+            await expectLater(
+              backend.setEffect('track:1', XCameraEffect.none),
+              _failsWith('unsupported'),
+            );
+            await expectLater(backend.clear(), _failsWith('unsupported'));
+            expect(calls, isEmpty);
+          },
+        );
 
         test('the status stays idle', () async {
           await expectLater(
@@ -127,17 +128,19 @@ void main() {
       await expectLater(backend.clear(), _failsWith('integration_unavailable'));
     });
 
-    test('reading the status subscribes to nothing and reports no error',
-        () async {
-      expect(backend.status.value, const XCameraEffectStatus.idle());
-      await expectLater(
-        backend.available(),
-        _failsWith('integration_unavailable'),
-      );
-      await pumpEventQueue();
+    test(
+      'reading the status subscribes to nothing and reports no error',
+      () async {
+        expect(backend.status.value, const XCameraEffectStatus.idle());
+        await expectLater(
+          backend.available(),
+          _failsWith('integration_unavailable'),
+        );
+        await pumpEventQueue();
 
-      expect(eventCalls, isEmpty);
-      expect(errors, isEmpty);
-    });
+        expect(eventCalls, isEmpty);
+        expect(errors, isEmpty);
+      },
+    );
   });
 }

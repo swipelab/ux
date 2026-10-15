@@ -10,8 +10,9 @@ void main() {
 
   tearDown(() => store.delete(key));
 
-  testWidgets('a value round-trips through the OS credential store',
-      (tester) async {
+  testWidgets('a value round-trips through the OS credential store', (
+    tester,
+  ) async {
     await store.write(key, 'token-1');
 
     expect(await store.read(key), 'token-1');
@@ -29,8 +30,9 @@ void main() {
     expect(await store.read('ux.integration.absent'), isNull);
   });
 
-  testWidgets('a deleted key reads null, and deleting it again succeeds',
-      (tester) async {
+  testWidgets('a deleted key reads null, and deleting it again succeeds', (
+    tester,
+  ) async {
     await store.write(key, 'token-1');
 
     await store.delete(key);

@@ -15,8 +15,9 @@ void main() {
     await window.keepAwake(false);
   });
 
-  testWidgets('holding twice takes one hold, released by one call',
-      (tester) async {
+  testWidgets('holding twice takes one hold, released by one call', (
+    tester,
+  ) async {
     await window.keepAwake(true);
     await window.keepAwake(true);
 

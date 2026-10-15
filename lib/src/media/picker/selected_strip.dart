@@ -38,14 +38,19 @@ class SelectedStrip extends StatefulWidget {
 
   /// The picked assets shown.
   final SelectionContext selection;
+
   /// Where thumbnails load from.
   final ThumbnailCache cache;
+
   /// The picker's sheet, which the strip's scroll coordinates with.
   final SheetController sheetController;
+
   /// Compose entries by asset id.
   final Map<String, ComposeEntry> entriesById;
+
   /// Where tiles record their transition sources.
   final PickerSourceRegistry sourceRegistry;
+
   /// Called on a tap of a tile's body.
   final ValueChanged<XAsset> onTap;
 

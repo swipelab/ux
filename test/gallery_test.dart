@@ -21,9 +21,9 @@ void main() {
     test('permission() parses the granted state', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (call) async {
-        expect(call.method, 'permission');
-        return 'granted';
-      });
+            expect(call.method, 'permission');
+            return 'granted';
+          });
 
       expect(await XGallery.permission(), XGalleryPermission.granted);
     });
@@ -38,23 +38,23 @@ void main() {
     test('albums() decodes a list of XAlbum', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (call) async {
-        expect(call.method, 'albums');
-        expect((call.arguments as Map)['filter'], 'any');
-        return [
-          {
-            'id': 'recents',
-            'name': 'Recents',
-            'count': 1234,
-            'cover_kind': 'image',
-          },
-          {
-            'id': 'videos',
-            'name': 'Videos',
-            'count': 12,
-            'cover_kind': 'video',
-          },
-        ];
-      });
+            expect(call.method, 'albums');
+            expect((call.arguments as Map)['filter'], 'any');
+            return [
+              {
+                'id': 'recents',
+                'name': 'Recents',
+                'count': 1234,
+                'cover_kind': 'image',
+              },
+              {
+                'id': 'videos',
+                'name': 'Videos',
+                'count': 12,
+                'cover_kind': 'video',
+              },
+            ];
+          });
 
       final albums = await XGallery.albums();
       expect(albums, hasLength(2));
@@ -67,23 +67,23 @@ void main() {
     test('assets() decodes durations and timestamps', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (call) async {
-        expect(call.method, 'assets');
-        final args = call.arguments as Map;
-        expect(args['albumId'], 'recents');
-        expect(args['filter'], 'video');
-        expect(args['start'], 0);
-        expect(args['end'], 60);
-        return [
-          {
-            'id': 'a1',
-            'kind': 'video',
-            'duration_ms': 8500,
-            'width': 1080,
-            'height': 1920,
-            'created_ms': 1700000000000,
-          },
-        ];
-      });
+            expect(call.method, 'assets');
+            final args = call.arguments as Map;
+            expect(args['albumId'], 'recents');
+            expect(args['filter'], 'video');
+            expect(args['start'], 0);
+            expect(args['end'], 60);
+            return [
+              {
+                'id': 'a1',
+                'kind': 'video',
+                'duration_ms': 8500,
+                'width': 1080,
+                'height': 1920,
+                'created_ms': 1700000000000,
+              },
+            ];
+          });
 
       final assets = await XGallery.assets(
         albumId: 'recents',
@@ -100,16 +100,16 @@ void main() {
     test('thumbnail() returns the byte payload + dims', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (call) async {
-        expect(call.method, 'thumbnail');
-        final args = call.arguments as Map;
-        expect(args['assetId'], 'a1');
-        expect(args['sizePx'], 381);
-        return {
-          'bytes': Uint8List.fromList([1, 2, 3]),
-          'width': 381,
-          'height': 254,
-        };
-      });
+            expect(call.method, 'thumbnail');
+            final args = call.arguments as Map;
+            expect(args['assetId'], 'a1');
+            expect(args['sizePx'], 381);
+            return {
+              'bytes': Uint8List.fromList([1, 2, 3]),
+              'width': 381,
+              'height': 254,
+            };
+          });
 
       final thumb = await XGallery.thumbnail('a1', sizePx: 381);
       expect(thumb.bytes, [1, 2, 3]);
@@ -120,13 +120,13 @@ void main() {
     test('saveToLibrary() encodes args and parses saved', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (call) async {
-        expect(call.method, 'saveToLibrary');
-        final args = call.arguments as Map;
-        expect(args['path'], '/tmp/clip.mp4');
-        expect(args['kind'], 'video');
-        expect(args['mime'], 'video/mp4');
-        return 'saved';
-      });
+            expect(call.method, 'saveToLibrary');
+            final args = call.arguments as Map;
+            expect(args['path'], '/tmp/clip.mp4');
+            expect(args['kind'], 'video');
+            expect(args['mime'], 'video/mp4');
+            return 'saved';
+          });
 
       final status = await XGallery.saveToLibrary(
         '/tmp/clip.mp4',
@@ -139,11 +139,11 @@ void main() {
     test('saveToLibrary() omits mime when unset and parses denied', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (call) async {
-        final args = call.arguments as Map;
-        expect(args['kind'], 'image');
-        expect(args.containsKey('mime'), isFalse);
-        return 'denied';
-      });
+            final args = call.arguments as Map;
+            expect(args['kind'], 'image');
+            expect(args.containsKey('mime'), isFalse);
+            return 'denied';
+          });
 
       final status = await XGallery.saveToLibrary(
         '/tmp/pic.jpg',
@@ -183,9 +183,7 @@ void main() {
       XGallery.backend = fake;
 
       final firstPage = await XGallery.assets(start: 0, end: 10);
-      expect(firstPage.map((a) => a.id), [
-        for (var i = 0; i < 10; i++) 'a$i',
-      ]);
+      expect(firstPage.map((a) => a.id), [for (var i = 0; i < 10; i++) 'a$i']);
       final tail = await XGallery.assets(albumId: 'all', start: 45, end: 999);
       expect(tail, hasLength(5));
       final past = await XGallery.assets(start: 200, end: 210);

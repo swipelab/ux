@@ -43,9 +43,12 @@ class MethodChannelXWindow implements XWindow {
   /// Subscribes to the native event channel where one is registered.
   MethodChannelXWindow() {
     if (!_hasNativeHandler) return;
-    _events.receiveBroadcastStream().listen(_onEvent, onError: (e, st) {
-      _log.w('event channel error', error: e, stackTrace: st);
-    });
+    _events.receiveBroadcastStream().listen(
+      _onEvent,
+      onError: (e, st) {
+        _log.w('event channel error', error: e, stackTrace: st);
+      },
+    );
   }
 
   /// Only macOS, Android and Windows register a native stream handler for the

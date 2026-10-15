@@ -68,10 +68,10 @@ class XImageProbe {
     required int maxLongest,
   }) async {
     if (!supported) return null;
-    final result = await _channel.invokeMapMethod<String, Object?>('thumbnail', {
-      'path': path,
-      'maxLongest': maxLongest,
-    });
+    final result = await _channel.invokeMapMethod<String, Object?>(
+      'thumbnail',
+      {'path': path, 'maxLongest': maxLongest},
+    );
     if (result == null) return null;
     final sourceWidth = (result['sourceWidth'] as num?)?.toInt();
     final sourceHeight = (result['sourceHeight'] as num?)?.toInt();
@@ -98,8 +98,9 @@ class XImageProbe {
   /// Null when the file is not a decodable image.
   static Future<({int width, int height})?> size(String path) async {
     if (!supported) return null;
-    final result =
-        await _channel.invokeMapMethod<String, Object?>('size', {'path': path});
+    final result = await _channel.invokeMapMethod<String, Object?>('size', {
+      'path': path,
+    });
     final width = (result?['width'] as num?)?.toInt();
     final height = (result?['height'] as num?)?.toInt();
     if (width == null || height == null) return null;

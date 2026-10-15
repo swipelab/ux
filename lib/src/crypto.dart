@@ -6,7 +6,8 @@ import 'package:flutter/services.dart';
 // (web gets the stub, which throws — web has no native handler and no file-path
 // upload, so it never reaches the fallback).
 import 'crypto_range_stub.dart'
-    if (dart.library.io) 'crypto_range_io.dart' as range_fallback;
+    if (dart.library.io) 'crypto_range_io.dart'
+    as range_fallback;
 
 // Re-export the pure-Dart primitive so consumers (and the cross-engine parity
 // tests) get the whole AES-CTR contract — hardware-or-fallback — from one place.
@@ -76,21 +77,25 @@ class XCrypto {
     assert(pos >= 0 && size >= 0, 'pos/size must be non-negative');
     if (isSupported) {
       try {
-        final native = await _channel
-            .invokeMethod<Uint8List>('aesCtrRange', <String, Object?>{
-          'path': path,
-          'pos': pos,
-          'size': size,
-          'key': key,
-          'iv': iv,
-        });
+        final native = await _channel.invokeMethod<Uint8List>(
+          'aesCtrRange',
+          <String, Object?>{
+            'path': path,
+            'pos': pos,
+            'size': size,
+            'key': key,
+            'iv': iv,
+          },
+        );
         if (native != null) return native;
       } catch (e) {
         // A native error (PlatformException) or a host with no registered
         // plugin (MissingPluginException under flutter test) — both fall back
         // to the Dart path. Log it: a fallback on a device that SHOULD have
         // hardware AES is the anomaly worth seeing.
-        debugPrint('ux/crypto: native aesCtrRange unavailable ($e); Dart fallback');
+        debugPrint(
+          'ux/crypto: native aesCtrRange unavailable ($e); Dart fallback',
+        );
       }
     }
     return range_fallback.encryptRangeFallback(path, pos, size, key, iv);

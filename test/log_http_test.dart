@@ -26,15 +26,20 @@ void main() {
         },
       );
 
-      sink.emit(LogRecord(
-        time: DateTime.utc(2026, 5, 10, 12, 0, 0),
-        level: LogLevel.error,
-        message: 'boom',
-        tag: 'net',
-        fields: {'k': 1, 'nested': {'x': true}},
-        error: StateError('bad'),
-        stackTrace: StackTrace.fromString('frame'),
-      ));
+      sink.emit(
+        LogRecord(
+          time: DateTime.utc(2026, 5, 10, 12, 0, 0),
+          level: LogLevel.error,
+          message: 'boom',
+          tag: 'net',
+          fields: {
+            'k': 1,
+            'nested': {'x': true},
+          },
+          error: StateError('bad'),
+          stackTrace: StackTrace.fromString('frame'),
+        ),
+      );
       await sink.flush();
 
       expect(capturedToken, 'abc');
@@ -47,7 +52,10 @@ void main() {
       expect(rec['level'], 'E');
       expect(rec['tag'], 'net');
       expect(rec['message'], 'boom');
-      expect(rec['fields'], {'k': 1, 'nested': {'x': true}});
+      expect(rec['fields'], {
+        'k': 1,
+        'nested': {'x': true},
+      });
       expect(rec['error'], contains('bad'));
       expect(rec['stackTrace'], 'frame');
       expect(rec['device'], {'platform': 'ios'});
@@ -69,11 +77,13 @@ void main() {
       );
 
       for (var i = 0; i < 5; i++) {
-        sink.emit(LogRecord(
-          time: DateTime.utc(2026, 5, 10),
-          level: LogLevel.info,
-          message: 'm$i',
-        ));
+        sink.emit(
+          LogRecord(
+            time: DateTime.utc(2026, 5, 10),
+            level: LogLevel.info,
+            message: 'm$i',
+          ),
+        );
       }
       await sink.flush();
       // First batch of 3 fires at batchSize; flush ships the remaining 2.
@@ -95,11 +105,13 @@ void main() {
         },
       );
 
-      sink.emit(LogRecord(
-        time: DateTime.utc(2026, 5, 10),
-        level: LogLevel.info,
-        message: 'retry-me',
-      ));
+      sink.emit(
+        LogRecord(
+          time: DateTime.utc(2026, 5, 10),
+          level: LogLevel.info,
+          message: 'retry-me',
+        ),
+      );
       await sink.flush();
 
       expect(attempts.length, 4);
@@ -126,11 +138,13 @@ void main() {
         },
       );
 
-      sink.emit(LogRecord(
-        time: DateTime.utc(2026, 5, 10),
-        level: LogLevel.info,
-        message: 'bad',
-      ));
+      sink.emit(
+        LogRecord(
+          time: DateTime.utc(2026, 5, 10),
+          level: LogLevel.info,
+          message: 'bad',
+        ),
+      );
       await sink.flush();
 
       // Hit once and gave up — no retry on 4xx.
@@ -159,11 +173,13 @@ void main() {
       );
 
       for (var i = 0; i < 5; i++) {
-        sink.emit(LogRecord(
-          time: DateTime.utc(2026, 5, 10),
-          level: LogLevel.info,
-          message: 'm$i',
-        ));
+        sink.emit(
+          LogRecord(
+            time: DateTime.utc(2026, 5, 10),
+            level: LogLevel.info,
+            message: 'm$i',
+          ),
+        );
       }
       ready = true;
       sender.complete();
@@ -195,11 +211,13 @@ void main() {
         token: 'sek',
         flushInterval: const Duration(milliseconds: 1),
       );
-      sink.emit(LogRecord(
-        time: DateTime.utc(2026, 5, 10, 12, 0, 0),
-        level: LogLevel.info,
-        message: 'roundtrip',
-      ));
+      sink.emit(
+        LogRecord(
+          time: DateTime.utc(2026, 5, 10, 12, 0, 0),
+          level: LogLevel.info,
+          message: 'roundtrip',
+        ),
+      );
       await sink.flush();
       await server.close(force: true);
 
@@ -222,12 +240,14 @@ void main() {
         },
       );
 
-      sink.emit(LogRecord(
-        time: DateTime.utc(2026, 5, 10),
-        level: LogLevel.info,
-        message: 'm',
-        fields: {'when': DateTime.utc(2026, 5, 10, 1, 2, 3)},
-      ));
+      sink.emit(
+        LogRecord(
+          time: DateTime.utc(2026, 5, 10),
+          level: LogLevel.info,
+          message: 'm',
+          fields: {'when': DateTime.utc(2026, 5, 10, 1, 2, 3)},
+        ),
+      );
       await sink.flush();
 
       expect(rec!['fields'], {'when': '2026-05-10 01:02:03.000Z'});

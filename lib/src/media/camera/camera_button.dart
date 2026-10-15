@@ -27,8 +27,10 @@ class CameraButton extends StatelessWidget {
 
   /// What the button shows.
   final CameraButtonState value;
+
   /// Called on a tap.
   final VoidCallback? onPress;
+
   /// Called on a long press.
   final VoidCallback? onLongPress;
 

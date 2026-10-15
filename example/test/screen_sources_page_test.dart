@@ -54,19 +54,19 @@ void main() {
     String title = 'Source',
     Uint8List? thumbnailPng,
     String? applicationName,
-  }) =>
-      XScreenSource(
-        id: id,
-        kind: kind,
-        title: title,
-        sourceWidth: 1920,
-        sourceHeight: 1080,
-        thumbnailPng: thumbnailPng,
-        applicationName: applicationName,
-      );
+  }) => XScreenSource(
+    id: id,
+    kind: kind,
+    title: title,
+    sourceWidth: 1920,
+    sourceHeight: 1080,
+    thumbnailPng: thumbnailPng,
+    applicationName: applicationName,
+  );
 
-  testWidgets('an ungranted host offers the request and no refresh',
-      (tester) async {
+  testWidgets('an ungranted host offers the request and no refresh', (
+    tester,
+  ) async {
     backend.permission = false;
     var primings = 0;
     ScreenSourcesPage.primeSources = () async {
@@ -115,19 +115,28 @@ void main() {
     expect(backend.listCalls.single.allowedWindowIds, {'7', '2'});
   });
 
-  testWidgets('every source renders its kind, title and thumbnail',
-      (tester) async {
+  testWidgets('every source renders its kind, title and thumbnail', (
+    tester,
+  ) async {
     backend.permission = true;
     backend.sources = [
-      source('1', XScreenSourceKind.display,
-          title: 'Built-in Retina Display', thumbnailPng: onePixelPng),
-      source('7', XScreenSourceKind.window,
-          title: 'Editor', applicationName: 'Xcode'),
+      source(
+        '1',
+        XScreenSourceKind.display,
+        title: 'Built-in Retina Display',
+        thumbnailPng: onePixelPng,
+      ),
+      source(
+        '7',
+        XScreenSourceKind.window,
+        title: 'Editor',
+        applicationName: 'Xcode',
+      ),
     ];
     ScreenSourcesPage.primeSources = () async => [
-          _PrimedSource('1', 'Built-in Retina Display', SourceType.Screen),
-          _PrimedSource('7', 'Editor', SourceType.Window),
-        ];
+      _PrimedSource('1', 'Built-in Retina Display', SourceType.Screen),
+      _PrimedSource('7', 'Editor', SourceType.Window),
+    ];
 
     await tester.pumpWidget(const MaterialApp(home: ScreenSourcesPage()));
     await tester.pumpAndSettle();
@@ -160,10 +169,13 @@ void main() {
 
   testWidgets('a failed snapshot renders its code and message', (tester) async {
     backend.permission = true;
-    backend.listError =
-        const XScreenSourcesException('permission_denied', 'screen recording');
-    ScreenSourcesPage.primeSources = () async =>
-        [_PrimedSource('1', 'Display 1', SourceType.Screen)];
+    backend.listError = const XScreenSourcesException(
+      'permission_denied',
+      'screen recording',
+    );
+    ScreenSourcesPage.primeSources = () async => [
+      _PrimedSource('1', 'Display 1', SourceType.Screen),
+    ];
 
     await tester.pumpWidget(const MaterialApp(home: ScreenSourcesPage()));
     await tester.pumpAndSettle();
@@ -173,8 +185,9 @@ void main() {
     expect(find.text('permission_denied: screen recording'), findsOneWidget);
   });
 
-  testWidgets('a host with nothing to offer renders the empty state',
-      (tester) async {
+  testWidgets('a host with nothing to offer renders the empty state', (
+    tester,
+  ) async {
     backend.permission = true;
     ScreenSourcesPage.primeSources = () async => const [];
 

@@ -91,19 +91,29 @@ abstract class Pane with Emitter {
 
   /// Adopts [child] as the render box of [slot].
   void insertRenderObjectChild(
-      PaneElement paneElement, covariant RenderBox child, Object? slot) {
+    PaneElement paneElement,
+    covariant RenderBox child,
+    Object? slot,
+  ) {
     setupParentData(child, slot);
     renderBoxes[slot] = child;
     renderer?.adoptChild(child);
   }
 
   /// Re-slots [child] from [oldSlot] to [newSlot].
-  void moveRenderObjectChild(PaneElement paneElement, RenderObject child,
-      Object? oldSlot, Object? newSlot) {}
+  void moveRenderObjectChild(
+    PaneElement paneElement,
+    RenderObject child,
+    Object? oldSlot,
+    Object? newSlot,
+  ) {}
 
   /// Drops the render box held for [slot].
   void removeRenderObjectChild(
-      PaneElement paneElement, RenderObject child, Object? slot) {
+    PaneElement paneElement,
+    RenderObject child,
+    Object? slot,
+  ) {
     renderBoxes.remove(slot);
     renderer?.dropChild(child);
   }
@@ -250,10 +260,7 @@ class PaneView extends StatelessWidget {
 /// render box, and rebinds them when the pane is swapped.
 class PaneViewport extends RenderObjectWidget {
   /// Binds the pane this widget mounts.
-  const PaneViewport({
-    required this.controller,
-    super.key,
-  });
+  const PaneViewport({required this.controller, super.key});
 
   /// The pane that owns layout and paint.
   final Pane controller;
@@ -270,7 +277,9 @@ class PaneViewport extends RenderObjectWidget {
 
   @override
   void updateRenderObject(
-      BuildContext context, covariant PaneRender renderObject) {
+    BuildContext context,
+    covariant PaneRender renderObject,
+  ) {
     renderObject.controller = controller;
   }
 }
@@ -288,19 +297,26 @@ class PaneElement extends RenderObjectElement {
 
   @override
   void insertRenderObjectChild(
-      covariant RenderBox child, covariant Object? slot) {
+    covariant RenderBox child,
+    covariant Object? slot,
+  ) {
     controller.insertRenderObjectChild(this, child, slot);
   }
 
   @override
-  void moveRenderObjectChild(covariant RenderObject child,
-      covariant Object? oldSlot, covariant Object? newSlot) {
+  void moveRenderObjectChild(
+    covariant RenderObject child,
+    covariant Object? oldSlot,
+    covariant Object? newSlot,
+  ) {
     controller.moveRenderObjectChild(this, child, oldSlot, newSlot);
   }
 
   @override
   void removeRenderObjectChild(
-      covariant RenderObject child, covariant Object? slot) {
+    covariant RenderObject child,
+    covariant Object? slot,
+  ) {
     controller.removeRenderObjectChild(this, child, slot);
   }
 
@@ -356,9 +372,7 @@ class PaneElement extends RenderObjectElement {
 /// layout, paint, and hit testing to the pane.
 class PaneRender extends RenderBox {
   /// Binds the render box to the pane it delegates to.
-  PaneRender({
-    required this._controller,
-  });
+  PaneRender({required this._controller});
 
   Pane _controller;
 
@@ -430,14 +444,11 @@ class PaneRender extends RenderBox {
 
   @override
   void invokeLayoutCallback<T extends Constraints>(
-          LayoutCallback<T> callback) =>
-      super.invokeLayoutCallback(callback);
+    LayoutCallback<T> callback,
+  ) => super.invokeLayoutCallback(callback);
 
   @override
-  bool hitTestChildren(
-    BoxHitTestResult result, {
-    required Offset position,
-  }) =>
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
       controller.hitTestChildren(result, position);
 
   @override

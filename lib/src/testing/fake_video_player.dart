@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:ui' show Size;
 
-import 'package:ux/src/video/x_video_player.dart' show XDurationRange, XVideoPlayerException;
+import 'package:ux/src/video/x_video_player.dart'
+    show XDurationRange, XVideoPlayerException;
 import 'package:ux/src/video/x_video_player_backend.dart';
 
 /// In-memory backend for [XVideoPlayerController] tests. Swap in via
@@ -63,6 +64,7 @@ class FakeXVideoPlayerBackend implements XVideoPlayerBackend {
 
   /// If non-null, [create] throws this exception. Drives error paths.
   XVideoPlayerException? createError;
+
   /// If non-null, [initialize] throws this exception.
   XVideoPlayerException? initializeError;
 
@@ -144,8 +146,7 @@ class FakeXVideoPlayerBackend implements XVideoPlayerBackend {
   }
 
   @override
-  Stream<XVideoPlayerEvent> events(int handle) =>
-      _controllerFor(handle).stream;
+  Stream<XVideoPlayerEvent> events(int handle) => _controllerFor(handle).stream;
 
   // ---- test helpers ------------------------------------------------
 

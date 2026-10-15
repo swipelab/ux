@@ -33,14 +33,8 @@ class MediaCommandsBar extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           const SizedBox.shrink(),
-          _CommandButton(
-            icon: CupertinoIcons.crop,
-            onPress: onCrop,
-          ),
-          _CommandButton(
-            icon: CupertinoIcons.hand_draw,
-            onPress: onDraw,
-          ),
+          _CommandButton(icon: CupertinoIcons.crop, onPress: onCrop),
+          _CommandButton(icon: CupertinoIcons.hand_draw, onPress: onDraw),
           _CommandButton(
             icon: CupertinoIcons.plus_slash_minus,
             onPress: onAspectRatio,

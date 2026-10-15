@@ -31,7 +31,8 @@ Future<io.File> normalizeCameraCapture(
   final sensorIsLandscapeReadout =
       sensorOrientation == 90 || sensorOrientation == 270;
   final jpegIsLandscape = dims != null && dims.width >= dims.height;
-  final dimsSwapped = dims != null && sensorIsLandscapeReadout != jpegIsLandscape;
+  final dimsSwapped =
+      dims != null && sensorIsLandscapeReadout != jpegIsLandscape;
 
   final displayRotation = _flutterToDisplayRotationDegrees(physical);
   final cameraxPreRotation = isFrontCamera
@@ -63,9 +64,10 @@ Future<io.File> normalizeCameraCapture(
     height = decoded.height;
     final residual =
         (pixelExpected.rotationDegrees - cameraxPreRotation + 360) % 360;
-    outputOrientation = _webpOrientationFor(
-      (rotationDegrees: residual, mirror: pixelExpected.mirror),
-    );
+    outputOrientation = _webpOrientationFor((
+      rotationDegrees: residual,
+      mirror: pixelExpected.mirror,
+    ));
   } else {
     final decoded = await _decodeJpegRgba(stripJpegApp1(original));
     rgba = decoded.rgba;
@@ -88,7 +90,8 @@ Future<io.File> normalizeCameraCapture(
   }
 
   final tmp = await getTemporaryDirectory();
-  final outPath = '${tmp.path}/capture_${clock.now().microsecondsSinceEpoch}.webp';
+  final outPath =
+      '${tmp.path}/capture_${clock.now().microsecondsSinceEpoch}.webp';
   final outFile = io.File(outPath);
   await outFile.writeAsBytes(webp, flush: true);
   return outFile;
@@ -103,13 +106,16 @@ Future<({Uint8List rgba, int width, int height})> _decodeJpegRgba(
     try {
       final w = frame.image.width;
       final h = frame.image.height;
-      final data =
-          await frame.image.toByteData(format: ui.ImageByteFormat.rawRgba);
+      final data = await frame.image.toByteData(
+        format: ui.ImageByteFormat.rawRgba,
+      );
       if (data == null) {
         throw StateError('toByteData returned null');
       }
-      final rgba =
-          data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+      final rgba = data.buffer.asUint8List(
+        data.offsetInBytes,
+        data.lengthInBytes,
+      );
       return (rgba: rgba, width: w, height: h);
     } finally {
       frame.image.dispose();
@@ -123,11 +129,11 @@ Future<({Uint8List rgba, int width, int height})> _decodeJpegRgba(
 /// (the value the native side hands to `ImageCapture.targetRotation`). Used to
 /// reconstruct CameraX's pre-rotation amount on the Dart side.
 int _flutterToDisplayRotationDegrees(DeviceOrientation o) => switch (o) {
-      DeviceOrientation.portraitUp => 0,
-      DeviceOrientation.landscapeRight => 90,
-      DeviceOrientation.portraitDown => 180,
-      DeviceOrientation.landscapeLeft => 270,
-    };
+  DeviceOrientation.portraitUp => 0,
+  DeviceOrientation.landscapeRight => 90,
+  DeviceOrientation.portraitDown => 180,
+  DeviceOrientation.landscapeLeft => 270,
+};
 
 /// The rotation that turns sensor pixels upright for a capture at [physical];
 /// never mirrors.
@@ -144,11 +150,11 @@ int _flutterToDisplayRotationDegrees(DeviceOrientation o) => switch (o) {
 }
 
 int _surfaceDegrees(DeviceOrientation o) => switch (o) {
-      DeviceOrientation.portraitUp => 0,
-      DeviceOrientation.landscapeLeft => 90,
-      DeviceOrientation.portraitDown => 180,
-      DeviceOrientation.landscapeRight => 270,
-    };
+  DeviceOrientation.portraitUp => 0,
+  DeviceOrientation.landscapeLeft => 90,
+  DeviceOrientation.portraitDown => 180,
+  DeviceOrientation.landscapeRight => 270,
+};
 
 WebPOrientation _webpOrientationFor(({int rotationDegrees, bool mirror}) t) {
   return switch ((t.rotationDegrees, t.mirror)) {

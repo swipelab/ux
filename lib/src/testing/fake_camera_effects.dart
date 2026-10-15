@@ -44,8 +44,9 @@ class FakeXCameraEffectsBackend implements XCameraEffectsBackend {
 
   /// What a consumer observes; assign to it to drive the phases.
   @override
-  final ValueEmitter<XCameraEffectStatus> status =
-      ValueEmitter(const XCameraEffectStatus.idle());
+  final ValueEmitter<XCameraEffectStatus> status = ValueEmitter(
+    const XCameraEffectStatus.idle(),
+  );
 
   @override
   Future<bool> available() async {

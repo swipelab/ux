@@ -5,19 +5,19 @@ import 'package:ux/testing.dart';
 import 'package:ux/screen_sources.dart';
 
 XScreenSource _source(String id, {Uint8List? thumbnailPng}) => XScreenSource(
-      id: id,
-      kind: XScreenSourceKind.window,
-      title: id,
-      sourceWidth: 800,
-      sourceHeight: 600,
-      thumbnailPng: thumbnailPng,
-    );
+  id: id,
+  kind: XScreenSourceKind.window,
+  title: id,
+  sourceWidth: 800,
+  sourceHeight: 600,
+  thumbnailPng: thumbnailPng,
+);
 
 void main() {
   test('serves the scripted snapshot and records the call', () async {
     final fake = FakeXScreenSourcesBackend(
       sources: [
-        _source('window:1', thumbnailPng: Uint8List.fromList([1]))
+        _source('window:1', thumbnailPng: Uint8List.fromList([1])),
       ],
     );
 
@@ -83,8 +83,11 @@ void main() {
     await expectLater(
       fake.list(allowedDisplayIds: const {}, allowedWindowIds: const {}),
       throwsA(
-        isA<XScreenSourcesException>()
-            .having((e) => e.code, 'code', 'thumbnail_failed'),
+        isA<XScreenSourcesException>().having(
+          (e) => e.code,
+          'code',
+          'thumbnail_failed',
+        ),
       ),
     );
     expect(fake.listCalls, hasLength(1));
@@ -110,11 +113,14 @@ void main() {
   test('scripted permission errors are thrown', () async {
     final fake = FakeXScreenSourcesBackend()
       ..hasPermissionError = const XScreenSourcesException('permission_denied')
-      ..requestPermissionError =
-          const XScreenSourcesException('permission_denied');
+      ..requestPermissionError = const XScreenSourcesException(
+        'permission_denied',
+      );
 
     await expectLater(
-        fake.hasPermission(), throwsA(isA<XScreenSourcesException>()));
+      fake.hasPermission(),
+      throwsA(isA<XScreenSourcesException>()),
+    );
     await expectLater(
       fake.requestPermission(),
       throwsA(isA<XScreenSourcesException>()),
@@ -132,8 +138,13 @@ void main() {
     fake.availableError = const XScreenSourcesException('enumeration_failed');
     await expectLater(
       fake.available(),
-      throwsA(isA<XScreenSourcesException>()
-          .having((e) => e.code, 'code', 'enumeration_failed')),
+      throwsA(
+        isA<XScreenSourcesException>().having(
+          (e) => e.code,
+          'code',
+          'enumeration_failed',
+        ),
+      ),
     );
   });
 
@@ -147,7 +158,9 @@ void main() {
     await fake.stopShare();
 
     expect(
-        fake.startShareCalls.single.notificationTitle, 'Sharing your screen');
+      fake.startShareCalls.single.notificationTitle,
+      'Sharing your screen',
+    );
     expect(fake.startShareCalls.single.notificationText, 'Tap to return');
     expect(fake.stopShareCalls, 1);
   });
@@ -159,13 +172,23 @@ void main() {
 
     await expectLater(
       fake.startShare(notificationTitle: 'Sharing your screen'),
-      throwsA(isA<XScreenSourcesException>()
-          .having((e) => e.code, 'code', 'permission_denied')),
+      throwsA(
+        isA<XScreenSourcesException>().having(
+          (e) => e.code,
+          'code',
+          'permission_denied',
+        ),
+      ),
     );
     await expectLater(
       fake.stopShare(),
-      throwsA(isA<XScreenSourcesException>()
-          .having((e) => e.code, 'code', 'service_start_failed')),
+      throwsA(
+        isA<XScreenSourcesException>().having(
+          (e) => e.code,
+          'code',
+          'service_start_failed',
+        ),
+      ),
     );
     expect(fake.startShareCalls, hasLength(1));
     expect(fake.stopShareCalls, 1);
@@ -174,9 +197,12 @@ void main() {
   test('an unsupported fake throws unsupported everywhere', () async {
     final fake = FakeXScreenSourcesBackend(supported: false);
     Matcher unsupported() => throwsA(
-          isA<XScreenSourcesException>()
-              .having((e) => e.code, 'code', 'unsupported'),
-        );
+      isA<XScreenSourcesException>().having(
+        (e) => e.code,
+        'code',
+        'unsupported',
+      ),
+    );
 
     expect(fake.supported, isFalse);
     await expectLater(fake.available(), unsupported());

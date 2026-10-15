@@ -32,10 +32,10 @@ void main() {
   });
 
   Future<void> sendEvent(Object? event) => messenger.handlePlatformMessage(
-        'ux/window/events',
-        const StandardMethodCodec().encodeSuccessEnvelope(event),
-        (_) {},
-      );
+    'ux/window/events',
+    const StandardMethodCodec().encodeSuccessEnvelope(event),
+    (_) {},
+  );
 
   // Regression: iOS has no native handler, so activating the broadcast
   // stream throws MissingPluginException straight to FlutterError.onError.
@@ -54,22 +54,24 @@ void main() {
     expect(listenCalls, contains('listen'));
   });
 
-  test('Windows activates the events channel, whose focus event flips focused',
-      () async {
-    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
-    final w = MethodChannelXWindow();
-    await pumpEventQueue();
-    expect(listenCalls, contains('listen'));
-    expect(w.focused.value, isTrue);
+  test(
+    'Windows activates the events channel, whose focus event flips focused',
+    () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      final w = MethodChannelXWindow();
+      await pumpEventQueue();
+      expect(listenCalls, contains('listen'));
+      expect(w.focused.value, isTrue);
 
-    await sendEvent({'type': 'focus', 'focused': false});
-    await pumpEventQueue();
-    expect(w.focused.value, isFalse);
+      await sendEvent({'type': 'focus', 'focused': false});
+      await pumpEventQueue();
+      expect(w.focused.value, isFalse);
 
-    await sendEvent({'type': 'focus', 'focused': true});
-    await pumpEventQueue();
-    expect(w.focused.value, isTrue);
-  });
+      await sendEvent({'type': 'focus', 'focused': true});
+      await pumpEventQueue();
+      expect(w.focused.value, isTrue);
+    },
+  );
 
   for (final platform in [
     TargetPlatform.iOS,

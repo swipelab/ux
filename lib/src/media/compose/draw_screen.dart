@@ -79,8 +79,7 @@ class DrawScreen with Screen<bool>, Emitter {
     curve: Curves.easeInOut,
   )..disposeBy(this);
 
-  late final ValueNotifier<double> _chromeHeight =
-      ValueNotifier<double>(0);
+  late final ValueNotifier<double> _chromeHeight = ValueNotifier<double>(0);
 
   /// Measured height of the bottom control strip. The editor's overlays
   /// subtract it from the band they lay out in.

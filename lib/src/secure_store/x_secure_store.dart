@@ -74,19 +74,16 @@ class MethodChannelXSecureStore implements XSecureStore {
           defaultTargetPlatform == TargetPlatform.android);
 
   @override
-  Future<String?> read(String key) => _enqueue(
-        () => _invoke<String>('read', {'key': key}),
-      );
+  Future<String?> read(String key) =>
+      _enqueue(() => _invoke<String>('read', {'key': key}));
 
   @override
-  Future<void> write(String key, String value) => _enqueue(
-        () => _invoke<void>('write', {'key': key, 'value': value}),
-      );
+  Future<void> write(String key, String value) =>
+      _enqueue(() => _invoke<void>('write', {'key': key, 'value': value}));
 
   @override
-  Future<void> delete(String key) => _enqueue(
-        () => _invoke<void>('delete', {'key': key}),
-      );
+  Future<void> delete(String key) =>
+      _enqueue(() => _invoke<void>('delete', {'key': key}));
 
   Future<T?> _invoke<T>(String method, Map<String, String> arguments) async {
     if (!supported) {
@@ -101,8 +98,9 @@ class MethodChannelXSecureStore implements XSecureStore {
 
   Future<T?> _enqueue<T>(Future<T?> Function() command) {
     final previous = _commandTail;
-    final operation =
-        previous == null ? command() : previous.then((_) => command());
+    final operation = previous == null
+        ? command()
+        : previous.then((_) => command());
     final tail = operation.then<void>(
       (_) {},
       onError: (Object _, StackTrace _) {},

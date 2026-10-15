@@ -12,7 +12,8 @@ double _sheetTop(WidgetTester tester) =>
 
 Offset _inList(WidgetTester tester) => tester.getCenter(find.byType(ListView));
 
-Offset _onThumb(WidgetTester tester) => tester.getCenter(find.byType(SheetThumb));
+Offset _onThumb(WidgetTester tester) =>
+    tester.getCenter(find.byType(SheetThumb));
 
 Future<void> _pumpSheet(
   WidgetTester tester, {
@@ -49,7 +50,11 @@ Future<void> _expandSheet(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-Future<void> _moveBy(WidgetTester tester, TestGesture gesture, double dy) async {
+Future<void> _moveBy(
+  WidgetTester tester,
+  TestGesture gesture,
+  double dy,
+) async {
   await gesture.moveBy(Offset(0, dy));
   await tester.pump();
 }
@@ -431,8 +436,9 @@ void main() {
       },
     );
 
-    testWidgets('a list without overflow leaves the drag to the sheet',
-        (tester) async {
+    testWidgets('a list without overflow leaves the drag to the sheet', (
+      tester,
+    ) async {
       final sheet = SheetController();
       final list = ScrollController();
       addTearDown(list.dispose);
@@ -452,26 +458,28 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets('without an attached list the sheet takes the drag from the half snap',
-        (tester) async {
-      final sheet = SheetController();
-      final list = ScrollController();
-      addTearDown(list.dispose);
-      await _pumpSheet(tester, sheet: sheet, list: list, attach: false);
-      list.jumpTo(300);
-      await tester.pump();
+    testWidgets(
+      'without an attached list the sheet takes the drag from the half snap',
+      (tester) async {
+        final sheet = SheetController();
+        final list = ScrollController();
+        addTearDown(list.dispose);
+        await _pumpSheet(tester, sheet: sheet, list: list, attach: false);
+        list.jumpTo(300);
+        await tester.pump();
 
-      final gesture = await tester.startGesture(_inList(tester));
-      for (var i = 0; i < 3; i++) {
-        await _moveBy(tester, gesture, 24);
-      }
+        final gesture = await tester.startGesture(_inList(tester));
+        for (var i = 0; i < 3; i++) {
+          await _moveBy(tester, gesture, 24);
+        }
 
-      expect(list.offset, 300);
-      expect(_sheetTop(tester), greaterThan(_halfSnapTop + 40));
+        expect(list.offset, 300);
+        expect(_sheetTop(tester), greaterThan(_halfSnapTop + 40));
 
-      await gesture.up();
-      await tester.pumpAndSettle();
-    });
+        await gesture.up();
+        await tester.pumpAndSettle();
+      },
+    );
 
     testWidgets(
       'without an attached list the sheet takes the drag from the expanded snap',
@@ -567,8 +575,9 @@ void main() {
       },
     );
 
-    testWidgets('a release at rest past the dismiss line dismisses',
-        (tester) async {
+    testWidgets('a release at rest past the dismiss line dismisses', (
+      tester,
+    ) async {
       final sheet = SheetController();
       final list = ScrollController();
       addTearDown(list.dispose);
@@ -611,8 +620,9 @@ void main() {
       },
     );
 
-    testWidgets('a fling on a list with room scrolls and never dismisses',
-        (tester) async {
+    testWidgets('a fling on a list with room scrolls and never dismisses', (
+      tester,
+    ) async {
       final sheet = SheetController();
       final list = ScrollController();
       addTearDown(list.dispose);
@@ -634,8 +644,9 @@ void main() {
     });
   });
 
-  testWidgets('a touch while the sheet slides away does not stop it',
-      (tester) async {
+  testWidgets('a touch while the sheet slides away does not stop it', (
+    tester,
+  ) async {
     final sheet = SheetController();
     final list = ScrollController();
     addTearDown(list.dispose);
@@ -652,71 +663,76 @@ void main() {
     expect(_sheetTop(tester), _screenHeight);
   });
 
-  testWidgets('a drag in flight when the sheet starts to slide away is dropped',
-      (tester) async {
-    final sheet = SheetController();
-    final list = ScrollController();
-    addTearDown(list.dispose);
-    await _pumpSheet(tester, sheet: sheet, list: list);
+  testWidgets(
+    'a drag in flight when the sheet starts to slide away is dropped',
+    (tester) async {
+      final sheet = SheetController();
+      final list = ScrollController();
+      addTearDown(list.dispose);
+      await _pumpSheet(tester, sheet: sheet, list: list);
 
-    final gesture = await tester.startGesture(_onThumb(tester));
-    await _moveBy(tester, gesture, -40);
-    var left = false;
-    sheet.animateDismiss().then((_) => left = true);
-    await tester.pump(const Duration(milliseconds: 90));
-    await _moveBy(tester, gesture, -40);
-    await gesture.up();
-    await tester.pumpAndSettle();
+      final gesture = await tester.startGesture(_onThumb(tester));
+      await _moveBy(tester, gesture, -40);
+      var left = false;
+      sheet.animateDismiss().then((_) => left = true);
+      await tester.pump(const Duration(milliseconds: 90));
+      await _moveBy(tester, gesture, -40);
+      await gesture.up();
+      await tester.pumpAndSettle();
 
-    expect(left, isTrue);
-    expect(_sheetTop(tester), _screenHeight);
-  });
-
-  testWidgets('a barrier press held when the sheet starts to slide away is dropped',
-      (tester) async {
-    final sheet = SheetController();
-    final list = ScrollController();
-    addTearDown(list.dispose);
-    var dismissed = 0;
-    await _pumpSheet(
-      tester,
-      sheet: sheet,
-      list: list,
-      onDismiss: () => dismissed++,
-    );
-
-    final press = await tester.startGesture(const Offset(200, 40));
-    var left = false;
-    sheet.animateDismiss().then((_) => left = true);
-    await tester.pump(const Duration(milliseconds: 90));
-    await press.up();
-    await tester.pumpAndSettle();
-
-    expect(left, isTrue);
-    expect(dismissed, 0);
-  });
+      expect(left, isTrue);
+      expect(_sheetTop(tester), _screenHeight);
+    },
+  );
 
   testWidgets(
-      'a list press whose drag starts after the sheet starts to slide away is dropped',
-      (tester) async {
-    final sheet = SheetController();
-    final list = ScrollController();
-    addTearDown(list.dispose);
-    await _pumpSheet(tester, sheet: sheet, list: list);
-    await _expandSheet(tester);
-    list.jumpTo(200);
-    await tester.pump();
+    'a barrier press held when the sheet starts to slide away is dropped',
+    (tester) async {
+      final sheet = SheetController();
+      final list = ScrollController();
+      addTearDown(list.dispose);
+      var dismissed = 0;
+      await _pumpSheet(
+        tester,
+        sheet: sheet,
+        list: list,
+        onDismiss: () => dismissed++,
+      );
 
-    final press = await tester.startGesture(_inList(tester));
-    var left = false;
-    sheet.animateDismiss().then((_) => left = true);
-    await tester.pump(const Duration(milliseconds: 90));
-    await _moveBy(tester, press, 60);
-    await _moveBy(tester, press, 60);
-    await press.up();
-    await tester.pumpAndSettle();
+      final press = await tester.startGesture(const Offset(200, 40));
+      var left = false;
+      sheet.animateDismiss().then((_) => left = true);
+      await tester.pump(const Duration(milliseconds: 90));
+      await press.up();
+      await tester.pumpAndSettle();
 
-    expect(left, isTrue);
-    expect(_sheetTop(tester), _screenHeight);
-  });
+      expect(left, isTrue);
+      expect(dismissed, 0);
+    },
+  );
+
+  testWidgets(
+    'a list press whose drag starts after the sheet starts to slide away is dropped',
+    (tester) async {
+      final sheet = SheetController();
+      final list = ScrollController();
+      addTearDown(list.dispose);
+      await _pumpSheet(tester, sheet: sheet, list: list);
+      await _expandSheet(tester);
+      list.jumpTo(200);
+      await tester.pump();
+
+      final press = await tester.startGesture(_inList(tester));
+      var left = false;
+      sheet.animateDismiss().then((_) => left = true);
+      await tester.pump(const Duration(milliseconds: 90));
+      await _moveBy(tester, press, 60);
+      await _moveBy(tester, press, 60);
+      await press.up();
+      await tester.pumpAndSettle();
+
+      expect(left, isTrue);
+      expect(_sheetTop(tester), _screenHeight);
+    },
+  );
 }
