@@ -1,4 +1,10 @@
 ### 0.18.0
+- **Windows encrypts uploads natively.** `XCrypto.aesCtrEncryptRange` and
+  `XCrypto.aesCtrBytes` on Windows run AES-256-CTR through CNG off the platform
+  thread: AES in ECB mode, with AES-NI where the CPU has it, encrypts the
+  counter blocks into the keystream XORed over the data, and
+  `aesCtrEncryptRange` reads the file's range itself, so only ciphertext crosses
+  the channel. `XCrypto.isSupported` is true on Windows.
 - **Windows pastes images and files.** `XClipboard.readFiles` on Windows
   answers the path and name of each file an Explorer copy put on the
   clipboard. `XClipboard.readImage` answers the bytes of the clipboard's

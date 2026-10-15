@@ -2,9 +2,13 @@
 set(UX_PLUGIN_SOURCES
   "${CMAKE_CURRENT_LIST_DIR}/x_plugin.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/x_plugin.h"
+  "${CMAKE_CURRENT_LIST_DIR}/aes_ctr.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/aes_ctr.h"
   "${CMAKE_CURRENT_LIST_DIR}/clipboard_plugin.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/clipboard_plugin.h"
   "${CMAKE_CURRENT_LIST_DIR}/com_scope.h"
+  "${CMAKE_CURRENT_LIST_DIR}/crypto_plugin.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/crypto_plugin.h"
   "${CMAKE_CURRENT_LIST_DIR}/dib.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/dib.h"
   "${CMAKE_CURRENT_LIST_DIR}/drop_data.cpp"
@@ -58,7 +62,7 @@ set(UX_PLUGIN_SOURCES
 )
 
 # The SDK libraries the handlers link.
-set(UX_PLUGIN_LIBRARIES icu d3d11 mfplat mfreadwrite mfuuid windowscodecs runtimeobject delayimp)
+set(UX_PLUGIN_LIBRARIES bcrypt icu d3d11 mfplat mfreadwrite mfuuid windowscodecs runtimeobject delayimp)
 
 # MediaFoundation (media_foundation.cpp) loads Media Foundation's DLLs before
 # any call into them, so ux_plugin.dll loads on an N edition of Windows, which
