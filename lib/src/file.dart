@@ -397,9 +397,9 @@ class XFiles {
   /// Extract several frames in one native round-trip — the strip of
   /// thumbnails behind a video trim scrubber. Frames come back in
   /// [timestampsMs] order; entries whose decode failed are null.
-  /// Timestamps land on the nearest keyframe (fast path on both
-  /// platforms), so neighbouring entries may repeat on sparse-keyframe
-  /// sources.
+  /// Timestamps land on the nearest keyframe on Apple platforms and
+  /// Android (their fast path), so neighbouring entries may repeat on
+  /// sparse-keyframe sources; Windows decodes the frame nearest each.
   static Future<List<XVideoThumbnail?>> videoThumbnails({
     required String path,
     required List<int> timestampsMs,

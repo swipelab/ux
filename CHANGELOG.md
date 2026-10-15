@@ -61,6 +61,16 @@
   Windows has the HEIF and HEVC extensions, and null for a file none decodes.
   `XImageProbe.supported` is true on Windows, and the file dialog's `image/*`
   filter there allows heic and heif.
+- **Windows extracts video frames and exports videos.** `XFiles.videoThumbnail`
+  and `videoThumbnails` decode through Media Foundation the frame nearest each
+  time, within 500 ms, upright, scaled to `maxWidth` or baked with the transform
+  and overlay as on Apple platforms. `XVideoExporter` re-encodes every request
+  on Windows to an H.264/AAC MP4, trimmed from the trim start exactly, without
+  audio when muted, and with the transform and overlay drawn upright, at
+  `videoBitrate` or else the source's bitrate, at least 0.1 bit per pixel per
+  frame. Progress runs from 0 to 1, `done` answers the path, the size and the
+  duration, and `cancel` deletes the partial file and fails with `cancelled`.
+  Where Windows has no Media Foundation, each fails with its error.
 - **Windows plays videos.** `XVideoPlayerController.file` plays on Windows
   through Media Foundation's Media Engine into a Flutter texture. `initialize`
   answers the display size and the duration, with `rotationQuarterTurns` 0

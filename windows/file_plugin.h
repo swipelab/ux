@@ -19,7 +19,8 @@ namespace ux {
 
 // `ux/file`: `pick` and `pickMultiple` through the open dialog, `open` with
 // the file's associated application, `saveCopy` through the save dialog,
-// `share` through the share window, and `showInFolder` in Explorer.
+// `share` through the share window, `showInFolder` in Explorer, and
+// `videoThumbnail` and `videoThumbnails` through Media Foundation.
 class FilePlugin : public flutter::Plugin {
  public:
   explicit FilePlugin(flutter::PluginRegistrarWindows* registrar);
@@ -37,6 +38,8 @@ class FilePlugin : public flutter::Plugin {
   void Share(const std::wstring& path, std::optional<std::wstring> title, std::shared_ptr<Result> result);
   void ShowShareWindow(HWND owner, const winrt::Windows::Storage::StorageFile& file, const std::wstring& title);
   void ShowInFolder(const std::wstring& path, Result& result);
+  void VideoThumbnail(const std::wstring& path, const flutter::EncodableMap* args, std::unique_ptr<Result> result);
+  void VideoThumbnails(const std::wstring& path, const flutter::EncodableMap* args, std::unique_ptr<Result> result);
 
   // The window that owns the dialogs and the share window: the top-level
   // window of the Flutter view.
