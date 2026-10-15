@@ -4,7 +4,8 @@ import 'package:flutter/services.dart';
 
 /// Trim / mute video export over the platform media pipelines —
 /// AVFoundation on Apple platforms (passthrough remux when no
-/// re-encode is needed), Media3 Transformer on Android.
+/// re-encode is needed), Media3 Transformer on Android, and Media
+/// Foundation on Windows, which re-encodes every request.
 ///
 /// One [XVideoExportSession] per [start] call; progress streams in as
 /// 0..1, [XVideoExportSession.done] resolves with the output metadata
@@ -142,7 +143,9 @@ class XVideoExportRequest {
   final int? outHeight;
 
   /// Target video bitrate (bits/s) for the re-encode path. Null lets
-  /// the platform choose (trim/mute passthrough never encodes video).
+  /// the platform choose: a trim/mute passthrough encodes no video, and
+  /// Windows re-encodes at the source's bitrate, at least 0.1 bit per
+  /// pixel per frame.
   final int? videoBitrate;
 
   /// Absolute path of a transparent PNG at the upright source's pixel
