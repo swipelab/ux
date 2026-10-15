@@ -14,12 +14,16 @@ set(UX_PLUGIN_SOURCES
   "${CMAKE_CURRENT_LIST_DIR}/media_foundation.h"
   "${CMAKE_CURRENT_LIST_DIR}/method_args.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/method_args.h"
+  "${CMAKE_CURRENT_LIST_DIR}/notifications_plugin.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/notifications_plugin.h"
   "${CMAKE_CURRENT_LIST_DIR}/platform_thread.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/platform_thread.h"
   "${CMAKE_CURRENT_LIST_DIR}/raster.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/raster.h"
   "${CMAKE_CURRENT_LIST_DIR}/text.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/text.h"
+  "${CMAKE_CURRENT_LIST_DIR}/toast.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/toast.h"
   "${CMAKE_CURRENT_LIST_DIR}/url_plugin.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/url_plugin.h"
   "${CMAKE_CURRENT_LIST_DIR}/url_detect.cpp"
@@ -40,10 +44,12 @@ set(UX_PLUGIN_SOURCES
   "${CMAKE_CURRENT_LIST_DIR}/video_surface.h"
   "${CMAKE_CURRENT_LIST_DIR}/video_thumbnail.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/video_thumbnail.h"
+  "${CMAKE_CURRENT_LIST_DIR}/window_plugin.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/window_plugin.h"
 )
 
 # The SDK libraries the handlers link.
-set(UX_PLUGIN_LIBRARIES icu d3d11 mfplat mfreadwrite mfuuid windowscodecs delayimp)
+set(UX_PLUGIN_LIBRARIES icu d3d11 mfplat mfreadwrite mfuuid windowscodecs runtimeobject delayimp)
 
 # MediaFoundation (media_foundation.cpp) loads Media Foundation's DLLs before
 # any call into them, so ux_plugin.dll loads on an N edition of Windows, which

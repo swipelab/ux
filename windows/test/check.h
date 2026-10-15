@@ -3,9 +3,14 @@
 
 #include <atomic>
 #include <cstdio>
+#include <optional>
 
 // The failed checks of the running suite.
 inline std::atomic<int> check_failures{0};
+
+// Why the running suite cannot run in this process, which ux_test reports as
+// a skip.
+inline std::optional<const char*> check_skipped;
 
 #define CHECK(condition)                                                  \
   do {                                                                    \

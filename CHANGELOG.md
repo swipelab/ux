@@ -1,4 +1,20 @@
 ### 0.18.0
+- **Windows shows toasts.** `XNotifications` on Windows shows a toast under the
+  process's explicit AppUserModelID, with the title and the body as its lines;
+  a later toast with the same id and thread replaces it, `cancelByThread`
+  removes a thread's toasts and `cancelAll` all of them. `requestPermission`
+  answers whether toasts are enabled for the app and emits `authorization`. A
+  click restores and raises the app's window and reaches `onTap` with the
+  toast's data, through the COM class the host names with the new C API
+  `XPluginCApiSetToastActivator`; a click after the app has exited starts it.
+  Every method of a process with no AppUserModelID fails with
+  `no_app_user_model_id`.
+- **Windows reports focus and keeps the display awake.** `XWindow.focused`
+  follows `WM_ACTIVATEAPP` on the app's window, starting from whether the app
+  holds the foreground, and `keepAwake` holds the display on with
+  `SetThreadExecutionState` until it is released or the window is destroyed.
+- **XWindow logs focus.** Each focus event logs `focused: <bool>` at info
+  level, tagged `window`.
 - **Windows probes images.** `XImageProbe.size` and `XImageProbe.thumbnail`
   answer on Windows through WIC, upright with the image's orientation applied,
   for every format an installed codec decodes, HEIC and HEIF included where
