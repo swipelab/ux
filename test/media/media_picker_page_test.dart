@@ -533,6 +533,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(camera.takePictureCalls, hasLength(1));
       final compose = host.pages.value.last as ComposePage;
+      var read = false;
+      compose.focusedEntry.addListener(() => read = true);
       expect(compose.assets.single, isA<ImageMedia>());
       expect(page.session.disposed, isTrue);
       await tester.runAsync(() => Future<void>.delayed(Duration.zero));
@@ -540,10 +542,11 @@ void main() {
       expect(camera.liveHandles, isEmpty);
       expect(camera.disposeCalls, [1]);
       // Teardown cannot delete the capture on Windows while compose reads it.
-      while (compose.focusedEntry.source == null) {
+      while (!read) {
         await tester.runAsync(() => Future<void>.delayed(Duration.zero));
         await tester.pump();
       }
+      expect(compose.focusedEntry.source, isNotNull);
       compose.handleCancel();
       await tester.pumpAndSettle();
       await opening;
