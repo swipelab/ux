@@ -41,8 +41,10 @@ class XImageThumbnail {
 ///
 /// Apple reads the header and asks ImageIO for a thumbnail
 /// (`CGImageSourceCreateThumbnailAtIndex`); Android measures with
-/// `inJustDecodeBounds` and decodes subsampled (`inSampleSize`). Both are
-/// bounded by the *output* size, not the source.
+/// `inJustDecodeBounds` and decodes subsampled (`inSampleSize`); Windows reads
+/// the header and decodes through WIC's `IWICBitmapScaler`, with whichever
+/// codecs Windows has installed, HEIF among them where its extension is. All
+/// are bounded by the *output* size, not the source.
 class XImageProbe {
   XImageProbe._();
 
@@ -51,7 +53,10 @@ class XImageProbe {
   /// Whether this platform has the native probe. Elsewhere the caller keeps
   /// its own decode path.
   static bool get supported =>
-      Platform.isIOS || Platform.isMacOS || Platform.isAndroid;
+      Platform.isIOS ||
+      Platform.isMacOS ||
+      Platform.isAndroid ||
+      Platform.isWindows;
 
   /// Measures [path] and renders it down so its longest edge is at most
   /// [maxLongest]. An image already within that bound comes back at its own

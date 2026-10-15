@@ -1,7 +1,8 @@
 # ux — Third-Party Licenses & Compliance
 
-`ux` can bundle one component with distribution obligations: **FFmpeg**, used
-as a software H.264 video decoder on Android. It is **opt-in and disabled by
+`ux` can bundle two components with distribution obligations: **FFmpeg**, used
+as a software H.264 video decoder on Android, and AOSP's **link patterns**,
+compiled into the Windows plugin. FFmpeg is **opt-in and disabled by
 default** — only apps that enable it ship it and inherit the obligation:
 
 ```yaml
@@ -68,6 +69,17 @@ FFmpeg's H.264 *decoder code* is LGPL, but the **H.264/AVC standard** is
 patent-encumbered (Via LA pool, formerly MPEG-LA). We ship a **software AVC
 decoder** — a patent/commercial matter for counsel, **not** an open-source or
 store-policy issue. Exposure is limited to **decode** (no encoder shipped).
+
+## android.util.Patterns (Apache-2.0) — Windows only
+
+[windows/url_detect.cpp](windows/url_detect.cpp) holds the regular expressions
+of AOSP's `android.util.Patterns` — `WEB_URL`, `EMAIL_ADDRESS`, `PHONE` and the
+strings they are composed from — Copyright (C) 2007 The Android Open Source
+Project, licensed under the
+[Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0).
+They are composed as `Patterns.java` composes them, each Java surrogate pair
+written as a C++ `\U` escape, and compiled into `ux_plugin.dll`. Android reads
+the platform's own `Patterns`, so ux ships no copy there.
 
 ## Release checklist
 - [ ] FFmpeg/Media3 tags unchanged, or doc + archived source updated if bumped.

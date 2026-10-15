@@ -9,8 +9,9 @@ import 'x_video_player.dart' show XVideoPlayerController, XVideoPlayerValue;
 /// Single render path: a Flutter [Texture] widget over the texture
 /// the native side hands back at `create()` time. Android feeds the
 /// texture from an [`ExoPlayer`] via a `SurfaceTexture`; Apple feeds
-/// it from `AVPlayerItemVideoOutput`. Because the rendered content
-/// lives inside Flutter's compositor:
+/// it from `AVPlayerItemVideoOutput`; Windows from the Media Engine's
+/// frame server through a DXGI shared texture. Because the rendered
+/// content lives inside Flutter's compositor:
 ///
 ///   - gallery hero / dismiss animations stay buttery
 ///   - `RenderRepaintBoundary.toImage` (the gallery's `snapshot`
@@ -23,8 +24,8 @@ import 'x_video_player.dart' show XVideoPlayerController, XVideoPlayerValue;
 /// `DefaultVideoFrameProcessor` (Android) re-applies the codec's crop
 /// rect downstream of the broken Huawei `SurfaceTexture` transform
 /// matrix, so the green right-edge artifact never reaches Flutter's
-/// sampler. Apple's `AVPlayerItemVideoOutput` is crop-correct by
-/// construction.
+/// sampler. Apple's `AVPlayerItemVideoOutput` and the Media Engine's
+/// frame transfer (Windows) are crop-correct by construction.
 class XVideoPlayerView extends StatelessWidget {
   /// Binds the player whose frames fill the view.
   const XVideoPlayerView({super.key, required this.controller});
@@ -45,9 +46,9 @@ class XVideoPlayerView extends StatelessWidget {
         // the track's stored orientation — the video track's
         // `preferredTransform` rotation is NOT applied. The native side
         // reports the rotation as quarter-turns; we apply it here so
-        // the rendered frame reads upright. Android always reports 0
-        // because the codec + GLES blit handle rotation upstream of
-        // Flutter.
+        // the rendered frame reads upright. Android and Windows always
+        // report 0 because the codec + GLES blit, and the Media Engine,
+        // handle rotation upstream of Flutter.
         final turns = value.rotationQuarterTurns;
         if (turns != 0) {
           child = RotatedBox(quarterTurns: turns, child: child);

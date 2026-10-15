@@ -4,8 +4,12 @@ import 'dart:io' as io;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import 'package:ux/src/log.dart' show Log;
+
 import 'x_video_player_backend.dart';
 import 'x_video_player_view.dart' show XVideoPlayerView;
+
+final _log = Log.tag('video');
 
 /// Throws when a [XVideoPlayerController] call fails on the platform
 /// side. Maps from native `PlatformException` codes.
@@ -74,9 +78,10 @@ class XVideoPlayerValue {
 
   /// Quarter-turns of clockwise rotation [XVideoPlayerView] applies
   /// to the underlying `Texture`. Populated from the native side at
-  /// initialize-time — Android always 0 (codec + GLES blit handle
-  /// rotation natively), Apple non-zero when the asset's
-  /// `preferredTransform` rotates the stored pixel buffer.
+  /// initialize-time — Android and Windows always 0 (the codec + GLES
+  /// blit, and the Media Engine, rotate the frame natively), Apple
+  /// non-zero when the asset's `preferredTransform` rotates the stored
+  /// pixel buffer.
   final int rotationQuarterTurns;
 
   /// Last known playhead position. Reported by the native side on a
@@ -168,7 +173,9 @@ class XVideoPlayerController extends ChangeNotifier
 
   /// Stream from a network URL. The native side hands the URI straight
   /// to Media3 (Android, `MediaItem.fromUri`) / `AVURLAsset` (Apple),
-  /// both of which stream http(s) natively — no extra setup.
+  /// both of which stream http(s) natively — no extra setup. Windows
+  /// plays local files alone, so there [initialize] fails with
+  /// `bad_args`.
   XVideoPlayerController.network(Uri uri) : _uri = uri.toString();
 
   /// Fully-qualified source URI handed to the native side at
@@ -241,6 +248,13 @@ class XVideoPlayerController extends ChangeNotifier
         duration: metadata.duration,
         rotationQuarterTurns: metadata.rotationQuarterTurns,
       );
+      _log.i('initialized', fields: {
+        'handle': result.handle,
+        'width': metadata.size.width,
+        'height': metadata.size.height,
+        'durationMs': metadata.duration.inMilliseconds,
+        'rotationQuarterTurns': metadata.rotationQuarterTurns,
+      });
     } catch (_) {
       // Tear down anything the native side allocated mid-failure so a
       // retry isn't blocked by leaked resources.

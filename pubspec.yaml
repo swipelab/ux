@@ -54,6 +54,8 @@ flutter:
       macos:
         pluginClass: XPlugin
         sharedDarwinSource: true
+      windows:
+        pluginClass: XPluginCApi
   assets:
     # LGPL-2.1 text for the bundled FFmpeg software H.264 decoder
     # (libffmpegJNI.so, Android only). Surfaced via registerFfmpegLicense().

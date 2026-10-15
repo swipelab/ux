@@ -181,9 +181,12 @@ class XFiles {
   }
 
   /// Whether [saveCopy] has a native implementation — iOS / Android /
-  /// macOS.
+  /// macOS / Windows.
   static bool get supportsSaveCopy =>
-      Platform.isIOS || Platform.isAndroid || Platform.isMacOS;
+      Platform.isIOS ||
+      Platform.isAndroid ||
+      Platform.isMacOS ||
+      Platform.isWindows;
 
   /// Save a user-visible copy of the file at [path].
   ///
@@ -195,6 +198,9 @@ class XFiles {
   ///   [XFileSaveStatus.denied] when refused).
   /// - macOS: presents an `NSSavePanel` and copies to the chosen
   ///   destination. Dismissal returns [XFileSaveStatus.cancelled].
+  /// - Windows: presents a save dialog holding the file's name and copies
+  ///   to the chosen destination, over a file already there. Dismissal
+  ///   returns [XFileSaveStatus.cancelled].
   ///
   /// [mimeType] hints the `MediaStore` row on Android; ignored on Apple
   /// platforms.
@@ -219,13 +225,18 @@ class XFiles {
   ///   preview for common types. The built-in toolbar still exposes Share.
   /// - macOS: hands off to the system default app (`NSWorkspace.open`).
   /// - Android: `Intent.ACTION_VIEW` — launches the default viewer app.
+  /// - Windows: the shell opens the file with its associated application,
+  ///   or offers its app chooser for a type that has none, after Windows's
+  ///   security checks for a file marked as downloaded.
   ///
   /// [mimeType] hints the viewer on Android. Ignored on Apple platforms
-  /// (the framework infers from the file extension).
+  /// and Windows (the system infers from the file extension).
   ///
   /// Returns true if the viewer opened. Returns false when no viewer is
   /// available (Android: no app registered for the MIME; macOS: no
-  /// associated app).
+  /// associated app; Windows: the shell reports no association). On
+  /// Windows a launch the user declines at SmartScreen's warning also
+  /// returns true.
   static Future<bool> open({
     required String path,
     String? mimeType,
@@ -251,7 +262,9 @@ class XFiles {
   /// Note: Apple platforms map MIME → UTType internally; common types
   /// (`image/*`, `video/*`, `application/pdf`) work on all three. For
   /// Apple-specific types prefer concrete MIME like `image/jpeg` over
-  /// wildcards.
+  /// wildcards. Windows filters by extension: `image/*` and `video/*`
+  /// allow the image and video files the app handles there, and a type
+  /// whose extensions Windows does not know allows every file.
   static Future<XPickedFile?> pick({
     List<String>? mimeTypes,
   }) async {
@@ -259,6 +272,25 @@ class XFiles {
       'mimeTypes': ?mimeTypes,
     });
     if (result == null) return null;
+    return _pickedFile(result);
+  }
+
+  /// [pick] with several files selectable at once, served on Windows.
+  /// Returns the picked files in the order the picker reports them, or an
+  /// empty list if the user cancelled.
+  static Future<List<XPickedFile>> pickMultiple({
+    List<String>? mimeTypes,
+  }) async {
+    final result = await _channel.invokeListMethod<Map<Object?, Object?>>(
+      'pickMultiple',
+      {'mimeTypes': ?mimeTypes},
+    );
+    return [
+      for (final entry in result!) ?_pickedFile(entry.cast<String, Object?>()),
+    ];
+  }
+
+  static XPickedFile? _pickedFile(Map<String, Object?> result) {
     final path = result['path'] as String?;
     if (path == null) return null;
     return XPickedFile(
@@ -275,14 +307,16 @@ class XFiles {
   ///
   /// - macOS: opens (or surfaces) a Finder window with the file selected
   ///   (`NSWorkspace.activateFileViewerSelecting`).
+  /// - Windows: opens an Explorer window on the file's folder with the
+  ///   file selected.
   /// - All other platforms: no-op, returns false.
   ///
-  /// Returns true on macOS when Finder accepted the request.
+  /// Returns true when Finder or Explorer accepted the request.
   static Future<bool> showInFolder({
     required String path,
     Uint8List? bookmark,
   }) async {
-    if (!Platform.isMacOS) return false;
+    if (!supportsShowInFolder) return false;
     final result = await _channel.invokeMethod<bool>('showInFolder', {
       'path': path,
       'bookmark': ?bookmark,
@@ -290,10 +324,11 @@ class XFiles {
     return result ?? false;
   }
 
-  /// Whether the host platform supports [showInFolder]. Currently macOS
-  /// only — call sites can use this to gate UI affordances ("Show in
+  /// Whether the host platform supports [showInFolder] — macOS and
+  /// Windows. Call sites can use this to gate UI affordances ("Show in
   /// Finder" buttons) so they don't appear where they're inert.
-  static bool get supportsShowInFolder => Platform.isMacOS;
+  static bool get supportsShowInFolder =>
+      Platform.isMacOS || Platform.isWindows;
 
   /// Extract a single frame from the video at [path]. Returns null if the
   /// platform's media decoder couldn't open the file (unsupported codec /
@@ -355,9 +390,9 @@ class XFiles {
   /// Extract several frames in one native round-trip — the strip of
   /// thumbnails behind a video trim scrubber. Frames come back in
   /// [timestampsMs] order; entries whose decode failed are null.
-  /// Timestamps land on the nearest keyframe (fast path on both
-  /// platforms), so neighbouring entries may repeat on sparse-keyframe
-  /// sources.
+  /// Timestamps land on the nearest keyframe on Apple platforms and
+  /// Android (their fast path), so neighbouring entries may repeat on
+  /// sparse-keyframe sources; Windows decodes the frame nearest each.
   static Future<List<XVideoThumbnail?>> videoThumbnails({
     required String path,
     required List<int> timestampsMs,

@@ -11,17 +11,17 @@ void main() {
 
   final calls = <MethodCall>[];
 
+  void answer(Object? Function(MethodCall call) handler) {
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call);
+      return handler(call);
+    });
+  }
+
   group('XUrl.openAppSettings', () {
     setUp(() => calls.clear());
 
     tearDown(() => messenger.setMockMethodCallHandler(channel, null));
-
-    void answer(Object? Function(MethodCall call) handler) {
-      messenger.setMockMethodCallHandler(channel, (call) async {
-        calls.add(call);
-        return handler(call);
-      });
-    }
 
     test('asks the platform to open this app settings page', () async {
       answer((_) => true);
@@ -48,5 +48,20 @@ void main() {
   },
       skip: Platform.isIOS || Platform.isAndroid || Platform.isMacOS
           ? null
-          : 'XUrl reaches no platform channel on this host');
+          : 'openAppSettings reaches no platform channel on this host');
+
+  group('XUrl.launch on Windows', () {
+    setUp(() => calls.clear());
+
+    tearDown(() => messenger.setMockMethodCallHandler(channel, null));
+
+    test('hands the url to ux/url and answers what the platform answers',
+        () async {
+      answer((_) => true);
+
+      expect(await XUrl.launch('https://example.com/a?b=1'), isTrue);
+      expect(calls.single.method, 'launch');
+      expect(calls.single.arguments, {'url': 'https://example.com/a?b=1'});
+    });
+  }, skip: Platform.isWindows ? null : 'the Windows branch runs on Windows');
 }

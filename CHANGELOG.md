@@ -1,4 +1,49 @@
 ### 0.18.0
+- **Windows probes images.** `XImageProbe.size` and `XImageProbe.thumbnail`
+  answer on Windows through WIC, upright with the image's orientation applied,
+  for every format an installed codec decodes, HEIC and HEIF included where
+  Windows has the HEIF and HEVC extensions, and null for a file none decodes.
+  `XImageProbe.supported` is true on Windows, and the file dialog's `image/*`
+  filter there allows heic and heif.
+- **Windows extracts video frames and exports videos.** `XFiles.videoThumbnail`
+  and `videoThumbnails` decode through Media Foundation the frame nearest each
+  time, within 500 ms, upright, scaled to `maxWidth` or baked with the transform
+  and overlay as on Apple platforms. `XVideoExporter` re-encodes every request
+  on Windows to an H.264/AAC MP4, trimmed from the trim start exactly, without
+  audio when muted, and with the transform and overlay drawn upright, at
+  `videoBitrate` or else the source's bitrate, at least 0.1 bit per pixel per
+  frame. Progress runs from 0 to 1, `done` answers the path, the size and the
+  duration, and `cancel` deletes the partial file and fails with `cancelled`.
+  Where Windows has no Media Foundation, each fails with its error.
+- **Windows plays videos.** `XVideoPlayerController.file` plays on Windows
+  through Media Foundation's Media Engine into a Flutter texture. `initialize`
+  answers the display size and the duration, with `rotationQuarterTurns` 0
+  since the frames arrive upright, and fails with `decode_failed` for a file
+  Windows cannot decode. Play, pause, seek, looping, volume and speed act as on
+  the other platforms, and the player reports its state, size, completion and
+  errors. On Windows a network URI fails `initialize` with `bad_args`, and
+  where Media Foundation is missing, as on a Windows N edition without the
+  Media Feature Pack, `initialize` fails with `create_failed` while the rest of
+  the plugin works.
+- **A video player logs its metadata.** `XVideoPlayerController.initialize`
+  logs `initialized` at info level, tagged `video`, with the player's handle,
+  size, duration and quarter turns.
+- **Windows picks, opens, saves and reveals files.** `XFiles.pick` and the new
+  `XFiles.pickMultiple`, which returns the picked files in order or an empty
+  list when the user cancels and which Windows alone serves, open the Windows
+  file dialog, filtered by extension. `XFiles.open` launches the file's
+  associated application through Windows's checks for a downloaded file,
+  `saveCopy` copies through the save dialog, and `showInFolder` selects the file
+  in Explorer. `supportsSaveCopy` and `supportsShowInFolder` are true on
+  Windows.
+- **ux has a Windows plugin.** The pubspec declares `windows: pluginClass:
+  XPluginCApi`, built as `ux_plugin.dll` on the Windows SDK alone, for Windows
+  10 1903 or later. `XUrl.match` detects web, email and phone links there with
+  AOSP's `Patterns.WEB_URL`, `EMAIL_ADDRESS` and `PHONE`, as Android does, so a
+  bare domain is a link where macOS's detector leaves it plain. `XUrl.launch`
+  opens a URL with the handler Windows has for its scheme, and
+  `openAppSettings` answers false. `windows/test` holds the plugin's native
+  tests.
 - **Avatar editors close on accept.** `ComposeResult.imageBytes` is a
   `Future<Uint8List>` encoded after `ComposePage` pops, so the caller shows
   progress where the image lands; it fails with a `FormatException` when the

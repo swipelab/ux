@@ -52,7 +52,10 @@ class XUrl {
   /// destructive URIs otherwise.
   static Future<bool> launch(String url) async {
     if (kIsWeb) return false;
-    if (!(Platform.isIOS || Platform.isAndroid || Platform.isMacOS)) {
+    if (!(Platform.isIOS ||
+        Platform.isAndroid ||
+        Platform.isMacOS ||
+        Platform.isWindows)) {
       return false;
     }
     if (!_isLaunchable(url)) return false;
