@@ -82,6 +82,19 @@ void main() {
     ]);
   });
 
+  testWidgets('a zero width space stays in the path of a bare domain link', (
+    tester,
+  ) async {
+    expect(XUrl.match('see example.com/a​b x'), const [
+      UrlMatch(
+        start: 4,
+        end: 19,
+        url: 'http://example.com/a​b',
+        kind: UrlMatchKind.web,
+      ),
+    ]);
+  });
+
   testWidgets(
     'a web link that holds a parenthesis ends before a square bracket',
     (tester) async {
@@ -361,10 +374,10 @@ void main() {
   );
 
   testWidgets(
-    'a domain in the query a web link runs on into past fullwidth parentheses '
-    'does not link on its own',
+    'a domain in the path a web link runs on into past a trailing period and '
+    'fullwidth parentheses does not link on its own',
     (tester) async {
-      expect(XUrl.match('https://example.com/a（1）?q=example.org'), const [
+      expect(XUrl.match('https://example.com/a.（1）/page.com'), const [
         UrlMatch(
           start: 0,
           end: 21,
@@ -376,15 +389,15 @@ void main() {
   );
 
   testWidgets(
-    'a domain in the path a web link runs on into past a trailing period and '
-    'fullwidth parentheses does not link on its own',
+    'a domain past fullwidth parentheses in the path after an email does not '
+    'link on its own',
     (tester) async {
-      expect(XUrl.match('https://example.com/a.（1）/page.com'), const [
+      expect(XUrl.match('a@example.com/x（1）/page.com'), const [
         UrlMatch(
           start: 0,
-          end: 21,
-          url: 'https://example.com/a',
-          kind: UrlMatchKind.web,
+          end: 13,
+          url: 'mailto:a@example.com',
+          kind: UrlMatchKind.email,
         ),
       ]);
     },
