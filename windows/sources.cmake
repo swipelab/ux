@@ -72,12 +72,12 @@ set(UX_PLUGIN_SOURCES
 )
 
 # The SDK libraries the handlers link.
-set(UX_PLUGIN_LIBRARIES bcrypt icu d3d11 mfplat mfreadwrite mfuuid windowscodecs runtimeobject delayimp)
+set(UX_PLUGIN_LIBRARIES bcrypt icu d3d11 mf mfplat mfreadwrite mfuuid windowscodecs runtimeobject delayimp)
 
 # MediaFoundation (media_foundation.cpp) loads Media Foundation's DLLs before
 # any call into them, so ux_plugin.dll loads on an N edition of Windows, which
 # lacks them without the Media Feature Pack.
-set(UX_PLUGIN_LINK_OPTIONS /DELAYLOAD:mfplat.dll /DELAYLOAD:mfreadwrite.dll)
+set(UX_PLUGIN_LINK_OPTIONS /DELAYLOAD:mfplat.dll /DELAYLOAD:mfreadwrite.dll /DELAYLOAD:mf.dll)
 
 # The SDK headers declare only what Windows 10 1903 (build 18362) has, and no
 # min or max macro.
@@ -86,9 +86,3 @@ set(UX_PLUGIN_DEFINITIONS
   NTDDI_VERSION=0x0A000007
   NOMINMAX
 )
-
-# mf.dll, whose device sources and transcode types the camera calls, loads with
-# CameraFoundation (camera_devices.cpp) before any call into it, since a
-# Windows N edition lacks it without the Media Feature Pack.
-list(APPEND UX_PLUGIN_LIBRARIES mf)
-list(APPEND UX_PLUGIN_LINK_OPTIONS /DELAYLOAD:mf.dll)

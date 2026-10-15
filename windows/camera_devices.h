@@ -7,32 +7,7 @@
 #include <string>
 #include <vector>
 
-#include "media_foundation.h"
-
 namespace ux {
-
-// COM's multithreaded apartment joined on the calling thread and Media
-// Foundation started, as MediaWork does, with mf.dll loaded for this object's
-// life: what camera work needs on a thread of its own. ux_plugin.dll
-// delay-loads mf.dll, whose device sources and transcode types the camera
-// calls, and which an N edition of Windows lacks without the Media Feature
-// Pack.
-class CameraFoundation {
- public:
-  CameraFoundation();
-  ~CameraFoundation();
-
-  CameraFoundation(const CameraFoundation&) = delete;
-  CameraFoundation& operator=(const CameraFoundation&) = delete;
-
-  // S_OK once started, or why COM, Media Foundation or mf.dll did not start.
-  HRESULT status() const { return status_; }
-
- private:
-  MediaWork media_;
-  const HMODULE devices_;
-  const HRESULT status_;
-};
 
 // A video capture device, as `ux/camera` names it: its symbolic link, in
 // UTF-8.
@@ -41,7 +16,7 @@ struct CameraDevice {
 };
 
 // Sets [devices] to the video capture devices, in Media Foundation's order, on
-// a thread where a CameraFoundation has started.
+// a thread where a MediaWork has started.
 HRESULT EnumerateCameras(std::vector<CameraDevice>& devices);
 
 // Whether Windows's Privacy & security settings let desktop apps use

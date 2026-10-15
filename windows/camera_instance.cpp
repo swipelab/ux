@@ -12,6 +12,7 @@
 #include <tuple>
 #include <utility>
 
+#include "media_foundation.h"
 #include "text.h"
 
 namespace ux {
@@ -272,11 +273,11 @@ class CaptureSession : public std::enable_shared_from_this<CaptureSession> {
                  std::shared_ptr<CameraTexture> texture)
       : queue_(std::move(queue)), post_(std::move(post)), emit_(std::move(emit)), texture_(std::move(texture)) {}
 
-  void Start() { foundation_.emplace(); }
+  void Start() { media_.emplace(); }
 
   void Shutdown() {
     Teardown();
-    foundation_.reset();
+    media_.reset();
   }
 
   void Open(const std::wstring& link, bool audio, const CameraInstance::Opened& done) {
@@ -424,7 +425,7 @@ class CaptureSession : public std::enable_shared_from_this<CaptureSession> {
   // Opens an engine on the camera at [link], with the microphone where audio_,
   // and calls [opened] with the preview's size.
   void OpenEngine(const std::wstring& link, std::function<void(CameraResult<FrameSize>)> opened) {
-    HRESULT hr = foundation_->status();
+    HRESULT hr = media_->status();
     if (FAILED(hr)) {
       opened(Error(hr, "Media Foundation is unavailable"));
       return;
@@ -667,7 +668,7 @@ class CaptureSession : public std::enable_shared_from_this<CaptureSession> {
   const CameraInstance::Emit emit_;
   const std::shared_ptr<CameraTexture> texture_;
   // Started by Start and stopped by Shutdown, the queue's first and last tasks.
-  std::optional<CameraFoundation> foundation_;
+  std::optional<MediaWork> media_;
   bool audio_ = false;
   uint64_t generation_ = 0;
   ComPtr<IMFCaptureEngine> engine_;

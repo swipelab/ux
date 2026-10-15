@@ -8,7 +8,7 @@
 
 #include "../platform_thread.h"
 #include "check.h"
-#include "pump.h"
+#include "support.h"
 
 void PlatformThreadSuite() {
   {

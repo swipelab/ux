@@ -169,16 +169,16 @@ are accepted with either separator.
   OLE, the shell, ICU, CNG, WIC, Media Foundation, Direct3D 11, and C++/WinRT
   for toasts and the share window). No third-party native code, test
   frameworks included.
-- **Media Foundation.** `ux_plugin.dll` delay-loads `mfplat.dll` and
-  `mfreadwrite.dll`, which an N edition of Windows lacks without the Media
-  Feature Pack, so the DLL loads there. Every Media Foundation caller, the
-  players' device and the frame and export work, starts it through
-  `MediaFoundation` ([windows/media_foundation.cpp](../windows/media_foundation.cpp))
-  before its first Media Foundation call. `MediaFoundation` loads those DLLs
-  from the application's directory, the DLL directories it set or System32,
-  never the working directory or `PATH`, and fails where they do not load; the
-  caller then answers its error. Frame and export work, on a thread of its own,
-  also joins COM's multithreaded apartment there (`MediaWork`).
+- **Media Foundation.** `ux_plugin.dll` delay-loads `mfplat.dll`,
+  `mfreadwrite.dll` and `mf.dll`, which an N edition of Windows lacks without
+  the Media Feature Pack, so the DLL loads there. Every Media Foundation caller
+  starts it through `MediaFoundation`
+  ([windows/media_foundation.cpp](../windows/media_foundation.cpp)) before its
+  first Media Foundation call. `MediaFoundation` loads those DLLs from the
+  application's directory, the DLL directories it set or System32, never the
+  working directory or `PATH`, and fails where they do not load; the caller
+  then answers its error. Work on a thread of its own also joins COM's
+  multithreaded apartment there (`MediaWork`).
 - **Windows 10 1903.** The handlers compile against the SDK's declarations for
   build 18362 (`UX_PLUGIN_DEFINITIONS` in sources.cmake), and `ux_plugin.dll`
   imports `icu.dll`, which Windows has from 1903, so a host app needs 1903 or
@@ -448,10 +448,7 @@ per handle, each a Media Foundation capture engine (`IMFCaptureEngine`).
   per-instance `sessionQueue` does. The engine's events reach that thread, and
   replies and events go to the platform thread. `availableCameras` enumerates
   off the platform thread.
-- **Media Foundation.** `CameraFoundation`
-  ([windows/camera_devices.cpp](../windows/camera_devices.cpp)) starts Media
-  Foundation and loads `mf.dll`, which ux_plugin.dll delay-loads, before any
-  camera call into them. Where Windows lacks them, as an N edition without the
+- **Media Foundation.** Where Windows lacks it, as an N edition without the
   Media Feature Pack does, `availableCameras` fails with `no_camera`.
 - **Devices.** `availableCameras` lists `MFEnumDeviceSources`'s video capture
   devices by symbolic link, each as darwin lists a camera with no position: the

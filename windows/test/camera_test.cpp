@@ -1,21 +1,19 @@
 #include <windows.h>
 
 #include <cwctype>
-#include <filesystem>
-#include <fstream>
 #include <memory>
 #include <optional>
 #include <string>
-#include <system_error>
 #include <variant>
 #include <vector>
 
 #include "../camera_devices.h"
 #include "../camera_instance.h"
 #include "../camera_texture.h"
+#include "../media_foundation.h"
 #include "../platform_thread.h"
 #include "check.h"
-#include "pump.h"
+#include "support.h"
 
 using flutter::EncodableMap;
 using flutter::EncodableValue;
@@ -41,19 +39,9 @@ bool IsCapture(const std::wstring& path, const std::wstring& directory, const st
 }  // namespace
 
 void CameraSuite() {
-  // An mfplat.dll that is no image, found before System32's, stands for a
-  // Windows without Media Foundation.
-  std::error_code error;
-  const std::filesystem::path dir = std::filesystem::temp_directory_path(error) / L"ux_test_camera";
-  std::filesystem::create_directories(dir, error);
-  std::ofstream(dir / L"mfplat.dll") << "not an image";
-  CHECK(SetDllDirectoryW(dir.c_str()));
-  CHECK(ux::CameraFoundation().status() == HRESULT_FROM_WIN32(ERROR_BAD_EXE_FORMAT));
-  CHECK(SetDllDirectoryW(nullptr));
-  std::filesystem::remove_all(dir, error);
   {
-    ux::CameraFoundation foundation;
-    CHECK(SUCCEEDED(foundation.status()));
+    ux::MediaWork media;
+    CHECK(SUCCEEDED(media.status()));
     std::vector<ux::CameraDevice> devices;
     CHECK(SUCCEEDED(ux::EnumerateCameras(devices)));
   }

@@ -33,15 +33,6 @@ std::optional<std::wstring> ConsentValue(HKEY root, const std::wstring& key) {
 
 }  // namespace
 
-CameraFoundation::CameraFoundation()
-    : devices_(SUCCEEDED(media_.status()) ? LoadLibraryExW(L"mf.dll", nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS)
-                                          : nullptr),
-      status_(FAILED(media_.status()) ? media_.status() : devices_ ? S_OK : HRESULT_FROM_WIN32(GetLastError())) {}
-
-CameraFoundation::~CameraFoundation() {
-  if (devices_) FreeLibrary(devices_);
-}
-
 HRESULT EnumerateCameras(std::vector<CameraDevice>& devices) {
   ComPtr<IMFAttributes> attributes;
   HRESULT hr = MFCreateAttributes(&attributes, 1);

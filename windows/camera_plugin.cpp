@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "camera_devices.h"
+#include "media_foundation.h"
 #include "method_args.h"
 #include "text.h"
 
@@ -138,8 +139,8 @@ void CameraPlugin::HandleMethodCall(const flutter::MethodCall<EncodableValue>& c
 void CameraPlugin::AvailableCameras(std::shared_ptr<Result> result) {
   platform_.Background<Listing>(
       []() -> Listing {
-        CameraFoundation foundation;
-        if (FAILED(foundation.status())) return foundation.status();
+        MediaWork media;
+        if (FAILED(media.status())) return media.status();
         std::vector<CameraDevice> devices;
         const HRESULT hr = EnumerateCameras(devices);
         if (FAILED(hr)) return hr;

@@ -17,7 +17,6 @@ add_executable(ux_test
   "ux_test.cpp"
   "check.h"
   "png.h"
-  "pump.h"
   "camera_test.cpp"
   "crypto_test.cpp"
   "dib_test.cpp"
