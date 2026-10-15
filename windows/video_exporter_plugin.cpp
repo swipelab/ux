@@ -62,8 +62,6 @@ VideoExporterPlugin::VideoExporterPlugin(flutter::BinaryMessenger* messenger)
 }
 
 VideoExporterPlugin::~VideoExporterPlugin() {
-  channel_->SetMethodCallHandler(nullptr);
-  events_->SetStreamHandler(nullptr);
   for (auto& [id, session] : sessions_) *session.cancelled = true;
   for (auto& [id, session] : sessions_) session.worker.join();
 }
