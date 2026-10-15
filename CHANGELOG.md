@@ -1,4 +1,9 @@
 ### 0.18.0
+- **The AES-CTR counter carries across all 128 bits on iOS and macOS.**
+  `XCrypto.aesCtrEncryptRange` and `XCrypto.aesCtrBytes` on iOS and macOS
+  carry the counter from its low 64 bits into its high 64 bits where they wrap,
+  so their ciphertext equals `encryptChunk`'s for every `iv` and `pos`, as on
+  Android and Windows.
 - **A word a period glues to a bare domain makes it no link.** On Android and
   Windows, `XUrl.match` links a web match with no scheme only where its host is
   an IP address or ends in a top-level domain on IANA's list, in lowercase or as
