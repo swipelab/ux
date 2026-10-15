@@ -1,4 +1,11 @@
 ### 0.18.0
+- **Windows pastes images and files.** `XClipboard.readFiles` on Windows
+  answers the path and name of each file an Explorer copy put on the
+  clipboard. `XClipboard.readImage` answers the bytes of the clipboard's
+  `PNG` format, or a bitmap the clipboard holds as `CF_DIBV5` or `CF_DIB`,
+  uncompressed at 1 to 32 bits a pixel, encoded as PNG, with alpha where a V4
+  or V5 header has an alpha mask. `XClipboard.hasMedia` answers whether the
+  clipboard holds any of these without reading them.
 - **Windows takes dropped files.** `XDrop` on Windows reports a drag of files
   over the app's window, at Flutter's logical coordinates, and delivers the
   dropped files and folders, answering copy while a drop region is active and

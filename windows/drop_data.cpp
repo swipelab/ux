@@ -168,11 +168,7 @@ bool OffersFiles(IDataObject* data) {
   return data->QueryGetData(&drop) == S_OK || data->QueryGetData(&descriptors) == S_OK;
 }
 
-std::optional<std::vector<std::wstring>> DroppedPaths(IDataObject* data) {
-  FORMATETC request = Request(CF_HDROP, -1, TYMED_HGLOBAL);
-  STGMEDIUM medium;
-  if (FAILED(data->GetData(&request, &medium))) return std::nullopt;
-  const auto drop = static_cast<HDROP>(medium.hGlobal);
+std::vector<std::wstring> PathsOf(HDROP drop) {
   std::vector<std::wstring> paths;
   const UINT count = DragQueryFileW(drop, 0xFFFFFFFF, nullptr, 0);
   for (UINT i = 0; i < count; i++) {
@@ -180,6 +176,14 @@ std::optional<std::vector<std::wstring>> DroppedPaths(IDataObject* data) {
     DragQueryFileW(drop, i, path.data(), static_cast<UINT>(path.size() + 1));
     paths.push_back(std::move(path));
   }
+  return paths;
+}
+
+std::optional<std::vector<std::wstring>> DroppedPaths(IDataObject* data) {
+  FORMATETC request = Request(CF_HDROP, -1, TYMED_HGLOBAL);
+  STGMEDIUM medium;
+  if (FAILED(data->GetData(&request, &medium))) return std::nullopt;
+  std::vector<std::wstring> paths = PathsOf(static_cast<HDROP>(medium.hGlobal));
   ReleaseStgMedium(&medium);
   return paths;
 }

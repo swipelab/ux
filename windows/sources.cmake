@@ -2,6 +2,10 @@
 set(UX_PLUGIN_SOURCES
   "${CMAKE_CURRENT_LIST_DIR}/x_plugin.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/x_plugin.h"
+  "${CMAKE_CURRENT_LIST_DIR}/clipboard_plugin.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/clipboard_plugin.h"
+  "${CMAKE_CURRENT_LIST_DIR}/dib.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/dib.h"
   "${CMAKE_CURRENT_LIST_DIR}/drop_data.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/drop_data.h"
   "${CMAKE_CURRENT_LIST_DIR}/drop_plugin.cpp"
@@ -34,6 +38,8 @@ set(UX_PLUGIN_SOURCES
   "${CMAKE_CURRENT_LIST_DIR}/video_player_plugin.h"
   "${CMAKE_CURRENT_LIST_DIR}/video_surface.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/video_surface.h"
+  "${CMAKE_CURRENT_LIST_DIR}/wic.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/wic.h"
   "${CMAKE_CURRENT_LIST_DIR}/window_plugin.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/window_plugin.h"
 )
