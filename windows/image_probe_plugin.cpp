@@ -2,13 +2,12 @@
 
 #include <flutter/standard_method_codec.h>
 
-#include <algorithm>
 #include <optional>
 #include <string>
 #include <utility>
 
 #include "image_probe.h"
-#include "text.h"
+#include "method_args.h"
 
 namespace ux {
 
@@ -16,28 +15,6 @@ namespace {
 
 using flutter::EncodableMap;
 using flutter::EncodableValue;
-
-const EncodableValue* Arg(const EncodableMap* args, const char* key) {
-  if (args == nullptr) return nullptr;
-  const auto it = args->find(EncodableValue(key));
-  return it == args->end() ? nullptr : &it->second;
-}
-
-std::optional<int64_t> IntArg(const EncodableMap* args, const char* key) {
-  const EncodableValue* value = Arg(args, key);
-  if (const auto* int32 = std::get_if<int32_t>(value)) return *int32;
-  if (const auto* int64 = std::get_if<int64_t>(value)) return *int64;
-  return std::nullopt;
-}
-
-// The `path` argument as a Windows path, which Dart may give with either separator.
-std::optional<std::wstring> PathArg(const EncodableMap* args) {
-  const auto* path = std::get_if<std::string>(Arg(args, "path"));
-  if (path == nullptr) return std::nullopt;
-  std::optional<std::wstring> wide = Utf16(*path);
-  if (wide) std::replace(wide->begin(), wide->end(), L'/', L'\\');
-  return wide;
-}
 
 EncodableValue Dimension(uint32_t length) { return EncodableValue(static_cast<int64_t>(length)); }
 
@@ -57,7 +34,7 @@ void ImageProbePlugin::HandleMethodCall(const flutter::MethodCall<EncodableValue
     return;
   }
   const auto* args = std::get_if<EncodableMap>(call.arguments());
-  std::optional<std::wstring> path = PathArg(args);
+  std::optional<std::wstring> path = PathArg(args, "path");
   if (!path) {
     result->Error("bad_args", "path is required");
     return;
