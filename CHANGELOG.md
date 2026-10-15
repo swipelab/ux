@@ -1,4 +1,15 @@
 ### 0.18.0
+- **Windows captures from cameras.** `uxAvailableCameras` lists Windows's
+  video capture devices, each as the back lens with a `sensorOrientation` of 0,
+  as macOS lists an external camera, and `XCameraController` previews, takes
+  JPEG photos and records H.264/AAC MP4s on Windows through Media Foundation's
+  capture engine, writing `ux_camera_<GUID>.jpg` and `.mp4` in the temporary
+  directory. Flash and orientation locks succeed and change nothing. The
+  permission checks answer whether Windows's Privacy & security settings let
+  desktop apps use the camera and the microphone, and the requests answer the
+  same, since Windows shows no prompt; `openSystemSettings` opens the camera's
+  privacy page. Where Media Foundation is missing, `uxAvailableCameras` throws
+  `no_camera`.
 - **Windows shares files.** `XFiles.share` on Windows opens the Windows share
   window over the app's window and hands it the file, titled with `title` or
   else the file's name. The window places itself, so `sourceRect` is ignored,

@@ -4,6 +4,14 @@ set(UX_PLUGIN_SOURCES
   "${CMAKE_CURRENT_LIST_DIR}/x_plugin.h"
   "${CMAKE_CURRENT_LIST_DIR}/aes_ctr.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/aes_ctr.h"
+  "${CMAKE_CURRENT_LIST_DIR}/camera_devices.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/camera_devices.h"
+  "${CMAKE_CURRENT_LIST_DIR}/camera_instance.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/camera_instance.h"
+  "${CMAKE_CURRENT_LIST_DIR}/camera_plugin.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/camera_plugin.h"
+  "${CMAKE_CURRENT_LIST_DIR}/camera_texture.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/camera_texture.h"
   "${CMAKE_CURRENT_LIST_DIR}/clipboard_plugin.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/clipboard_plugin.h"
   "${CMAKE_CURRENT_LIST_DIR}/crypto_plugin.cpp"
@@ -46,6 +54,8 @@ set(UX_PLUGIN_SOURCES
   "${CMAKE_CURRENT_LIST_DIR}/wic.h"
   "${CMAKE_CURRENT_LIST_DIR}/window_plugin.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/window_plugin.h"
+  "${CMAKE_CURRENT_LIST_DIR}/work_queue.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/work_queue.h"
 )
 
 # The SDK libraries the handlers link.
@@ -60,3 +70,9 @@ set(UX_PLUGIN_DEFINITIONS
   _WIN32_WINNT=0x0A00
   NTDDI_VERSION=0x0A000007
 )
+
+# mf.dll, whose device sources and transcode types the camera calls, loads with
+# CameraFoundation (camera_devices.cpp) before any call into it, since a
+# Windows N edition lacks it without the Media Feature Pack.
+list(APPEND UX_PLUGIN_LIBRARIES mf)
+list(APPEND UX_PLUGIN_LINK_OPTIONS /DELAYLOAD:mf.dll)

@@ -3,6 +3,7 @@
 
 #include "check.h"
 
+void CameraSuite();
 void CryptoSuite();
 void DibSuite();
 void DropSuite();
@@ -13,6 +14,7 @@ void ToastSuite();
 void UrlDetectSuite();
 void VideoDeviceSuite();
 void WindowSuite();
+void WorkQueueSuite();
 
 namespace {
 
@@ -25,6 +27,7 @@ struct Suite {
 constexpr int kSkipped = 77;
 
 constexpr Suite kSuites[] = {
+    {"camera", CameraSuite},
     {"crypto", CryptoSuite},
     {"dib", DibSuite},
     {"drop", DropSuite},
@@ -35,6 +38,7 @@ constexpr Suite kSuites[] = {
     {"url_detect", UrlDetectSuite},
     {"video_device", VideoDeviceSuite},
     {"window", WindowSuite},
+    {"work_queue", WorkQueueSuite},
 };
 
 }  // namespace
