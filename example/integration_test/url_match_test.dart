@@ -257,6 +257,19 @@ void main() {
     ]);
   });
 
+  testWidgets('a port CJK letters follow stays in the bare domain link', (
+    tester,
+  ) async {
+    expect(XUrl.match('访问example.com:8080然后'), const [
+      UrlMatch(
+        start: 2,
+        end: 18,
+        url: 'http://example.com:8080',
+        kind: UrlMatchKind.web,
+      ),
+    ]);
+  });
+
   testWidgets('a bare domain glued after Thai letters leaves them out', (
     tester,
   ) async {
