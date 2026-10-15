@@ -332,8 +332,15 @@ bool _phoneLeadingCharOk(String text, int start, int end) {
 /// native detector on Android. NSDataDetector on iOS is permissive but
 /// not exhaustive. This pass surfaces every RFC-3986 scheme so the
 /// renderer can style and the tap router can decide; [_dedupeMatches]
-/// collapses anything overlapping with what native already found.
-final RegExp _kAnySchemeRegex = RegExp(r'\b[a-zA-Z][a-zA-Z0-9+.\-]*://\S+');
+/// collapses anything overlapping with what native already found. A match
+/// ends before whitespace and CJK punctuation: U+3000's block's punctuation
+/// and the vertical, compatibility, small, fullwidth and halfwidth forms of
+/// punctuation.
+final RegExp _kAnySchemeRegex = RegExp(
+  r'\b[a-zA-Z][a-zA-Z0-9+.\-]*://[^\s\u3001-\u3003\u3008-\u3011\u3014-\u301F'
+  r'\uFE10-\uFE19\uFE30-\uFE6B\uFF01-\uFF0F\uFF1A-\uFF20\uFF3B-\uFF40'
+  r'\uFF5B-\uFF65]+',
+);
 
 List<UrlMatch> _mergeCustomSchemeMatches(List<UrlMatch> native, String text) {
   if (!text.contains('://')) return native;
@@ -352,7 +359,7 @@ List<UrlMatch> _mergeCustomSchemeMatches(List<UrlMatch> native, String text) {
   return _dedupeMatches([...native, ...extra]);
 }
 
-/// Drops trailing sentence-end punctuation the `\S+` regex would
+/// Drops trailing sentence-end punctuation [_kAnySchemeRegex] would
 /// otherwise drag into the match (`bl://x?code=1.` → `bl://x?code=1`).
 int _trimUrlTrailingPunctuation(String text, int start, int end) {
   while (end > start) {

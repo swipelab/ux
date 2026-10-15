@@ -1,4 +1,10 @@
 ### 0.18.0
+- **A web link ends before CJK punctuation.** On every platform, `XUrl.match`
+  ends a web match before ideographic, fullwidth and halfwidth punctuation
+  such as `。`, `，`, `、`, `；`, `：`, `！` and `？`, and starts a bare domain
+  match after one. A link ending a Chinese sentence opens without the mark and
+  the text after it, and a link typed before one of these marks is complete
+  when the mark is typed.
 - **A web link leaves out the period after it.** On Android and Windows, and
   for the bare domains with a path that macOS matches beside `NSDataDetector`,
   `XUrl.match` ends a web match before a trailing `.`, `,`, `;` or `!` and
