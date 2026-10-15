@@ -10,6 +10,13 @@
   `http://example.com/a` and `http://example.org/b`, and
   `[see https://en.wikipedia.org/wiki/Foo_(bar)] x` links
   `https://en.wikipedia.org/wiki/Foo_(bar)`, as on Android and Windows.
+- **A link written with non-ASCII text opens before iOS 17 and macOS 14.** On
+  iOS and macOS, `XUrl.launch` percent-encodes a link's UTF-8 bytes outside RFC
+  3986's URL characters, a `#` after the first and a `[` or `]` outside the
+  authority before opening it, and keeps a `%` that two hex digits follow, so
+  `https://zh.wikipedia.org/wiki/北京_(城市)` opens
+  `https://zh.wikipedia.org/wiki/%E5%8C%97%E4%BA%AC_(%E5%9F%8E%E5%B8%82)` and
+  `https://example.com/aé%20b` opens `https://example.com/a%C3%A9%20b`.
 - **A web link leaves out a `)` it does not open.** On iOS and macOS,
   `XUrl.match` ends a web link `NSDataDetector` finds before a trailing `)` the
   link does not open and a trailing `.`, `,`, `;` or `!`, as on Android and
