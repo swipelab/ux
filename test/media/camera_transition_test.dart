@@ -269,7 +269,7 @@ void main() {
       } finally {
         await close(tester);
       }
-    });
+    }, tags: 'golden');
 
     testWidgets('$name short camera keeps controls above the preview', (
       tester,
@@ -291,7 +291,7 @@ void main() {
       } finally {
         await close(tester);
       }
-    });
+    }, tags: 'golden');
 
     testWidgets('$name close paints the cell on the flight removal frame', (
       tester,
@@ -327,7 +327,7 @@ void main() {
       } finally {
         await close(tester);
       }
-    });
+    }, tags: 'golden');
 
     testWidgets('$name camera flies on open and close with one texture', (
       tester,
@@ -426,7 +426,7 @@ void main() {
       } finally {
         await close(tester);
       }
-    });
+    }, tags: 'golden');
 
     testWidgets('$name wide camera flies into the centered card', (
       tester,
@@ -467,7 +467,7 @@ void main() {
       } finally {
         await close(tester);
       }
-    });
+    }, tags: 'golden');
 
     testWidgets(
       '$name reverses an interrupted flight and reopens the same session',

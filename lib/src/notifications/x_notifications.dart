@@ -11,9 +11,10 @@ final _log = Log.tag('notifications');
 
 /// OS-notification primitive. Domain-agnostic — the caller decides when
 /// to emit and how to format the payload. Backed natively on macOS
-/// (`UNUserNotificationCenter`) and Android (`NotificationManagerCompat`);
-/// see the platform `NotificationsPlugin`. No handler on iOS, where calls
-/// no-op. Window-focus state lives in [XWindow], not here.
+/// (`UNUserNotificationCenter`), Android (`NotificationManagerCompat`) and
+/// Windows (toasts under the process's AppUserModelID); see the platform
+/// `NotificationsPlugin`. No handler on iOS, where calls no-op. Window-focus
+/// state lives in [XWindow], not here.
 abstract interface class XNotifications {
   /// Production singleton — talks to the native plugin via MethodChannel
   /// + EventChannel. Tests inject a fake `XNotifications` directly into
@@ -53,11 +54,12 @@ class MethodChannelXNotifications implements XNotifications {
     });
   }
 
-  /// Only macOS and Android register a native handler; activating the events
-  /// channel elsewhere throws `MissingPluginException`.
+  /// Only macOS, Android and Windows register a native handler; activating
+  /// the events channel elsewhere throws `MissingPluginException`.
   static bool get _hasNativeHandler =>
       defaultTargetPlatform == TargetPlatform.macOS ||
-      defaultTargetPlatform == TargetPlatform.android;
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.windows;
 
   static const _channel = MethodChannel('ux/notifications');
   static const _eventsChannel = EventChannel('ux/notifications/events');
@@ -168,7 +170,8 @@ class XNotification {
   final String body;
 
   /// Groups notifications in the OS UI (macOS Notification Center
-  /// collapses entries sharing a `threadIdentifier`).
+  /// collapses entries sharing a `threadIdentifier`; Windows groups toasts
+  /// by it).
   final String? threadId;
 
   /// Delivered verbatim to the tap event when the user clicks the
