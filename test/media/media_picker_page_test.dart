@@ -539,6 +539,11 @@ void main() {
       await tester.pumpAndSettle();
       expect(camera.liveHandles, isEmpty);
       expect(camera.disposeCalls, [1]);
+      // Teardown cannot delete the capture on Windows while compose reads it.
+      while (compose.focusedEntry.source == null) {
+        await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+        await tester.pump();
+      }
       compose.handleCancel();
       await tester.pumpAndSettle();
       await opening;
