@@ -128,4 +128,20 @@ void main() {
           kind: UrlMatchKind.web),
     ]);
   });
+
+  testWidgets('CJK letters between two bare domains stay out of both',
+      (tester) async {
+    expect(XUrl.match('访问example.com和google.com'), const [
+      UrlMatch(
+          start: 2,
+          end: 13,
+          url: 'http://example.com',
+          kind: UrlMatchKind.web),
+      UrlMatch(
+          start: 14,
+          end: 24,
+          url: 'http://google.com',
+          kind: UrlMatchKind.web),
+    ]);
+  });
 }

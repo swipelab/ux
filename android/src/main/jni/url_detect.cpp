@@ -269,10 +269,10 @@ bool is_cjk(jchar c) {
          (c >= 0xFF66 && c <= 0xFFDC);
 }
 
-// The glue of the host that begins the web match [start, end): where the host
-// begins with CJK letters, its first change between them and other characters,
-// else, where it ends with CJK letters, its last change to them. A glue after a
-// '.' is at the '.'. A low surrogate goes with its high surrogate.
+// The glue of the host that begins the web match [start, end), which ends at
+// its first change between CJK letters and other characters inside a label:
+// the '.' after the CJK labels that begin the host, else the '.' before those
+// that end it, else that change. A low surrogate goes with its high surrogate.
 std::optional<jint> host_glue(const jchar* chars, jint start, jint end) {
   const bool leading = is_cjk(chars[start]);
   bool cjk = leading;
@@ -283,10 +283,10 @@ std::optional<jint> host_glue(const jchar* chars, jint start, jint end) {
     if (c < 0x80 && !(std::isalnum(c) || c == u'-' || c == u'_')) break;
     if (is_cjk(c) == cjk) continue;
     cjk = !cjk;
-    const jint at = chars[i - 1] == u'.' ? i - 1 : i;
-    if (leading) return at;
+    if (chars[i - 1] != u'.') return glue.value_or(i);
+    if (leading) return i - 1;
     if (cjk) {
-      glue = at;
+      glue = i - 1;
     } else {
       glue.reset();
     }
