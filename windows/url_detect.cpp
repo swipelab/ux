@@ -214,31 +214,34 @@ bool IsCjkPunctuation(UChar c) {
          (c >= 0xFF1A && c <= 0xFF20) || (c >= 0xFF3B && c <= 0xFF40) || (c >= 0xFF5B && c <= 0xFF65);
 }
 
-// Han, kana, Bopomofo and Hangul by block, and an ideograph of the
-// supplementary planes by its high surrogate.
-bool IsCjk(UChar c) {
-  return (c >= 0x1100 && c <= 0x11FF) || (c >= 0x2E80 && c <= 0x9FFF) || (c >= 0xA960 && c <= 0xA97F) ||
+// Whether c belongs to a script whose text runs onto a domain with no space
+// between: Han, kana, Bopomofo, Hangul, Thai, Lao, Khmer and Myanmar by block,
+// and an ideograph of the supplementary planes by its high surrogate.
+bool IsUnspaced(UChar c) {
+  return (c >= 0x0E00 && c <= 0x0EFF) || (c >= 0x1000 && c <= 0x109F) || (c >= 0x1100 && c <= 0x11FF) ||
+         (c >= 0x1780 && c <= 0x17FF) || (c >= 0x2E80 && c <= 0x9FFF) || (c >= 0xA960 && c <= 0xA97F) ||
          (c >= 0xAC00 && c <= 0xD7FF) || (c >= 0xD840 && c <= 0xD8BF) || (c >= 0xF900 && c <= 0xFAFF) ||
          (c >= 0xFF66 && c <= 0xFFDC);
 }
 
 // The glue of the host that begins the web match [start, end), which ends at
-// its first change between CJK letters and other characters inside a label:
-// the '.' after the CJK labels that begin the host, else the '.' before those
-// that end it, else that change. A low surrogate goes with its high surrogate.
+// its first change between unspaced letters and other characters inside a
+// label: the '.' after the unspaced labels that begin the host, else the '.'
+// before those that end it, else that change. A low surrogate goes with its
+// high surrogate.
 std::optional<int32_t> HostGlue(const UChar* text, int32_t start, int32_t end) {
-  const bool leading = IsCjk(text[start]);
-  bool cjk = leading;
+  const bool leading = IsUnspaced(text[start]);
+  bool unspaced = leading;
   std::optional<int32_t> glue;
   for (int32_t i = start + 1; i < end; i++) {
     const UChar c = text[i];
     if (c == u'.' || (c >= 0xDC00 && c <= 0xDFFF)) continue;
     if (c < 0x80 && !(std::isalnum(c) || c == u'-' || c == u'_')) break;
-    if (IsCjk(c) == cjk) continue;
-    cjk = !cjk;
+    if (IsUnspaced(c) == unspaced) continue;
+    unspaced = !unspaced;
     if (text[i - 1] != u'.') return glue.value_or(i);
     if (leading) return i - 1;
-    if (cjk) {
+    if (unspaced) {
       glue = i - 1;
     } else {
       glue.reset();
