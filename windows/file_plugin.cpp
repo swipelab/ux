@@ -34,12 +34,6 @@ using winrt::Windows::Storage::StorageFile;
 // A file to share, or the error that kept it from opening.
 using SharedFile = std::variant<StorageFile, HRESULT>;
 
-std::optional<std::wstring> StringArg(const EncodableMap* args, const char* key) {
-  const auto* value = std::get_if<std::string>(Arg(args, key));
-  if (value == nullptr) return std::nullopt;
-  return Utf16(*value);
-}
-
 std::vector<std::string> MimeTypesArg(const EncodableMap* args) {
   std::vector<std::string> mime_types;
   if (const auto* list = std::get_if<EncodableList>(Arg(args, "mimeTypes"))) {

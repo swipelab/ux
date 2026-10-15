@@ -14,7 +14,7 @@
 #include <vector>
 
 #include "aes_ctr.h"
-#include "text.h"
+#include "method_args.h"
 
 namespace ux {
 
@@ -26,18 +26,9 @@ using flutter::EncodableValue;
 // A call's ciphertext, or why it has none.
 using Outcome = std::variant<std::vector<uint8_t>, std::string>;
 
-const EncodableValue* Arg(const EncodableMap* args, const char* key) {
-  if (args == nullptr) return nullptr;
-  const auto it = args->find(EncodableValue(key));
-  return it == args->end() ? nullptr : &it->second;
-}
-
 // A non-negative integer argument.
 std::optional<uint64_t> OffsetArg(const EncodableMap* args, const char* key) {
-  const EncodableValue* value = Arg(args, key);
-  std::optional<int64_t> number;
-  if (const auto* int32 = std::get_if<int32_t>(value)) number = *int32;
-  if (const auto* int64 = std::get_if<int64_t>(value)) number = *int64;
+  const std::optional<int64_t> number = IntArg(args, key);
   if (!number || *number < 0) return std::nullopt;
   return static_cast<uint64_t>(*number);
 }
@@ -54,15 +45,6 @@ std::optional<std::array<uint8_t, N>> FixedBytesArg(const EncodableMap* args, co
   std::array<uint8_t, N> fixed;
   std::copy(bytes->begin(), bytes->end(), fixed.begin());
   return fixed;
-}
-
-// The `path` argument as a Windows path, which Dart may give with either separator.
-std::optional<std::wstring> PathArg(const EncodableMap* args) {
-  const auto* path = std::get_if<std::string>(Arg(args, "path"));
-  if (path == nullptr) return std::nullopt;
-  std::optional<std::wstring> wide = Utf16(*path);
-  if (wide) std::replace(wide->begin(), wide->end(), L'/', L'\\');
-  return wide;
 }
 
 // Bytes [pos, pos + size) of the file at [path], or none when it cannot be
@@ -137,7 +119,7 @@ void CryptoPlugin::HandleMethodCall(const flutter::MethodCall<EncodableValue>& c
         answer);
     return;
   }
-  std::optional<std::wstring> path = PathArg(args);
+  std::optional<std::wstring> path = PathArg(args, "path");
   const std::optional<uint64_t> size = OffsetArg(args, "size");
   if (!path || !size) {
     reply->Error("bad_args", "path and size >= 0 are required");

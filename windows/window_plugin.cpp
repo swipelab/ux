@@ -5,6 +5,8 @@
 
 #include <utility>
 
+#include "method_args.h"
+
 namespace ux {
 
 namespace {
@@ -59,11 +61,7 @@ void WindowPlugin::HandleMethodCall(const flutter::MethodCall<EncodableValue>& c
     result->NotImplemented();
     return;
   }
-  const bool* enabled = nullptr;
-  if (const auto* args = std::get_if<EncodableMap>(call.arguments())) {
-    const auto it = args->find(EncodableValue("enabled"));
-    if (it != args->end()) enabled = std::get_if<bool>(&it->second);
-  }
+  const auto* enabled = std::get_if<bool>(Arg(std::get_if<EncodableMap>(call.arguments()), "enabled"));
   if (enabled == nullptr) {
     result->Error("bad_args", "enabled required");
     return;

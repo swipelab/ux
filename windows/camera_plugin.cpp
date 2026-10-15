@@ -26,10 +26,6 @@ using flutter::EncodableValue;
 
 using Listing = std::variant<std::vector<CameraDevice>, HRESULT>;
 
-const std::string* StringArg(const EncodableMap* args, const char* key) {
-  return std::get_if<std::string>(Arg(args, key));
-}
-
 void BadArgs(flutter::MethodResult<EncodableValue>& result, const std::string& where) {
   result.Error("bad_args", "Bad arguments for " + where);
 }
@@ -158,7 +154,7 @@ void CameraPlugin::AvailableCameras(std::shared_ptr<Result> result) {
 }
 
 void CameraPlugin::Create(const EncodableMap* args, std::shared_ptr<Result> result) {
-  const std::string* id = StringArg(args, "cameraId");
+  const auto* id = std::get_if<std::string>(Arg(args, "cameraId"));
   const auto* audio = std::get_if<bool>(Arg(args, "enableAudio"));
   const std::optional<std::wstring> link = id ? Utf16(*id) : std::nullopt;
   if (!link || audio == nullptr) {
@@ -218,9 +214,9 @@ void CameraPlugin::HandleCameraCall(const std::string& method, const EncodableMa
     Dispose(handle, std::move(result));
   } else if (method == "setDescription") {
     SetDescription(args, camera, handle, std::move(result));
-  } else if (method == "setFlashMode" && StringArg(args, "mode") == nullptr) {
+  } else if (method == "setFlashMode" && !StringArg(args, "mode")) {
     BadArgs(*result, method);
-  } else if (method == "lockCaptureOrientation" && StringArg(args, "orientation") == nullptr) {
+  } else if (method == "lockCaptureOrientation" && !StringArg(args, "orientation")) {
     BadArgs(*result, method);
   } else if (method == "setFlashMode" || method == "lockCaptureOrientation" || method == "unlockCaptureOrientation") {
     // A webcam has neither a flash nor an orientation of its own.
@@ -228,7 +224,7 @@ void CameraPlugin::HandleCameraCall(const std::string& method, const EncodableMa
   } else if (method == "stopVideoRecording") {
     camera.instance->StopRecording(
         [result](CameraResult<std::wstring> written) { ReplyPath(*result, written, "recorder_failed"); });
-  } else if (StringArg(args, "snapshotOrientation") == nullptr) {
+  } else if (!StringArg(args, "snapshotOrientation")) {
     BadArgs(*result, method);
   } else if (method == "takePicture") {
     camera.instance->TakePicture(
@@ -260,7 +256,7 @@ void CameraPlugin::Dispose(int64_t handle, std::shared_ptr<Result> result) {
 
 void CameraPlugin::SetDescription(const EncodableMap* args, Camera& camera, int64_t handle,
                                   std::shared_ptr<Result> result) {
-  const std::string* id = StringArg(args, "cameraId");
+  const auto* id = std::get_if<std::string>(Arg(args, "cameraId"));
   const std::optional<std::wstring> link = id ? Utf16(*id) : std::nullopt;
   if (!link) {
     BadArgs(*result, "setDescription");

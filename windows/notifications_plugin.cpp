@@ -14,6 +14,7 @@
 #include <map>
 #include <utility>
 
+#include "method_args.h"
 #include "text.h"
 #include "toast.h"
 
@@ -65,18 +66,6 @@ std::optional<std::wstring> AppUserModelId() {
   std::wstring value(id);
   CoTaskMemFree(id);
   return value;
-}
-
-const EncodableValue* Arg(const EncodableMap* args, const char* key) {
-  if (args == nullptr) return nullptr;
-  const auto it = args->find(EncodableValue(key));
-  return it == args->end() ? nullptr : &it->second;
-}
-
-std::optional<std::wstring> StringArg(const EncodableMap* args, const char* key) {
-  const auto* value = std::get_if<std::string>(Arg(args, key));
-  if (value == nullptr) return std::nullopt;
-  return Utf16(*value);
 }
 
 // The `data` argument, a map of strings, which an absent `data` leaves empty;
