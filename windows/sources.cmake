@@ -10,10 +10,14 @@ set(UX_PLUGIN_SOURCES
   "${CMAKE_CURRENT_LIST_DIR}/image_probe.h"
   "${CMAKE_CURRENT_LIST_DIR}/image_probe_plugin.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/image_probe_plugin.h"
+  "${CMAKE_CURRENT_LIST_DIR}/notifications_plugin.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/notifications_plugin.h"
   "${CMAKE_CURRENT_LIST_DIR}/platform_thread.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/platform_thread.h"
   "${CMAKE_CURRENT_LIST_DIR}/text.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/text.h"
+  "${CMAKE_CURRENT_LIST_DIR}/toast.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/toast.h"
   "${CMAKE_CURRENT_LIST_DIR}/url_plugin.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/url_plugin.h"
   "${CMAKE_CURRENT_LIST_DIR}/url_detect.cpp"
@@ -26,10 +30,12 @@ set(UX_PLUGIN_SOURCES
   "${CMAKE_CURRENT_LIST_DIR}/video_player_plugin.h"
   "${CMAKE_CURRENT_LIST_DIR}/video_surface.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/video_surface.h"
+  "${CMAKE_CURRENT_LIST_DIR}/window_plugin.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/window_plugin.h"
 )
 
 # The SDK libraries the handlers link.
-set(UX_PLUGIN_LIBRARIES icu d3d11 mfplat mfuuid windowscodecs delayimp)
+set(UX_PLUGIN_LIBRARIES icu d3d11 mfplat mfuuid windowscodecs runtimeobject delayimp)
 
 # Media Foundation loads at the first video `create`, since a Windows N edition
 # lacks it without the Media Feature Pack.

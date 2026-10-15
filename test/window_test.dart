@@ -54,10 +54,12 @@ void main() {
     expect(listenCalls, contains('listen'));
   });
 
-  test('a focus event flips focused', () async {
-    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+  test('Windows activates the events channel, whose focus event flips focused',
+      () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
     final w = MethodChannelXWindow();
     await pumpEventQueue();
+    expect(listenCalls, contains('listen'));
     expect(w.focused.value, isTrue);
 
     await sendEvent({'type': 'focus', 'focused': false});
@@ -73,6 +75,7 @@ void main() {
     TargetPlatform.iOS,
     TargetPlatform.android,
     TargetPlatform.macOS,
+    TargetPlatform.windows,
   ]) {
     test('keepAwake reaches the platform on ${platform.name}', () async {
       debugDefaultTargetPlatformOverride = platform;
