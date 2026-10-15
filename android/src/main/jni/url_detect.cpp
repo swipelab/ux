@@ -328,11 +328,11 @@ bool is_path_delimiter(jchar c) {
 
 // Each stretch of the text between CJK punctuation is a region the pattern
 // matches as a text of its own, so no link takes a mark in. Past a web link
-// the region cuts at its mark, a web match is that link's path where its
-// stretch holds a path delimiter before it and the pattern matches the link
-// through it whole. No host runs across its glue: the web match is the part
-// before the glue where the pattern matches that whole, and the search goes on
-// from the glue.
+// the region cuts at a fullwidth '(', a web match in a stretch after a
+// fullwidth ')' is that link's path where the stretch holds a path delimiter
+// before it and the pattern matches the link through it whole. No host runs
+// across its glue: the web match is the part before the glue where the pattern
+// matches that whole, and the search goes on from the glue.
 void run_pattern(JNIEnv* env, jstring text, const jchar* chars, jint len, jobject pattern,
                  uint32_t kind, std::vector<RawMatch>& out) {
   jobject matcher = env->CallObjectMethod(pattern, g_matcher_method, text);
@@ -356,7 +356,8 @@ void run_pattern(JNIEnv* env, jstring text, const jchar* chars, jint len, jobjec
       jint end = env->CallIntMethod(matcher, g_end_method);
       if (env->ExceptionCheck()) { clear_exception(env); break; }
       if (kind == kKindWeb) {
-        if (cut && std::any_of(chars + from, chars + start, is_path_delimiter) &&
+        if (cut && chars[from - 1] == u'\uFF09' &&
+            std::any_of(chars + from, chars + start, is_path_delimiter) &&
             matches_whole(env, pattern, text, *cut, end)) continue;
         if (std::optional<jint> glue = host_glue(chars, start, end)) {
           env->DeleteLocalRef(env->CallObjectMethod(matcher, g_region_method, *glue, to));
@@ -365,7 +366,7 @@ void run_pattern(JNIEnv* env, jstring text, const jchar* chars, jint len, jobjec
           end = *glue;
         }
         if (!has_tld(chars, start, end)) continue;
-        if (end == to) cut = start;
+        if (end == to && to < len && chars[to] == u'\uFF08') cut = start;
         end = web_end(env, pattern, text, chars, start, end, to);
       }
 

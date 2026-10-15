@@ -274,11 +274,11 @@ bool IsPathDelimiter(UChar c) { return std::u16string_view(u"/?#&=").find(c) != 
 // A clone per call, since a URegularExpression holds its matcher's state.
 // Each stretch of the text between CJK punctuation is a region the detector
 // matches as a text of its own, so no link takes a mark in. Past a web link
-// the region cuts at its mark, a web match is that link's path where its
-// stretch holds a path delimiter before it and the detector matches the link
-// through it whole. No host runs across its glue: the web match is the part
-// before the glue where the detector matches that whole, and the search goes on
-// from the glue.
+// the region cuts at a fullwidth '(', a web match in a stretch after a
+// fullwidth ')' is that link's path where the stretch holds a path delimiter
+// before it and the detector matches the link through it whole. No host runs
+// across its glue: the web match is the part before the glue where the
+// detector matches that whole, and the search goes on from the glue.
 void Find(const URegularExpression* detector, const UChar* text, int32_t len, uint32_t kind,
           std::vector<RawMatch>& out) {
   UErrorCode status = U_ZERO_ERROR;
@@ -294,7 +294,7 @@ void Find(const URegularExpression* detector, const UChar* text, int32_t len, ui
       int32_t end = uregex_end(regex, 0, &status);
       if (U_FAILURE(status)) break;
       if (kind == kKindWeb) {
-        if (cut && std::any_of(text + from, text + start, IsPathDelimiter) &&
+        if (cut && text[from - 1] == u'\uFF09' && std::any_of(text + from, text + start, IsPathDelimiter) &&
             MatchesWhole(detector, text, len, *cut, end)) continue;
         if (const std::optional<int32_t> glue = HostGlue(text, start, end)) {
           uregex_setRegion(regex, *glue, to, &status);
@@ -302,7 +302,7 @@ void Find(const URegularExpression* detector, const UChar* text, int32_t len, ui
           end = *glue;
         }
         if (!HasTld(text, start, end)) continue;
-        if (end == to) cut = start;
+        if (end == to && to < len && text[to] == u'\uFF08') cut = start;
         end = WebEnd(detector, text, len, start, end, to);
       }
       const std::string group = Utf8(text + start, end - start);
