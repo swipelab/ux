@@ -1,4 +1,8 @@
 ### 0.18.0
+- **A video export cancelled as it starts ends cancelled.** On iOS and macOS,
+  `XVideoExportSession.cancel` fails `done` with `cancelled` and leaves no file
+  whenever it comes after `XVideoExporter.start`, right after it included, on
+  the pass-through and the re-encoding path, as on Android and Windows.
 - **The AES-CTR counter carries across all 128 bits on iOS and macOS.**
   `XCrypto.aesCtrEncryptRange` and `XCrypto.aesCtrBytes` on iOS and macOS
   carry the counter from its low 64 bits into its high 64 bits where they wrap,
