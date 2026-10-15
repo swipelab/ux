@@ -80,19 +80,34 @@ static BOOL ux_is_hex(uint16_t c) {
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 }
 
+// Whether the code point c is in Patterns.WEB_URL's UCS_CHAR.
+static BOOL ux_is_ucs_char(uint32_t c) {
+    if (c > 0xFFFF) return (c & 0xFFFF) <= 0xFFFD && c < 0xF0000 && !(c >= 0xE0000 && c < 0xE1000);
+    return ((c > 0xA0 && c <= 0xD7FF) || (c >= 0xF900 && c <= 0xFDCF) || (c >= 0xFDF0 && c <= 0xFFEF)) &&
+           !((c >= 0x2000 && c <= 0x200A) || c == 0x2028 || c == 0x2029 || c == 0x202F || c == 0x3000);
+}
+
 // The first character in [i, end) that Patterns.WEB_URL's path does not take:
-// whitespace, '"', '<', '>', '[', '\', ']', '^', '`', '{', '|', '}' or a '%'
-// that two hex digits do not follow; `end` where there is none.
+// an ASCII control or space, '"', '<', '>', '[', '\', ']', '^', '`', '{', '|',
+// '}', a '%' that two hex digits do not follow or a character outside
+// UCS_CHAR; `end` where there is none.
 static NSUInteger ux_path_mark(const uint16_t *chars, NSUInteger i, NSUInteger end) {
-    NSCharacterSet *whitespace = [NSCharacterSet whitespaceAndNewlineCharacterSet];
-    for (; i < end; i++) {
+    while (i < end) {
         const uint16_t c = chars[i];
-        if (c == '%' ? !(i + 2 < end && ux_is_hex(chars[i + 1]) && ux_is_hex(chars[i + 2]))
-                     : (c == '"' || c == '<' || c == '>' || c == '[' || c == '\\' || c == ']' ||
-                        c == '^' || c == '`' || c == '{' || c == '|' || c == '}' ||
-                        [whitespace characterIsMember:c])) {
-            break;
+        NSUInteger next = i + 1;
+        BOOL mark;
+        if (c == '%') {
+            mark = !(i + 2 < end && ux_is_hex(chars[i + 1]) && ux_is_hex(chars[i + 2]));
+        } else if (c < 0x80) {
+            mark = c <= 0x20 || c == 0x7F || c == '"' || c == '<' || c == '>' || c == '[' || c == '\\' ||
+                   c == ']' || c == '^' || c == '`' || c == '{' || c == '|' || c == '}';
+        } else if (CFStringIsSurrogateHighCharacter(c) && next < end && CFStringIsSurrogateLowCharacter(chars[next])) {
+            mark = !ux_is_ucs_char(CFStringGetLongCharacterForSurrogatePair(c, chars[next++]));
+        } else {
+            mark = !ux_is_ucs_char(c);
         }
+        if (mark) break;
+        i = next;
     }
     return i;
 }
