@@ -14,7 +14,6 @@ namespace ux {
 class UrlPlugin : public flutter::Plugin {
  public:
   explicit UrlPlugin(flutter::BinaryMessenger* messenger);
-  ~UrlPlugin() override;
 
   UrlPlugin(const UrlPlugin&) = delete;
   UrlPlugin& operator=(const UrlPlugin&) = delete;
