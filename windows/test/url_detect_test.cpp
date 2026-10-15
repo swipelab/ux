@@ -57,6 +57,8 @@ const std::vector<Case>& Corpus() {
        u"see https://example.com/a_(b), x",
        {{4, 29, kWeb, "https://example.com/a_(b)"}}},
       {"a colon after a host stays out of the web link", u"see example.com: x", {{4, 15, kWeb, "http://example.com"}}},
+      {"a word a period glues to a bare domain makes it no link", u"see example.com.Then you", {}},
+      {"a bare domain links on its TLD in capitals", u"see EXAMPLE.COM x", {{4, 15, kWeb, "http://EXAMPLE.COM"}}},
       {"a web link ends before CJK punctuation",
        u"\u770B https://example.com/a?b=1\u3002\u4E0B\u4E00\u53E5",
        {{2, 27, kWeb, "https://example.com/a?b=1"}}},

@@ -73,6 +73,21 @@ void main() {
     ]);
   });
 
+  testWidgets('a word a period glues to a bare domain makes it no link',
+      (tester) async {
+    expect(XUrl.match('see example.com.Then you'), const <UrlMatch>[]);
+  });
+
+  testWidgets('a bare domain links on its TLD in capitals', (tester) async {
+    expect(XUrl.match('see EXAMPLE.COM x'), const [
+      UrlMatch(
+          start: 4,
+          end: 15,
+          url: 'http://EXAMPLE.COM',
+          kind: UrlMatchKind.web),
+    ]);
+  });
+
   testWidgets('a web link ends before CJK punctuation', (tester) async {
     expect(XUrl.match('看 https://example.com/a?b=1。下一句'), const [
       UrlMatch(
