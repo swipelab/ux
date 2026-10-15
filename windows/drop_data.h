@@ -4,6 +4,7 @@
 #include <windows.h>
 
 #include <objidl.h>
+#include <shellapi.h>
 
 #include <optional>
 #include <string>
@@ -33,6 +34,9 @@ LogicalPoint ToLogical(HWND view, POINTL screen, UINT dpi);
 // Whether [data] offers files: CF_HDROP, or virtual files as
 // CFSTR_FILEDESCRIPTORW with CFSTR_FILECONTENTS.
 bool OffersFiles(IDataObject* data);
+
+// The paths [drop] lists.
+std::vector<std::wstring> PathsOf(HDROP drop);
 
 // The paths of [data]'s CF_HDROP, or none when it has none.
 std::optional<std::vector<std::wstring>> DroppedPaths(IDataObject* data);

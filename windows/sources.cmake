@@ -2,6 +2,11 @@
 set(UX_PLUGIN_SOURCES
   "${CMAKE_CURRENT_LIST_DIR}/x_plugin.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/x_plugin.h"
+  "${CMAKE_CURRENT_LIST_DIR}/clipboard_plugin.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/clipboard_plugin.h"
+  "${CMAKE_CURRENT_LIST_DIR}/com_scope.h"
+  "${CMAKE_CURRENT_LIST_DIR}/dib.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/dib.h"
   "${CMAKE_CURRENT_LIST_DIR}/drop_data.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/drop_data.h"
   "${CMAKE_CURRENT_LIST_DIR}/drop_plugin.cpp"
