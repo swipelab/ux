@@ -89,7 +89,7 @@ void main() {
       UrlMatch(
         start: 4,
         end: 19,
-        url: 'http://example.com/a​b',
+        url: 'http://example.com/ab',
         kind: UrlMatchKind.web,
       ),
     ]);
