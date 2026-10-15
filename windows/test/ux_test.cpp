@@ -5,10 +5,12 @@
 
 void FileTypesSuite();
 void ImageProbeSuite();
+void MediaFoundationSuite();
 void PlatformThreadSuite();
+void RasterSuite();
 void ToastSuite();
 void UrlDetectSuite();
-void VideoDeviceSuite();
+void VideoExportSuite();
 void WindowSuite();
 
 namespace {
@@ -24,10 +26,12 @@ constexpr int kSkipped = 77;
 constexpr Suite kSuites[] = {
     {"file_types", FileTypesSuite},
     {"image_probe", ImageProbeSuite},
+    {"media_foundation", MediaFoundationSuite},
     {"platform_thread", PlatformThreadSuite},
+    {"raster", RasterSuite},
     {"toast", ToastSuite},
     {"url_detect", UrlDetectSuite},
-    {"video_device", VideoDeviceSuite},
+    {"video_export", VideoExportSuite},
     {"window", WindowSuite},
 };
 

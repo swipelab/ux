@@ -6,6 +6,7 @@
 #include "image_probe_plugin.h"
 #include "notifications_plugin.h"
 #include "url_plugin.h"
+#include "video_exporter_plugin.h"
 #include "video_player_plugin.h"
 #include "window_plugin.h"
 
@@ -17,6 +18,7 @@ void XPlugin::RegisterWithRegistrar(flutter::PluginRegistrarWindows* registrar) 
   registrar->AddPlugin(std::make_unique<NotificationsPlugin>(registrar));
   registrar->AddPlugin(std::make_unique<UrlPlugin>(registrar->messenger()));
   registrar->AddPlugin(std::make_unique<VideoPlayerPlugin>(registrar));
+  registrar->AddPlugin(std::make_unique<VideoExporterPlugin>(registrar->messenger()));
   registrar->AddPlugin(std::make_unique<WindowPlugin>(registrar));
 }
 
