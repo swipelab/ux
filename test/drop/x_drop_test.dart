@@ -12,7 +12,9 @@ import 'package:ux/drop.dart';
 /// A zip entry as its central directory records it, with its data inflated.
 typedef _Entry = ({String name, int crc, int size, Uint8List data});
 
-/// The entries of [zip], read without zip64 records.
+/// The entries of [zip], read without zip64 records. A deflated entry inflates
+/// inside a gzip member whose trailer holds its recorded CRC and size, so zlib
+/// checks both.
 List<_Entry> _readZip(Uint8List zip) {
   final bytes = ByteData.sublistView(zip);
   var end = zip.length - 22;
@@ -39,8 +41,17 @@ List<_Entry> _readZip(Uint8List zip) {
         bytes.getUint16(local + 26, Endian.little) +
         bytes.getUint16(local + 28, Endian.little);
     final stored = zip.sublist(start, start + compressed);
+    final trailer = ByteData(8)
+      ..setUint32(0, crc, Endian.little)
+      ..setUint32(4, size, Endian.little);
     final data = method == 8
-        ? Uint8List.fromList(ZLibDecoder(raw: true).convert(stored))
+        ? Uint8List.fromList(
+            gzip.decode([
+              ...[0x1f, 0x8b, 8, 0, 0, 0, 0, 0, 0, 0xff],
+              ...stored,
+              ...trailer.buffer.asUint8List(),
+            ]),
+          )
         : stored;
     entries.add((name: name, crc: crc, size: size, data: data));
     at += 46 + nameLength + extra + comment;
@@ -177,7 +188,7 @@ void main() {
     );
 
     test('writes the tree under its own per-drop directory, and the zip reads '
-        'back and passes unzip -t', () async {
+        'back with its CRCs, and passes unzip -t where unzip runs', () async {
       final job = zip();
       final file = (await job.result)!;
       final dir = File(file.path).parent;
@@ -211,6 +222,8 @@ void main() {
         expect(entry.data, source, reason: entry.name);
       }
 
+      // Windows has no unzip.
+      if (Platform.isWindows) return;
       final test = await Process.run('unzip', ['-t', file.path]);
       expect(test.exitCode, 0, reason: '${test.stdout}${test.stderr}');
       expect(test.stdout, contains('No errors detected'));
@@ -239,8 +252,16 @@ void main() {
 
     test('a failed job throws and leaves no directory', () async {
       final unreadable = p.join(tree.path, 'readme.txt');
-      expect((await Process.run('chmod', ['000', unreadable])).exitCode, 0);
-      addTearDown(() => Process.runSync('chmod', ['644', unreadable]));
+      // Windows ignores chmod's mode bits, but fails a read of a range that
+      // another handle has locked.
+      if (Platform.isWindows) {
+        final holder = await File(unreadable).open(mode: FileMode.append);
+        await holder.lock();
+        addTearDown(holder.close);
+      } else {
+        expect((await Process.run('chmod', ['000', unreadable])).exitCode, 0);
+        addTearDown(() => Process.runSync('chmod', ['644', unreadable]));
+      }
       final before = _drops();
 
       await expectLater(zip().result, throwsA(isA<FileSystemException>()));

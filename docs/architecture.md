@@ -134,11 +134,11 @@ handler per area, named after its darwin counterpart: `ClipboardPlugin`
 `ux/drop/events`), `FilePlugin` (`ux/file`), `ImageProbePlugin`
 (`ux/image_probe`), `NotificationsPlugin`
 (`ux/notifications` and `ux/notifications/events`), `UrlPlugin` (`ux/url`),
-`VideoPlayerPlugin` (`ux/video` and `ux/video/events`), `VideoExporterPlugin`
-(`ux/video/export` and `ux/video/export/events`) and `WindowPlugin`
-(`ux/window` and `ux/window/events`). A handler serves its channel's contract
-and answers not-implemented for a method it does not serve. Paths from Dart
-are accepted with either separator.
+`VideoPlayerPlugin` (`ux/video` and `ux/video/events`),
+`VideoExporterPlugin` (`ux/video/export` and `ux/video/export/events`) and
+`WindowPlugin` (`ux/window` and `ux/window/events`). A handler serves its
+channel's contract and answers not-implemented for a method it does not serve.
+Paths from Dart are accepted with either separator.
 
 - **FFI.** The host executable links `ux_plugin.dll`, and
   `lib/src/_ffi.dart` opens it by name, so `uxLib` resolves its exports,
