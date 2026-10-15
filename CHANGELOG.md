@@ -1,4 +1,10 @@
 ### 0.18.0
+- **A word a period glues to a bare domain makes it no link.** On Android and
+  Windows, `XUrl.match` links a web match with no scheme only where its host is
+  an IP address or ends in a top-level domain on IANA's list, in lowercase or as
+  its Unicode label, or in com, edu, gov, net or org in any case.
+  `see example.com.Then you`, `see example.com.It works` and
+  `see example.com.Über x` link nothing, as on macOS.
 - **A cancelled video export ends.** On iOS and macOS, cancelling an export
   that re-encodes with a `transform` while it runs fails `done` with
   `cancelled` and deletes the partial file, as on Android and Windows.

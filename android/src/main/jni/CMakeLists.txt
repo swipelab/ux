@@ -11,6 +11,9 @@ set_target_properties(ux PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON)
 
+# The headers url_detect.cpp shares with the Windows plugin.
+target_include_directories(ux PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../../../../src")
+
 target_link_libraries(ux log)
 
 # 16KB page size support (required for Android 15+)

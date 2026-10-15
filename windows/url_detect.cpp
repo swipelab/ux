@@ -13,6 +13,8 @@
 #include <string_view>
 #include <vector>
 
+#include "tld.h"
+
 namespace {
 
 constexpr uint32_t kKindWeb = 0;
@@ -245,6 +247,21 @@ std::optional<int32_t> HostGlue(const UChar* text, int32_t start, int32_t end) {
   return glue;
 }
 
+// Whether the web match [start, end) has the TLD it needs: a match with a
+// scheme or an IP address needs none, and a host's last label is one where
+// IsTld holds. Patterns.WEB_URL takes any letters after a host's last '.' for
+// its TLD, so a word a period glues to a bare domain joins it.
+bool HasTld(const UChar* text, int32_t start, int32_t end) {
+  int32_t host_end = start;
+  while (host_end < end && std::u16string_view(u":/?").find(text[host_end]) == std::u16string_view::npos) host_end++;
+  if (host_end + 2 < end && text[host_end] == u':' && text[host_end + 1] == u'/' && text[host_end + 2] == u'/') {
+    return true;
+  }
+  int32_t label = host_end;
+  while (label > start && text[label - 1] != u'.') label--;
+  return (text[label] >= u'0' && text[label] <= u'9') || IsTld(std::u16string_view(text + label, host_end - label));
+}
+
 bool IsPathDelimiter(UChar c) { return std::u16string_view(u"/?#&=").find(c) != std::u16string_view::npos; }
 
 // A clone per call, since a URegularExpression holds its matcher's state.
@@ -277,6 +294,7 @@ void Find(const URegularExpression* detector, const UChar* text, int32_t len, ui
           if (!MatchesWhole(detector, text, len, start, *glue)) continue;
           end = *glue;
         }
+        if (!HasTld(text, start, end)) continue;
         if (end == to) cut = start;
         end = WebEnd(detector, text, len, start, end, to);
       }
