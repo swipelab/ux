@@ -171,6 +171,7 @@ void main() {
         ),
       ]);
     },
+    // macOS and iOS also link http://page.com here (#3175).
     skip: !(Platform.isAndroid || Platform.isWindows),
   );
 
