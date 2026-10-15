@@ -66,10 +66,36 @@ static NSRegularExpression *ux_url_bare_domain_regex(void) {
     return regex;
 }
 
-// The end of the web match [start, end) before a trailing '.', ',', ';' or '!'
-// and a trailing ')' it does not open, which the bare-domain regex's suffix
-// and NSDataDetector, in a link that holds a '(', take in.
+// The start of the path, query or fragment of the web match [start, end): its
+// first '/', '?' or '#' past the "//" that follows a scheme.
+static NSUInteger ux_path_start(const uint16_t *chars, NSUInteger start, NSUInteger end) {
+    NSUInteger i = start;
+    while (i < end && chars[i] != ':' && chars[i] != '/' && chars[i] != '?' && chars[i] != '#') i++;
+    if (i + 2 < end && chars[i] == ':' && chars[i + 1] == '/' && chars[i + 2] == '/') i += 3;
+    while (i < end && chars[i] != '/' && chars[i] != '?' && chars[i] != '#') i++;
+    return i;
+}
+
+static BOOL ux_is_hex(uint16_t c) {
+    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+}
+
+// The end of the web match [start, end), which the bare-domain regex's suffix
+// and NSDataDetector run past. The match ends before the first '"', '<', '>',
+// '[', '\', ']', '^', '`', '{', '|', '}' or '%' that two hex digits do not
+// follow in its path, which Patterns.WEB_URL's path does not take, then before
+// a trailing '.', ',', ';', '!', '\'' or '(' and a trailing ')' it does not
+// open.
 static NSUInteger ux_web_end(const uint16_t *chars, NSUInteger start, NSUInteger end) {
+    for (NSUInteger i = ux_path_start(chars, start, end); i < end; i++) {
+        const uint16_t c = chars[i];
+        if (c == '%' ? !(i + 2 < end && ux_is_hex(chars[i + 1]) && ux_is_hex(chars[i + 2]))
+                     : (c == '"' || c == '<' || c == '>' || c == '[' || c == '\\' || c == ']' ||
+                        c == '^' || c == '`' || c == '{' || c == '|' || c == '}')) {
+            end = i;
+            break;
+        }
+    }
     NSInteger unopened = 0;
     for (NSUInteger i = start; i < end; i++) {
         if (chars[i] == ')') unopened++;
@@ -79,7 +105,9 @@ static NSUInteger ux_web_end(const uint16_t *chars, NSUInteger start, NSUInteger
         const uint16_t c = chars[end - 1];
         if (c == ')' && unopened > 0) {
             unopened--;
-        } else if (!(c == '.' || c == ',' || c == ';' || c == '!')) {
+        } else if (c == '(') {
+            unopened++;
+        } else if (!(c == '.' || c == ',' || c == ';' || c == '!' || c == '\'')) {
             break;
         }
         end--;
@@ -154,9 +182,14 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
                     url = u.absoluteString;
                     if (kind == kKindWeb) {
                         end = ux_web_end(utf16, r.location, end);
-                        // The URL ends in the characters trimmed off the
-                        // match, as the text does.
-                        url = [url substringToIndex:url.length - (NSMaxRange(r) - end)];
+                        // A link that holds a character NSDataDetector escapes
+                        // has every '%' in its URL escaped too.
+                        if (end < NSMaxRange(r)) {
+                            url = [detector firstMatchInString:text
+                                                       options:0
+                                                         range:NSMakeRange(r.location, end - r.location)]
+                                      .URL.absoluteString;
+                        }
                     }
                 } else {
                     return;

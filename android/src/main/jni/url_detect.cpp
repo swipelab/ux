@@ -241,7 +241,7 @@ bool is_unspaced(jchar c) {
 // follow it. The match runs on through the is_path_end punctuation after it,
 // and through the digits after that where unspaced letters follow them, when
 // the pattern matches the span to there whole, then ends before a trailing
-// '.', ',', ';' or '!' and a trailing ')' it does not open.
+// '.', ',', ';', '!', '\'' or '(' and a trailing ')' it does not open.
 jint web_end(JNIEnv* env, jobject pattern, jstring text, const jchar* chars, jint start, jint end,
              jint to) {
   jint tail = end;
@@ -259,7 +259,9 @@ jint web_end(JNIEnv* env, jobject pattern, jstring text, const jchar* chars, jin
     jchar c = chars[end - 1];
     if (c == u')' && unopened > 0) {
       unopened--;
-    } else if (!(c == u'.' || c == u',' || c == u';' || c == u'!')) {
+    } else if (c == u'(') {
+      unopened++;
+    } else if (!(c == u'.' || c == u',' || c == u';' || c == u'!' || c == u'\'')) {
       break;
     }
     end--;
