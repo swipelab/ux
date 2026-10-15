@@ -127,8 +127,8 @@ static BOOL ux_is_path_delimiter(uint16_t c) {
 }
 
 // The fullwidth '(' that ends the stretch of the text between CJK punctuation
-// the web link [start, end) ends in, where the link has a path that runs on to
-// it; nil otherwise.
+// the web match [start, end) ends in, where the match has a path that runs on
+// to it; nil otherwise.
 static NSNumber *ux_path_paren(const uint16_t *chars, NSUInteger len, NSUInteger start, NSUInteger end) {
     if (ux_path_start(chars, start, end) == end) return nil;
     NSUInteger paren = end;
@@ -302,20 +302,22 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
             return NSOrderedSame;
         }];
 
-        // Greedy de-overlap. Past a web link whose path runs on to a fullwidth
-        // '(', a web match that continues that path is no link of its own.
+        // Greedy de-overlap. Past a web match whose path runs on to a fullwidth
+        // '(', kept or not, a web match that continues that path is no link of
+        // its own.
         NSMutableArray<XUrlRawMatch *> *kept = [NSMutableArray arrayWithCapacity:raws.count];
         int32_t lastEnd = 0;
         BOOL haveAny = NO;
         NSNumber *cut = nil;
         for (XUrlRawMatch *m in raws) {
+            if (m.kind == kKindWeb) {
+                if (cut != nil && ux_continues_path(utf16, cut.unsignedIntegerValue, m.start, m.end)) continue;
+                cut = ux_path_paren(utf16, text.length, m.start, m.end) ?: cut;
+            }
             if (haveAny && m.start < lastEnd) continue;
-            if (m.kind == kKindWeb && cut != nil &&
-                ux_continues_path(utf16, cut.unsignedIntegerValue, m.start, m.end)) continue;
             [kept addObject:m];
             lastEnd = m.end;
             haveAny = YES;
-            if (m.kind == kKindWeb) cut = ux_path_paren(utf16, text.length, m.start, m.end) ?: cut;
         }
 
         NSUInteger total = 4;
