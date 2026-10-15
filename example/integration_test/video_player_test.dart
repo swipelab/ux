@@ -36,12 +36,9 @@ void main() {
   testWidgets('a rotated video renders upright through XVideoPlayerView', (
     tester,
   ) async {
-    final video = await rootBundle.load('integration_test/assets/portrait.mp4');
-    final dir = await Directory.systemTemp.createTemp();
-    addTearDown(() => dir.delete(recursive: true));
-    final file = File('${dir.path}/portrait.mp4');
-    await file.writeAsBytes(video.buffer.asUint8List());
-    final controller = XVideoPlayerController.file(file);
+    final controller = XVideoPlayerController.file(
+      await _assetFile('portrait.mp4'),
+    );
     addTearDown(controller.dispose);
     await tester.runAsync(() async {
       await controller.initialize();
@@ -95,6 +92,45 @@ void main() {
     await backend.disposeInstance(created.handle);
     await initialized;
   });
+
+  testWidgets(
+    'a speed set while paused holds once playback starts, and after a pause',
+    (tester) async {
+      final controller = XVideoPlayerController.file(
+        await _assetFile('ten_seconds.mp4'),
+      );
+      addTearDown(controller.dispose);
+
+      final speeds = await tester.runAsync(() async {
+        await controller.initialize();
+        await controller.setPlaybackSpeed(2);
+        final speeds = <double>[];
+        for (var run = 0; run < 2; run++) {
+          await controller.play();
+          await Future<void>.delayed(const Duration(milliseconds: 500));
+          final from = controller.value.position;
+          final clock = Stopwatch()..start();
+          await Future<void>.delayed(const Duration(milliseconds: 1500));
+          speeds.add(
+            (controller.value.position - from).inMicroseconds /
+                clock.elapsedMicroseconds,
+          );
+          await controller.pause();
+        }
+        return speeds;
+      });
+      expect(speeds, everyElement(closeTo(2, 0.3)));
+    },
+  );
+}
+
+Future<File> _assetFile(String name) async {
+  final video = await rootBundle.load('integration_test/assets/$name');
+  final dir = await Directory.systemTemp.createTemp();
+  addTearDown(() => dir.delete(recursive: true));
+  final file = File('${dir.path}/$name');
+  await file.writeAsBytes(video.buffer.asUint8List());
+  return file;
 }
 
 /// Serves one video over HTTP byte ranges and holds every response until

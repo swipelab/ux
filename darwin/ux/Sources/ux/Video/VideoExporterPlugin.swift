@@ -300,57 +300,38 @@ public class UxVideoExporterPlugin: NSObject, NativePlugin, FlutterStreamHandler
         }
         writer.startSession(atSourceTime: .zero)
 
-        let cancelled = Cancelled()
-        let task = ExportTask(outPath: outPath) {
-            cancelled.value = true
-            reader.cancelReading()
-            writer.cancelWriting()
-        }
-        DispatchQueue.main.async { self.sessions[sessionId] = task }
-
         let totalSeconds = max(composition.duration.seconds, 0.001)
         let group = DispatchGroup()
-        let videoQueue = DispatchQueue(label: "ux.video.export.video.\(sessionId)")
-        let audioQueue = DispatchQueue(label: "ux.video.export.audio.\(sessionId)")
-
-        group.enter()
-        videoIn.requestMediaDataWhenReady(on: videoQueue) {
-            while videoIn.isReadyForMoreMediaData {
-                if cancelled.value { videoIn.markAsFinished(); group.leave(); return }
-                if let buffer = videoOut.copyNextSampleBuffer() {
-                    if let overlayOut,
-                       let pixelBuffer = CMSampleBufferGetImageBuffer(buffer) {
-                        Self.blend(overlayOut, onto: pixelBuffer)
-                    }
-                    let pts = CMSampleBufferGetPresentationTimeStamp(buffer).seconds
-                    self.emit(["sessionId": sessionId, "type": "progress",
-                               "value": min(pts / totalSeconds, 1.0)])
-                    if !videoIn.append(buffer) { videoIn.markAsFinished(); group.leave(); return }
-                } else {
-                    videoIn.markAsFinished(); group.leave(); return
-                }
+        var pumps = [SamplePump(
+            output: videoOut, input: videoIn,
+            queue: DispatchQueue(label: "ux.video.export.video.\(sessionId)"), group: group
+        ) { buffer in
+            if let overlayOut,
+               let pixelBuffer = CMSampleBufferGetImageBuffer(buffer) {
+                Self.blend(overlayOut, onto: pixelBuffer)
             }
-        }
-
+            let pts = CMSampleBufferGetPresentationTimeStamp(buffer).seconds
+            self.emit(["sessionId": sessionId, "type": "progress",
+                       "value": min(pts / totalSeconds, 1.0)])
+        }]
         if let audioOut, let audioIn {
-            group.enter()
-            audioIn.requestMediaDataWhenReady(on: audioQueue) {
-                while audioIn.isReadyForMoreMediaData {
-                    if cancelled.value { audioIn.markAsFinished(); group.leave(); return }
-                    if let buffer = audioOut.copyNextSampleBuffer() {
-                        if !audioIn.append(buffer) { audioIn.markAsFinished(); group.leave(); return }
-                    } else {
-                        audioIn.markAsFinished(); group.leave(); return
-                    }
-                }
-            }
+            pumps.append(SamplePump(
+                output: audioOut, input: audioIn,
+                queue: DispatchQueue(label: "ux.video.export.audio.\(sessionId)"), group: group))
         }
+        pumps.forEach { $0.start() }
+
+        let task = ExportTask(outPath: outPath) { [pumps] in
+            reader.cancelReading()
+            writer.cancelWriting()
+            pumps.forEach { $0.cancel() }
+        }
+        DispatchQueue.main.async { self.sessions[sessionId] = task }
 
         group.notify(queue: .main) { [weak self] in
             guard let self else { return }
             self.sessions[sessionId] = nil
-            if cancelled.value {
-                writer.cancelWriting()
+            if writer.status == .cancelled {
                 try? FileManager.default.removeItem(at: outUrl)
                 return self.fail(sessionId, "cancelled", "export cancelled")
             }
@@ -440,8 +421,51 @@ public class UxVideoExporterPlugin: NSObject, NativePlugin, FlutterStreamHandler
     }
 }
 
-private final class Cancelled {
-    var value = false
+/// Moves one reader output's samples into one writer input on [queue],
+/// holding [group] until the output runs dry, an append fails or [cancel]
+/// ends it. A cancelled writer never asks a waiting input for more data, so
+/// [cancel] finishes the pump itself. Its state is only touched on [queue].
+private final class SamplePump {
+    init(
+        output: AVAssetReaderOutput, input: AVAssetWriterInput,
+        queue: DispatchQueue, group: DispatchGroup,
+        process: @escaping (CMSampleBuffer) -> Void = { _ in }
+    ) {
+        self.output = output
+        self.input = input
+        self.queue = queue
+        self.group = group
+        self.process = process
+    }
+
+    private let output: AVAssetReaderOutput
+    private let input: AVAssetWriterInput
+    private let queue: DispatchQueue
+    private let group: DispatchGroup
+    private let process: (CMSampleBuffer) -> Void
+    private var finished = false
+
+    func start() {
+        group.enter()
+        input.requestMediaDataWhenReady(on: queue) { [self] in
+            while !finished && input.isReadyForMoreMediaData {
+                guard let buffer = output.copyNextSampleBuffer() else { return finish() }
+                process(buffer)
+                if !input.append(buffer) { return finish() }
+            }
+        }
+    }
+
+    func cancel() {
+        queue.async { [self] in finish() }
+    }
+
+    private func finish() {
+        guard !finished else { return }
+        finished = true
+        input.markAsFinished()
+        group.leave()
+    }
 }
 
 private final class ExportTask {
