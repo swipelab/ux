@@ -38,7 +38,7 @@ target_compile_features(ux_test PRIVATE cxx_std_17)
 target_compile_options(ux_test PRIVATE /W4 /WX /wd4100 /EHsc)
 target_compile_definitions(ux_test PRIVATE UNICODE _UNICODE _HAS_EXCEPTIONS=0 "$<$<CONFIG:Debug>:_DEBUG>"
   ${UX_PLUGIN_DEFINITIONS})
-target_include_directories(ux_test PRIVATE "${ENGINE}" "${WRAPPER}/include")
+target_include_directories(ux_test PRIVATE "${ENGINE}" "${WRAPPER}/include" ${UX_PLUGIN_INCLUDE_DIRECTORIES})
 target_link_libraries(ux_test PRIVATE "${ENGINE}/flutter_windows.dll.lib" ${UX_PLUGIN_LIBRARIES} dxgi powrprof)
 target_link_options(ux_test PRIVATE ${UX_PLUGIN_LINK_OPTIONS})
 add_custom_command(TARGET ux_test POST_BUILD

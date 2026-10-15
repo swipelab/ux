@@ -26,6 +26,8 @@
 #include <string_view>
 #include <vector>
 
+#include "tld.h"
+
 #define UX_LOG_TAG "XUrl"
 #define UX_LOGE(...) __android_log_print(ANDROID_LOG_ERROR, UX_LOG_TAG, __VA_ARGS__)
 
@@ -294,6 +296,31 @@ std::optional<jint> host_glue(const jchar* chars, jint start, jint end) {
   return glue;
 }
 
+// Whether the web match [start, end) has the TLD it needs: a match with a
+// scheme or an IP address needs none, and a host's last label of ASCII is one
+// when, lowercased, it is one of kTlds. A last label with another character
+// passes, since kTlds holds an IDN TLD as punycode. Patterns.WEB_URL takes any
+// letters after a host's last '.' for its TLD, so a word a period glues to a
+// bare domain joins it.
+bool has_tld(const jchar* chars, jint start, jint end) {
+  jint host_end = start;
+  while (host_end < end && std::u16string_view(u":/?").find(chars[host_end]) == std::u16string_view::npos) {
+    host_end++;
+  }
+  if (host_end + 2 < end && chars[host_end] == u':' && chars[host_end + 1] == u'/' &&
+      chars[host_end + 2] == u'/') {
+    return true;
+  }
+  jint label = host_end;
+  while (label > start && chars[label - 1] != u'.') label--;
+  std::string tld;
+  for (jint i = label; i < host_end; i++) {
+    if (chars[i] >= 0x80) return true;
+    tld.push_back((char)std::tolower(chars[i]));
+  }
+  return std::isdigit((unsigned char)tld[0]) || IsTld(tld);
+}
+
 bool is_path_delimiter(jchar c) {
   return std::u16string_view(u"/?#&=").find(c) != std::u16string_view::npos;
 }
@@ -336,6 +363,7 @@ void run_pattern(JNIEnv* env, jstring text, const jchar* chars, jint len, jobjec
           if (!matches_whole(env, pattern, text, start, *glue)) continue;
           end = *glue;
         }
+        if (!has_tld(chars, start, end)) continue;
         if (end == to) cut = start;
         end = web_end(env, pattern, text, chars, start, end, to);
       }

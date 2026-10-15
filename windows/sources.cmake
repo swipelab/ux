@@ -55,7 +55,11 @@ set(UX_PLUGIN_SOURCES
   "${CMAKE_CURRENT_LIST_DIR}/video_thumbnail.h"
   "${CMAKE_CURRENT_LIST_DIR}/window_plugin.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/window_plugin.h"
+  "${CMAKE_CURRENT_LIST_DIR}/../src/tld.h"
 )
+
+# The headers the handlers share with android/src/main/jni.
+set(UX_PLUGIN_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_LIST_DIR}/../src")
 
 # The SDK libraries the handlers link.
 set(UX_PLUGIN_LIBRARIES icu d3d11 mfplat mfreadwrite mfuuid windowscodecs runtimeobject delayimp)
