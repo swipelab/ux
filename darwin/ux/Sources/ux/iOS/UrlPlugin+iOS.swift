@@ -2,6 +2,7 @@
 
 import Flutter
 import UIKit
+import ux_macos_core
 
 public class UrlPlugin: NSObject, NativePlugin {
     private var channel: FlutterMethodChannel?
@@ -38,7 +39,7 @@ public class UrlPlugin: NSObject, NativePlugin {
     private func handleLaunch(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         guard let args = call.arguments as? [String: Any],
               let s = args["url"] as? String,
-              let url = URL(string: s) else {
+              let url = URL(string: LaunchUrl.encoded(s)) else {
             return result(false)
         }
         DispatchQueue.main.async {
