@@ -346,13 +346,18 @@ bool _phoneLeadingCharOk(String text, int start, int end) {
 /// not exhaustive. This pass surfaces every RFC-3986 scheme so the
 /// renderer can style and the tap router can decide; [_dedupeMatches]
 /// collapses anything overlapping with what native already found. A match
-/// ends before whitespace and CJK punctuation: U+3000's block's punctuation
-/// and the vertical, compatibility, small, fullwidth and halfwidth forms of
-/// punctuation.
+/// ends before whitespace, CJK punctuation (U+3000's block's punctuation and
+/// the vertical, compatibility, small, fullwidth and halfwidth forms of
+/// punctuation) and the ASCII marks `Patterns.WEB_URL`'s path does not take:
+/// `"`, `<`, `>`, `[`, `\`, `]`, `^`, `` ` ``, `{`, `|`, `}` and a `%` that two
+/// hex digits do not follow. A bracketed IP literal host, after any userinfo,
+/// keeps its brackets.
 final RegExp _kAnySchemeRegex = RegExp(
-  r'\b[a-zA-Z][a-zA-Z0-9+.\-]*://[^\s\u3001-\u3003\u3008-\u3011\u3014-\u301F'
+  r'\b[a-zA-Z][a-zA-Z0-9+.\-]*://'
+  r"(?:(?:(?:[\w\-.~!$&'()*+,;=:]|%[0-9a-fA-F]{2})*@)?\[[0-9a-fA-F:.]+\])?"
+  r'(?:[^\s"%<>\[\\\]^`{|}\u3001-\u3003\u3008-\u3011\u3014-\u301F'
   r'\uFE10-\uFE19\uFE30-\uFE6B\uFF01-\uFF0F\uFF1A-\uFF20\uFF3B-\uFF40'
-  r'\uFF5B-\uFF65]+',
+  r'\uFF5B-\uFF65]|%[0-9a-fA-F]{2})+',
 );
 
 List<UrlMatch> _mergeCustomSchemeMatches(List<UrlMatch> native, String text) {
@@ -374,8 +379,9 @@ List<UrlMatch> _mergeCustomSchemeMatches(List<UrlMatch> native, String text) {
   return _dedupeMatches([...native, ...extra]);
 }
 
-/// Drops trailing sentence-end punctuation [_kAnySchemeRegex] would
-/// otherwise drag into the match (`bl://x?code=1.` → `bl://x?code=1`).
+/// Drops the trailing sentence-end punctuation, quote and parentheses
+/// [_kAnySchemeRegex] would otherwise drag into the match
+/// (`bl://x?code=1.` → `bl://x?code=1`).
 int _trimUrlTrailingPunctuation(String text, int start, int end) {
   while (end > start) {
     final c = text.codeUnitAt(end - 1);
@@ -385,9 +391,9 @@ int _trimUrlTrailingPunctuation(String text, int start, int end) {
         c == 0x3A /* : */ ||
         c == 0x21 /* ! */ ||
         c == 0x3F /* ? */ ||
-        c == 0x29 /* ) */ ||
-        c == 0x5D /* ] */ ||
-        c == 0x7D /* } */ ) {
+        c == 0x27 /* ' */ ||
+        c == 0x28 /* ( */ ||
+        c == 0x29 /* ) */ ) {
       end--;
     } else {
       break;

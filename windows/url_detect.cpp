@@ -194,7 +194,7 @@ bool IsUnspaced(UChar c) {
 // follow it. The match runs on through the IsPathEnd punctuation after it, and
 // through the digits after that where unspaced letters follow them, when the
 // detector matches the span to there whole, then ends before a trailing '.',
-// ',', ';' or '!' and a trailing ')' it does not open.
+// ',', ';', '!', '\'' or '(' and a trailing ')' it does not open.
 int32_t WebEnd(const URegularExpression* detector, const UChar* text, int32_t len, int32_t start, int32_t end,
                int32_t to) {
   int32_t tail = end;
@@ -212,7 +212,9 @@ int32_t WebEnd(const URegularExpression* detector, const UChar* text, int32_t le
     const UChar c = text[end - 1];
     if (c == u')' && unopened > 0) {
       unopened--;
-    } else if (!(c == u'.' || c == u',' || c == u';' || c == u'!')) {
+    } else if (c == u'(') {
+      unopened++;
+    } else if (!(c == u'.' || c == u',' || c == u';' || c == u'!' || c == u'\'')) {
       break;
     }
     end--;

@@ -60,6 +60,165 @@ void main() {
     },
   );
 
+  testWidgets('a closing quote stays out of a web link with a scheme', (
+    tester,
+  ) async {
+    expect(XUrl.match("He said 'https://example.com/a'."), const [
+      UrlMatch(
+        start: 9,
+        end: 30,
+        url: 'https://example.com/a',
+        kind: UrlMatchKind.web,
+      ),
+    ]);
+  });
+
+  testWidgets('a bare domain link ends before a double quote', (tester) async {
+    expect(XUrl.match('see "example.com/a" x'), const [
+      UrlMatch(
+        start: 5,
+        end: 18,
+        url: 'http://example.com/a',
+        kind: UrlMatchKind.web,
+      ),
+    ]);
+  });
+
+  testWidgets(
+    'a web link that holds a parenthesis ends before a square bracket',
+    (tester) async {
+      expect(
+        XUrl.match('[see https://en.wikipedia.org/wiki/Foo_(bar)] x'),
+        const [
+          UrlMatch(
+            start: 5,
+            end: 44,
+            url: 'https://en.wikipedia.org/wiki/Foo_(bar)',
+            kind: UrlMatchKind.web,
+          ),
+        ],
+      );
+    },
+  );
+
+  testWidgets(
+    'a web link a vertical bar ends opens the text it covers, an unclosed '
+    'parenthesis included',
+    (tester) async {
+      expect(
+        XUrl.match('see https://www.google.com/search?q=(cats|dogs) x'),
+        const [
+          UrlMatch(
+            start: 4,
+            end: 41,
+            url: 'https://www.google.com/search?q=(cats',
+            kind: UrlMatchKind.web,
+          ),
+        ],
+      );
+    },
+  );
+
+  testWidgets(
+    'a closing parenthesis a web link does not open goes with the quote '
+    'after it',
+    (tester) async {
+      expect(
+        XUrl.match("'(see https://en.wikipedia.org/wiki/Foo_(bar))' x"),
+        const [
+          UrlMatch(
+            start: 6,
+            end: 45,
+            url: 'https://en.wikipedia.org/wiki/Foo_(bar)',
+            kind: UrlMatchKind.web,
+          ),
+        ],
+      );
+    },
+  );
+
+  testWidgets(
+    'a closing parenthesis a bare domain link does not open goes with the '
+    'square bracket after it',
+    (tester) async {
+      expect(XUrl.match('(see example.com/a_(b))] x'), const [
+        UrlMatch(
+          start: 5,
+          end: 22,
+          url: 'http://example.com/a_(b)',
+          kind: UrlMatchKind.web,
+        ),
+      ]);
+    },
+  );
+
+  testWidgets(
+    'an opening parenthesis ending the text stays out of the web link',
+    (tester) async {
+      expect(XUrl.match('see https://example.com/a('), const [
+        UrlMatch(
+          start: 4,
+          end: 25,
+          url: 'https://example.com/a',
+          kind: UrlMatchKind.web,
+        ),
+      ]);
+    },
+  );
+
+  testWidgets('a web link with a scheme ends before a closing angle bracket', (
+    tester,
+  ) async {
+    expect(XUrl.match('see <https://example.com/a> x'), const [
+      UrlMatch(
+        start: 5,
+        end: 26,
+        url: 'https://example.com/a',
+        kind: UrlMatchKind.web,
+      ),
+    ]);
+  });
+
+  testWidgets(
+    'the escapes of a web link a square bracket ends stay as the text has them',
+    (tester) async {
+      expect(XUrl.match('see https://example.com/a%20b] x'), const [
+        UrlMatch(
+          start: 4,
+          end: 29,
+          url: 'https://example.com/a%20b',
+          kind: UrlMatchKind.web,
+        ),
+      ]);
+    },
+  );
+
+  testWidgets('an IP literal host keeps its square brackets in the web link', (
+    tester,
+  ) async {
+    expect(XUrl.match('see http://[::1]:8080/a x'), const [
+      UrlMatch(
+        start: 4,
+        end: 23,
+        url: 'http://[::1]:8080/a',
+        kind: UrlMatchKind.web,
+      ),
+    ]);
+  });
+
+  testWidgets('a userinfo before an IP literal host stays in the web link', (
+    tester,
+  ) async {
+    expect(XUrl.match('see http://user@[::1]/a x'), const [
+      UrlMatch(
+        start: 4,
+        end: 23,
+        url: 'http://user@[::1]/a',
+        kind: UrlMatchKind.web,
+      ),
+    ]);
+  });
+
   testWidgets(
     'a slash ending the path stays in the web link where text follows',
     (tester) async {
@@ -353,6 +512,26 @@ void main() {
       ),
     ]);
   });
+
+  testWidgets(
+    'a vertical bar between two bare domain links stays out of both',
+    (tester) async {
+      expect(XUrl.match('see example.com/a|example.org/b z'), const [
+        UrlMatch(
+          start: 4,
+          end: 17,
+          url: 'http://example.com/a',
+          kind: UrlMatchKind.web,
+        ),
+        UrlMatch(
+          start: 18,
+          end: 31,
+          url: 'http://example.org/b',
+          kind: UrlMatchKind.web,
+        ),
+      ]);
+    },
+  );
 
   testWidgets('a port CJK letters follow stays in the bare domain link', (
     tester,
