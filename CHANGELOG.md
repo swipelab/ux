@@ -5,6 +5,40 @@
   `https://example.com/路径（1）/page.html` links `https://example.com/路径`
   alone, not also `http://page.html`. A domain right after the mark or after
   CJK letters links on its own, as in `https://example.com/a，或者example.org`.
+- **Windows pastes images and files.** `XClipboard.readFiles` on Windows
+  answers the path and name of each file an Explorer copy put on the
+  clipboard. `XClipboard.readImage` answers the bytes of the clipboard's
+  `PNG` format, or a bitmap the clipboard holds as `CF_DIBV5` or `CF_DIB`,
+  uncompressed at 1 to 32 bits a pixel, encoded as PNG, with alpha where a V4
+  or V5 header has an alpha mask. `XClipboard.hasMedia` answers whether the
+  clipboard holds any of these without reading them.
+- **Windows takes dropped files.** `XDrop` on Windows reports a drag of files
+  over the app's window, at Flutter's logical coordinates, and delivers the
+  dropped files and folders, answering copy while a drop region is active and
+  none otherwise. A file a source offers only as a virtual file, such as an
+  Outlook attachment or an image from a browser, is written to
+  `%TEMP%\ux_drops\<GUID>\<name>` and delivered with `isTemporaryCopy`.
+  `XDrop.startZip` on Windows zips a dropped folder in an isolate into
+  `<temp>\ux_drops\<uuid>\<folder>.zip`, deflated, with the folder as the
+  archive's root and zip64 records past 4 GiB or 65,535 entries, reporting the
+  fraction of bytes read; a cancel answers null and a failure throws, and
+  either removes that directory.
+- **Windows shows toasts.** `XNotifications` on Windows shows a toast under the
+  process's explicit AppUserModelID, with the title and the body as its lines;
+  a later toast with the same id and thread replaces it, `cancelByThread`
+  removes a thread's toasts and `cancelAll` all of them. `requestPermission`
+  answers whether toasts are enabled for the app and emits `authorization`. A
+  click restores and raises the app's window and reaches `onTap` with the
+  toast's data, through the COM class the host names with the new C API
+  `XPluginCApiSetToastActivator`; a click after the app has exited starts it.
+  Every method of a process with no AppUserModelID fails with
+  `no_app_user_model_id`.
+- **Windows reports focus and keeps the display awake.** `XWindow.focused`
+  follows `WM_ACTIVATEAPP` on the app's window, starting from whether the app
+  holds the foreground, and `keepAwake` holds the display on with
+  `SetThreadExecutionState` until it is released or the window is destroyed.
+- **XWindow logs focus.** Each focus event logs `focused: <bool>` at info
+  level, tagged `window`.
 - **A bare domain leaves out the CJK letters glued to it.** On Android and
   Windows, a host in `XUrl.match` ends at a change between CJK letters and
   other characters inside a label, and leaves out the CJK labels that begin or

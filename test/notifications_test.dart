@@ -100,10 +100,18 @@ void main() {
     expect(calls.any((c) => c.method == 'cancelAll'), isTrue);
   });
 
-  test('authorization and tap events reach the Dart side', () async {
-    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+  test(
+      'Windows activates the events channel, whose authorization and tap '
+      'events reach the Dart side', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    final eventCalls = <String>[];
+    messenger.setMockMethodCallHandler(events, (call) async {
+      eventCalls.add(call.method);
+      return null;
+    });
     final n = MethodChannelXNotifications();
     await pumpEventQueue();
+    expect(eventCalls, contains('listen'));
     final taps = <Map<String, String>>[];
     n.onTap.listen(taps.add);
 

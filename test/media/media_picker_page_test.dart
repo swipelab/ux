@@ -220,8 +220,9 @@ void main() {
 
   void pickerTest(
     String description,
-    Future<void> Function(WidgetTester) body,
-  ) {
+    Future<void> Function(WidgetTester) body, {
+    Object? tags,
+  }) {
     testWidgets(description, (tester) async {
       try {
         await body(tester);
@@ -237,7 +238,7 @@ void main() {
         await tester.runAsync(() => Future<void>.delayed(Duration.zero));
         await tester.pump();
       }
-    });
+    }, tags: tags);
   }
 
   pickerTest(
@@ -341,6 +342,7 @@ void main() {
       expect(find.byType(CameraThumb), findsOneWidget);
       expect(camera.liveHandles, {1});
     },
+    tags: 'golden',
   );
 
   pickerTest('a delayed photo denial never allocates a camera', (tester) async {
@@ -510,6 +512,7 @@ void main() {
       expect(camera.disposeCalls, [1]);
       expect(find.byType(PickerPermissionPlaceholder), findsOneWidget);
     },
+    tags: 'golden',
   );
 
   pickerTest(

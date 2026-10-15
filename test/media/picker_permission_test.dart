@@ -183,6 +183,6 @@ void main() {
         tester.view.resetPhysicalSize();
         tester.view.resetDevicePixelRatio();
       }
-    });
+    }, tags: 'golden');
   }
 }

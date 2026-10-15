@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <utility>
 
+#include "com_scope.h"
 #include "raster.h"
 
 namespace ux {
@@ -15,22 +16,6 @@ namespace ux {
 namespace {
 
 using Microsoft::WRL::ComPtr;
-
-// COM on the calling thread while it lives, in the apartment the thread already
-// has, if any.
-class ComScope {
- public:
-  ComScope() : initialized_(SUCCEEDED(CoInitializeEx(nullptr, COINIT_MULTITHREADED))) {}
-  ~ComScope() {
-    if (initialized_) CoUninitialize();
-  }
-
-  ComScope(const ComScope&) = delete;
-  ComScope& operator=(const ComScope&) = delete;
-
- private:
-  const bool initialized_;
-};
 
 // The first frame of an image file, as its codec decodes it.
 struct Frame {

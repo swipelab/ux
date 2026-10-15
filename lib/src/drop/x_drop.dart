@@ -9,8 +9,10 @@ import 'package:flutter/foundation.dart'
         visibleForTesting;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:path/path.dart' as p;
 
 import '../log.dart' show Log;
+import 'folder_zip.dart';
 
 final _log = Log.tag('drop');
 
@@ -19,8 +21,8 @@ final _log = Log.tag('drop');
 /// [path] is readable through `dart:io File` while the drag grant is alive.
 /// [bookmark] is a macOS security-scoped bookmark with the same shape as
 /// `XPickedFile.bookmark`, so a sandboxed read can re-acquire access via
-/// `XFiles.withScopedAccess`. [name] is the basename. [mimeType] is currently
-/// always null on macOS — classify by extension.
+/// `XFiles.withScopedAccess`. [name] is the basename. [mimeType] is always
+/// null on macOS and Windows — classify by extension.
 class XDropFile {
   /// Creates a descriptor for one dropped file.
   const XDropFile({
@@ -38,7 +40,7 @@ class XDropFile {
   /// Basename of [path].
   final String name;
 
-  /// MIME type if the platform supplied one; currently always null on macOS.
+  /// MIME type if the platform supplied one; always null on macOS and Windows.
   final String? mimeType;
 
   /// macOS security-scoped bookmark for a sandboxed read, or null.
@@ -46,11 +48,13 @@ class XDropFile {
 
   /// True when [path] is an app-owned temp copy the OS wrote for a *promised*
   /// file — a drag from a source that vends `NSFilePromiseReceiver` outputs
-  /// rather than a concrete file URL (e.g. Photos) — rather than a durable
-  /// user-chosen location. Callers should treat such a source as ephemeral:
-  /// promote its bytes into a managed cache after upload instead of recording
-  /// the temp path in place (it is purged with the OS temp dir). False for
-  /// plain file URLs. Mirrors `XPickedFile.isTemporaryCopy`.
+  /// rather than a concrete file URL (e.g. Photos), or, on Windows, a virtual
+  /// file offered only as `CFSTR_FILECONTENTS` (an Outlook attachment, an
+  /// image from a browser) — rather than a durable user-chosen location.
+  /// Callers should treat such a source as ephemeral: promote its bytes into a
+  /// managed cache after upload instead of recording the temp path in place
+  /// (it is purged with the OS temp dir). False for plain file URLs. Mirrors
+  /// `XPickedFile.isTemporaryCopy`.
   final bool isTemporaryCopy;
 
   /// True when [path] is a directory — a folder, or a macOS package the Finder
@@ -93,14 +97,14 @@ class ZipJob {
     required this.cancel,
   });
 
-  /// Opaque job id (also the native correlation key).
+  /// Opaque job id (on macOS also the native correlation key).
   final String id;
 
-  /// Determinate compression fraction, 0..1, updated as native reports.
+  /// Determinate compression fraction, 0..1, updated as the zip proceeds.
   final ValueListenable<double> progress;
 
   /// Completes with the produced zip; null if cancelled or on a platform
-  /// without native drop support; throws on a genuine zip failure (so the
+  /// without drop support; throws on a genuine zip failure (so the
   /// caller can surface it instead of silently sending nothing).
   final Future<XDropFile?> result;
 
@@ -150,14 +154,16 @@ class XDrop {
 
   static const _events = EventChannel('ux/drop/events');
 
-  /// Control channel shared with native. Dart→native: `setHasRegions`,
-  /// `zipDirectory`, `cancelZip`. Native→Dart: `zipProgress` (the folder-zip
-  /// fraction), routed by [_onControlCall].
+  /// Control channel shared with native. Dart→native: `setHasRegions`, and on
+  /// macOS `zipDirectory` and `cancelZip`. Native→Dart: `zipProgress` (the
+  /// folder-zip fraction), routed by [_onControlCall].
   static const _control = MethodChannel('ux/drop');
 
-  /// Only macOS ships a native stream handler today; elsewhere subscribing
+  /// macOS and Windows ship a native stream handler; elsewhere subscribing
   /// throws `MissingPluginException`, so stay inert.
-  static bool get _supported => defaultTargetPlatform == TargetPlatform.macOS;
+  static bool get _supported =>
+      defaultTargetPlatform == TargetPlatform.macOS ||
+      defaultTargetPlatform == TargetPlatform.windows;
 
   final _listeners = <_RawListener>{};
   StreamSubscription<dynamic>? _sub;
@@ -206,8 +212,8 @@ class XDrop {
 
   /// Push the active-region state to native (see [_control]) when it changes.
   /// Deduped so a region handoff / list scroll doesn't spam the channel;
-  /// best-effort — a missing handler (non-macOS, or before the plugin
-  /// registers) is swallowed.
+  /// best-effort — a missing handler (before the plugin registers) is
+  /// swallowed.
   void _setNativeHasRegions(bool value) {
     if (_lastSentHasRegions == value) return;
     _lastSentHasRegions = value;
@@ -221,20 +227,34 @@ class XDrop {
   final _zipProgress = <String, ValueNotifier<double>>{};
 
   /// Start compressing a dropped directory ([dir] with [XDropFile.isDirectory])
-  /// into a temp `.zip` for upload. A folder / macOS package can't be uploaded
-  /// as a single file; native zips it (ZIPFoundation) off the main thread,
-  /// re-acquiring access from [dir]'s security-scoped bookmark, and streams a
-  /// determinate fraction back over [_control].
+  /// into `<temp>/ux_drops/<uuid>/<folder>.zip` for upload. A folder / macOS
+  /// package can't be uploaded as a single file. On macOS native zips it
+  /// (ZIPFoundation) off the main thread, re-acquiring access from [dir]'s
+  /// security-scoped bookmark, and streams a determinate fraction back over
+  /// [_control]; on Windows [zipFolder] writes it in an isolate, reporting the
+  /// fraction of bytes read.
   ///
   /// Returns a [ZipJob]: bind a progress UI to [ZipJob.progress], `await`
   /// [ZipJob.result] for the zip as an [XDropFile] marked
   /// [XDropFile.isTemporaryCopy] (promote into the cache after upload), and call
   /// [ZipJob.cancel] to abort. `result` is null when cancelled or unsupported
-  /// (non-macOS) and throws on a genuine zip failure — the caller sends nothing
-  /// in either case, surfacing only the failure.
+  /// (neither macOS nor Windows) and throws on a genuine zip failure — the
+  /// caller sends nothing in either case, surfacing only the failure. A
+  /// cancelled or failed zip leaves no per-drop directory behind.
   ZipJob startZip(XDropFile dir) {
     final id = 'zip${_zipSeq++}';
     final progress = ValueNotifier<double>(0);
+    if (defaultTargetPlatform == TargetPlatform.windows) {
+      final cancel = Completer<void>();
+      return ZipJob._(
+        id: id,
+        progress: progress,
+        result: _zipInDart(dir, progress, cancel.future),
+        cancel: () {
+          if (!cancel.isCompleted) cancel.complete();
+        },
+      );
+    }
     _zipProgress[id] = progress;
     return ZipJob._(
       id: id,
@@ -273,6 +293,29 @@ class XDrop {
       // a UI still unmounting could otherwise read a disposed notifier; with no
       // listeners left it's GC'd.
       _zipProgress.remove(id);
+    }
+  }
+
+  Future<XDropFile?> _zipInDart(
+    XDropFile dir,
+    ValueNotifier<double> progress,
+    Future<void> cancel,
+  ) async {
+    try {
+      final path = await zipFolder(
+        dir.path,
+        onProgress: (fraction) => progress.value = fraction,
+        cancel: cancel,
+      );
+      if (path == null) return null;
+      return XDropFile(
+        path: path,
+        name: p.basename(path),
+        isTemporaryCopy: true,
+      );
+    } catch (e) {
+      _log.w('drop zip failed', error: e);
+      rethrow;
     }
   }
 
