@@ -46,11 +46,7 @@ class TgSpringCurve extends Curve {
 class Animator<T> with Dispose {
   /// Animates the value read by [getter] and written by [setter], along
   /// [curve] unless [animate] names another.
-  Animator({
-    required this.getter,
-    required this.setter,
-    this.curve,
-  }) {
+  Animator({required this.getter, required this.setter, this.curve}) {
     _CancelDisposer(cancel).disposeBy(this);
   }
 
@@ -64,8 +60,10 @@ class Animator<T> with Dispose {
 
   /// Reads the animated value.
   final ValueGetter<T> getter;
+
   /// Writes the animated value.
   final ValueSetter<T> setter;
+
   /// The curve of an [animate] that names none; linear when absent.
   final Curve? curve;
 
@@ -116,8 +114,7 @@ class Animator<T> with Dispose {
       final progress = elapsed.inMicroseconds / duration.inMicroseconds;
       final curved = c.transform(progress.clamp(0.0, 1.0));
       setter((start + difference * curved) as T);
-    })
-      ..start();
+    })..start();
 
     return completer.future;
   }

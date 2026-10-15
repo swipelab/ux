@@ -33,6 +33,7 @@ class CropAreaOverlay extends StatefulWidget {
 
   /// The layer whose crop is dragged.
   final CropImageLayer layer;
+
   /// The image-to-screen transform the drag is read through.
   final ValueListenable<vmath.Matrix4> hostCamera;
 
@@ -152,7 +153,11 @@ class _CropAreaOverlayState extends State<CropAreaOverlay> {
     switch (handle) {
       case _Handle.topLeft:
         r = Rect.fromLTWH(
-            r.left + t.dx, r.top + t.dy, r.width - t.dx, r.height - t.dy);
+          r.left + t.dx,
+          r.top + t.dy,
+          r.width - t.dx,
+          r.height - t.dy,
+        );
         if (lock != null) {
           var c = t.dx.abs() < t.dy.abs()
               ? _withHeight(r, lock)
@@ -162,7 +167,11 @@ class _CropAreaOverlayState extends State<CropAreaOverlay> {
         }
       case _Handle.topRight:
         r = Rect.fromLTWH(
-            r.left, r.top + t.dy, r.width + t.dx, r.height - t.dy);
+          r.left,
+          r.top + t.dy,
+          r.width + t.dx,
+          r.height - t.dy,
+        );
         if (lock != null) {
           var c = t.dx.abs() < t.dy.abs()
               ? _withHeight(r, lock)
@@ -172,7 +181,11 @@ class _CropAreaOverlayState extends State<CropAreaOverlay> {
         }
       case _Handle.bottomLeft:
         r = Rect.fromLTWH(
-            r.left + t.dx, r.top, r.width - t.dx, r.height + t.dy);
+          r.left + t.dx,
+          r.top,
+          r.width - t.dx,
+          r.height + t.dy,
+        );
         if (lock != null) {
           var c = t.dx.abs() < t.dy.abs()
               ? _withHeight(r, lock)
@@ -210,13 +223,11 @@ class _CropAreaOverlayState extends State<CropAreaOverlay> {
     if (lock != null) {
       if (lock > 1) {
         if (r.width <= _kControlSize) {
-          r = Rect.fromLTWH(
-              r.left, r.top, _kControlSize, _kControlSize * lock);
+          r = Rect.fromLTWH(r.left, r.top, _kControlSize, _kControlSize * lock);
         }
       } else {
         if (r.height <= _kControlSize) {
-          r = Rect.fromLTWH(
-              r.left, r.top, _kControlSize / lock, _kControlSize);
+          r = Rect.fromLTWH(r.left, r.top, _kControlSize / lock, _kControlSize);
         }
       }
     }
@@ -250,7 +261,8 @@ class _CropAreaOverlayState extends State<CropAreaOverlay> {
     var left = r.left, top = r.top, w = r.width, h = r.height;
 
     if (left + w > bounds.right) {
-      left = left.clamp(double.negativeInfinity, bounds.right - _kControlSize)
+      left = left
+          .clamp(double.negativeInfinity, bounds.right - _kControlSize)
           .toDouble();
       w = (bounds.right - left)
           .clamp(_kControlSize, double.infinity)
@@ -263,7 +275,8 @@ class _CropAreaOverlayState extends State<CropAreaOverlay> {
     }
 
     if (top + h > bounds.bottom) {
-      top = top.clamp(double.negativeInfinity, bounds.bottom - _kControlSize)
+      top = top
+          .clamp(double.negativeInfinity, bounds.bottom - _kControlSize)
           .toDouble();
       h = (bounds.bottom - top)
           .clamp(_kControlSize, double.infinity)
@@ -288,15 +301,15 @@ class _CropAreaOverlayState extends State<CropAreaOverlay> {
       child: RawGestureDetector(
         behavior: HitTestBehavior.opaque,
         gestures: <Type, GestureRecognizerFactory>{
-          _HandleDragRecognizer: GestureRecognizerFactoryWithHandlers<
-              _HandleDragRecognizer>(
-            _HandleDragRecognizer.new,
-            (r) => r
-              ..onStart = ((_) => _begin(handle))
-              ..onUpdate = ((d) => _drag(handle, d.delta, bounds))
-              ..onEnd = ((_) => _end(handle))
-              ..onCancel = (() => _end(handle)),
-          ),
+          _HandleDragRecognizer:
+              GestureRecognizerFactoryWithHandlers<_HandleDragRecognizer>(
+                _HandleDragRecognizer.new,
+                (r) => r
+                  ..onStart = ((_) => _begin(handle))
+                  ..onUpdate = ((d) => _drag(handle, d.delta, bounds))
+                  ..onEnd = ((_) => _end(handle))
+                  ..onCancel = (() => _end(handle)),
+              ),
         },
       ),
     );
@@ -324,86 +337,120 @@ class _CropAreaOverlayState extends State<CropAreaOverlay> {
   @override
   Widget build(BuildContext context) {
     if (_scale.abs() < 1e-9) return SizedBox.shrink();
-    return LayoutBuilder(builder: (context, constraints) {
-      final bounds = Offset.zero & constraints.biggest;
-      final r = _areaRect;
-      final reach = _kControlSize / 2 + _kHitSlop;
-      final span = _kControlSize + 2 * _kHitSlop;
-      final edgeW = (r.width - _kControlSize).clamp(0.0, double.infinity);
-      final edgeH = (r.height - _kControlSize).clamp(0.0, double.infinity);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bounds = Offset.zero & constraints.biggest;
+        final r = _areaRect;
+        final reach = _kControlSize / 2 + _kHitSlop;
+        final span = _kControlSize + 2 * _kHitSlop;
+        final edgeW = (r.width - _kControlSize).clamp(0.0, double.infinity);
+        final edgeH = (r.height - _kControlSize).clamp(0.0, double.infinity);
 
-      final locked = widget.layer.lockedAspectRatio != null;
-      bool lit(_Handle e) => locked || _active == e;
+        final locked = widget.layer.lockedAspectRatio != null;
+        bool lit(_Handle e) => locked || _active == e;
 
-      return Stack(children: [
-        _highlight(
-            _Handle.top,
-            Rect.fromLTWH(r.left, r.top - 1, r.width, _kHighlightThickness),
-            lit(_Handle.top)),
-        _highlight(
-            _Handle.bottom,
-            Rect.fromLTWH(
-                r.left, r.bottom - 1, r.width, _kHighlightThickness),
-            lit(_Handle.bottom)),
-        _highlight(
-            _Handle.left,
-            Rect.fromLTWH(r.left - 1, r.top, _kHighlightThickness, r.height),
-            lit(_Handle.left)),
-        _highlight(
-            _Handle.right,
-            Rect.fromLTWH(
-                r.right - 1, r.top, _kHighlightThickness, r.height),
-            lit(_Handle.right)),
+        return Stack(
+          children: [
+            _highlight(
+              _Handle.top,
+              Rect.fromLTWH(r.left, r.top - 1, r.width, _kHighlightThickness),
+              lit(_Handle.top),
+            ),
+            _highlight(
+              _Handle.bottom,
+              Rect.fromLTWH(
+                r.left,
+                r.bottom - 1,
+                r.width,
+                _kHighlightThickness,
+              ),
+              lit(_Handle.bottom),
+            ),
+            _highlight(
+              _Handle.left,
+              Rect.fromLTWH(r.left - 1, r.top, _kHighlightThickness, r.height),
+              lit(_Handle.left),
+            ),
+            _highlight(
+              _Handle.right,
+              Rect.fromLTWH(r.right - 1, r.top, _kHighlightThickness, r.height),
+              lit(_Handle.right),
+            ),
 
-        // Edges first, corners after — corners win the overlaps.
-        _control(
-            _Handle.top,
-            Rect.fromLTWH(
-                r.left + _kControlSize / 2, r.top - reach, edgeW, span),
-            bounds),
-        _control(
-            _Handle.bottom,
-            Rect.fromLTWH(
+            // Edges first, corners after — corners win the overlaps.
+            _control(
+              _Handle.top,
+              Rect.fromLTWH(
+                r.left + _kControlSize / 2,
+                r.top - reach,
+                edgeW,
+                span,
+              ),
+              bounds,
+            ),
+            _control(
+              _Handle.bottom,
+              Rect.fromLTWH(
                 r.left + _kControlSize / 2,
                 r.bottom - reach,
                 edgeW,
-                reach + kCropDialHandleReach),
-            bounds),
-        _control(
-            _Handle.left,
-            Rect.fromLTWH(
-                r.left - reach, r.top + _kControlSize / 2, span, edgeH),
-            bounds),
-        _control(
-            _Handle.right,
-            Rect.fromLTWH(
-                r.right - reach, r.top + _kControlSize / 2, span, edgeH),
-            bounds),
-        _control(
-            _Handle.topLeft,
-            Rect.fromCenter(center: r.topLeft, width: span, height: span),
-            bounds),
-        _control(
-            _Handle.topRight,
-            Rect.fromCenter(center: r.topRight, width: span, height: span),
-            bounds),
-        _control(
-            _Handle.bottomLeft,
-            Rect.fromLTRB(
+                reach + kCropDialHandleReach,
+              ),
+              bounds,
+            ),
+            _control(
+              _Handle.left,
+              Rect.fromLTWH(
+                r.left - reach,
+                r.top + _kControlSize / 2,
+                span,
+                edgeH,
+              ),
+              bounds,
+            ),
+            _control(
+              _Handle.right,
+              Rect.fromLTWH(
+                r.right - reach,
+                r.top + _kControlSize / 2,
+                span,
+                edgeH,
+              ),
+              bounds,
+            ),
+            _control(
+              _Handle.topLeft,
+              Rect.fromCenter(center: r.topLeft, width: span, height: span),
+              bounds,
+            ),
+            _control(
+              _Handle.topRight,
+              Rect.fromCenter(center: r.topRight, width: span, height: span),
+              bounds,
+            ),
+            _control(
+              _Handle.bottomLeft,
+              Rect.fromLTRB(
                 r.left - reach,
                 r.bottom - reach,
                 r.left + reach,
-                r.bottom + kCropDialHandleReach),
-            bounds),
-        _control(
-            _Handle.bottomRight,
-            Rect.fromLTRB(
+                r.bottom + kCropDialHandleReach,
+              ),
+              bounds,
+            ),
+            _control(
+              _Handle.bottomRight,
+              Rect.fromLTRB(
                 r.right - reach,
                 r.bottom - reach,
                 r.right + reach,
-                r.bottom + kCropDialHandleReach),
-            bounds),
-      ]);
-    });
+                r.bottom + kCropDialHandleReach,
+              ),
+              bounds,
+            ),
+          ],
+        );
+      },
+    );
   }
 }

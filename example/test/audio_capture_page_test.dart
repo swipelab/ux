@@ -14,10 +14,10 @@ void main() {
   final calls = <String>[];
 
   Future<void> sendEvent(Object? event) => messenger.handlePlatformMessage(
-        'ux/audio_capture/events',
-        const StandardMethodCodec().encodeSuccessEnvelope(event),
-        (_) {},
-      );
+    'ux/audio_capture/events',
+    const StandardMethodCodec().encodeSuccessEnvelope(event),
+    (_) {},
+  );
 
   setUp(() async {
     calls.clear();
@@ -43,8 +43,9 @@ void main() {
     return data.buffer.asUint8List();
   }
 
-  testWidgets('Start asks the tap to open, and the meter follows the frames',
-      (tester) async {
+  testWidgets('Start asks the tap to open, and the meter follows the frames', (
+    tester,
+  ) async {
     await tester.pumpWidget(const MaterialApp(home: AudioCapturePage()));
     expect(find.text('state: idle'), findsOneWidget);
     expect(find.text('level 0.000'), findsOneWidget);
@@ -56,7 +57,7 @@ void main() {
     await sendEvent({'type': 'state', 'state': 'running'});
     await sendEvent({
       'type': 'frame',
-      'pcm': pcm([16384, -16384])
+      'pcm': pcm([16384, -16384]),
     });
     await tester.pumpAndSettle();
 

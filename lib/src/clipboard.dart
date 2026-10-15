@@ -6,11 +6,7 @@ import 'package:flutter/services.dart';
 /// pasteboard grant lapses; null where not applicable.
 class XClipboardFile {
   /// Binds the file's path and name to its optional scoped bookmark.
-  const XClipboardFile({
-    required this.path,
-    required this.name,
-    this.bookmark,
-  });
+  const XClipboardFile({required this.path, required this.name, this.bookmark});
 
   /// Absolute path on local disk.
   final String path;

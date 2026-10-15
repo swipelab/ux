@@ -49,9 +49,12 @@ class MethodChannelXNotifications implements XNotifications {
   /// Subscribes to the native event channel where one is registered.
   MethodChannelXNotifications() {
     if (!_hasNativeHandler) return;
-    _eventsChannel.receiveBroadcastStream().listen(_onEvent, onError: (e, st) {
-      _log.w('event channel error', error: e, stackTrace: st);
-    });
+    _eventsChannel.receiveBroadcastStream().listen(
+      _onEvent,
+      onError: (e, st) {
+        _log.w('event channel error', error: e, stackTrace: st);
+      },
+    );
   }
 
   /// Only macOS, Android and Windows register a native handler; activating
@@ -138,8 +141,9 @@ class MethodChannelXNotifications implements XNotifications {
         final raw = m['data'];
         final data = raw is Map
             ? Map<String, String>.fromEntries(
-                raw.entries.map((e) =>
-                    MapEntry(e.key.toString(), e.value?.toString() ?? '')),
+                raw.entries.map(
+                  (e) => MapEntry(e.key.toString(), e.value?.toString() ?? ''),
+                ),
               )
             : <String, String>{};
         _onTap.add(data);

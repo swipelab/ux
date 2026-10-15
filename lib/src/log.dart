@@ -108,9 +108,8 @@ class _CompositeSink extends LogSink {
   final List<LogSink> _sinks;
 
   @override
-  LogLevel get minLevel => _sinks
-      .map((s) => s.minLevel)
-      .reduce((a, b) => a.value < b.value ? a : b);
+  LogLevel get minLevel =>
+      _sinks.map((s) => s.minLevel).reduce((a, b) => a.value < b.value ? a : b);
 
   @override
   void emit(LogRecord r) {
@@ -275,12 +274,7 @@ class Log {
     Map<String, Object?>? fields,
     Object? error,
     StackTrace? stackTrace,
-  }) => _root.w(
-    message,
-    fields: fields,
-    error: error,
-    stackTrace: stackTrace,
-  );
+  }) => _root.w(message, fields: fields, error: error, stackTrace: stackTrace);
 
   /// Logs at [LogLevel.error].
   static void e(
@@ -288,12 +282,7 @@ class Log {
     Map<String, Object?>? fields,
     Object? error,
     StackTrace? stackTrace,
-  }) => _root.e(
-    message,
-    fields: fields,
-    error: error,
-    stackTrace: stackTrace,
-  );
+  }) => _root.e(message, fields: fields, error: error, stackTrace: stackTrace);
 
   /// Logs at [LogLevel.fatal].
   static void f(
@@ -301,12 +290,7 @@ class Log {
     Map<String, Object?>? fields,
     Object? error,
     StackTrace? stackTrace,
-  }) => _root.f(
-    message,
-    fields: fields,
-    error: error,
-    stackTrace: stackTrace,
-  );
+  }) => _root.f(message, fields: fields, error: error, stackTrace: stackTrace);
 
   /// Awaits pending delivery on the active sink. Call before exiting the
   /// isolate or after logging a fatal error that may terminate the app.

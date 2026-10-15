@@ -50,10 +50,7 @@ class XInsets with ChangeNotifier, WidgetsBindingObserver {
   /// calling `SystemChrome.setEnabledSystemUIMode` directly when entering
   /// or exiting immersive — otherwise the underlying chrome (NavBar /
   /// BottomBar / composer) snaps into place by ~status-bar height.
-  Future<void> setSystemUiMode(
-    SystemUiMode mode, {
-    Duration? animate,
-  }) async {
+  Future<void> setSystemUiMode(SystemUiMode mode, {Duration? animate}) async {
     _nextAnimationDuration = animate;
     await SystemChrome.setEnabledSystemUIMode(mode);
   }
@@ -108,7 +105,12 @@ class XInsets with ChangeNotifier, WidgetsBindingObserver {
     if (v == null) return EdgeInsets.zero;
     final r = v.devicePixelRatio;
     final p = v.viewPadding;
-    return EdgeInsets.fromLTRB(p.left / r, p.top / r, p.right / r, p.bottom / r);
+    return EdgeInsets.fromLTRB(
+      p.left / r,
+      p.top / r,
+      p.right / r,
+      p.bottom / r,
+    );
   }
 }
 

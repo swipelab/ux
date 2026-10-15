@@ -44,7 +44,10 @@ class _AnimatedDoubleState extends State<AnimatedDouble>
   void initState() {
     super.initState();
     controller = AnimationController.unbounded(
-        vsync: this, value: widget.start, duration: widget.duration);
+      vsync: this,
+      value: widget.start,
+      duration: widget.duration,
+    );
     if (widget.end != widget.start) {
       controller.animateTo(widget.end);
     }

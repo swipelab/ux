@@ -49,11 +49,10 @@ class _RecordingBackend implements XScreenSourcesBackend {
   Future<void> startShare({
     required String notificationTitle,
     String? notificationText,
-  }) =>
-      inner.startShare(
-        notificationTitle: notificationTitle,
-        notificationText: notificationText,
-      );
+  }) => inner.startShare(
+    notificationTitle: notificationTitle,
+    notificationText: notificationText,
+  );
 
   @override
   Future<void> stopShare() => inner.stopShare();
@@ -73,12 +72,14 @@ class _RecordingBackend implements XScreenSourcesBackend {
       thumbnailHeight: thumbnailHeight,
     );
     elapsed.stop();
-    calls.add(_RecordedList(
-      allowedDisplayIds: allowedDisplayIds,
-      allowedWindowIds: allowedWindowIds,
-      sources: sources,
-      elapsed: elapsed.elapsed,
-    ));
+    calls.add(
+      _RecordedList(
+        allowedDisplayIds: allowedDisplayIds,
+        allowedWindowIds: allowedWindowIds,
+        sources: sources,
+        elapsed: elapsed.elapsed,
+      ),
+    );
     return sources;
   }
 }
@@ -94,14 +95,14 @@ void main() {
   _Pair pairOf(XScreenSource source) => (kind: source.kind, id: source.id);
 
   Set<_Pair> primedPairs(List<DesktopCapturerSource> primed) => {
-        for (final source in primed)
-          (
-            kind: source.type == SourceType.Screen
-                ? XScreenSourceKind.display
-                : XScreenSourceKind.window,
-            id: source.id,
-          ),
-      };
+    for (final source in primed)
+      (
+        kind: source.type == SourceType.Screen
+            ? XScreenSourceKind.display
+            : XScreenSourceKind.window,
+        id: source.id,
+      ),
+  };
 
   Future<bool> pumpUntil(
     WidgetTester tester,
@@ -260,12 +261,15 @@ void main() {
         },
     ];
 
-    final displays =
-        snapshot.where((s) => s.kind == XScreenSourceKind.display).toList();
-    final windows =
-        snapshot.where((s) => s.kind == XScreenSourceKind.window).toList();
-    final ownWindows =
-        windows.where((s) => s.applicationName == ownApplication).toList();
+    final displays = snapshot
+        .where((s) => s.kind == XScreenSourceKind.display)
+        .toList();
+    final windows = snapshot
+        .where((s) => s.kind == XScreenSourceKind.window)
+        .toList();
+    final ownWindows = windows
+        .where((s) => s.applicationName == ownApplication)
+        .toList();
     expect(displays, isNotEmpty, reason: 'no display in the snapshot');
     expect(ownWindows, isNotEmpty, reason: "no window of $ownApplication");
 
@@ -306,8 +310,10 @@ void main() {
         if (thrown != null) 'thrown': '$thrown',
         if (!rendered)
           'pageError': find
-              .byWidgetPredicate((w) =>
-                  w is Text && (w.data ?? '').startsWith('capture failed:'))
+              .byWidgetPredicate(
+                (w) =>
+                    w is Text && (w.data ?? '').startsWith('capture failed:'),
+              )
               .evaluate()
               .map((e) => (e.widget as Text).data)
               .join(),
@@ -320,14 +326,16 @@ void main() {
       var rendered = await select(source);
       if (!rendered) rendered = await select(source);
       if (!rendered) {
-        final fresh =
-            primedPairs(await ScreenSourcesPage.captureStackSources());
+        final fresh = primedPairs(
+          await ScreenSourcesPage.captureStackSources(),
+        );
         evidence['firstFrames'] = firstFrames;
         evidence['captureFailures'] = failures;
         expect(
           fresh.contains(pairOf(source)),
           isFalse,
-          reason: 'capability A fails: ${source.kind.name} ${source.id} '
+          reason:
+              'capability A fails: ${source.kind.name} ${source.id} '
               '"${source.title}" is still enumerated and never captures',
         );
       }
@@ -361,20 +369,26 @@ void main() {
     };
 
     Map<String, Object?> row(String name, bool exercised, String detail) => {
-          'row': name,
-          'status': exercised ? 'exercised' : 'host-limited',
-          'detail': detail,
-        };
+      'row': name,
+      'status': exercised ? 'exercised' : 'host-limited',
+      'detail': detail,
+    };
     evidence['matrix'] = [
-      row('multi-display', uiDisplays.length >= 2,
-          'displays: ${uiDisplays.length}'),
+      row(
+        'multi-display',
+        uiDisplays.length >= 2,
+        'displays: ${uiDisplays.length}',
+      ),
       row(
         'Retina and non-Retina pair',
         scales.any((s) => s > 1) && scales.any((s) => s <= 1),
         'devicePixelRatios: $scales',
       ),
-      row("three applications' windows", applications.length >= 3,
-          'window-owning applications: ${applications.length}'),
+      row(
+        "three applications' windows",
+        applications.length >= 3,
+        'window-owning applications: ${applications.length}',
+      ),
       row(
         '40-source latency and memory',
         snapshot.length >= 40,

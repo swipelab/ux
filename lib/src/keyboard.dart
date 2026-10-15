@@ -19,8 +19,12 @@ final _uxAnimTarget = uxLookupDouble('ux_keyboard_anim_target');
 final _uxAnimDuration = uxLookupDouble('ux_keyboard_anim_duration');
 final _uxAnimGen = uxLookupInt32('ux_keyboard_anim_gen');
 
-final _uxEnableInteractiveDismiss = uxLookupVoidDouble('ux_enable_interactive_dismiss');
-final _uxDisableInteractiveDismiss = uxLookupVoid('ux_disable_interactive_dismiss');
+final _uxEnableInteractiveDismiss = uxLookupVoidDouble(
+  'ux_enable_interactive_dismiss',
+);
+final _uxDisableInteractiveDismiss = uxLookupVoid(
+  'ux_disable_interactive_dismiss',
+);
 final _uxRegisterWake = uxLookupVoidCallback('ux_register_wake_callback');
 
 void _uxKeyboardWake() {
@@ -112,12 +116,12 @@ double _inverseLerp(List<double> samples, double value) {
 /// `WidgetsFlutterBinding.ensureInitialized()`).
 class XKeyboard with ChangeNotifier, WidgetsBindingObserver {
   XKeyboard._()
-      : _readHeight = _uxKeyboardHeight,
-        _readIsTracking = _uxIsTracking,
-        _readAnimTarget = _uxAnimTarget,
-        _readAnimDuration = _uxAnimDuration,
-        _readAnimGen = _uxAnimGen,
-        _debugDevicePixelRatio = null {
+    : _readHeight = _uxKeyboardHeight,
+      _readIsTracking = _uxIsTracking,
+      _readAnimTarget = _uxAnimTarget,
+      _readAnimDuration = _uxAnimDuration,
+      _readAnimGen = _uxAnimGen,
+      _debugDevicePixelRatio = null {
     if (Platform.isAndroid) {
       _channel.setMethodCallHandler(_onMethodCall);
     }
@@ -145,12 +149,12 @@ class XKeyboard with ChangeNotifier, WidgetsBindingObserver {
     double Function()? animDuration,
     int Function()? animGen,
     double devicePixelRatio = 1.0,
-  })  : _readHeight = nativeHeight,
-        _readIsTracking = isTracking,
-        _readAnimTarget = animTarget,
-        _readAnimDuration = animDuration,
-        _readAnimGen = animGen,
-        _debugDevicePixelRatio = devicePixelRatio;
+  }) : _readHeight = nativeHeight,
+       _readIsTracking = isTracking,
+       _readAnimTarget = animTarget,
+       _readAnimDuration = animDuration,
+       _readAnimGen = animGen,
+       _debugDevicePixelRatio = devicePixelRatio;
 
   final double Function()? _readHeight;
   final int Function()? _readIsTracking;
@@ -162,7 +166,10 @@ class XKeyboard with ChangeNotifier, WidgetsBindingObserver {
   double get _devicePixelRatio =>
       _debugDevicePixelRatio ??
       SchedulerBinding
-          .instance.platformDispatcher.implicitView?.devicePixelRatio ??
+          .instance
+          .platformDispatcher
+          .implicitView
+          ?.devicePixelRatio ??
       1.0;
 
   /// Runs one frame of the reader loop.
@@ -207,8 +214,8 @@ class XKeyboard with ChangeNotifier, WidgetsBindingObserver {
   @visibleForTesting
   static double snapToPixelGrid(double h, double devicePixelRatio) =>
       devicePixelRatio > 0
-          ? (h * devicePixelRatio).roundToDouble() / devicePixelRatio
-          : h;
+      ? (h * devicePixelRatio).roundToDouble() / devicePixelRatio
+      : h;
 
   /// The last system-reported keyboard height.
   ///
@@ -241,7 +248,8 @@ class XKeyboard with ChangeNotifier, WidgetsBindingObserver {
 
   // Adaptive LUT state.
   late final List<double> _samples = List.of(
-      Platform.isIOS ? _kIOSKeyboardSamples : _kAndroidKeyboardSamples);
+    Platform.isIOS ? _kIOSKeyboardSamples : _kAndroidKeyboardSamples,
+  );
   double _headStart = _kDefaultHeadStart;
   int _learnCount = 0;
   bool _converged = false;
@@ -347,8 +355,7 @@ class XKeyboard with ChangeNotifier, WidgetsBindingObserver {
 
     // Schedule frames while the curve is still running, and while the
     // keyboard is up so a late native height is not missed after idle.
-    final curveActive = _isAnimating &&
-        (ts - _animStartTime) < _animDuration;
+    final curveActive = _isAnimating && (ts - _animStartTime) < _animDuration;
     if (curveActive || h > 0 || _height > 0) {
       SchedulerBinding.instance.scheduleFrame();
     }
@@ -416,11 +423,12 @@ class XKeyboard with ChangeNotifier, WidgetsBindingObserver {
     final delta = _headStart / _animDuration;
     final observed = List<double>.filled(_kSampleCount, -1);
     // Interpolate shifted observations onto the 21-point grid.
-    final shifted = _obs
-        .map((o) => (t: o.t - delta, p: o.p))
-        .where((o) => o.t >= 0 && o.t <= 0.95)
-        .toList()
-      ..sort((a, b) => a.t.compareTo(b.t));
+    final shifted =
+        _obs
+            .map((o) => (t: o.t - delta, p: o.p))
+            .where((o) => o.t >= 0 && o.t <= 0.95)
+            .toList()
+          ..sort((a, b) => a.t.compareTo(b.t));
 
     if (shifted.length >= 5) {
       final step = 1.0 / (_kSampleCount - 1); // 0.05
@@ -450,13 +458,16 @@ class XKeyboard with ChangeNotifier, WidgetsBindingObserver {
       }
       // Endpoints stay pinned.
       _samples[0] = 0;
-      _samples[_kSampleCount - 1] = _samples[_kSampleCount - 1]
-          .clamp(0.99, 1.0);
+      _samples[_kSampleCount - 1] = _samples[_kSampleCount - 1].clamp(
+        0.99,
+        1.0,
+      );
 
       _converged = maxError < _kAdaptThreshold;
 
       _kbLog.d(
-        () => 'adapt #$_learnCount '
+        () =>
+            'adapt #$_learnCount '
             'headStart=${(_headStart * 1000).toStringAsFixed(1)}ms '
             'maxErr=${(maxError * 100).toStringAsFixed(1)}% '
             '${_converged ? "CONVERGED" : "learning"}',
@@ -473,7 +484,8 @@ class XKeyboard with ChangeNotifier, WidgetsBindingObserver {
   /// starts tracking. Velocity at lift-off commits dismiss or snap-back.
   /// A matching pan on the keyboard host view starts on a downward swipe
   /// on the IME itself.
-  void enableInteractiveDismiss({double trackingInset = 0}) => _uxEnableInteractiveDismiss?.call(trackingInset);
+  void enableInteractiveDismiss({double trackingInset = 0}) =>
+      _uxEnableInteractiveDismiss?.call(trackingInset);
 
   /// Disables the swipe-to-dismiss gesture.
   void disableInteractiveDismiss() => _uxDisableInteractiveDismiss?.call();

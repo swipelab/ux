@@ -15,13 +15,12 @@ Map<String, Object?> _status(
   String effect,
   int generation, {
   String? code,
-}) =>
-    {
-      'phase': phase,
-      'effect': effect,
-      'generation': generation,
-      'code': ?code,
-    };
+}) => {
+  'phase': phase,
+  'effect': effect,
+  'generation': generation,
+  'code': ?code,
+};
 
 Map<Object?, Object?> _argumentsOf(MethodCall call) =>
     (call.arguments as Map).cast<Object?, Object?>();
@@ -60,16 +59,16 @@ void main() {
   });
 
   Future<void> sendEvent(Object? event) => messenger.handlePlatformMessage(
-        _eventChannelName,
-        const StandardMethodCodec().encodeSuccessEnvelope(event),
-        (_) {},
-      );
+    _eventChannelName,
+    const StandardMethodCodec().encodeSuccessEnvelope(event),
+    (_) {},
+  );
 
   Future<void> sendStreamError() => messenger.handlePlatformMessage(
-        _eventChannelName,
-        const StandardMethodCodec().encodeErrorEnvelope(code: 'stream_failed'),
-        (_) {},
-      );
+    _eventChannelName,
+    const StandardMethodCodec().encodeErrorEnvelope(code: 'stream_failed'),
+    (_) {},
+  );
 
   Future<int> effectApplied([XCameraEffect effect = XCameraEffect.blur]) async {
     await backend.setEffect('track:1', effect);
@@ -78,18 +77,20 @@ void main() {
   }
 
   group('command wire', () {
-    test('setEffect carries the track, the effect name and a generation',
-        () async {
-      await backend.setEffect('track:1', XCameraEffect.blur);
+    test(
+      'setEffect carries the track, the effect name and a generation',
+      () async {
+        await backend.setEffect('track:1', XCameraEffect.blur);
 
-      final call = calls.single;
-      expect(call.method, 'setEffect');
-      final arguments = _argumentsOf(call);
-      expect(arguments.keys.toSet(), {'trackId', 'effect', 'generation'});
-      expect(arguments['trackId'], 'track:1');
-      expect(arguments['effect'], 'blur');
-      expect(arguments['generation'], isA<int>());
-    });
+        final call = calls.single;
+        expect(call.method, 'setEffect');
+        final arguments = _argumentsOf(call);
+        expect(arguments.keys.toSet(), {'trackId', 'effect', 'generation'});
+        expect(arguments['trackId'], 'track:1');
+        expect(arguments['effect'], 'blur');
+        expect(arguments['generation'], isA<int>());
+      },
+    );
 
     test('dim rides the wire under its own name', () async {
       await backend.setEffect('track:1', XCameraEffect.dim);
@@ -130,8 +131,8 @@ void main() {
       'something_native_invented',
     ]) {
       test('$code passes through code-for-code', () async {
-        handler =
-            (_) async => throw PlatformException(code: code, message: 'detail');
+        handler = (_) async =>
+            throw PlatformException(code: code, message: 'detail');
 
         await expectLater(
           backend.setEffect('track:1', XCameraEffect.blur),
@@ -155,8 +156,11 @@ void main() {
         await expectLater(
           command,
           throwsA(
-            isA<XCameraEffectsException>()
-                .having((e) => e.code, 'code', 'integration_unavailable'),
+            isA<XCameraEffectsException>().having(
+              (e) => e.code,
+              'code',
+              'integration_unavailable',
+            ),
           ),
         );
       }
@@ -226,24 +230,25 @@ void main() {
   });
 
   group('status', () {
-    test('the status the stream is activated with reaches the listenable',
-        () async {
-      onListen = () => sendEvent(
-            _status('applying', 'blur', _generationOf(calls.last)),
-          );
+    test(
+      'the status the stream is activated with reaches the listenable',
+      () async {
+        onListen = () =>
+            sendEvent(_status('applying', 'blur', _generationOf(calls.last)));
 
-      await backend.setEffect('track:1', XCameraEffect.blur);
-      await pumpEventQueue();
+        await backend.setEffect('track:1', XCameraEffect.blur);
+        await pumpEventQueue();
 
-      expect(calls.map((c) => c.method), ['setEffect']);
-      expect(
-        backend.status.value,
-        const XCameraEffectStatus(
-          phase: XCameraEffectPhase.applying,
-          effect: XCameraEffect.blur,
-        ),
-      );
-    });
+        expect(calls.map((c) => c.method), ['setEffect']);
+        expect(
+          backend.status.value,
+          const XCameraEffectStatus(
+            phase: XCameraEffectPhase.applying,
+            effect: XCameraEffect.blur,
+          ),
+        );
+      },
+    );
 
     test('applying and active arrive in order', () async {
       final generation = await effectApplied();
@@ -368,39 +373,41 @@ void main() {
       );
     });
 
-    test('a fault from the live effect arrives after a command throws',
-        () async {
-      final effected = await effectApplied();
-      await sendEvent(_status('active', 'blur', effected));
-      await pumpEventQueue();
-      handler = (_) async => throw PlatformException(code: 'track_not_found');
+    test(
+      'a fault from the live effect arrives after a command throws',
+      () async {
+        final effected = await effectApplied();
+        await sendEvent(_status('active', 'blur', effected));
+        await pumpEventQueue();
+        handler = (_) async => throw PlatformException(code: 'track_not_found');
 
-      await expectLater(
-        backend.setEffect('track:2', XCameraEffect.dim),
-        throwsA(isA<XCameraEffectsException>()),
-      );
-      expect(
-        backend.status.value,
-        const XCameraEffectStatus(
-          phase: XCameraEffectPhase.active,
-          effect: XCameraEffect.blur,
-        ),
-      );
+        await expectLater(
+          backend.setEffect('track:2', XCameraEffect.dim),
+          throwsA(isA<XCameraEffectsException>()),
+        );
+        expect(
+          backend.status.value,
+          const XCameraEffectStatus(
+            phase: XCameraEffectPhase.active,
+            effect: XCameraEffect.blur,
+          ),
+        );
 
-      await sendEvent(
-        _status('failed', 'blur', effected, code: 'processing_failed'),
-      );
-      await pumpEventQueue();
+        await sendEvent(
+          _status('failed', 'blur', effected, code: 'processing_failed'),
+        );
+        await pumpEventQueue();
 
-      expect(
-        backend.status.value,
-        const XCameraEffectStatus(
-          phase: XCameraEffectPhase.failed,
-          effect: XCameraEffect.blur,
-          code: 'processing_failed',
-        ),
-      );
-    });
+        expect(
+          backend.status.value,
+          const XCameraEffectStatus(
+            phase: XCameraEffectPhase.failed,
+            effect: XCameraEffect.blur,
+            code: 'processing_failed',
+          ),
+        );
+      },
+    );
   });
 
   group('malformed events', () {
@@ -486,20 +493,22 @@ void main() {
       expect(backend.status.value, active);
     });
 
-    test('a stream error is dropped and the next status still arrives',
-        () async {
-      final generation = await drivenToActive();
+    test(
+      'a stream error is dropped and the next status still arrives',
+      () async {
+        final generation = await drivenToActive();
 
-      await sendStreamError();
-      await pumpEventQueue();
-      expect(backend.status.value, active);
+        await sendStreamError();
+        await pumpEventQueue();
+        expect(backend.status.value, active);
 
-      await sendEvent(
-        _status('failed', 'blur', generation, code: 'processing_failed'),
-      );
-      await pumpEventQueue();
+        await sendEvent(
+          _status('failed', 'blur', generation, code: 'processing_failed'),
+        );
+        await pumpEventQueue();
 
-      expect(backend.status.value.phase, XCameraEffectPhase.failed);
-    });
+        expect(backend.status.value.phase, XCameraEffectPhase.failed);
+      },
+    );
   });
 }

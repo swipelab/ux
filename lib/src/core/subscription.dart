@@ -12,6 +12,7 @@ class Subscription with Emitter {
   /// [when] gates notifications. Returns this for chaining.
   Subscription add<T extends Listenable>(
     T listenable, {
+
     /// - [select]->[R] can be used to only notify when [R] changes
     Object? Function(T)? select,
 
@@ -20,18 +21,16 @@ class Subscription with Emitter {
   }) {
     var callback = notifyListeners;
     if (select != null) {
-      callback = callback.pipe(
-        (e) {
-          var oldSelect = select(listenable);
-          return () {
-            final newSelect = select(listenable);
-            if (newSelect != oldSelect) {
-              oldSelect = newSelect;
-              e();
-            }
-          };
-        },
-      );
+      callback = callback.pipe((e) {
+        var oldSelect = select(listenable);
+        return () {
+          final newSelect = select(listenable);
+          if (newSelect != oldSelect) {
+            oldSelect = newSelect;
+            e();
+          }
+        };
+      });
     }
     if (when != null) {
       callback = callback.pipe(
@@ -64,6 +63,7 @@ class SubscriptionBuilder extends StatefulWidget {
 
   /// Registers listenables given a [Subscription]
   final ValueSetter<Subscription> register;
+
   /// Rebuilt whenever a registered listenable fires, and handed [child].
   final TransitionBuilder builder;
 

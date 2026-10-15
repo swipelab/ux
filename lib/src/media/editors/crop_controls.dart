@@ -18,14 +18,19 @@ class CropControls extends StatelessWidget {
 
   /// Leaves the crop tool without applying.
   final VoidCallback onCancel;
+
   /// Turns the image by 90 degrees.
   final VoidCallback onRotate;
+
   /// Mirrors the image.
   final VoidCallback onFlip;
+
   /// Whether the image is mirrored; the flip control shows it.
   final bool isFlipped;
+
   /// Opens the aspect-ratio choices.
   final VoidCallback onAspectRatio;
+
   /// Applies the crop.
   final VoidCallback onSubmit;
 

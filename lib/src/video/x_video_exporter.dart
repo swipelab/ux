@@ -39,48 +39,55 @@ class XVideoExporter {
           if (v != null && !progress.isClosed) progress.add(v);
         case 'done':
           if (!done.isCompleted) {
-            done.complete(XVideoExportResult(
-              path: event['path'] as String,
-              width: (event['width'] as num).toInt(),
-              height: (event['height'] as num).toInt(),
-              durationMs: (event['durationMs'] as num).toInt(),
-            ));
+            done.complete(
+              XVideoExportResult(
+                path: event['path'] as String,
+                width: (event['width'] as num).toInt(),
+                height: (event['height'] as num).toInt(),
+                durationMs: (event['durationMs'] as num).toInt(),
+              ),
+            );
           }
           progress.close();
           sub.cancel();
         case 'error':
           if (!done.isCompleted) {
-            done.completeError(XVideoExportException(
-              event['code'] as String? ?? 'export_failed',
-              event['message'] as String?,
-            ));
+            done.completeError(
+              XVideoExportException(
+                event['code'] as String? ?? 'export_failed',
+                event['message'] as String?,
+              ),
+            );
           }
           progress.close();
           sub.cancel();
       }
     });
 
-    _channel.invokeMethod<void>('start', <String, Object?>{
-      'sessionId': id,
-      'path': request.path,
-      'outPath': request.outPath,
-      if (request.trimStartMs != null) 'trimStartMs': request.trimStartMs,
-      if (request.trimEndMs != null) 'trimEndMs': request.trimEndMs,
-      'removeAudio': request.removeAudio,
-      if (request.transform != null) 'transform': request.transform,
-      if (request.outWidth != null) 'outWidth': request.outWidth,
-      if (request.outHeight != null) 'outHeight': request.outHeight,
-      if (request.videoBitrate != null) 'videoBitrate': request.videoBitrate,
-      if (request.overlayPath != null) 'overlayPath': request.overlayPath,
-    }).catchError((Object e) {
-      if (!done.isCompleted) {
-        done.completeError(
-          XVideoExportException('start_failed', e.toString()),
-        );
-      }
-      progress.close();
-      sub.cancel();
-    });
+    _channel
+        .invokeMethod<void>('start', <String, Object?>{
+          'sessionId': id,
+          'path': request.path,
+          'outPath': request.outPath,
+          if (request.trimStartMs != null) 'trimStartMs': request.trimStartMs,
+          if (request.trimEndMs != null) 'trimEndMs': request.trimEndMs,
+          'removeAudio': request.removeAudio,
+          if (request.transform != null) 'transform': request.transform,
+          if (request.outWidth != null) 'outWidth': request.outWidth,
+          if (request.outHeight != null) 'outHeight': request.outHeight,
+          if (request.videoBitrate != null)
+            'videoBitrate': request.videoBitrate,
+          if (request.overlayPath != null) 'overlayPath': request.overlayPath,
+        })
+        .catchError((Object e) {
+          if (!done.isCompleted) {
+            done.completeError(
+              XVideoExportException('start_failed', e.toString()),
+            );
+          }
+          progress.close();
+          sub.cancel();
+        });
 
     return XVideoExportSession._(id, progress.stream, done.future);
   }
@@ -107,13 +114,19 @@ class XVideoExportRequest {
     this.outHeight,
     this.videoBitrate,
     this.overlayPath,
-  })  : assert((transform == null) == (outWidth == null),
-            'transform and outWidth/outHeight go together'),
-        assert((outWidth == null) == (outHeight == null),
-            'outWidth and outHeight go together'),
-        assert(overlayPath == null || transform != null,
-            'overlayPath requires the transform re-encode path — send the '
-            'identity affine at source dims for an overlay-only export');
+  }) : assert(
+         (transform == null) == (outWidth == null),
+         'transform and outWidth/outHeight go together',
+       ),
+       assert(
+         (outWidth == null) == (outHeight == null),
+         'outWidth and outHeight go together',
+       ),
+       assert(
+         overlayPath == null || transform != null,
+         'overlayPath requires the transform re-encode path — send the '
+         'identity affine at source dims for an overlay-only export',
+       );
 
   /// Absolute path of the source video.
   final String path;
@@ -171,10 +184,10 @@ class XVideoExportSession {
 
   /// Abort the export and delete any partial output. [done] fails
   /// with code `cancelled`.
-  Future<void> cancel() =>
-      XVideoExporter._channel.invokeMethod<void>('cancel', <String, Object?>{
-        'sessionId': _id,
-      });
+  Future<void> cancel() => XVideoExporter._channel.invokeMethod<void>(
+    'cancel',
+    <String, Object?>{'sessionId': _id},
+  );
 }
 
 /// Metadata of a finished export.

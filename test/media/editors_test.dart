@@ -24,44 +24,48 @@ void main() {
     expect(TextEntityStyle.stroke.next, TextEntityStyle.regular);
   });
 
-  test('the editor keyboard lift is the keyboard inset net of the safe area',
-      () {
-    final insets = MediaHost.current.insets as FakeMediaInsets
-      ..viewPadding = const EdgeInsets.only(top: 47, bottom: 34)
-      ..keyboardInset = 336;
-    expect(editorSafeAreaTop, 47);
-    expect(editorKeyboardLift, 302);
+  test(
+    'the editor keyboard lift is the keyboard inset net of the safe area',
+    () {
+      final insets = MediaHost.current.insets as FakeMediaInsets
+        ..viewPadding = const EdgeInsets.only(top: 47, bottom: 34)
+        ..keyboardInset = 336;
+      expect(editorSafeAreaTop, 47);
+      expect(editorKeyboardLift, 302);
 
-    insets.keyboardInset = 0;
-    expect(editorKeyboardLift, 0);
-  });
+      insets.keyboardInset = 0;
+      expect(editorKeyboardLift, 0);
+    },
+  );
 
-  test('an entity layer writes the selected entity, else the pending style',
-      () {
-    final layer = EntityLayer(imageSize: const Size(1000, 800));
-    layer.cycleStyle();
-    expect(layer.pendingStyle, TextEntityStyle.semi);
+  test(
+    'an entity layer writes the selected entity, else the pending style',
+    () {
+      final layer = EntityLayer(imageSize: const Size(1000, 800));
+      layer.cycleStyle();
+      expect(layer.pendingStyle, TextEntityStyle.semi);
 
-    final entity = TextEntity(
-      text: 'hello',
-      style: TextEntityStyle.regular,
-      align: TextAlign.center,
-      colour: const Color(0xFFFFFFFF),
-      fontSize: .08,
-      position: const Offset(500, 400),
-      width: 400,
-    );
-    layer
-      ..add(entity)
-      ..select(entity.id)
-      ..cycleStyle();
-    expect(entity.style, TextEntityStyle.filled);
-    expect(layer.pendingStyle, TextEntityStyle.semi);
+      final entity = TextEntity(
+        text: 'hello',
+        style: TextEntityStyle.regular,
+        align: TextAlign.center,
+        colour: const Color(0xFFFFFFFF),
+        fontSize: .08,
+        position: const Offset(500, 400),
+        width: 400,
+      );
+      layer
+        ..add(entity)
+        ..select(entity.id)
+        ..cycleStyle();
+      expect(entity.style, TextEntityStyle.filled);
+      expect(layer.pendingStyle, TextEntityStyle.semi);
 
-    layer.remove(entity.id);
-    expect(layer.selected, isNull);
-    expect(layer.hasAppliedEdits, isFalse);
-  });
+      layer.remove(entity.id);
+      expect(layer.selected, isNull);
+      expect(layer.hasAppliedEdits, isFalse);
+    },
+  );
 
   test('a draw layer keeps a colour and a thickness per brush', () async {
     final recorder = PictureRecorder();

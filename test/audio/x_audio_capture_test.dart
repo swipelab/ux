@@ -83,10 +83,10 @@ void main() {
     });
 
     Future<void> sendEvent(Object? event) => messenger.handlePlatformMessage(
-          'ux/audio_capture/events',
-          const StandardMethodCodec().encodeSuccessEnvelope(event),
-          (_) {},
-        );
+      'ux/audio_capture/events',
+      const StandardMethodCodec().encodeSuccessEnvelope(event),
+      (_) {},
+    );
 
     test('a frame event reaches the stream with its level', () async {
       final capture = MethodChannelXAudioCapture();
@@ -96,7 +96,7 @@ void main() {
 
       await sendEvent({
         'type': 'frame',
-        'pcm': _bytes([16384, -16384])
+        'pcm': _bytes([16384, -16384]),
       });
       await pumpEventQueue();
 
@@ -190,9 +190,11 @@ void main() {
 
       await expectLater(
         capture.start(sourceId: 'mic:99'),
-        throwsA(isA<XAudioCaptureException>()
-            .having((e) => e.code, 'code', 'unknown_source')
-            .having((e) => e.message, 'message', 'mic:99')),
+        throwsA(
+          isA<XAudioCaptureException>()
+              .having((e) => e.code, 'code', 'unknown_source')
+              .having((e) => e.message, 'message', 'mic:99'),
+        ),
       );
     });
 
@@ -233,8 +235,13 @@ void main() {
 
       await expectLater(
         capture.sources(),
-        throwsA(isA<XAudioCaptureException>()
-            .having((e) => e.code, 'code', 'invalid_response')),
+        throwsA(
+          isA<XAudioCaptureException>().having(
+            (e) => e.code,
+            'code',
+            'invalid_response',
+          ),
+        ),
       );
     });
 
@@ -249,8 +256,13 @@ void main() {
 
       await expectLater(
         capture.sources(),
-        throwsA(isA<XAudioCaptureException>()
-            .having((e) => e.code, 'code', 'invalid_response')),
+        throwsA(
+          isA<XAudioCaptureException>().having(
+            (e) => e.code,
+            'code',
+            'invalid_response',
+          ),
+        ),
       );
     });
 
@@ -263,8 +275,13 @@ void main() {
 
       await expectLater(
         capture.sources(),
-        throwsA(isA<XAudioCaptureException>()
-            .having((e) => e.code, 'code', 'unsupported')),
+        throwsA(
+          isA<XAudioCaptureException>().having(
+            (e) => e.code,
+            'code',
+            'unsupported',
+          ),
+        ),
       );
     });
 
@@ -345,16 +362,20 @@ void main() {
     test('a platform failure surfaces as XAudioCaptureException', () async {
       messenger.setMockMethodCallHandler(methods, (call) async {
         throw PlatformException(
-            code: 'permission_denied', message: 'microphone');
+          code: 'permission_denied',
+          message: 'microphone',
+        );
       });
       final capture = MethodChannelXAudioCapture();
       await pumpEventQueue();
 
       await expectLater(
         capture.start(),
-        throwsA(isA<XAudioCaptureException>()
-            .having((e) => e.code, 'code', 'permission_denied')
-            .having((e) => e.message, 'message', 'microphone')),
+        throwsA(
+          isA<XAudioCaptureException>()
+              .having((e) => e.code, 'code', 'permission_denied')
+              .having((e) => e.message, 'message', 'microphone'),
+        ),
       );
     });
 
@@ -366,8 +387,13 @@ void main() {
       expect(calls, isEmpty);
       await expectLater(
         capture.start(),
-        throwsA(isA<XAudioCaptureException>()
-            .having((e) => e.code, 'code', 'unsupported')),
+        throwsA(
+          isA<XAudioCaptureException>().having(
+            (e) => e.code,
+            'code',
+            'unsupported',
+          ),
+        ),
       );
       await capture.stop();
       expect(calls, isEmpty);

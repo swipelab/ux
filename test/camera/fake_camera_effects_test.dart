@@ -11,10 +11,12 @@ void main() {
     await fake.setEffect('track:1', XCameraEffect.dim);
     await fake.clear();
 
-    expect(
-      fake.calls.map((c) => c.method),
-      ['available', 'setEffect', 'setEffect', 'clear'],
-    );
+    expect(fake.calls.map((c) => c.method), [
+      'available',
+      'setEffect',
+      'setEffect',
+      'clear',
+    ]);
     expect(fake.calls[1].trackId, 'track:1');
     expect(fake.calls[1].effect, XCameraEffect.blur);
     expect(fake.calls[2].effect, XCameraEffect.dim);
@@ -32,29 +34,40 @@ void main() {
 
   test('scripted command errors are thrown and still recorded', () async {
     final fake = FakeXCameraEffectsBackend()
-      ..availableError = const XCameraEffectsException('integration_unavailable')
+      ..availableError = const XCameraEffectsException(
+        'integration_unavailable',
+      )
       ..setEffectError = const XCameraEffectsException('track_not_found')
       ..clearError = const XCameraEffectsException('initialization_failed');
 
     await expectLater(
       fake.available(),
       throwsA(
-        isA<XCameraEffectsException>()
-            .having((e) => e.code, 'code', 'integration_unavailable'),
+        isA<XCameraEffectsException>().having(
+          (e) => e.code,
+          'code',
+          'integration_unavailable',
+        ),
       ),
     );
     await expectLater(
       fake.setEffect('track:1', XCameraEffect.blur),
       throwsA(
-        isA<XCameraEffectsException>()
-            .having((e) => e.code, 'code', 'track_not_found'),
+        isA<XCameraEffectsException>().having(
+          (e) => e.code,
+          'code',
+          'track_not_found',
+        ),
       ),
     );
     await expectLater(
       fake.clear(),
       throwsA(
-        isA<XCameraEffectsException>()
-            .having((e) => e.code, 'code', 'initialization_failed'),
+        isA<XCameraEffectsException>().having(
+          (e) => e.code,
+          'code',
+          'initialization_failed',
+        ),
       ),
     );
     expect(fake.calls, hasLength(3));
@@ -81,23 +94,23 @@ void main() {
       code: 'processing_failed',
     );
 
-    expect(
-      seen.map((s) => s.phase),
-      [
-        XCameraEffectPhase.applying,
-        XCameraEffectPhase.active,
-        XCameraEffectPhase.failed,
-      ],
-    );
+    expect(seen.map((s) => s.phase), [
+      XCameraEffectPhase.applying,
+      XCameraEffectPhase.active,
+      XCameraEffectPhase.failed,
+    ]);
     expect(seen.last.code, 'processing_failed');
   });
 
   test('an unsupported fake throws unsupported everywhere', () async {
     final fake = FakeXCameraEffectsBackend(supported: false);
     Matcher unsupported() => throwsA(
-          isA<XCameraEffectsException>()
-              .having((e) => e.code, 'code', 'unsupported'),
-        );
+      isA<XCameraEffectsException>().having(
+        (e) => e.code,
+        'code',
+        'unsupported',
+      ),
+    );
 
     expect(fake.supported, isFalse);
     await expectLater(fake.available(), unsupported());
@@ -122,7 +135,9 @@ void main() {
     );
 
     expect(fake.calls.single.method, 'setEffect');
-    expect(XCameraEffectsBackend.instance.status.value,
-        const XCameraEffectStatus.idle());
+    expect(
+      XCameraEffectsBackend.instance.status.value,
+      const XCameraEffectStatus.idle(),
+    );
   });
 }

@@ -106,14 +106,19 @@ class MethodChannelXAudioSink implements XAudioSink {
   /// handler for it.
   MethodChannelXAudioSink() {
     if (!supported) return;
-    _events.receiveBroadcastStream().listen(_onEvent, onError: (e, st) {
-      FlutterError.reportError(FlutterErrorDetails(
-        exception: e,
-        stack: st,
-        library: 'ux',
-        context: ErrorDescription('while playing audio'),
-      ));
-    });
+    _events.receiveBroadcastStream().listen(
+      _onEvent,
+      onError: (e, st) {
+        FlutterError.reportError(
+          FlutterErrorDetails(
+            exception: e,
+            stack: st,
+            library: 'ux',
+            context: ErrorDescription('while playing audio'),
+          ),
+        );
+      },
+    );
   }
 
   static const _methods = MethodChannel('ux/audio_sink');
@@ -139,8 +144,9 @@ class MethodChannelXAudioSink implements XAudioSink {
   Stream<void> get drained => _drained.stream;
 
   @override
-  final ValueEmitter<XAudioSinkState> state =
-      ValueEmitter(XAudioSinkState.idle);
+  final ValueEmitter<XAudioSinkState> state = ValueEmitter(
+    XAudioSinkState.idle,
+  );
 
   @override
   Future<void> enqueue(Int16List samples) {
@@ -185,8 +191,9 @@ class MethodChannelXAudioSink implements XAudioSink {
 
   Future<void> _enqueue(Future<void> Function() command) {
     final previous = _commandTail;
-    final operation =
-        previous == null ? command() : previous.then((_) => command());
+    final operation = previous == null
+        ? command()
+        : previous.then((_) => command());
     final tail = operation.then<void>(
       (_) {},
       onError: (Object _, StackTrace _) {},
@@ -211,9 +218,9 @@ class MethodChannelXAudioSink implements XAudioSink {
   }
 
   static XAudioSinkState? _parseState(String? raw) => switch (raw) {
-        'idle' => XAudioSinkState.idle,
-        'playing' => XAudioSinkState.playing,
-        'interrupted' => XAudioSinkState.interrupted,
-        _ => null,
-      };
+    'idle' => XAudioSinkState.idle,
+    'playing' => XAudioSinkState.playing,
+    'interrupted' => XAudioSinkState.interrupted,
+    _ => null,
+  };
 }

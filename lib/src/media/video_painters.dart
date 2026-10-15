@@ -56,10 +56,7 @@ class PauseBarsPainter extends CustomPainter {
     final paint = Paint()..color = color;
     final radius = Radius.circular(_barWidth / 2);
     canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(dx, dy, _barWidth, _h),
-        radius,
-      ),
+      RRect.fromRectAndRadius(Rect.fromLTWH(dx, dy, _barWidth, _h), radius),
       paint,
     );
     canvas.drawRRect(
@@ -94,10 +91,13 @@ class RadialRingPainter extends CustomPainter {
 
   /// Stroke of the arc.
   final Color color;
+
   /// Width of the arc's stroke.
   final double strokeWidth;
+
   /// Angle of the indeterminate arc's start from 12 o'clock, in radians.
   final double rotation;
+
   /// Fraction done, 0 to 1; absent while the total is unknown.
   final double? progress;
 

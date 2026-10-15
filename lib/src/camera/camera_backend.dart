@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 
 import 'package:ux/src/file.dart' show XFile;
-import 'package:ux/src/camera/camera.dart' show XCameraDescription, XFlashMode, XResolutionPreset;
-import 'package:ux/src/camera/camera_channel.dart' show MethodChannelXCameraBackend;
+import 'package:ux/src/camera/camera.dart'
+    show XCameraDescription, XFlashMode, XResolutionPreset;
+import 'package:ux/src/camera/camera_channel.dart'
+    show MethodChannelXCameraBackend;
 
 /// Backend contract that [XCameraController] dispatches into. The default
 /// implementation calls into native code via the `ux/camera` /
@@ -62,7 +64,10 @@ abstract class XCameraBackend {
 
   /// Pin the preview's connection orientation. Used today only to lock
   /// the preview to portrait so it never appears stretched/rotated.
-  Future<void> lockCaptureOrientation(int handle, DeviceOrientation orientation);
+  Future<void> lockCaptureOrientation(
+    int handle,
+    DeviceOrientation orientation,
+  );
 
   /// Release the orientation lock — the preview falls back to following
   /// physical device orientation. Unused by the chat composer; kept for

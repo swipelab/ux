@@ -10,6 +10,6 @@ Future<Uint8List> encryptRangeFallback(
   int size,
   Uint8List key,
   Uint8List iv,
-) =>
-    throw UnsupportedError(
-        'aesCtrEncryptRange software fallback needs dart:io (unavailable on web)');
+) => throw UnsupportedError(
+  'aesCtrEncryptRange software fallback needs dart:io (unavailable on web)',
+);

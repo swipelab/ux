@@ -208,8 +208,9 @@ class _ScreenSourcesPageState extends State<ScreenSourcesPage> {
                 padding: const EdgeInsets.only(top: 12),
                 child: Text(
                   _error!,
-                  style: theme.textTheme.bodyMedium
-                      ?.copyWith(color: theme.colorScheme.error),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.error,
+                  ),
                 ),
               ),
             if (renderer != null)
@@ -219,7 +220,8 @@ class _ScreenSourcesPageState extends State<ScreenSourcesPage> {
                   height: 180,
                   child: RTCVideoView(
                     renderer,
-                    objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+                    objectFit:
+                        RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
                   ),
                 ),
               ),
@@ -241,7 +243,8 @@ class _ScreenSourcesPageState extends State<ScreenSourcesPage> {
                   itemCount: sources.length,
                   itemBuilder: (context, i) => _SourceTile(
                     source: sources[i],
-                    selected: sources[i].id == _selected?.id &&
+                    selected:
+                        sources[i].id == _selected?.id &&
                         sources[i].kind == _selected?.kind,
                     onTap: () => _select(sources[i]),
                   ),

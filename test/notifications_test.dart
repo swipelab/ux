@@ -27,10 +27,10 @@ void main() {
   });
 
   Future<void> sendEvent(Object? event) => messenger.handlePlatformMessage(
-        'ux/notifications/events',
-        const StandardMethodCodec().encodeSuccessEnvelope(event),
-        (_) {},
-      );
+    'ux/notifications/events',
+    const StandardMethodCodec().encodeSuccessEnvelope(event),
+    (_) {},
+  );
 
   // Regression: iOS has no native handler, so activating the broadcast
   // stream throws MissingPluginException straight to FlutterError.onError.
@@ -61,13 +61,15 @@ void main() {
   test('show forwards the exact argument map', () async {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     final n = MethodChannelXNotifications();
-    await n.show(XNotification(
-      id: 'd1:7',
-      title: 'Alice',
-      body: 'hi',
-      threadId: 'd1',
-      data: const {'dialogId': 'd1', 'messageId': '7'},
-    ));
+    await n.show(
+      XNotification(
+        id: 'd1:7',
+        title: 'Alice',
+        body: 'hi',
+        threadId: 'd1',
+        data: const {'dialogId': 'd1', 'messageId': '7'},
+      ),
+    );
     final show = calls.firstWhere((c) => c.method == 'show');
     expect(show.arguments, {
       'id': 'd1:7',
@@ -92,16 +94,17 @@ void main() {
     await n.cancelByThread('d1');
     await n.cancelAll();
     expect(
-      calls.any((c) =>
-          c.method == 'cancelByThread' &&
-          (c.arguments as Map)['threadId'] == 'd1'),
+      calls.any(
+        (c) =>
+            c.method == 'cancelByThread' &&
+            (c.arguments as Map)['threadId'] == 'd1',
+      ),
       isTrue,
     );
     expect(calls.any((c) => c.method == 'cancelAll'), isTrue);
   });
 
-  test(
-      'Windows activates the events channel, whose authorization and tap '
+  test('Windows activates the events channel, whose authorization and tap '
       'events reach the Dart side', () async {
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;
     final eventCalls = <String>[];

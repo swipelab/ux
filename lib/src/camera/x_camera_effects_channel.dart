@@ -21,8 +21,9 @@ class MethodChannelXCameraEffectsBackend implements XCameraEffectsBackend {
   static const _methods = MethodChannel('ux/camera_effects');
   static const _events = EventChannel('ux/camera_effects/events');
 
-  final ValueEmitter<XCameraEffectStatus> _status =
-      ValueEmitter(const XCameraEffectStatus.idle());
+  final ValueEmitter<XCameraEffectStatus> _status = ValueEmitter(
+    const XCameraEffectStatus.idle(),
+  );
 
   Future<void>? _commandTail;
   StreamSubscription<Object?>? _subscription;
@@ -56,41 +57,41 @@ class MethodChannelXCameraEffectsBackend implements XCameraEffectsBackend {
   @override
   Future<void> setEffect(String trackId, XCameraEffect effect) =>
       effect == XCameraEffect.none
-          ? clear()
-          : _command(
-              'setEffect',
-              (generation) => {
-                'trackId': trackId,
-                'effect': effect.name,
-                'generation': generation,
-              },
-            );
+      ? clear()
+      : _command(
+          'setEffect',
+          (generation) => {
+            'trackId': trackId,
+            'effect': effect.name,
+            'generation': generation,
+          },
+        );
 
   @override
   Future<void> clear() => _command(
-        'clear',
-        (generation) => {'generation': generation},
-        settled: const XCameraEffectStatus.idle(),
-      );
+    'clear',
+    (generation) => {'generation': generation},
+    settled: const XCameraEffectStatus.idle(),
+  );
 
   Future<void> _command(
     String method,
     Map<String, Object?> Function(int generation) arguments, {
     XCameraEffectStatus? settled,
-  }) =>
-      _serialize(() async {
-        _requireSupported();
-        final generation = ++_allocated;
-        await _invoke(method, arguments(generation));
-        _live = generation;
-        if (settled != null) _status.value = settled;
-        _subscribe();
-      });
+  }) => _serialize(() async {
+    _requireSupported();
+    final generation = ++_allocated;
+    await _invoke(method, arguments(generation));
+    _live = generation;
+    if (settled != null) _status.value = settled;
+    _subscribe();
+  });
 
   Future<void> _serialize(Future<void> Function() command) {
     final previous = _commandTail;
-    final operation =
-        previous == null ? command() : previous.then((_) => command());
+    final operation = previous == null
+        ? command()
+        : previous.then((_) => command());
     final tail = operation.then<void>(
       (_) {},
       onError: (Object _, StackTrace _) {},
@@ -117,9 +118,9 @@ class MethodChannelXCameraEffectsBackend implements XCameraEffectsBackend {
 
   void _subscribe() {
     _subscription ??= _events.receiveBroadcastStream().listen(
-          _onEvent,
-          onError: (Object _, StackTrace _) {},
-        );
+      _onEvent,
+      onError: (Object _, StackTrace _) {},
+    );
   }
 
   void _onEvent(Object? event) {
@@ -135,8 +136,11 @@ class MethodChannelXCameraEffectsBackend implements XCameraEffectsBackend {
     if (phase == XCameraEffectPhase.idle && effect != XCameraEffect.none) {
       return;
     }
-    _status.value =
-        XCameraEffectStatus(phase: phase, effect: effect, code: code);
+    _status.value = XCameraEffectStatus(
+      phase: phase,
+      effect: effect,
+      code: code,
+    );
   }
 
   void _requireSupported() {
@@ -145,19 +149,19 @@ class MethodChannelXCameraEffectsBackend implements XCameraEffectsBackend {
   }
 
   static XCameraEffectPhase? _phase(Object? raw) => switch (raw) {
-        'idle' => XCameraEffectPhase.idle,
-        'applying' => XCameraEffectPhase.applying,
-        'active' => XCameraEffectPhase.active,
-        'failed' => XCameraEffectPhase.failed,
-        _ => null,
-      };
+    'idle' => XCameraEffectPhase.idle,
+    'applying' => XCameraEffectPhase.applying,
+    'active' => XCameraEffectPhase.active,
+    'failed' => XCameraEffectPhase.failed,
+    _ => null,
+  };
 
   static XCameraEffect? _effect(Object? raw) => switch (raw) {
-        'none' => XCameraEffect.none,
-        'blur' => XCameraEffect.blur,
-        'dim' => XCameraEffect.dim,
-        _ => null,
-      };
+    'none' => XCameraEffect.none,
+    'blur' => XCameraEffect.blur,
+    'dim' => XCameraEffect.dim,
+    _ => null,
+  };
 
   static XCameraEffectsException _invalid(Object? field, String detail) =>
       XCameraEffectsException('invalid_response', '$field: $detail');

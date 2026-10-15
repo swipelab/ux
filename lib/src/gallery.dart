@@ -92,6 +92,7 @@ class XAsset {
 
   /// Stable identifier (e.g. iOS `localIdentifier`, Android `content://` URI).
   final String id;
+
   /// Whether this is a photo or a video.
   final XAssetKind kind;
 
@@ -219,12 +220,7 @@ class XGallery {
     required int start,
     required int end,
   }) =>
-      backend.assets(
-        albumId: albumId,
-        filter: filter,
-        start: start,
-        end: end,
-      );
+      backend.assets(albumId: albumId, filter: filter, start: start, end: end);
 
   /// Cell-sized thumbnail at `~max(width,height) <= sizePx`. Native
   /// caches keep repeated calls cheap; the caller still maintains a
@@ -232,8 +228,7 @@ class XGallery {
   static Future<XAssetThumbnail> thumbnail(
     String assetId, {
     required int sizePx,
-  }) =>
-      backend.thumbnail(assetId, sizePx: sizePx);
+  }) => backend.thumbnail(assetId, sizePx: sizePx);
 
   /// Resolve a real `io.File` for the asset. Photo / video alike.
   /// On Android, this stream-copies a `content://` source into the
@@ -260,8 +255,7 @@ class XGallery {
     String path, {
     required XAssetKind kind,
     String? mimeType,
-  }) =>
-      backend.saveToLibrary(path, kind: kind, mimeType: mimeType);
+  }) => backend.saveToLibrary(path, kind: kind, mimeType: mimeType);
 
   /// Emits whenever the system photo library changes — limited-subset
   /// edits, external edits, permission changes. Picker UIs subscribe
@@ -280,46 +274,47 @@ class MethodChannelGalleryBackend implements XGalleryBackend {
   /// holds a single sink; a broadcast Stream lets multiple Dart
   /// listeners (e.g. picker + selected-strip) subscribe independently.
   @override
-  late final Stream<void> libraryChanges =
-      _changesChannel.receiveBroadcastStream().map((_) {});
+  late final Stream<void> libraryChanges = _changesChannel
+      .receiveBroadcastStream()
+      .map((_) {});
 
   static String _kindArg(XAssetKind? k) => switch (k) {
-        null => 'any',
-        XAssetKind.image => 'image',
-        XAssetKind.video => 'video',
-      };
+    null => 'any',
+    XAssetKind.image => 'image',
+    XAssetKind.video => 'video',
+  };
 
   static XGalleryPermission _parsePermission(String? name) => switch (name) {
-        'notDetermined' => XGalleryPermission.notDetermined,
-        'denied' => XGalleryPermission.denied,
-        'restricted' => XGalleryPermission.restricted,
-        'limited' => XGalleryPermission.limited,
-        'granted' => XGalleryPermission.granted,
-        _ => XGalleryPermission.denied,
-      };
+    'notDetermined' => XGalleryPermission.notDetermined,
+    'denied' => XGalleryPermission.denied,
+    'restricted' => XGalleryPermission.restricted,
+    'limited' => XGalleryPermission.limited,
+    'granted' => XGalleryPermission.granted,
+    _ => XGalleryPermission.denied,
+  };
 
   static XAssetKind _parseKind(Object? v) =>
       v == 'video' ? XAssetKind.video : XAssetKind.image;
 
   static XAsset _parseAsset(Map<Object?, Object?> m) => XAsset(
-        id: m['id']! as String,
-        kind: _parseKind(m['kind']),
-        duration: m['duration_ms'] != null
-            ? Duration(milliseconds: (m['duration_ms']! as num).toInt())
-            : null,
-        width: (m['width']! as num).toInt(),
-        height: (m['height']! as num).toInt(),
-        createdAt: DateTime.fromMillisecondsSinceEpoch(
-          (m['created_ms']! as num).toInt(),
-        ),
-      );
+    id: m['id']! as String,
+    kind: _parseKind(m['kind']),
+    duration: m['duration_ms'] != null
+        ? Duration(milliseconds: (m['duration_ms']! as num).toInt())
+        : null,
+    width: (m['width']! as num).toInt(),
+    height: (m['height']! as num).toInt(),
+    createdAt: DateTime.fromMillisecondsSinceEpoch(
+      (m['created_ms']! as num).toInt(),
+    ),
+  );
 
   static XAlbum _parseAlbum(Map<Object?, Object?> m) => XAlbum(
-        id: m['id']! as String,
-        name: m['name']! as String,
-        count: (m['count']! as num).toInt(),
-        coverKind: m['cover_kind'] == null ? null : _parseKind(m['cover_kind']),
-      );
+    id: m['id']! as String,
+    name: m['name']! as String,
+    count: (m['count']! as num).toInt(),
+    coverKind: m['cover_kind'] == null ? null : _parseKind(m['cover_kind']),
+  );
 
   @override
   Future<XGalleryPermission> permission() async {
@@ -345,14 +340,11 @@ class MethodChannelGalleryBackend implements XGalleryBackend {
 
   @override
   Future<List<XAlbum>> albums({XAssetKind? filter}) async {
-    final list = await _channel.invokeMethod<List<Object?>>(
-      'albums',
-      {'filter': _kindArg(filter)},
-    );
+    final list = await _channel.invokeMethod<List<Object?>>('albums', {
+      'filter': _kindArg(filter),
+    });
     if (list == null) return const [];
-    return [
-      for (final raw in list) _parseAlbum((raw! as Map).cast()),
-    ];
+    return [for (final raw in list) _parseAlbum((raw! as Map).cast())];
   }
 
   @override
@@ -362,19 +354,14 @@ class MethodChannelGalleryBackend implements XGalleryBackend {
     required int start,
     required int end,
   }) async {
-    final list = await _channel.invokeMethod<List<Object?>>(
-      'assets',
-      {
-        'albumId': albumId,
-        'filter': _kindArg(filter),
-        'start': start,
-        'end': end,
-      },
-    );
+    final list = await _channel.invokeMethod<List<Object?>>('assets', {
+      'albumId': albumId,
+      'filter': _kindArg(filter),
+      'start': start,
+      'end': end,
+    });
     if (list == null) return const [];
-    return [
-      for (final raw in list) _parseAsset((raw! as Map).cast()),
-    ];
+    return [for (final raw in list) _parseAsset((raw! as Map).cast())];
   }
 
   @override
@@ -382,10 +369,10 @@ class MethodChannelGalleryBackend implements XGalleryBackend {
     String assetId, {
     required int sizePx,
   }) async {
-    final m = await _channel.invokeMethod<Map<Object?, Object?>>(
-      'thumbnail',
-      {'assetId': assetId, 'sizePx': sizePx},
-    );
+    final m = await _channel.invokeMethod<Map<Object?, Object?>>('thumbnail', {
+      'assetId': assetId,
+      'sizePx': sizePx,
+    });
     return XAssetThumbnail(
       bytes: m!['bytes']! as Uint8List,
       width: (m['width']! as num).toInt(),
@@ -395,10 +382,9 @@ class MethodChannelGalleryBackend implements XGalleryBackend {
 
   @override
   Future<io.File> resolveFile(String assetId) async {
-    final path = await _channel.invokeMethod<String>(
-      'resolveFile',
-      {'assetId': assetId},
-    );
+    final path = await _channel.invokeMethod<String>('resolveFile', {
+      'assetId': assetId,
+    });
     return io.File(path!);
   }
 

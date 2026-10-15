@@ -64,6 +64,7 @@ class HiddenMediaController with Emitter {
 class HideSlot {
   HideSlot._(this._id);
   Object _id;
+
   /// The source this slot hides.
   Object get id => _id;
 }

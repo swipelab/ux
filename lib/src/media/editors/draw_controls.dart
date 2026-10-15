@@ -6,6 +6,7 @@ import 'package:ux/src/media/touch.dart';
 
 /// Height of a brush in the picker at rest.
 const double kDrawToolHeight = 100;
+
 /// How much taller the selected brush stands.
 const double kDrawToolElevation = 16;
 const double _toolSlotWidth = 32;
@@ -55,10 +56,13 @@ class DrawControls extends StatelessWidget {
 
   /// The layer whose brush, colour and strokes the strip edits.
   final DrawImageLayer layer;
+
   /// Leaves the tool without applying.
   final VoidCallback onCancel;
+
   /// Applies the strokes.
   final VoidCallback onSubmit;
+
   /// Switches to the text tool.
   final VoidCallback onText;
 
@@ -106,11 +110,7 @@ class BrushTypePicker extends StatelessWidget {
       shaderCallback: (bounds) => LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: const [
-          Color(0xFFFFFFFF),
-          Color(0xFFFFFFFF),
-          Color(0x00FFFFFF),
-        ],
+        colors: const [Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0x00FFFFFF)],
         stops: [0.0, fadeStart, 1.0],
       ).createShader(bounds),
       blendMode: BlendMode.dstIn,
@@ -249,6 +249,7 @@ class DrawColorRow extends StatelessWidget {
 
   /// The colour marked as chosen.
   final Color selected;
+
   /// Called with the colour picked.
   final ValueChanged<Color> onSelect;
 
@@ -412,12 +413,16 @@ class EditorActionRow extends StatelessWidget {
 
   /// The active strip.
   final EditorMode mode;
+
   /// Called by the cancel button.
   final VoidCallback onCancel;
+
   /// Called by the submit button.
   final VoidCallback onSubmit;
+
   /// A press on the Draw segment.
   final VoidCallback? onDraw;
+
   /// A press on the Text segment.
   final VoidCallback? onText;
 
@@ -454,9 +459,7 @@ class _CircleBtn extends StatelessWidget {
           shape: BoxShape.circle,
           border: Border.all(color: colors.onMedia, width: 1.5),
         ),
-        child: Center(
-          child: Icon(icon, color: colors.onMedia, size: 18),
-        ),
+        child: Center(child: Icon(icon, color: colors.onMedia, size: 18)),
       ),
     );
   }
@@ -485,9 +488,11 @@ class ModeSegmented extends StatelessWidget {
 
   /// The segment that is filled.
   final EditorMode mode;
+
   /// A press on the Draw segment; the inactive segment takes none when
   /// absent.
   final VoidCallback? onDraw;
+
   /// A press on the Text segment; the inactive segment takes none when
   /// absent.
   final VoidCallback? onText;
@@ -606,8 +611,7 @@ class BrushSizeSlider extends StatelessWidget {
                     width: _trackWidth,
                     decoration: BoxDecoration(
                       color: const Color(0x33FFFFFF),
-                      borderRadius:
-                          BorderRadius.circular(_trackWidth / 2),
+                      borderRadius: BorderRadius.circular(_trackWidth / 2),
                     ),
                   ),
                 ),
@@ -618,13 +622,13 @@ class BrushSizeSlider extends StatelessWidget {
                     height: (_height - _padTop - _padBottom) * value,
                     decoration: BoxDecoration(
                       color: colour,
-                      borderRadius:
-                          BorderRadius.circular(_trackWidth / 2),
+                      borderRadius: BorderRadius.circular(_trackWidth / 2),
                     ),
                   ),
                 ),
                 Positioned(
-                  bottom: _padBottom +
+                  bottom:
+                      _padBottom +
                       (_height - _padTop - _padBottom) * value -
                       _thumbSize / 2,
                   child: Container(

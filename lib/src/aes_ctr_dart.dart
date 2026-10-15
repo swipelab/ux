@@ -4,7 +4,7 @@ import 'package:pointycastle/export.dart' hide Digest, State;
 
 /// Pure-Dart AES-256-CTR — the software fallback for
 /// [XCrypto.aesCtrEncryptRange] on platforms with no native hardware-AES
-/// handler (web / linux / windows / unit tests). Web-safe (no `dart:io`,
+/// handler (web / linux / unit tests). Web-safe (no `dart:io`,
 /// no `dart:isolate`): pointycastle is pure Dart.
 ///
 /// The convention follows `proto/README.md`:

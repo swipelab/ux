@@ -17,8 +17,10 @@ class FlashButton extends StatelessWidget {
 
   /// Called on a tap.
   final VoidCallback onPress;
+
   /// Whether the flash is on.
   final bool on;
+
   /// Extends the touch area around the circle.
   final EdgeInsets padding;
 

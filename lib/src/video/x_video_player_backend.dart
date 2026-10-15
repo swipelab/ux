@@ -58,10 +58,7 @@ abstract class XVideoPlayerBackend {
 /// controller needs to start the load + route subsequent calls.
 class XVideoPlayerCreateResult {
   /// Binds the native session handle to the texture it renders through.
-  const XVideoPlayerCreateResult({
-    required this.handle,
-    this.textureId,
-  });
+  const XVideoPlayerCreateResult({required this.handle, this.textureId});
 
   /// Identifies the native session in every subsequent call.
   final int handle;

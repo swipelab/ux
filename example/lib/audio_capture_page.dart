@@ -36,10 +36,9 @@ class _AudioCapturePageState extends State<AudioCapturePage> {
   @override
   void dispose() {
     _frames?.cancel();
-    unawaited(_capture.stop().then<void>(
-          (_) {},
-          onError: (Object _, StackTrace _) {},
-        ));
+    unawaited(
+      _capture.stop().then<void>((_) {}, onError: (Object _, StackTrace _) {}),
+    );
     super.dispose();
   }
 
@@ -110,8 +109,9 @@ class _AudioCapturePageState extends State<AudioCapturePage> {
                     padding: const EdgeInsets.only(top: 12),
                     child: Text(
                       _error!,
-                      style: theme.textTheme.bodyMedium
-                          ?.copyWith(color: theme.colorScheme.error),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.error,
+                      ),
                     ),
                   ),
               ],

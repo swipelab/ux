@@ -22,8 +22,9 @@ void main() {
     expect(sink.state.value, want);
   }
 
-  testWidgets('frames continue while flutter_webrtc holds the microphone',
-      (tester) async {
+  testWidgets('frames continue while flutter_webrtc holds the microphone', (
+    tester,
+  ) async {
     final mediaStream = await navigator.mediaDevices.getUserMedia({
       'audio': true,
       'video': false,
@@ -58,8 +59,9 @@ void main() {
     }
   });
 
-  testWidgets('the sink plays a stream while capture and flutter_webrtc run',
-      (tester) async {
+  testWidgets('the sink plays a stream while capture and flutter_webrtc run', (
+    tester,
+  ) async {
     const chunks = 50;
     final mediaStream = await navigator.mediaDevices.getUserMedia({
       'audio': true,
@@ -116,8 +118,9 @@ void main() {
     expect(mediaStream.getAudioTracks(), hasLength(1));
   });
 
-  testWidgets('flush drops the queue and the next stream starts clean',
-      (tester) async {
+  testWidgets('flush drops the queue and the next stream starts clean', (
+    tester,
+  ) async {
     final sink = XAudioSink.instance;
     var drains = 0;
     final subscription = sink.drained.listen((_) => drains++);

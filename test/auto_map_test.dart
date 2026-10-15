@@ -109,8 +109,12 @@ void main() {
         ..add(_Item(2, 'b'))
         ..add(_Item(3, 'c'));
       m.addAll([_Item(2, 'B-new'), _Item(4, 'd')]);
-      expect(m.map((e) => '${e.id}:${e.name}').toList(),
-          ['1:a', '2:B-new', '3:c', '4:d']);
+      expect(m.map((e) => '${e.id}:${e.name}').toList(), [
+        '1:a',
+        '2:B-new',
+        '3:c',
+        '4:d',
+      ]);
       expect(m.length, 4);
     });
 
@@ -145,8 +149,7 @@ void main() {
         ..add(_Item(3, 'c'));
       m.add(_Item(1, 'A'));
       m.add(_Item(3, 'C'));
-      expect(m.map((e) => '${e.id}:${e.name}').toList(),
-          ['1:A', '2:b', '3:C']);
+      expect(m.map((e) => '${e.id}:${e.name}').toList(), ['1:A', '2:b', '3:C']);
     });
 
     test('elementAt is O(1) on large collections', () {
@@ -167,8 +170,11 @@ void main() {
         ..add(_Item(2, 'b'));
       expect(m.keys.toList(), [3, 1, 2]);
       m.add(_Item(3, 'C-new'));
-      expect(m.keys.toList(), [3, 1, 2],
-          reason: 'in-place replace must not reorder keys');
+      expect(m.keys.toList(), [
+        3,
+        1,
+        2,
+      ], reason: 'in-place replace must not reorder keys');
       m.remove(1);
       expect(m.keys.toList(), [3, 2]);
     });

@@ -84,20 +84,23 @@ void main() {
     },
   );
 
-  test('still flash fires on the back camera and stays off on the front', () async {
-    final page = CameraPage()..onPush();
-    await page.session.initialize();
-    page.toggleFlash();
-    backend.takePictureError = const XCameraException('capture_failed');
-    await page.takePhoto();
-    expect(backend.setFlashModeCalls.single.mode, XFlashMode.off);
-    await page.flipCamera();
-    await page.takePhoto();
-    expect(backend.setFlashModeCalls.last.mode, XFlashMode.always);
-    expect(backend.takePictureCalls, hasLength(2));
-    page.dispose();
-    await page.session.dispose();
-  });
+  test(
+    'still flash fires on the back camera and stays off on the front',
+    () async {
+      final page = CameraPage()..onPush();
+      await page.session.initialize();
+      page.toggleFlash();
+      backend.takePictureError = const XCameraException('capture_failed');
+      await page.takePhoto();
+      expect(backend.setFlashModeCalls.single.mode, XFlashMode.off);
+      await page.flipCamera();
+      await page.takePhoto();
+      expect(backend.setFlashModeCalls.last.mode, XFlashMode.always);
+      expect(backend.takePictureCalls, hasLength(2));
+      page.dispose();
+      await page.session.dispose();
+    },
+  );
 
   test(
     'the owner releases its camera while a borrowed still is normalizing',
@@ -122,7 +125,9 @@ void main() {
         expect(backend.liveHandles, isEmpty);
         expect(backend.listeners, 0);
       } finally {
-        file.bytes.completeError(const io.FileSystemException('capture removed'));
+        file.bytes.completeError(
+          const io.FileSystemException('capture removed'),
+        );
         await capture;
         await closing;
       }

@@ -54,16 +54,22 @@ class EntitySnapshot {
 
   /// Copies of the entities.
   final List<TextEntity> entities;
+
   /// Id of the selected entity.
   final String? selected;
+
   /// Id of the entity under keyboard edit.
   final String? editing;
+
   /// The pending style.
   final TextEntityStyle style;
+
   /// The pending alignment.
   final TextAlign align;
+
   /// The pending colour.
   final Color colour;
+
   /// The pending font size.
   final double fontSize;
 }
@@ -101,19 +107,25 @@ class EntityLayer with Emitter, Painter, Exporter {
 
   /// The style a fresh layer's next insert takes.
   static const TextEntityStyle defaultStyle = TextEntityStyle.filled;
+
   /// The alignment a fresh layer's next insert takes.
   static const TextAlign defaultAlign = TextAlign.center;
+
   /// The colour a fresh layer's next insert takes.
   static const Color defaultColour = Color(0xFFFFFFFF);
+
   /// The font size a fresh layer's next insert takes.
   static const double defaultFontSize = 0.08;
 
   /// The style the next insert takes.
   TextEntityStyle pendingStyle = defaultStyle;
+
   /// The alignment the next insert takes.
   TextAlign pendingAlign = defaultAlign;
+
   /// The colour the next insert takes.
   Color pendingColour = defaultColour;
+
   /// The font size the next insert takes.
   double pendingFontSize = defaultFontSize;
 
@@ -228,10 +240,13 @@ class EntityLayer with Emitter, Painter, Exporter {
   /// The selected entity's attributes, or the pending ones the next insert
   /// takes.
   TextEntityStyle get activeStyle => selectedEntity?.style ?? pendingStyle;
+
   /// The selected entity's alignment, or the pending one.
   TextAlign get activeAlign => selectedEntity?.align ?? pendingAlign;
+
   /// The selected entity's colour, or the pending one.
   Color get activeColour => selectedEntity?.colour ?? pendingColour;
+
   /// The selected entity's font size, or the pending one.
   double get activeFontSize => selectedEntity?.fontSize ?? pendingFontSize;
 
@@ -417,16 +432,17 @@ class EntitySelectionPainter extends CustomPainter {
     required this.camera,
     this.crop,
     this.viewerCamera,
-  }) : super(
-         repaint: Listenable.merge([layer, camera, ?crop, ?viewerCamera]),
-       );
+  }) : super(repaint: Listenable.merge([layer, camera, ?crop, ?viewerCamera]));
 
   /// The layer whose selection is painted.
   final EntityLayer layer;
+
   /// The host's image-to-viewport transform.
   final ValueListenable<vmath.Matrix4> camera;
+
   /// The crop the scene is shown through.
   final CropImageLayer? crop;
+
   /// The pinch and pan applied on top of [camera].
   final ValueListenable<vmath.Matrix4>? viewerCamera;
 
@@ -517,10 +533,13 @@ class EntityGestures extends StatefulWidget {
 
   /// The layer whose entities are manipulated.
   final EntityLayer layer;
+
   /// The host's image-to-viewport transform.
   final ValueListenable<vmath.Matrix4> hostCamera;
+
   /// The crop the scene is shown through.
   final CropImageLayer? crop;
+
   /// The pinch and pan applied on top of [hostCamera].
   final ValueListenable<vmath.Matrix4>? viewerCamera;
 

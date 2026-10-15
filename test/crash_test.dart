@@ -7,7 +7,8 @@ void _noop() {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  final messenger = TestWidgetsFlutterBinding.ensureInitialized().defaultBinaryMessenger;
+  final messenger =
+      TestWidgetsFlutterBinding.ensureInitialized().defaultBinaryMessenger;
   const channel = MethodChannel('ux/crash');
 
   setUp(() {

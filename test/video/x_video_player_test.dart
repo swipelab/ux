@@ -86,8 +86,13 @@ void main() {
     final (minLevel, previous) = (Log.minLevel, Log.sink);
     final sink = MemorySink();
     Log.configure(minLevel: LogLevel.trace, sink: sink, captureCrashes: () {});
-    addTearDown(() =>
-        Log.configure(minLevel: minLevel, sink: previous, captureCrashes: () {}));
+    addTearDown(
+      () => Log.configure(
+        minLevel: minLevel,
+        sink: previous,
+        captureCrashes: () {},
+      ),
+    );
     fake.rotationQuarterTurns = 3;
     final ctrl = XVideoPlayerController.file(io.File('/tmp/fake.mp4'));
     addTearDown(ctrl.dispose);
@@ -120,26 +125,27 @@ void main() {
     expect(ctrl.value.isPlaying, isFalse);
   });
 
-  test('seekTo clamps to [0, duration] and forwards the clamped value',
-      () async {
-    final ctrl = XVideoPlayerController.file(io.File('/tmp/fake.mp4'));
-    addTearDown(ctrl.dispose);
-    await ctrl.initialize();
+  test(
+    'seekTo clamps to [0, duration] and forwards the clamped value',
+    () async {
+      final ctrl = XVideoPlayerController.file(io.File('/tmp/fake.mp4'));
+      addTearDown(ctrl.dispose);
+      await ctrl.initialize();
 
-    await ctrl.seekTo(const Duration(seconds: -5));
-    expect(fake.seekToCalls.last.position, Duration.zero);
-    expect(ctrl.value.position, Duration.zero);
+      await ctrl.seekTo(const Duration(seconds: -5));
+      expect(fake.seekToCalls.last.position, Duration.zero);
+      expect(ctrl.value.position, Duration.zero);
 
-    await ctrl.seekTo(const Duration(minutes: 99));
-    expect(fake.seekToCalls.last.position, const Duration(seconds: 30));
-    expect(ctrl.value.position, const Duration(seconds: 30));
+      await ctrl.seekTo(const Duration(minutes: 99));
+      expect(fake.seekToCalls.last.position, const Duration(seconds: 30));
+      expect(ctrl.value.position, const Duration(seconds: 30));
 
-    await ctrl.seekTo(const Duration(seconds: 10));
-    expect(fake.seekToCalls.last.position, const Duration(seconds: 10));
-  });
+      await ctrl.seekTo(const Duration(seconds: 10));
+      expect(fake.seekToCalls.last.position, const Duration(seconds: 10));
+    },
+  );
 
-  test('setLooping / setVolume / setPlaybackSpeed clamp and forward',
-      () async {
+  test('setLooping / setVolume / setPlaybackSpeed clamp and forward', () async {
     final ctrl = XVideoPlayerController.file(io.File('/tmp/fake.mp4'));
     addTearDown(ctrl.dispose);
     await ctrl.initialize();
@@ -165,27 +171,27 @@ void main() {
     expect(ctrl.value.playbackSpeed, 4.0);
   });
 
-  test('stateChanged events flow into value (position, buffered, isPlaying)',
-      () async {
-    final ctrl = XVideoPlayerController.file(io.File('/tmp/fake.mp4'));
-    addTearDown(ctrl.dispose);
-    await ctrl.initialize();
+  test(
+    'stateChanged events flow into value (position, buffered, isPlaying)',
+    () async {
+      final ctrl = XVideoPlayerController.file(io.File('/tmp/fake.mp4'));
+      addTearDown(ctrl.dispose);
+      await ctrl.initialize();
 
-    fake.emitState(
-      1,
-      isPlaying: true,
-      position: const Duration(seconds: 5),
-      buffered: [
-        XDurationRange(Duration.zero, const Duration(seconds: 20)),
-      ],
-    );
-    await Future<void>.delayed(Duration.zero);
+      fake.emitState(
+        1,
+        isPlaying: true,
+        position: const Duration(seconds: 5),
+        buffered: [XDurationRange(Duration.zero, const Duration(seconds: 20))],
+      );
+      await Future<void>.delayed(Duration.zero);
 
-    expect(ctrl.value.isPlaying, isTrue);
-    expect(ctrl.value.position, const Duration(seconds: 5));
-    expect(ctrl.value.buffered, hasLength(1));
-    expect(ctrl.value.buffered.single.end, const Duration(seconds: 20));
-  });
+      expect(ctrl.value.isPlaying, isTrue);
+      expect(ctrl.value.position, const Duration(seconds: 5));
+      expect(ctrl.value.buffered, hasLength(1));
+      expect(ctrl.value.buffered.single.end, const Duration(seconds: 20));
+    },
+  );
 
   test('sizeChanged events update value.size', () async {
     final ctrl = XVideoPlayerController.file(io.File('/tmp/fake.mp4'));
@@ -239,10 +245,7 @@ void main() {
     await ctrl.dispose();
     await ctrl.dispose(); // second dispose is a no-op
     expect(fake.disposeCalls, [1]);
-    expect(
-      () => ctrl.play(),
-      throwsA(isA<XVideoPlayerException>()),
-    );
+    expect(() => ctrl.play(), throwsA(isA<XVideoPlayerException>()));
   });
 
   test('initialize failure tears down the native instance so a retry '
@@ -251,10 +254,7 @@ void main() {
     final ctrl = XVideoPlayerController.file(io.File('/tmp/fake.mp4'));
     addTearDown(ctrl.dispose);
 
-    await expectLater(
-      ctrl.initialize(),
-      throwsA(isA<XVideoPlayerException>()),
-    );
+    await expectLater(ctrl.initialize(), throwsA(isA<XVideoPlayerException>()));
 
     // The controller has a handle from `create` even though `initialize`
     // threw; dispose must have been called to release it.

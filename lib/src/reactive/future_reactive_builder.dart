@@ -31,7 +31,8 @@ class FutureReactiveBuilder<T> extends StatefulWidget {
   final Widget Function(BuildContext context, T state, Widget? child) builder;
 
   @override
-  State<FutureReactiveBuilder<T>> createState() => _FutureReactiveBuilderState<T>();
+  State<FutureReactiveBuilder<T>> createState() =>
+      _FutureReactiveBuilderState<T>();
 }
 
 class _FutureReactiveBuilderState<T> extends State<FutureReactiveBuilder<T>> {
@@ -79,10 +80,6 @@ class _FutureReactiveBuilderState<T> extends State<FutureReactiveBuilder<T>> {
   Widget build(BuildContext context) {
     return _bloc == null
         ? SizedBox.shrink()
-        : widget.builder(
-            context,
-            _bloc!.value,
-            widget.child,
-          );
+        : widget.builder(context, _bloc!.value, widget.child);
   }
 }

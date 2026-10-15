@@ -1,4 +1,6 @@
 tags:
+  # Talks to a live log server; skips unless --dart-define sets E2E_LOG_ENDPOINT and E2E_LOG_TOKEN.
+  e2e:
   golden:
     on_platform:
       "!mac-os":

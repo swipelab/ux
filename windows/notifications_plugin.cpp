@@ -68,12 +68,6 @@ std::optional<std::wstring> AppUserModelId() {
   return value;
 }
 
-std::optional<std::wstring> StringArg(const EncodableMap* args, const char* key) {
-  const auto* value = std::get_if<std::string>(Arg(args, key));
-  if (value == nullptr) return std::nullopt;
-  return Utf16(*value);
-}
-
 // The `data` argument, a map of strings, which an absent `data` leaves empty;
 // none when it holds anything else.
 std::optional<std::map<std::wstring, std::wstring>> DataArg(const EncodableMap* args) {

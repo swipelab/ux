@@ -37,13 +37,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(backend.openSettingsCalls, 1);
 
-    tester.binding.handleAppLifecycleStateChanged(
-      AppLifecycleState.paused,
-    );
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
     backend.cameraPermission = true;
-    tester.binding.handleAppLifecycleStateChanged(
-      AppLifecycleState.resumed,
-    );
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pumpAndSettle();
     expect(find.text('Camera access: granted'), findsOneWidget);
 
@@ -64,12 +60,8 @@ void main() {
 
     await tester.pumpWidget(const SizedBox());
     final calls = backend.cameraPermissionCalls;
-    tester.binding.handleAppLifecycleStateChanged(
-      AppLifecycleState.paused,
-    );
-    tester.binding.handleAppLifecycleStateChanged(
-      AppLifecycleState.resumed,
-    );
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     expect(backend.cameraPermissionCalls, calls);
   });
 
@@ -95,12 +87,8 @@ void main() {
       XCameraBackend.instance = MethodChannelXCameraBackend();
 
       await tester.pumpWidget(const MaterialApp(home: CameraPermissionPage()));
-      tester.binding.handleAppLifecycleStateChanged(
-        AppLifecycleState.paused,
-      );
-      tester.binding.handleAppLifecycleStateChanged(
-        AppLifecycleState.resumed,
-      );
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pump();
       queries[1].complete(true);
       await tester.pumpAndSettle();

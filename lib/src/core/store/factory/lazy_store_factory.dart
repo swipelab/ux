@@ -6,10 +6,7 @@ import 'package:ux/src/core/core.dart';
 class LazyStoreFactory<T> extends StoreFactory<T> {
   /// Binds the [delegate] that builds the instance to the [resolver] it
   /// resolves dependencies through.
-  LazyStoreFactory({
-    required this.resolver,
-    required this.delegate,
-  });
+  LazyStoreFactory({required this.resolver, required this.delegate});
 
   /// Builds the instance on first access.
   final ResolverCreateDelegate<T> delegate;

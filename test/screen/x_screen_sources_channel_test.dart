@@ -14,30 +14,30 @@ const _listArgumentKeys = {
 };
 
 Map<String, Object?> _display() => {
-      'id': 'display:1',
-      'kind': 'display',
-      'title': 'Built-in Retina Display',
-      'applicationName': null,
-      'sourceWidth': 3024,
-      'sourceHeight': 1964,
-      'thumbnailPng': null,
-    };
+  'id': 'display:1',
+  'kind': 'display',
+  'title': 'Built-in Retina Display',
+  'applicationName': null,
+  'sourceWidth': 3024,
+  'sourceHeight': 1964,
+  'thumbnailPng': null,
+};
 
 Map<String, Object?> _window() => {
-      'id': 'window:42',
-      'kind': 'window',
-      'title': 'Inbox — 3 unread',
-      'applicationName': 'Mail',
-      'sourceWidth': 1280,
-      'sourceHeight': 800,
-      'thumbnailPng': Uint8List.fromList([137, 80, 78, 71]),
-    };
+  'id': 'window:42',
+  'kind': 'window',
+  'title': 'Inbox — 3 unread',
+  'applicationName': 'Mail',
+  'sourceWidth': 1280,
+  'sourceHeight': 800,
+  'thumbnailPng': Uint8List.fromList([137, 80, 78, 71]),
+};
 
 Matcher _invalidResponse(String field) => throwsA(
-      isA<XScreenSourcesException>()
-          .having((e) => e.code, 'code', 'invalid_response')
-          .having((e) => e.message, 'message', startsWith('$field:')),
-    );
+  isA<XScreenSourcesException>()
+      .having((e) => e.code, 'code', 'invalid_response')
+      .having((e) => e.message, 'message', startsWith('$field:')),
+);
 
 void main() {
   final messenger =
@@ -68,13 +68,12 @@ void main() {
     Set<String> windows = const {'window:42'},
     int width = 320,
     int height = 180,
-  }) =>
-      backend.list(
-        allowedDisplayIds: displays,
-        allowedWindowIds: windows,
-        thumbnailWidth: width,
-        thumbnailHeight: height,
-      );
+  }) => backend.list(
+    allowedDisplayIds: displays,
+    allowedWindowIds: windows,
+    thumbnailWidth: width,
+    thumbnailHeight: height,
+  );
 
   group('decode', () {
     test('round-trips a display and a window', () async {
@@ -198,8 +197,8 @@ void main() {
       'something_native_invented',
     ]) {
       test('$code passes through code-for-code', () async {
-        handler =
-            (_) async => throw PlatformException(code: code, message: 'detail');
+        handler = (_) async =>
+            throw PlatformException(code: code, message: 'detail');
 
         await expectLater(
           list(),
@@ -218,8 +217,11 @@ void main() {
       await expectLater(
         backend.requestPermission(),
         throwsA(
-          isA<XScreenSourcesException>()
-              .having((e) => e.code, 'code', 'permission_denied'),
+          isA<XScreenSourcesException>().having(
+            (e) => e.code,
+            'code',
+            'permission_denied',
+          ),
         ),
       );
     });
@@ -241,10 +243,11 @@ void main() {
       await backend.hasPermission();
       await backend.requestPermission();
 
-      expect(
-        calls.map((c) => c.method),
-        ['available', 'hasPermission', 'requestPermission'],
-      );
+      expect(calls.map((c) => c.method), [
+        'available',
+        'hasPermission',
+        'requestPermission',
+      ]);
       expect(calls.every((c) => c.arguments == null), isTrue);
     });
 
@@ -365,14 +368,17 @@ void main() {
     }
 
     test('a stop failure surfaces the same way', () async {
-      handler =
-          (_) async => throw PlatformException(code: 'service_start_failed');
+      handler = (_) async =>
+          throw PlatformException(code: 'service_start_failed');
 
       await expectLater(
         backend.stopShare(),
         throwsA(
-          isA<XScreenSourcesException>()
-              .having((e) => e.code, 'code', 'service_start_failed'),
+          isA<XScreenSourcesException>().having(
+            (e) => e.code,
+            'code',
+            'service_start_failed',
+          ),
         ),
       );
     });

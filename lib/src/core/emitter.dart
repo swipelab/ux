@@ -90,8 +90,9 @@ class ScheduledEmitter with Emitter {
   /// Creates an emitter whose notifications land after the current frame.
   ScheduledEmitter();
 
-  late final VoidCallback _scheduledNotifyListeners =
-      Emitter.scheduled(super.notifyListeners);
+  late final VoidCallback _scheduledNotifyListeners = Emitter.scheduled(
+    super.notifyListeners,
+  );
 
   @override
   void notifyListeners() => _scheduledNotifyListeners();

@@ -52,13 +52,13 @@ mixin Register on Resolver, Locator {
 
   /// Registers a lazily created, cached async/sync singleton.
   void addLazy<T>(ResolverCreateDelegate<T> delegate) => addFactory(
-        (e) => LazyStoreFactory<T>(resolver: this, delegate: delegate),
-      );
+    (e) => LazyStoreFactory<T>(resolver: this, delegate: delegate),
+  );
 
   /// Registers a transient factory (new instance each request).
   void addTransient<T>(LocatorCreateDelegate<T> delegate) => addFactory(
-        (e) => TransientStoreFactory<T>(locator: this, delegate: delegate),
-      );
+    (e) => TransientStoreFactory<T>(locator: this, delegate: delegate),
+  );
 }
 
 /// Concrete store implementing locator + resolver behaviour.

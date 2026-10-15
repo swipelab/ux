@@ -19,8 +19,11 @@ void main() {
     await expectLater(
       capture.start(),
       throwsA(
-        isA<XAudioCaptureException>()
-            .having((error) => error.code, 'code', 'unsupported'),
+        isA<XAudioCaptureException>().having(
+          (error) => error.code,
+          'code',
+          'unsupported',
+        ),
       ),
     );
     await capture.stop();

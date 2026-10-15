@@ -5,10 +5,13 @@ import 'dart:ui';
 enum TextEntityStyle {
   /// Glyphs in the colour, with a drop shadow.
   regular,
+
   /// A frame in the colour behind contrasting glyphs.
   filled,
+
   /// Glyphs in the colour over a translucent frame.
   semi,
+
   /// Contrasting glyphs outlined in the colour.
   stroke;
 
@@ -73,10 +76,13 @@ class TextEntity {
 
   /// The string shown.
   String text;
+
   /// How [colour] is spent.
   TextEntityStyle style;
+
   /// Alignment of the lines inside [width].
   TextAlign align;
+
   /// The overlay's colour.
   Color colour;
 
@@ -85,10 +91,13 @@ class TextEntity {
 
   /// The centre, in source-image pixels.
   Offset position;
+
   /// Rotation about [position], in radians.
   double rotation;
+
   /// Scale about [position].
   double scale;
+
   /// Width of the box the glyphs wrap in, in source-image pixels.
   double width;
 
