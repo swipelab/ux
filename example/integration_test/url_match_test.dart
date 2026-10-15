@@ -100,6 +100,24 @@ void main() {
   );
 
   testWidgets(
+    'a web link a vertical bar ends opens the text it covers, an unclosed '
+    'parenthesis included',
+    (tester) async {
+      expect(
+        XUrl.match('see https://www.google.com/search?q=(cats|dogs) x'),
+        const [
+          UrlMatch(
+            start: 4,
+            end: 41,
+            url: 'https://www.google.com/search?q=(cats',
+            kind: UrlMatchKind.web,
+          ),
+        ],
+      );
+    },
+  );
+
+  testWidgets(
     'a closing parenthesis a web link does not open goes with the quote '
     'after it',
     (tester) async {
@@ -181,6 +199,19 @@ void main() {
         start: 4,
         end: 23,
         url: 'http://[::1]:8080/a',
+        kind: UrlMatchKind.web,
+      ),
+    ]);
+  });
+
+  testWidgets('a userinfo before an IP literal host stays in the web link', (
+    tester,
+  ) async {
+    expect(XUrl.match('see http://user@[::1]/a x'), const [
+      UrlMatch(
+        start: 4,
+        end: 23,
+        url: 'http://user@[::1]/a',
         kind: UrlMatchKind.web,
       ),
     ]);
@@ -399,6 +430,26 @@ void main() {
       ),
     ]);
   });
+
+  testWidgets(
+    'a vertical bar between two bare domain links stays out of both',
+    (tester) async {
+      expect(XUrl.match('see example.com/a|example.org/b z'), const [
+        UrlMatch(
+          start: 4,
+          end: 17,
+          url: 'http://example.com/a',
+          kind: UrlMatchKind.web,
+        ),
+        UrlMatch(
+          start: 18,
+          end: 31,
+          url: 'http://example.org/b',
+          kind: UrlMatchKind.web,
+        ),
+      ]);
+    },
+  );
 
   testWidgets('a port CJK letters follow stays in the bare domain link', (
     tester,
