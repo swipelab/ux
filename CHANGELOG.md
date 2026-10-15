@@ -1,4 +1,8 @@
 ### 0.18.0
+- **A video keeps its speed when it starts playing.** On iOS and macOS,
+  `XVideoPlayerController.play` plays at the speed `setPlaybackSpeed` last
+  set, a speed set while paused included, so the speed holds after a pause and
+  when a looping video restarts, as on Android and Windows.
 - **A link's path past CJK punctuation is no second link.** On Android and
   Windows, `XUrl.match` links no part of the path a web link runs on into past
   ideographic, fullwidth or halfwidth punctuation, so
