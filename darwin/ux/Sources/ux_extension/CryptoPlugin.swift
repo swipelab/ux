@@ -12,7 +12,7 @@ import FlutterMacOS
 /// continuous CTR stream whose initial counter block is `iv` had already
 /// processed `pos` plaintext bytes (CTR is symmetric, so the same call also
 /// decrypts). Backed by CommonCrypto, which is hardware-accelerated on all
-/// Apple targets. `kCCModeOptionCTR_BE` matches the Dart big-endian counter.
+/// Apple targets.
 public class CryptoPlugin: NSObject {
     private var channel: FlutterMethodChannel?
     // Stateless per call, so a concurrent queue lets chunk encrypts use
@@ -114,13 +114,35 @@ public class CryptoPlugin: NSObject {
     /// AES-256-CTR over `plain`, aligned to byte `pos` of a continuous stream
     /// from offset 0. The counter is seeded to block `pos>>4`; when `pos&15` is
     /// non-zero the sub-block offset is handled by prepending that many zero
-    /// bytes in a single one-shot encrypt and dropping them (no cross-call
-    /// cipher state). The block-aligned case (`pos&15 == 0`) skips that buffer
-    /// and encrypts `plain` directly.
+    /// bytes and dropping them (no cross-call cipher state). The block-aligned
+    /// case (`pos&15 == 0`) skips that buffer and encrypts `plain` directly.
     private static func encrypt(key: [UInt8], iv: [UInt8], pos: Int64, plain: [UInt8]) throws -> [UInt8] {
         let counter = counterFor(iv, blocks: UInt64(pos >> 4))
         let byteOffset = Int(pos & 15)
 
+        let src: [UInt8]
+        if byteOffset == 0 {
+            src = plain
+        } else {
+            var buf = [UInt8](repeating: 0, count: byteOffset + plain.count)
+            if !plain.isEmpty { buf.replaceSubrange(byteOffset..<buf.count, with: plain) }
+            src = buf
+        }
+
+        // CTR_BE carries only within the counter's low 64 bits, so the stream
+        // restarts with the carried counter at the block where they wrap; from
+        // zero, they cannot wrap again within one buffer.
+        let room = UInt64.max - counter[8...].reduce(UInt64(0)) { $0 << 8 | UInt64($1) }
+        let head = room < UInt64(src.count / 16) ? Int(room + 1) * 16 : src.count
+        var out = try ctr(key: key, counter: counter, src[..<head])
+        if head < src.count {
+            out += try ctr(key: key, counter: counterFor(counter, blocks: room + 1), src[head...])
+        }
+        return byteOffset == 0 ? out : Array(out[byteOffset...])
+    }
+
+    /// CommonCrypto's AES-256-CTR over `src` from counter block `counter`.
+    private static func ctr(key: [UInt8], counter: [UInt8], _ src: ArraySlice<UInt8>) throws -> [UInt8] {
         var cryptor: CCCryptorRef?
         let status = counter.withUnsafeBytes { ivPtr in
             key.withUnsafeBytes { keyPtr in
@@ -142,15 +164,6 @@ public class CryptoPlugin: NSObject {
         }
         defer { CCCryptorRelease(cryptor) }
 
-        let src: [UInt8]
-        if byteOffset == 0 {
-            src = plain
-        } else {
-            var buf = [UInt8](repeating: 0, count: byteOffset + plain.count)
-            if !plain.isEmpty { buf.replaceSubrange(byteOffset..<buf.count, with: plain) }
-            src = buf
-        }
-
         var out = [UInt8](repeating: 0, count: src.count)
         var moved = 0
         let s2 = src.withUnsafeBytes { inPtr in
@@ -162,7 +175,7 @@ public class CryptoPlugin: NSObject {
         guard s2 == CCCryptorStatus(kCCSuccess), moved == src.count else {
             throw CryptoError.cryptorFailed
         }
-        return byteOffset == 0 ? out : Array(out[byteOffset...])
+        return out
     }
 
     /// `iv` (a 16-byte big-endian counter block) + `blocks`, carrying across all
