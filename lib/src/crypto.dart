@@ -15,8 +15,9 @@ export 'aes_ctr_dart.dart' show encryptChunk;
 
 /// AES-256-CTR backed by the platform's hardware-accelerated crypto — Android
 /// `javax.crypto` (Conscrypt/BoringSSL → ARMv8 AES instructions), Apple
-/// CommonCrypto — with a transparent pure-Dart fallback ([encryptChunk]) where
-/// no native handler ships (web / linux / windows / unit tests). The bytes are
+/// CommonCrypto, Windows CNG (AES-ECB over the counter blocks → AES-NI) — with
+/// a transparent pure-Dart fallback ([encryptChunk]) where no native handler
+/// ships (web / linux / unit tests). The bytes are
 /// encrypted as if a single continuous CTR stream whose initial counter block
 /// is [iv] had already processed [pos] plaintext bytes; CTR is symmetric, so the
 /// same call also decrypts. Native and fallback are byte-for-byte identical —
@@ -42,6 +43,7 @@ class XCrypto {
       case TargetPlatform.android:
       case TargetPlatform.iOS:
       case TargetPlatform.macOS:
+      case TargetPlatform.windows:
         return true;
       default:
         return false;

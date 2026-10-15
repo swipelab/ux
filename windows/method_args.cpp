@@ -63,6 +63,12 @@ std::optional<std::vector<int64_t>> IntsArg(const EncodableMap* args, const char
   return numbers;
 }
 
+std::optional<std::wstring> StringArg(const EncodableMap* args, const char* key) {
+  const auto* value = std::get_if<std::string>(Arg(args, key));
+  if (value == nullptr) return std::nullopt;
+  return Utf16(*value);
+}
+
 std::optional<std::wstring> PathArg(const EncodableMap* args, const char* key) {
   const auto* path = std::get_if<std::string>(Arg(args, key));
   if (path == nullptr) return std::nullopt;

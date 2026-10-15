@@ -139,27 +139,34 @@ class XFiles {
   }
 
   /// Whether [share] has a native sheet on this platform — iOS /
-  /// Android / macOS. Gate share affordances so they don't appear
-  /// where the channel has no handler.
+  /// Android / macOS / Windows. Gate share affordances so they don't
+  /// appear where the channel has no handler.
   static bool get supportsShare =>
-      Platform.isIOS || Platform.isAndroid || Platform.isMacOS;
+      Platform.isIOS ||
+      Platform.isAndroid ||
+      Platform.isMacOS ||
+      Platform.isWindows;
 
   /// Present the native share sheet for a file on disk.
   ///
   /// [sourceRect] is the originating widget's rect in Flutter logical
   /// pixels (global coordinates). Required on iPad and macOS (anchor for
-  /// the popover); ignored on iPhone and Android. Pass null on iPad/macOS
-  /// to center the popover — typical fallback when the originating widget
-  /// has been disposed by the time bytes are ready.
+  /// the popover); ignored on iPhone, Android and Windows, whose share
+  /// window places itself. Pass null on iPad/macOS to center the
+  /// popover — typical fallback when the originating widget has been
+  /// disposed by the time bytes are ready.
   ///
   /// [mimeType] hints `Intent.setType` on Android. Ignored on Apple
-  /// platforms (the share sheet infers from the file extension).
+  /// platforms and Windows (the share sheet infers from the file
+  /// extension).
   ///
   /// [title] populates the subject hint (Mail subject on iOS/macOS,
-  /// chooser title on Android).
+  /// chooser title on Android, the share window's title on Windows,
+  /// which is the file's name when [title] is null).
   ///
   /// Returns true if the sheet was presented. Returns false if the host
-  /// couldn't present it (no activity on Android, no window on macOS).
+  /// couldn't present it (no activity on Android, no window on macOS or
+  /// Windows).
   static Future<bool> share({
     required String path,
     String? title,

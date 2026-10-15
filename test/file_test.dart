@@ -112,10 +112,32 @@ void main() {
   group('XFiles on Windows', () {
     tearDown(() => messenger.setMockMethodCallHandler(channel, null));
 
-    test('saves copies and shows files in their folder', () {
+    test('saves copies, shares and shows files in their folder', () {
       expect(XFiles.supportsSaveCopy, isTrue);
+      expect(XFiles.supportsShare, isTrue);
       expect(XFiles.supportsShowInFolder, isTrue);
     });
+
+    test(
+      'share hands its arguments to ux/file and answers what it answers',
+      () async {
+        final calls = <MethodCall>[];
+        messenger.setMockMethodCallHandler(channel, (call) async {
+          calls.add(call);
+          return true;
+        });
+
+        expect(
+          await XFiles.share(path: r'C:\U8\f1\a.png', title: 'a.png'),
+          isTrue,
+        );
+        expect(calls.single.method, 'share');
+        expect(calls.single.arguments, {
+          'path': r'C:\U8\f1\a.png',
+          'title': 'a.png',
+        });
+      },
+    );
 
     test(
       'showInFolder hands the path to ux/file and answers what it answers',
