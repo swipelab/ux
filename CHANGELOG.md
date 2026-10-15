@@ -3,8 +3,9 @@
   Windows, `XUrl.match` links no part of the path a web link runs on into past
   ideographic, fullwidth or halfwidth punctuation, so
   `https://example.com/路径（1）/page.html` links `https://example.com/路径`
-  alone, not also `http://page.html`. A domain right after the mark or after
-  CJK letters links on its own, as in `https://example.com/a，或者example.org`.
+  alone, not also `http://page.html`. A domain with no `/`, `?`, `#`, `&` or
+  `=` between it and the mark before it links on its own, as in
+  `https://example.com/a，备用:example.org`.
 - **Windows pastes images and files.** `XClipboard.readFiles` on Windows
   answers the path and name of each file an Explorer copy put on the
   clipboard. `XClipboard.readImage` answers the bytes of the clipboard's

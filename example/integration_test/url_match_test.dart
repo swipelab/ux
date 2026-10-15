@@ -108,17 +108,17 @@ void main() {
   });
 
   testWidgets(
-      "a bare domain glued to CJK letters past a web link's CJK punctuation "
-      'links on its own', (tester) async {
-    expect(XUrl.match('https://example.com/a，或者example.org'), const [
+      "a bare domain past a web link's CJK punctuation with no path delimiter "
+      'before it links on its own', (tester) async {
+    expect(XUrl.match('https://example.com/a，备用:example.org'), const [
       UrlMatch(
           start: 0,
           end: 21,
           url: 'https://example.com/a',
           kind: UrlMatchKind.web),
       UrlMatch(
-          start: 24,
-          end: 35,
+          start: 25,
+          end: 36,
           url: 'http://example.org',
           kind: UrlMatchKind.web),
     ]);
