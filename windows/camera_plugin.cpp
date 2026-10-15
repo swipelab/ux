@@ -26,6 +26,10 @@ using flutter::EncodableValue;
 
 using Listing = std::variant<std::vector<CameraDevice>, HRESULT>;
 
+void OpenUri(const std::wstring& uri) {
+  ShellExecuteW(nullptr, L"open", uri.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+}
+
 void BadArgs(flutter::MethodResult<EncodableValue>& result, const std::string& where) {
   result.Error("bad_args", "Bad arguments for " + where);
 }
@@ -99,17 +103,17 @@ void CameraPlugin::HandleMethodCall(const flutter::MethodCall<EncodableValue>& c
     Create(args, std::move(result));
     return;
   }
-  // Windows shows a desktop app no prompt, so a request answers the status.
-  if (method == "cameraPermissionStatus" || method == "requestCameraPermission") {
-    result->Success(EncodableValue(CaptureAllowed(L"webcam")));
+  if (method == "cameraPermissionStatus" || method == "audioPermissionStatus") {
+    result->Success(EncodableValue(CaptureAllowed(method == "cameraPermissionStatus" ? L"webcam" : L"microphone")));
     return;
   }
-  if (method == "audioPermissionStatus" || method == "requestAudioPermission") {
-    result->Success(EncodableValue(CaptureAllowed(L"microphone")));
+  if (method == "requestCameraPermission" || method == "requestAudioPermission") {
+    const wchar_t* capability = method == "requestCameraPermission" ? L"webcam" : L"microphone";
+    result->Success(EncodableValue(RequestCapture(capability, CaptureAllowed(capability), OpenUri)));
     return;
   }
   if (method == "openSettings") {
-    ShellExecuteW(nullptr, L"open", L"ms-settings:privacy-webcam", nullptr, nullptr, SW_SHOWNORMAL);
+    OpenUri(L"ms-settings:privacy-webcam");
     result->Success();
     return;
   }

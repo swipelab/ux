@@ -69,6 +69,11 @@ bool CaptureAllowed(const wchar_t* capability) {
   });
 }
 
+bool RequestCapture(const wchar_t* capability, bool allowed, const std::function<void(const std::wstring&)>& open) {
+  if (!allowed) open(L"ms-settings:privacy-" + std::wstring(capability));
+  return allowed;
+}
+
 bool ConsentAllows(const std::vector<std::optional<std::wstring>>& values) {
   return std::none_of(values.begin(), values.end(),
                       [](const std::optional<std::wstring>& value) { return value == std::wstring(L"Deny"); });

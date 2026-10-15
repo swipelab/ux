@@ -7,9 +7,10 @@
   directory. Flash and orientation locks succeed and change nothing. The
   permission checks answer whether Windows's Privacy & security settings let
   desktop apps use the camera and the microphone, and the requests answer the
-  same, since Windows shows no prompt; `openSystemSettings` opens the camera's
-  privacy page. Where Media Foundation is missing, `uxAvailableCameras` throws
-  `no_camera`.
+  same, since Windows shows no prompt, first opening the camera's or the
+  microphone's privacy page where it is denied; `openSystemSettings` opens the
+  camera's privacy page. Where Media Foundation is missing,
+  `uxAvailableCameras` throws `no_camera`.
 - **Windows shares files.** `XFiles.share` on Windows opens the Windows share
   window over the app's window and hands it the file, titled with `title` or
   else the file's name. The window places itself, so `sourceRect` is ignored,

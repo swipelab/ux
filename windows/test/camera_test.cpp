@@ -94,6 +94,12 @@ void CameraSuite() {
   CHECK(ux::ConsentAllows({std::nullopt, std::wstring(L"Allow"), std::nullopt}));
   CHECK(!ux::ConsentAllows({std::wstring(L"Allow"), std::nullopt, std::wstring(L"Deny")}));
 
+  std::vector<std::wstring> launched;
+  const auto launch = [&launched](const std::wstring& uri) { launched.push_back(uri); };
+  CHECK(ux::RequestCapture(L"webcam", true, launch));
+  CHECK(!ux::RequestCapture(L"microphone", false, launch));
+  CHECK(launched == std::vector<std::wstring>({L"ms-settings:privacy-microphone"}));
+
   // One pixel a row, bottom-up: the top row is the second in memory.
   const uint8_t rows[] = {0x10, 0x20, 0x30, 0x00, 0x40, 0x50, 0x60, 0x00};
   ux::CameraTexture texture;

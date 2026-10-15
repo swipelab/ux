@@ -3,6 +3,7 @@
 
 #include <windows.h>
 
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -23,6 +24,12 @@ HRESULT EnumerateCameras(std::vector<CameraDevice>& devices);
 // [capability], `webcam` or `microphone`: the device's, the user's and the
 // user's desktop-app consent.
 bool CaptureAllowed(const wchar_t* capability);
+
+// The answer to a permission request for [capability], whose consent is
+// [allowed]. Windows shows a desktop app no prompt, so a denied request first
+// hands [open] the capability's Privacy & security page,
+// `ms-settings:privacy-<capability>`.
+bool RequestCapture(const wchar_t* capability, bool allowed, const std::function<void(const std::wstring&)>& open);
 
 // Whether consent [values], each a ConsentStore key's `Value`, or none for a
 // key that holds none, allow the capability: none of them reads `Deny`.
