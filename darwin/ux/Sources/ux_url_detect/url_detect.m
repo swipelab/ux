@@ -50,13 +50,14 @@ static NSRegularExpression *ux_url_bare_domain_regex(void) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         // Hostname segment + at least one dot-segment + `/` or `?` suffix,
-        // which ends before whitespace and CJK punctuation: U+3000's block's
+        // which ends before whitespace, CJK punctuation (U+3000's block's
         // punctuation and the vertical, compatibility, small, fullwidth and
-        // halfwidth forms of punctuation. ASCII-only; bare IDN domains stay
-        // undetected.
-        NSString *pattern = @"\\b[a-z0-9-]+(\\.[a-z0-9-]+)+([/?][^\\s"
+        // halfwidth forms of punctuation) and the ASCII marks ux_web_end ends
+        // a path before, so a bare domain glued after one links on its own.
+        // ASCII-only; bare IDN domains stay undetected.
+        NSString *pattern = @"\\b[a-z0-9-]+(\\.[a-z0-9-]+)+([/?](?:[^\\s\"%<>\\[\\\\\\]^`{|}"
                             @"\\u3001-\\u3003\\u3008-\\u3011\\u3014-\\u301F\\uFE10-\\uFE19\\uFE30-\\uFE6B"
-                            @"\\uFF01-\\uFF0F\\uFF1A-\\uFF20\\uFF3B-\\uFF40\\uFF5B-\\uFF65]*)";
+                            @"\\uFF01-\\uFF0F\\uFF1A-\\uFF20\\uFF3B-\\uFF40\\uFF5B-\\uFF65]|%[0-9a-f]{2})*)";
         NSError *err = nil;
         regex = [NSRegularExpression
             regularExpressionWithPattern:pattern
@@ -182,13 +183,15 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
                     url = u.absoluteString;
                     if (kind == kKindWeb) {
                         end = ux_web_end(utf16, r.location, end);
-                        // A link that holds a character NSDataDetector escapes
-                        // has every '%' in its URL escaped too.
+                        // NSDataDetector's URL covers the uncut text, escaped,
+                        // so a cut link's URL is the text it keeps, after the
+                        // scheme NSDataDetector adds where the text has none.
                         if (end < NSMaxRange(r)) {
-                            url = [detector firstMatchInString:text
-                                                       options:0
-                                                         range:NSMakeRange(r.location, end - r.location)]
-                                      .URL.absoluteString;
+                            NSString *kept = [text substringWithRange:NSMakeRange(r.location, end - r.location)];
+                            NSString *prefix = [scheme stringByAppendingString:@":"];
+                            url = [kept.lowercaseString hasPrefix:prefix]
+                                      ? kept
+                                      : [NSString stringWithFormat:@"%@//%@", prefix, kept];
                         }
                     }
                 } else {

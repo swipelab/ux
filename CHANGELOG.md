@@ -6,8 +6,10 @@
   literal host keeps its brackets. `He said 'https://example.com/a'.` and
   `see <https://example.com/a> x` link `https://example.com/a` on every
   platform. On iOS and macOS, `see "example.com/a" x` links
-  `http://example.com/a`, and `[see https://en.wikipedia.org/wiki/Foo_(bar)] x`
-  links `https://en.wikipedia.org/wiki/Foo_(bar)`, as on Android and Windows.
+  `http://example.com/a`, `see example.com/a|example.org/b z` links
+  `http://example.com/a` and `http://example.org/b`, and
+  `[see https://en.wikipedia.org/wiki/Foo_(bar)] x` links
+  `https://en.wikipedia.org/wiki/Foo_(bar)`, as on Android and Windows.
 - **A web link leaves out a `)` it does not open.** On iOS and macOS,
   `XUrl.match` ends a web link `NSDataDetector` finds before a trailing `)` the
   link does not open and a trailing `.`, `,`, `;` or `!`, as on Android and

@@ -350,9 +350,11 @@ bool _phoneLeadingCharOk(String text, int start, int end) {
 /// the vertical, compatibility, small, fullwidth and halfwidth forms of
 /// punctuation) and the ASCII marks `Patterns.WEB_URL`'s path does not take:
 /// `"`, `<`, `>`, `[`, `\`, `]`, `^`, `` ` ``, `{`, `|`, `}` and a `%` that two
-/// hex digits do not follow. A bracketed IP literal host keeps its brackets.
+/// hex digits do not follow. A bracketed IP literal host, after any userinfo,
+/// keeps its brackets.
 final RegExp _kAnySchemeRegex = RegExp(
-  r'\b[a-zA-Z][a-zA-Z0-9+.\-]*://(?:\[[0-9a-fA-F:.]+\])?'
+  r'\b[a-zA-Z][a-zA-Z0-9+.\-]*://'
+  r"(?:(?:(?:[\w\-.~!$&'()*+,;=:]|%[0-9a-fA-F]{2})*@)?\[[0-9a-fA-F:.]+\])?"
   r'(?:[^\s"%<>\[\\\]^`{|}\u3001-\u3003\u3008-\u3011\u3014-\u301F'
   r'\uFE10-\uFE19\uFE30-\uFE6B\uFF01-\uFF0F\uFF1A-\uFF20\uFF3B-\uFF40'
   r'\uFF5B-\uFF65]|%[0-9a-fA-F]{2})+',
