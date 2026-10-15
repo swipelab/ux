@@ -22,6 +22,7 @@
 #include <cstring>
 #include <mutex>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #define UX_LOG_TAG "XUrl"
@@ -50,6 +51,7 @@ jmethodID g_find_method = nullptr;         // Matcher.find()
 jmethodID g_start_method = nullptr;        // Matcher.start()
 jmethodID g_end_method = nullptr;          // Matcher.end()
 jmethodID g_region_method = nullptr;       // Matcher.region(int, int)
+jmethodID g_matches_method = nullptr;      // Matcher.matches()
 std::once_flag g_init_once;
 bool g_init_ok = false;
 
@@ -95,10 +97,12 @@ void init_jni_once(JNIEnv* env) {
   jmethodID startMethod = env->GetMethodID(matcherLocal, "start", "()I");
   jmethodID endMethod = env->GetMethodID(matcherLocal, "end", "()I");
   jmethodID regionMethod = env->GetMethodID(matcherLocal, "region", "(II)Ljava/util/regex/Matcher;");
+  jmethodID matchesMethod = env->GetMethodID(matcherLocal, "matches", "()Z");
   env->DeleteLocalRef(patternLocal);
   env->DeleteLocalRef(matcherLocal);
   if (env->ExceptionCheck() || matcherMethod == nullptr || findMethod == nullptr ||
-      startMethod == nullptr || endMethod == nullptr || regionMethod == nullptr) {
+      startMethod == nullptr || endMethod == nullptr || regionMethod == nullptr ||
+      matchesMethod == nullptr) {
     clear_exception(env);
     return;
   }
@@ -115,6 +119,7 @@ void init_jni_once(JNIEnv* env) {
   g_start_method = startMethod;
   g_end_method = endMethod;
   g_region_method = regionMethod;
+  g_matches_method = matchesMethod;
   g_init_ok = true;
 }
 
@@ -194,10 +199,39 @@ std::string canonical_phone(const std::string& match) {
   return std::string("tel:") + digits;
 }
 
-// The end of the web match [start, end) before a trailing '.', ',', ';' or '!'
-// and a trailing ')' it does not open, which Patterns.WEB_URL takes into a
-// match that ends the text.
-jint web_end(const jchar* chars, jint start, jint end) {
+// Whether `pattern` matches [start, end) of `text` whole.
+bool matches_whole(JNIEnv* env, jobject pattern, jstring text, jint start, jint end) {
+  jobject matcher = env->CallObjectMethod(pattern, g_matcher_method, text);
+  if (env->ExceptionCheck() || matcher == nullptr) {
+    clear_exception(env);
+    return false;
+  }
+  env->DeleteLocalRef(env->CallObjectMethod(matcher, g_region_method, start, end));
+  bool whole =
+      !env->ExceptionCheck() && env->CallBooleanMethod(matcher, g_matches_method) && !env->ExceptionCheck();
+  clear_exception(env);
+  env->DeleteLocalRef(matcher);
+  return whole;
+}
+
+// Whether c is path punctuation a URL may end in, or sentence punctuation or
+// ')' that web_end weighs. A quote or '(' after a link belongs to the text
+// around it.
+bool is_path_end(jchar c) {
+  return std::u16string_view(u"/?:@&=#~-+*$).,;!").find(c) != std::u16string_view::npos;
+}
+
+// The end of the web match [start, end) in the region that ends at `to`.
+// Patterns.WEB_URL ends a match on a word boundary, which leaves out a path's
+// trailing punctuation where text follows it. The match runs on through the
+// is_path_end punctuation after it when the pattern matches the span to there
+// whole, then ends before a trailing '.', ',', ';' or '!' and a trailing ')'
+// it does not open.
+jint web_end(JNIEnv* env, jobject pattern, jstring text, const jchar* chars, jint start, jint end,
+             jint to) {
+  jint tail = end;
+  while (tail < to && is_path_end(chars[tail])) tail++;
+  if (tail > end && matches_whole(env, pattern, text, start, tail)) end = tail;
   jint unopened = 0;
   for (jint i = start; i < end; i++) {
     if (chars[i] == u')') unopened++;
@@ -248,7 +282,7 @@ void run_pattern(JNIEnv* env, jstring text, const jchar* chars, jint len, jobjec
       if (env->ExceptionCheck()) { clear_exception(env); break; }
       jint end = env->CallIntMethod(matcher, g_end_method);
       if (env->ExceptionCheck()) { clear_exception(env); break; }
-      if (kind == kKindWeb) end = web_end(chars, start, end);
+      if (kind == kKindWeb) end = web_end(env, pattern, text, chars, start, end, to);
 
       std::string group = utf16_to_utf8(chars + start, end - start);
 

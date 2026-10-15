@@ -10,6 +10,7 @@
 #include <cstring>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace {
@@ -159,10 +160,33 @@ std::optional<std::string> CanonicalPhone(const std::string& match) {
   return "tel:" + dialed;
 }
 
-// The end of the web match [start, end) before a trailing '.', ',', ';' or '!'
-// and a trailing ')' it does not open, which Patterns.WEB_URL takes into a
-// match that ends the text.
-int32_t WebEnd(const UChar* text, int32_t start, int32_t end) {
+// Whether the detector matches [start, end) of the text whole.
+bool MatchesWhole(const URegularExpression* detector, const UChar* text, int32_t len, int32_t start, int32_t end) {
+  UErrorCode status = U_ZERO_ERROR;
+  URegularExpression* regex = uregex_clone(detector, &status);
+  uregex_setText(regex, text, len, &status);
+  uregex_setRegion(regex, start, end, &status);
+  const bool whole = uregex_matches(regex, -1, &status) && U_SUCCESS(status);
+  uregex_close(regex);
+  return whole;
+}
+
+// Whether c is path punctuation a URL may end in, or sentence punctuation or
+// ')' that WebEnd weighs. A quote or '(' after a link belongs to the text
+// around it.
+bool IsPathEnd(UChar c) { return std::u16string_view(u"/?:@&=#~-+*$).,;!").find(c) != std::u16string_view::npos; }
+
+// The end of the web match [start, end) in the region that ends at `to`.
+// Patterns.WEB_URL ends a match on a word boundary, which leaves out a path's
+// trailing punctuation where text follows it. The match runs on through the
+// IsPathEnd punctuation after it when the detector matches the span to there
+// whole, then ends before a trailing '.', ',', ';' or '!' and a trailing ')'
+// it does not open.
+int32_t WebEnd(const URegularExpression* detector, const UChar* text, int32_t len, int32_t start, int32_t end,
+               int32_t to) {
+  int32_t tail = end;
+  while (tail < to && IsPathEnd(text[tail])) tail++;
+  if (tail > end && MatchesWhole(detector, text, len, start, tail)) end = tail;
   int32_t unopened = 0;
   for (int32_t i = start; i < end; i++) {
     if (text[i] == u')') unopened++;
@@ -204,7 +228,7 @@ void Find(const URegularExpression* detector, const UChar* text, int32_t len, ui
       const int32_t start = uregex_start(regex, 0, &status);
       const int32_t matched = uregex_end(regex, 0, &status);
       if (U_FAILURE(status)) break;
-      const int32_t end = kind == kKindWeb ? WebEnd(text, start, matched) : matched;
+      const int32_t end = kind == kKindWeb ? WebEnd(detector, text, len, start, matched, to) : matched;
       const std::string group = Utf8(text + start, end - start);
       std::optional<std::string> url = kind == kKindWeb     ? CanonicalWebUrl(group)
                                        : kind == kKindEmail ? "mailto:" + group

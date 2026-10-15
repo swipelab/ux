@@ -1,4 +1,9 @@
 ### 0.18.0
+- **A web link keeps the slash that ends it.** On Android and Windows, a web
+  match that text follows keeps its path's trailing `/`, the other path
+  punctuation a URL may end in, such as `?`, `=`, `#`, `-` and `*`, and a
+  trailing `)` it opens, as on macOS. A link typed with a trailing `/` is
+  complete when a space is typed after it.
 - **A web link ends before CJK punctuation.** On every platform, `XUrl.match`
   ends a web match before ideographic, fullwidth and halfwidth punctuation
   such as `。`, `，`, `、`, `；`, `：`, `！` and `？`, and starts a bare domain
