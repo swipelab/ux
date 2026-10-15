@@ -96,7 +96,9 @@
   `http://google.com`, as on macOS. A host that begins or ends with a label in
   these scripts beside labels of other characters, such as `例子.com` or
   `example.中国`, is not linked, as on macOS. Such a label between a host's
-  other labels stays in it, as in `www.例子.com`.
+  other labels stays in it, as in `www.例子.com`. A port these letters follow
+  stays in the link: `访问example.com:8080然后` links
+  `http://example.com:8080`, as on macOS.
 - **A web link keeps the slash that ends it.** On Android and Windows, a web
   match that text follows keeps its path's trailing `/`, the other path
   punctuation a URL may end in, such as `?`, `=`, `#`, `-` and `*`, and a

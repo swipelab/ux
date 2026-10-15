@@ -224,16 +224,31 @@ bool is_path_end(jchar c) {
   return std::u16string_view(u"/?:@&=#~-+*$).,;!").find(c) != std::u16string_view::npos;
 }
 
+// Whether c belongs to a script whose text runs onto a domain with no space
+// between: Han, kana, Bopomofo, Hangul, Thai, Lao, Khmer and Myanmar by block,
+// and an ideograph of the supplementary planes by its high surrogate.
+bool is_unspaced(jchar c) {
+  return (c >= 0x0E00 && c <= 0x0EFF) || (c >= 0x1000 && c <= 0x109F) ||
+         (c >= 0x1100 && c <= 0x11FF) || (c >= 0x1780 && c <= 0x17FF) ||
+         (c >= 0x2E80 && c <= 0x9FFF) || (c >= 0xA960 && c <= 0xA97F) ||
+         (c >= 0xAC00 && c <= 0xD7FF) || (c >= 0xD840 && c <= 0xD8BF) ||
+         (c >= 0xF900 && c <= 0xFAFF) || (c >= 0xFF66 && c <= 0xFFDC);
+}
+
 // The end of the web match [start, end) in the region that ends at `to`.
 // Patterns.WEB_URL ends a match on a word boundary, which leaves out a path's
-// trailing punctuation where text follows it. The match runs on through the
-// is_path_end punctuation after it when the pattern matches the span to there
-// whole, then ends before a trailing '.', ',', ';' or '!' and a trailing ')'
-// it does not open.
+// trailing punctuation where text follows it and a port where unspaced letters
+// follow it. The match runs on through the is_path_end punctuation after it,
+// and through the digits after that where unspaced letters follow them, when
+// the pattern matches the span to there whole, then ends before a trailing
+// '.', ',', ';' or '!' and a trailing ')' it does not open.
 jint web_end(JNIEnv* env, jobject pattern, jstring text, const jchar* chars, jint start, jint end,
              jint to) {
   jint tail = end;
   while (tail < to && is_path_end(chars[tail])) tail++;
+  jint digits = tail;
+  while (digits < to && chars[digits] >= u'0' && chars[digits] <= u'9') digits++;
+  if (digits < to && is_unspaced(chars[digits])) tail = digits;
   if (tail > end && matches_whole(env, pattern, text, start, tail)) end = tail;
   jint unopened = 0;
   for (jint i = start; i < end; i++) {
@@ -260,17 +275,6 @@ bool is_cjk_punctuation(jchar c) {
          (c >= 0xFE30 && c <= 0xFE6B) || (c >= 0xFF01 && c <= 0xFF0F) ||
          (c >= 0xFF1A && c <= 0xFF20) || (c >= 0xFF3B && c <= 0xFF40) ||
          (c >= 0xFF5B && c <= 0xFF65);
-}
-
-// Whether c belongs to a script whose text runs onto a domain with no space
-// between: Han, kana, Bopomofo, Hangul, Thai, Lao, Khmer and Myanmar by block,
-// and an ideograph of the supplementary planes by its high surrogate.
-bool is_unspaced(jchar c) {
-  return (c >= 0x0E00 && c <= 0x0EFF) || (c >= 0x1000 && c <= 0x109F) ||
-         (c >= 0x1100 && c <= 0x11FF) || (c >= 0x1780 && c <= 0x17FF) ||
-         (c >= 0x2E80 && c <= 0x9FFF) || (c >= 0xA960 && c <= 0xA97F) ||
-         (c >= 0xAC00 && c <= 0xD7FF) || (c >= 0xD840 && c <= 0xD8BF) ||
-         (c >= 0xF900 && c <= 0xFAFF) || (c >= 0xFF66 && c <= 0xFFDC);
 }
 
 // The glue of the host that begins the web match [start, end), which ends at
