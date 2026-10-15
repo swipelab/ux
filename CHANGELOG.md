@@ -1,4 +1,7 @@
 ### 0.18.0
+- **A cancelled video export ends.** On iOS and macOS, cancelling an export
+  that re-encodes with a `transform` while it runs fails `done` with
+  `cancelled` and deletes the partial file, as on Android and Windows.
 - **A bare domain leaves out the CJK letters glued to it.** On Android and
   Windows, a host in `XUrl.match` ends at a change between CJK letters and
   other characters inside a label, and leaves out the CJK labels that begin or
