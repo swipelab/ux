@@ -9,7 +9,8 @@
 #include <climits>
 #include <cstring>
 
-#include "wic.h"
+#include "com_scope.h"
+#include "raster.h"
 
 namespace ux {
 

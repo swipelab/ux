@@ -1,12 +1,7 @@
-#ifndef UX_WIC_H_
-#define UX_WIC_H_
+#ifndef UX_COM_SCOPE_H_
+#define UX_COM_SCOPE_H_
 
 #include <windows.h>
-
-#include <wincodec.h>
-
-#include <cstdint>
-#include <vector>
 
 namespace ux {
 
@@ -26,9 +21,6 @@ class ComScope {
   const bool initialized_;
 };
 
-// Encodes [source] into [png] with WIC's PNG encoder, as 32-bit BGRA.
-HRESULT EncodePng(IWICImagingFactory* factory, IWICBitmapSource* source, std::vector<uint8_t>& png);
-
 }  // namespace ux
 
-#endif  // UX_WIC_H_
+#endif  // UX_COM_SCOPE_H_

@@ -8,10 +8,12 @@ void DibSuite();
 void DropSuite();
 void FileTypesSuite();
 void ImageProbeSuite();
+void MediaFoundationSuite();
 void PlatformThreadSuite();
+void RasterSuite();
 void ToastSuite();
 void UrlDetectSuite();
-void VideoDeviceSuite();
+void VideoExportSuite();
 void WindowSuite();
 
 namespace {
@@ -30,10 +32,12 @@ constexpr Suite kSuites[] = {
     {"drop", DropSuite},
     {"file_types", FileTypesSuite},
     {"image_probe", ImageProbeSuite},
+    {"media_foundation", MediaFoundationSuite},
     {"platform_thread", PlatformThreadSuite},
+    {"raster", RasterSuite},
     {"toast", ToastSuite},
     {"url_detect", UrlDetectSuite},
-    {"video_device", VideoDeviceSuite},
+    {"video_export", VideoExportSuite},
     {"window", WindowSuite},
 };
 
