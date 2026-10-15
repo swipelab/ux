@@ -61,9 +61,9 @@ static NSRegularExpression *ux_url_bare_domain_regex(void) {
     return regex;
 }
 
-// The end of the web match [start, end) before its trailing sentence
-// punctuation and a trailing ')' it does not open, which the bare-domain
-// regex's `[^\s]*` takes in.
+// The end of the web match [start, end) before a trailing '.', ',', ';' or '!'
+// and a trailing ')' it does not open, which the bare-domain regex's `[^\s]*`
+// takes in.
 static NSUInteger ux_web_end(const uint16_t *chars, NSUInteger start, NSUInteger end) {
     NSInteger unopened = 0;
     for (NSUInteger i = start; i < end; i++) {
@@ -74,7 +74,7 @@ static NSUInteger ux_web_end(const uint16_t *chars, NSUInteger start, NSUInteger
         const uint16_t c = chars[end - 1];
         if (c == ')' && unopened > 0) {
             unopened--;
-        } else if (!(c == '.' || c == ',' || c == ';' || c == ':' || c == '!' || c == '?')) {
+        } else if (!(c == '.' || c == ',' || c == ';' || c == '!')) {
             break;
         }
         end--;

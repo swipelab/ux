@@ -159,9 +159,9 @@ std::optional<std::string> CanonicalPhone(const std::string& match) {
   return "tel:" + dialed;
 }
 
-// The end of the web match [start, end) before its trailing sentence
-// punctuation and a trailing ')' it does not open, which Patterns.WEB_URL takes
-// into a match that ends the text.
+// The end of the web match [start, end) before a trailing '.', ',', ';' or '!'
+// and a trailing ')' it does not open, which Patterns.WEB_URL takes into a
+// match that ends the text.
 int32_t WebEnd(const UChar* text, int32_t start, int32_t end) {
   int32_t unopened = 0;
   for (int32_t i = start; i < end; i++) {
@@ -172,7 +172,7 @@ int32_t WebEnd(const UChar* text, int32_t start, int32_t end) {
     const UChar c = text[end - 1];
     if (c == u')' && unopened > 0) {
       unopened--;
-    } else if (!(c == u'.' || c == u',' || c == u';' || c == u':' || c == u'!' || c == u'?')) {
+    } else if (!(c == u'.' || c == u',' || c == u';' || c == u'!')) {
       break;
     }
     end--;

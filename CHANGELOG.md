@@ -1,10 +1,10 @@
 ### 0.18.0
-- **A web link leaves out the punctuation after it.** On Android and Windows,
-  and for the bare domains with a path that macOS matches beside
-  `NSDataDetector`, `XUrl.match` ends a web match before a trailing `.`, `,`,
-  `;`, `:`, `!` or `?` and before a trailing `)` the link does not open. A link
-  that ends a sentence opens without the period, and a link typed before
-  punctuation is complete when the punctuation is typed.
+- **A web link leaves out the period after it.** On Android and Windows, and
+  for the bare domains with a path that macOS matches beside `NSDataDetector`,
+  `XUrl.match` ends a web match before a trailing `.`, `,`, `;` or `!` and
+  before a trailing `)` the link does not open. A link that ends a sentence
+  opens without the period, and a link typed before one of these marks is
+  complete when the mark is typed.
 - **Windows probes images.** `XImageProbe.size` and `XImageProbe.thumbnail`
   answer on Windows through WIC, upright with the image's orientation applied,
   for every format an installed codec decodes, HEIC and HEIF included where
