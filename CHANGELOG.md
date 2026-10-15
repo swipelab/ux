@@ -1,4 +1,10 @@
 ### 0.18.0
+- **A link's path past CJK punctuation is no second link.** On Android and
+  Windows, `XUrl.match` links no part of the path a web link runs on into past
+  ideographic, fullwidth or halfwidth punctuation, so
+  `https://example.com/路径（1）/page.html` links `https://example.com/路径`
+  alone, not also `http://page.html`. A domain right after the mark or after
+  CJK letters links on its own, as in `https://example.com/a，或者example.org`.
 - **A bare domain leaves out the CJK letters glued to it.** On Android and
   Windows, a host in `XUrl.match` ends at a change between CJK letters and
   other characters inside a label, and leaves out the CJK labels that begin or

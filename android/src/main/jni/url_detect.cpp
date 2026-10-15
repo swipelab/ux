@@ -295,9 +295,12 @@ std::optional<jint> host_glue(const jchar* chars, jint start, jint end) {
 }
 
 // Each stretch of the text between CJK punctuation is a region the pattern
-// matches as a text of its own, so no link takes a mark in. No host runs
-// across its glue: the web match is the part before the glue where the pattern
-// matches that whole, and the search goes on from the glue.
+// matches as a text of its own, so no link takes a mark in. Past a web link
+// the region cuts at its mark, a web match right after an ASCII character is
+// that link's path where the pattern matches the link through it whole; one
+// right after a mark or CJK letters links on its own. No host runs across its
+// glue: the web match is the part before the glue where the pattern matches
+// that whole, and the search goes on from the glue.
 void run_pattern(JNIEnv* env, jstring text, const jchar* chars, jint len, jobject pattern,
                  uint32_t kind, std::vector<RawMatch>& out) {
   jobject matcher = env->CallObjectMethod(pattern, g_matcher_method, text);
@@ -305,6 +308,7 @@ void run_pattern(JNIEnv* env, jstring text, const jchar* chars, jint len, jobjec
     clear_exception(env);
     return;
   }
+  std::optional<jint> cut;
   for (jint from = 0; from <= len;) {
     jint to = from;
     while (to < len && !is_cjk_punctuation(chars[to])) to++;
@@ -320,12 +324,14 @@ void run_pattern(JNIEnv* env, jstring text, const jchar* chars, jint len, jobjec
       jint end = env->CallIntMethod(matcher, g_end_method);
       if (env->ExceptionCheck()) { clear_exception(env); break; }
       if (kind == kKindWeb) {
+        if (cut && chars[start - 1] < 0x80 && matches_whole(env, pattern, text, *cut, end)) continue;
         if (std::optional<jint> glue = host_glue(chars, start, end)) {
           env->DeleteLocalRef(env->CallObjectMethod(matcher, g_region_method, *glue, to));
           if (env->ExceptionCheck()) { clear_exception(env); break; }
           if (!matches_whole(env, pattern, text, start, *glue)) continue;
           end = *glue;
         }
+        if (end == to) cut = start;
         end = web_end(env, pattern, text, chars, start, end, to);
       }
 

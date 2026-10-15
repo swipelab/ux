@@ -247,14 +247,18 @@ std::optional<int32_t> HostGlue(const UChar* text, int32_t start, int32_t end) {
 
 // A clone per call, since a URegularExpression holds its matcher's state.
 // Each stretch of the text between CJK punctuation is a region the detector
-// matches as a text of its own, so no link takes a mark in. No host runs
-// across its glue: the web match is the part before the glue where the
-// detector matches that whole, and the search goes on from the glue.
+// matches as a text of its own, so no link takes a mark in. Past a web link
+// the region cuts at its mark, a web match right after an ASCII character is
+// that link's path where the detector matches the link through it whole; one
+// right after a mark or CJK letters links on its own. No host runs across its
+// glue: the web match is the part before the glue where the detector matches
+// that whole, and the search goes on from the glue.
 void Find(const URegularExpression* detector, const UChar* text, int32_t len, uint32_t kind,
           std::vector<RawMatch>& out) {
   UErrorCode status = U_ZERO_ERROR;
   URegularExpression* regex = uregex_clone(detector, &status);
   uregex_setText(regex, text, len, &status);
+  std::optional<int32_t> cut;
   for (int32_t from = 0; from <= len;) {
     int32_t to = from;
     while (to < len && !IsCjkPunctuation(text[to])) to++;
@@ -264,11 +268,13 @@ void Find(const URegularExpression* detector, const UChar* text, int32_t len, ui
       int32_t end = uregex_end(regex, 0, &status);
       if (U_FAILURE(status)) break;
       if (kind == kKindWeb) {
+        if (cut && text[start - 1] < 0x80 && MatchesWhole(detector, text, len, *cut, end)) continue;
         if (const std::optional<int32_t> glue = HostGlue(text, start, end)) {
           uregex_setRegion(regex, *glue, to, &status);
           if (!MatchesWhole(detector, text, len, start, *glue)) continue;
           end = *glue;
         }
+        if (end == to) cut = start;
         end = WebEnd(detector, text, len, start, end, to);
       }
       const std::string group = Utf8(text + start, end - start);
