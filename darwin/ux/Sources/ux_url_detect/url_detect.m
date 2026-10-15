@@ -61,6 +61,27 @@ static NSRegularExpression *ux_url_bare_domain_regex(void) {
     return regex;
 }
 
+// The end of the web match [start, end) before a trailing '.', ',', ';' or '!'
+// and a trailing ')' it does not open, which the bare-domain regex's `[^\s]*`
+// takes in.
+static NSUInteger ux_web_end(const uint16_t *chars, NSUInteger start, NSUInteger end) {
+    NSInteger unopened = 0;
+    for (NSUInteger i = start; i < end; i++) {
+        if (chars[i] == ')') unopened++;
+        if (chars[i] == '(') unopened--;
+    }
+    while (end > start) {
+        const uint16_t c = chars[end - 1];
+        if (c == ')' && unopened > 0) {
+            unopened--;
+        } else if (!(c == '.' || c == ',' || c == ';' || c == '!')) {
+            break;
+        }
+        end--;
+    }
+    return end;
+}
+
 static NSData *ux_utf8(NSString *s) {
     return [s dataUsingEncoding:NSUTF8StringEncoding allowLossyConversion:YES];
 }
@@ -150,11 +171,12 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
                 if (result == nil) return;
                 const NSRange r = result.range;
                 if (r.location == NSNotFound || r.length == 0) return;
-                NSString *substr = [text substringWithRange:r];
+                const NSUInteger end = ux_web_end(utf16, r.location, NSMaxRange(r));
+                NSString *substr = [text substringWithRange:NSMakeRange(r.location, end - r.location)];
                 NSString *withScheme = [@"http://" stringByAppendingString:substr];
                 XUrlRawMatch *m = [[XUrlRawMatch alloc] init];
                 m.start = (int32_t)r.location;
-                m.end   = (int32_t)(r.location + r.length);
+                m.end   = (int32_t)end;
                 m.kind  = kKindWeb;
                 m.urlUtf8 = ux_utf8(withScheme);
                 [raws addObject:m];

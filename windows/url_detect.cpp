@@ -159,6 +159,27 @@ std::optional<std::string> CanonicalPhone(const std::string& match) {
   return "tel:" + dialed;
 }
 
+// The end of the web match [start, end) before a trailing '.', ',', ';' or '!'
+// and a trailing ')' it does not open, which Patterns.WEB_URL takes into a
+// match that ends the text.
+int32_t WebEnd(const UChar* text, int32_t start, int32_t end) {
+  int32_t unopened = 0;
+  for (int32_t i = start; i < end; i++) {
+    if (text[i] == u')') unopened++;
+    if (text[i] == u'(') unopened--;
+  }
+  while (end > start) {
+    const UChar c = text[end - 1];
+    if (c == u')' && unopened > 0) {
+      unopened--;
+    } else if (!(c == u'.' || c == u',' || c == u';' || c == u'!')) {
+      break;
+    }
+    end--;
+  }
+  return end;
+}
+
 // A clone per call, since a URegularExpression holds its matcher's state.
 void Find(const URegularExpression* detector, const UChar* text, int32_t len, uint32_t kind,
           std::vector<RawMatch>& out) {
@@ -167,8 +188,9 @@ void Find(const URegularExpression* detector, const UChar* text, int32_t len, ui
   uregex_setText(regex, text, len, &status);
   while (uregex_findNext(regex, &status)) {
     const int32_t start = uregex_start(regex, 0, &status);
-    const int32_t end = uregex_end(regex, 0, &status);
+    const int32_t matched = uregex_end(regex, 0, &status);
     if (U_FAILURE(status)) break;
+    const int32_t end = kind == kKindWeb ? WebEnd(text, start, matched) : matched;
     const std::string group = Utf8(text + start, end - start);
     std::optional<std::string> url = kind == kKindWeb     ? CanonicalWebUrl(group)
                                      : kind == kKindEmail ? "mailto:" + group

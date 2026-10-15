@@ -49,7 +49,6 @@ jmethodID g_matcher_method = nullptr;      // Pattern.matcher(CharSequence)
 jmethodID g_find_method = nullptr;         // Matcher.find()
 jmethodID g_start_method = nullptr;        // Matcher.start()
 jmethodID g_end_method = nullptr;          // Matcher.end()
-jmethodID g_group_method = nullptr;        // Matcher.group()
 std::once_flag g_init_once;
 bool g_init_ok = false;
 
@@ -94,11 +93,10 @@ void init_jni_once(JNIEnv* env) {
   jmethodID findMethod = env->GetMethodID(matcherLocal, "find", "()Z");
   jmethodID startMethod = env->GetMethodID(matcherLocal, "start", "()I");
   jmethodID endMethod = env->GetMethodID(matcherLocal, "end", "()I");
-  jmethodID groupMethod = env->GetMethodID(matcherLocal, "group", "()Ljava/lang/String;");
   env->DeleteLocalRef(patternLocal);
   env->DeleteLocalRef(matcherLocal);
   if (env->ExceptionCheck() || matcherMethod == nullptr || findMethod == nullptr ||
-      startMethod == nullptr || endMethod == nullptr || groupMethod == nullptr) {
+      startMethod == nullptr || endMethod == nullptr) {
     clear_exception(env);
     return;
   }
@@ -114,7 +112,6 @@ void init_jni_once(JNIEnv* env) {
   g_find_method = findMethod;
   g_start_method = startMethod;
   g_end_method = endMethod;
-  g_group_method = groupMethod;
   g_init_ok = true;
 }
 
@@ -157,16 +154,6 @@ std::string utf16_to_utf8(const jchar* chars, jsize len) {
   return out;
 }
 
-std::string jstring_to_utf8(JNIEnv* env, jstring s) {
-  if (s == nullptr) return {};
-  const jchar* chars = env->GetStringChars(s, nullptr);
-  if (chars == nullptr) return {};
-  jsize len = env->GetStringLength(s);
-  std::string out = utf16_to_utf8(chars, len);
-  env->ReleaseStringChars(s, chars);
-  return out;
-}
-
 std::string canonical_web_url(const std::string& match) {
   // If a scheme is already present (`x://...`), pass through. Otherwise
   // prepend `http://` — Patterns.WEB_URL matches bare domains and `www.`.
@@ -204,7 +191,28 @@ std::string canonical_phone(const std::string& match) {
   return std::string("tel:") + digits;
 }
 
-void run_pattern(JNIEnv* env, jstring text, jobject pattern, uint32_t kind,
+// The end of the web match [start, end) before a trailing '.', ',', ';' or '!'
+// and a trailing ')' it does not open, which Patterns.WEB_URL takes into a
+// match that ends the text.
+jint web_end(const jchar* chars, jint start, jint end) {
+  jint unopened = 0;
+  for (jint i = start; i < end; i++) {
+    if (chars[i] == u')') unopened++;
+    if (chars[i] == u'(') unopened--;
+  }
+  while (end > start) {
+    jchar c = chars[end - 1];
+    if (c == u')' && unopened > 0) {
+      unopened--;
+    } else if (!(c == u'.' || c == u',' || c == u';' || c == u'!')) {
+      break;
+    }
+    end--;
+  }
+  return end;
+}
+
+void run_pattern(JNIEnv* env, jstring text, const jchar* chars, jobject pattern, uint32_t kind,
                  std::vector<RawMatch>& out) {
   jobject matcher = env->CallObjectMethod(pattern, g_matcher_method, text);
   if (env->ExceptionCheck() || matcher == nullptr) {
@@ -220,16 +228,9 @@ void run_pattern(JNIEnv* env, jstring text, jobject pattern, uint32_t kind,
     if (env->ExceptionCheck()) { clear_exception(env); break; }
     jint end = env->CallIntMethod(matcher, g_end_method);
     if (env->ExceptionCheck()) { clear_exception(env); break; }
-    jobject groupObj = env->CallObjectMethod(matcher, g_group_method);
-    if (env->ExceptionCheck()) {
-      clear_exception(env);
-      if (groupObj != nullptr) env->DeleteLocalRef(groupObj);
-      break;
-    }
-    if (groupObj == nullptr) continue;
+    if (kind == kKindWeb) end = web_end(chars, start, end);
 
-    std::string group = jstring_to_utf8(env, (jstring)groupObj);
-    env->DeleteLocalRef(groupObj);
+    std::string group = utf16_to_utf8(chars + start, end - start);
 
     std::string url;
     if (kind == kKindWeb) {
@@ -339,9 +340,9 @@ uint8_t* ux_match_url(const uint16_t* utf16, int32_t len, int32_t* out_size) {
 
     std::vector<RawMatch> matches;
     matches.reserve(8);
-    run_pattern(env, text, g_web_url_pattern, kKindWeb, matches);
-    run_pattern(env, text, g_email_pattern, kKindEmail, matches);
-    run_pattern(env, text, g_phone_pattern, kKindPhone, matches);
+    run_pattern(env, text, utf16, g_web_url_pattern, kKindWeb, matches);
+    run_pattern(env, text, utf16, g_email_pattern, kKindEmail, matches);
+    run_pattern(env, text, utf16, g_phone_pattern, kKindPhone, matches);
     env->DeleteLocalRef(text);
 
     sort_and_dedup(matches);

@@ -1,0 +1,41 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:integration_test/integration_test.dart';
+import 'package:ux/url.dart';
+
+void main() {
+  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets('a comma ending the text stays out of the web link',
+      (tester) async {
+    expect(XUrl.match('see https://example.com/a?b=1,'), const [
+      UrlMatch(
+          start: 4,
+          end: 29,
+          url: 'https://example.com/a?b=1',
+          kind: UrlMatchKind.web),
+    ]);
+  });
+
+  testWidgets('a question mark ending the text stays in the web link',
+      (tester) async {
+    expect(XUrl.match('see https://example.com/a?'), const [
+      UrlMatch(
+          start: 4,
+          end: 26,
+          url: 'https://example.com/a?',
+          kind: UrlMatchKind.web),
+    ]);
+  });
+
+  testWidgets(
+      'a closing parenthesis a bare domain link opens stays in it, '
+      'one it does not open goes', (tester) async {
+    expect(XUrl.match('(see example.com/a_(b)).'), const [
+      UrlMatch(
+          start: 5,
+          end: 22,
+          url: 'http://example.com/a_(b)',
+          kind: UrlMatchKind.web),
+    ]);
+  });
+}
