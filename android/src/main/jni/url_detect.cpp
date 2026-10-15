@@ -21,7 +21,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <mutex>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #define UX_LOG_TAG "XUrl"
@@ -49,7 +51,8 @@ jmethodID g_matcher_method = nullptr;      // Pattern.matcher(CharSequence)
 jmethodID g_find_method = nullptr;         // Matcher.find()
 jmethodID g_start_method = nullptr;        // Matcher.start()
 jmethodID g_end_method = nullptr;          // Matcher.end()
-jmethodID g_group_method = nullptr;        // Matcher.group()
+jmethodID g_region_method = nullptr;       // Matcher.region(int, int)
+jmethodID g_matches_method = nullptr;      // Matcher.matches()
 std::once_flag g_init_once;
 bool g_init_ok = false;
 
@@ -94,11 +97,13 @@ void init_jni_once(JNIEnv* env) {
   jmethodID findMethod = env->GetMethodID(matcherLocal, "find", "()Z");
   jmethodID startMethod = env->GetMethodID(matcherLocal, "start", "()I");
   jmethodID endMethod = env->GetMethodID(matcherLocal, "end", "()I");
-  jmethodID groupMethod = env->GetMethodID(matcherLocal, "group", "()Ljava/lang/String;");
+  jmethodID regionMethod = env->GetMethodID(matcherLocal, "region", "(II)Ljava/util/regex/Matcher;");
+  jmethodID matchesMethod = env->GetMethodID(matcherLocal, "matches", "()Z");
   env->DeleteLocalRef(patternLocal);
   env->DeleteLocalRef(matcherLocal);
   if (env->ExceptionCheck() || matcherMethod == nullptr || findMethod == nullptr ||
-      startMethod == nullptr || endMethod == nullptr || groupMethod == nullptr) {
+      startMethod == nullptr || endMethod == nullptr || regionMethod == nullptr ||
+      matchesMethod == nullptr) {
     clear_exception(env);
     return;
   }
@@ -114,7 +119,8 @@ void init_jni_once(JNIEnv* env) {
   g_find_method = findMethod;
   g_start_method = startMethod;
   g_end_method = endMethod;
-  g_group_method = groupMethod;
+  g_region_method = regionMethod;
+  g_matches_method = matchesMethod;
   g_init_ok = true;
 }
 
@@ -157,16 +163,6 @@ std::string utf16_to_utf8(const jchar* chars, jsize len) {
   return out;
 }
 
-std::string jstring_to_utf8(JNIEnv* env, jstring s) {
-  if (s == nullptr) return {};
-  const jchar* chars = env->GetStringChars(s, nullptr);
-  if (chars == nullptr) return {};
-  jsize len = env->GetStringLength(s);
-  std::string out = utf16_to_utf8(chars, len);
-  env->ReleaseStringChars(s, chars);
-  return out;
-}
-
 std::string canonical_web_url(const std::string& match) {
   // If a scheme is already present (`x://...`), pass through. Otherwise
   // prepend `http://` — Patterns.WEB_URL matches bare domains and `www.`.
@@ -204,43 +200,149 @@ std::string canonical_phone(const std::string& match) {
   return std::string("tel:") + digits;
 }
 
-void run_pattern(JNIEnv* env, jstring text, jobject pattern, uint32_t kind,
-                 std::vector<RawMatch>& out) {
+// Whether `pattern` matches [start, end) of `text` whole.
+bool matches_whole(JNIEnv* env, jobject pattern, jstring text, jint start, jint end) {
+  jobject matcher = env->CallObjectMethod(pattern, g_matcher_method, text);
+  if (env->ExceptionCheck() || matcher == nullptr) {
+    clear_exception(env);
+    return false;
+  }
+  env->DeleteLocalRef(env->CallObjectMethod(matcher, g_region_method, start, end));
+  bool whole =
+      !env->ExceptionCheck() && env->CallBooleanMethod(matcher, g_matches_method) && !env->ExceptionCheck();
+  clear_exception(env);
+  env->DeleteLocalRef(matcher);
+  return whole;
+}
+
+// Whether c is path punctuation a URL may end in, or sentence punctuation or
+// ')' that web_end weighs. A quote or '(' after a link belongs to the text
+// around it.
+bool is_path_end(jchar c) {
+  return std::u16string_view(u"/?:@&=#~-+*$).,;!").find(c) != std::u16string_view::npos;
+}
+
+// The end of the web match [start, end) in the region that ends at `to`.
+// Patterns.WEB_URL ends a match on a word boundary, which leaves out a path's
+// trailing punctuation where text follows it. The match runs on through the
+// is_path_end punctuation after it when the pattern matches the span to there
+// whole, then ends before a trailing '.', ',', ';' or '!' and a trailing ')'
+// it does not open.
+jint web_end(JNIEnv* env, jobject pattern, jstring text, const jchar* chars, jint start, jint end,
+             jint to) {
+  jint tail = end;
+  while (tail < to && is_path_end(chars[tail])) tail++;
+  if (tail > end && matches_whole(env, pattern, text, start, tail)) end = tail;
+  jint unopened = 0;
+  for (jint i = start; i < end; i++) {
+    if (chars[i] == u')') unopened++;
+    if (chars[i] == u'(') unopened--;
+  }
+  while (end > start) {
+    jchar c = chars[end - 1];
+    if (c == u')' && unopened > 0) {
+      unopened--;
+    } else if (!(c == u'.' || c == u',' || c == u';' || c == u'!')) {
+      break;
+    }
+    end--;
+  }
+  return end;
+}
+
+// U+3000's block's punctuation and the vertical, compatibility, small,
+// fullwidth and halfwidth forms of punctuation.
+bool is_cjk_punctuation(jchar c) {
+  return (c >= 0x3001 && c <= 0x3003) || (c >= 0x3008 && c <= 0x3011) ||
+         (c >= 0x3014 && c <= 0x301F) || (c >= 0xFE10 && c <= 0xFE19) ||
+         (c >= 0xFE30 && c <= 0xFE6B) || (c >= 0xFF01 && c <= 0xFF0F) ||
+         (c >= 0xFF1A && c <= 0xFF20) || (c >= 0xFF3B && c <= 0xFF40) ||
+         (c >= 0xFF5B && c <= 0xFF65);
+}
+
+// Han, kana, Bopomofo and Hangul by block, and an ideograph of the
+// supplementary planes by its high surrogate.
+bool is_cjk(jchar c) {
+  return (c >= 0x1100 && c <= 0x11FF) || (c >= 0x2E80 && c <= 0x9FFF) ||
+         (c >= 0xA960 && c <= 0xA97F) || (c >= 0xAC00 && c <= 0xD7FF) ||
+         (c >= 0xD840 && c <= 0xD8BF) || (c >= 0xF900 && c <= 0xFAFF) ||
+         (c >= 0xFF66 && c <= 0xFFDC);
+}
+
+// The glue of the host that begins the web match [start, end), which ends at
+// its first change between CJK letters and other characters inside a label:
+// the '.' after the CJK labels that begin the host, else the '.' before those
+// that end it, else that change. A low surrogate goes with its high surrogate.
+std::optional<jint> host_glue(const jchar* chars, jint start, jint end) {
+  const bool leading = is_cjk(chars[start]);
+  bool cjk = leading;
+  std::optional<jint> glue;
+  for (jint i = start + 1; i < end; i++) {
+    const jchar c = chars[i];
+    if (c == u'.' || (c >= 0xDC00 && c <= 0xDFFF)) continue;
+    if (c < 0x80 && !(std::isalnum(c) || c == u'-' || c == u'_')) break;
+    if (is_cjk(c) == cjk) continue;
+    cjk = !cjk;
+    if (chars[i - 1] != u'.') return glue.value_or(i);
+    if (leading) return i - 1;
+    if (cjk) {
+      glue = i - 1;
+    } else {
+      glue.reset();
+    }
+  }
+  return glue;
+}
+
+// Each stretch of the text between CJK punctuation is a region the pattern
+// matches as a text of its own, so no link takes a mark in. No host runs
+// across its glue: the web match is the part before the glue where the pattern
+// matches that whole, and the search goes on from the glue.
+void run_pattern(JNIEnv* env, jstring text, const jchar* chars, jint len, jobject pattern,
+                 uint32_t kind, std::vector<RawMatch>& out) {
   jobject matcher = env->CallObjectMethod(pattern, g_matcher_method, text);
   if (env->ExceptionCheck() || matcher == nullptr) {
     clear_exception(env);
     return;
   }
-  while (true) {
-    jboolean more = env->CallBooleanMethod(matcher, g_find_method);
+  for (jint from = 0; from <= len;) {
+    jint to = from;
+    while (to < len && !is_cjk_punctuation(chars[to])) to++;
+    env->DeleteLocalRef(env->CallObjectMethod(matcher, g_region_method, from, to));
     if (env->ExceptionCheck()) { clear_exception(env); break; }
-    if (!more) break;
+    while (true) {
+      jboolean more = env->CallBooleanMethod(matcher, g_find_method);
+      if (env->ExceptionCheck()) { clear_exception(env); break; }
+      if (!more) break;
 
-    jint start = env->CallIntMethod(matcher, g_start_method);
-    if (env->ExceptionCheck()) { clear_exception(env); break; }
-    jint end = env->CallIntMethod(matcher, g_end_method);
-    if (env->ExceptionCheck()) { clear_exception(env); break; }
-    jobject groupObj = env->CallObjectMethod(matcher, g_group_method);
-    if (env->ExceptionCheck()) {
-      clear_exception(env);
-      if (groupObj != nullptr) env->DeleteLocalRef(groupObj);
-      break;
+      jint start = env->CallIntMethod(matcher, g_start_method);
+      if (env->ExceptionCheck()) { clear_exception(env); break; }
+      jint end = env->CallIntMethod(matcher, g_end_method);
+      if (env->ExceptionCheck()) { clear_exception(env); break; }
+      if (kind == kKindWeb) {
+        if (std::optional<jint> glue = host_glue(chars, start, end)) {
+          env->DeleteLocalRef(env->CallObjectMethod(matcher, g_region_method, *glue, to));
+          if (env->ExceptionCheck()) { clear_exception(env); break; }
+          if (!matches_whole(env, pattern, text, start, *glue)) continue;
+          end = *glue;
+        }
+        end = web_end(env, pattern, text, chars, start, end, to);
+      }
+
+      std::string group = utf16_to_utf8(chars + start, end - start);
+
+      std::string url;
+      if (kind == kKindWeb) {
+        url = canonical_web_url(group);
+      } else if (kind == kKindEmail) {
+        url = std::string("mailto:") + group;
+      } else if (kind == kKindPhone) {
+        url = canonical_phone(group);
+      }
+      if (url.empty()) continue;
+      out.push_back(RawMatch{(int32_t)start, (int32_t)end, kind, std::move(url)});
     }
-    if (groupObj == nullptr) continue;
-
-    std::string group = jstring_to_utf8(env, (jstring)groupObj);
-    env->DeleteLocalRef(groupObj);
-
-    std::string url;
-    if (kind == kKindWeb) {
-      url = canonical_web_url(group);
-    } else if (kind == kKindEmail) {
-      url = std::string("mailto:") + group;
-    } else if (kind == kKindPhone) {
-      url = canonical_phone(group);
-    }
-    if (url.empty()) continue;
-    out.push_back(RawMatch{(int32_t)start, (int32_t)end, kind, std::move(url)});
+    from = to + 1;
   }
   env->DeleteLocalRef(matcher);
 }
@@ -339,9 +441,9 @@ uint8_t* ux_match_url(const uint16_t* utf16, int32_t len, int32_t* out_size) {
 
     std::vector<RawMatch> matches;
     matches.reserve(8);
-    run_pattern(env, text, g_web_url_pattern, kKindWeb, matches);
-    run_pattern(env, text, g_email_pattern, kKindEmail, matches);
-    run_pattern(env, text, g_phone_pattern, kKindPhone, matches);
+    run_pattern(env, text, utf16, len, g_web_url_pattern, kKindWeb, matches);
+    run_pattern(env, text, utf16, len, g_email_pattern, kKindEmail, matches);
+    run_pattern(env, text, utf16, len, g_phone_pattern, kKindPhone, matches);
     env->DeleteLocalRef(text);
 
     sort_and_dedup(matches);

@@ -49,9 +49,14 @@ static NSRegularExpression *ux_url_bare_domain_regex(void) {
     static NSRegularExpression *regex;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        // Hostname segment + at least one dot-segment + `/` or `?` suffix.
-        // ASCII-only; bare IDN domains stay undetected.
-        NSString *pattern = @"\\b[a-z0-9-]+(\\.[a-z0-9-]+)+([/?][^\\s]*)";
+        // Hostname segment + at least one dot-segment + `/` or `?` suffix,
+        // which ends before whitespace and CJK punctuation: U+3000's block's
+        // punctuation and the vertical, compatibility, small, fullwidth and
+        // halfwidth forms of punctuation. ASCII-only; bare IDN domains stay
+        // undetected.
+        NSString *pattern = @"\\b[a-z0-9-]+(\\.[a-z0-9-]+)+([/?][^\\s"
+                            @"\\u3001-\\u3003\\u3008-\\u3011\\u3014-\\u301F\\uFE10-\\uFE19\\uFE30-\\uFE6B"
+                            @"\\uFF01-\\uFF0F\\uFF1A-\\uFF20\\uFF3B-\\uFF40\\uFF5B-\\uFF65]*)";
         NSError *err = nil;
         regex = [NSRegularExpression
             regularExpressionWithPattern:pattern
@@ -59,6 +64,27 @@ static NSRegularExpression *ux_url_bare_domain_regex(void) {
                                    error:&err];
     });
     return regex;
+}
+
+// The end of the web match [start, end) before a trailing '.', ',', ';' or '!'
+// and a trailing ')' it does not open, which the bare-domain regex's suffix
+// takes in.
+static NSUInteger ux_web_end(const uint16_t *chars, NSUInteger start, NSUInteger end) {
+    NSInteger unopened = 0;
+    for (NSUInteger i = start; i < end; i++) {
+        if (chars[i] == ')') unopened++;
+        if (chars[i] == '(') unopened--;
+    }
+    while (end > start) {
+        const uint16_t c = chars[end - 1];
+        if (c == ')' && unopened > 0) {
+            unopened--;
+        } else if (!(c == '.' || c == ',' || c == ';' || c == '!')) {
+            break;
+        }
+        end--;
+    }
+    return end;
 }
 
 static NSData *ux_utf8(NSString *s) {
@@ -150,11 +176,12 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
                 if (result == nil) return;
                 const NSRange r = result.range;
                 if (r.location == NSNotFound || r.length == 0) return;
-                NSString *substr = [text substringWithRange:r];
+                const NSUInteger end = ux_web_end(utf16, r.location, NSMaxRange(r));
+                NSString *substr = [text substringWithRange:NSMakeRange(r.location, end - r.location)];
                 NSString *withScheme = [@"http://" stringByAppendingString:substr];
                 XUrlRawMatch *m = [[XUrlRawMatch alloc] init];
                 m.start = (int32_t)r.location;
-                m.end   = (int32_t)(r.location + r.length);
+                m.end   = (int32_t)end;
                 m.kind  = kKindWeb;
                 m.urlUtf8 = ux_utf8(withScheme);
                 [raws addObject:m];
