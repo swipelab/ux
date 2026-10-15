@@ -1,4 +1,11 @@
 ### 0.18.0
+- **A bare domain leaves out the CJK letters glued to it.** On Android and
+  Windows, a host in `XUrl.match` does not run across a change between CJK
+  letters and other characters inside a label, as on macOS, so a domain
+  written straight before or after Chinese, Japanese or Korean text opens the
+  right host: `访问example.com，然后` and `example.com然后` link
+  `http://example.com`. A host whose labels differ in script, such as
+  `example.中国`, stays whole.
 - **A web link keeps the slash that ends it.** On Android and Windows, a web
   match that text follows keeps its path's trailing `/`, the other path
   punctuation a URL may end in, such as `?`, `=`, `#`, `-` and `*`, and a

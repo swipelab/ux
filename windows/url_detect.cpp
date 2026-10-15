@@ -212,9 +212,38 @@ bool IsCjkPunctuation(UChar c) {
          (c >= 0xFF1A && c <= 0xFF20) || (c >= 0xFF3B && c <= 0xFF40) || (c >= 0xFF5B && c <= 0xFF65);
 }
 
+// Han, kana, Bopomofo and Hangul by block, and an ideograph of the
+// supplementary planes by its high surrogate.
+bool IsCjk(UChar c) {
+  return (c >= 0x1100 && c <= 0x11FF) || (c >= 0x2E80 && c <= 0x9FFF) || (c >= 0xA960 && c <= 0xA97F) ||
+         (c >= 0xAC00 && c <= 0xD7FF) || (c >= 0xD840 && c <= 0xD8BF) || (c >= 0xF900 && c <= 0xFAFF) ||
+         (c >= 0xFF66 && c <= 0xFFDC);
+}
+
+// The glue of the host that begins the web match [start, end): its first
+// change between CJK and other characters inside a label. A low surrogate goes
+// with its high surrogate.
+std::optional<int32_t> HostGlue(const UChar* text, int32_t start, int32_t end) {
+  std::optional<bool> cjk;
+  for (int32_t i = start; i < end; i++) {
+    const UChar c = text[i];
+    if (c == u'.') {
+      cjk.reset();
+    } else if (c < 0x80 && !(std::isalnum(c) || c == u'-' || c == u'_')) {
+      break;
+    } else if (c < 0xDC00 || c > 0xDFFF) {
+      if (cjk && *cjk != IsCjk(c)) return i;
+      cjk = IsCjk(c);
+    }
+  }
+  return std::nullopt;
+}
+
 // A clone per call, since a URegularExpression holds its matcher's state.
 // Each stretch of the text between CJK punctuation is a region the detector
-// matches as a text of its own, so no link takes a mark in.
+// matches as a text of its own, so no link takes a mark in. No host runs
+// across its glue: the web match is the part before the glue where the
+// detector matches that whole, and the search goes on from the glue.
 void Find(const URegularExpression* detector, const UChar* text, int32_t len, uint32_t kind,
           std::vector<RawMatch>& out) {
   UErrorCode status = U_ZERO_ERROR;
@@ -226,9 +255,16 @@ void Find(const URegularExpression* detector, const UChar* text, int32_t len, ui
     uregex_setRegion(regex, from, to, &status);
     while (uregex_findNext(regex, &status)) {
       const int32_t start = uregex_start(regex, 0, &status);
-      const int32_t matched = uregex_end(regex, 0, &status);
+      int32_t end = uregex_end(regex, 0, &status);
       if (U_FAILURE(status)) break;
-      const int32_t end = kind == kKindWeb ? WebEnd(detector, text, len, start, matched, to) : matched;
+      if (kind == kKindWeb) {
+        if (const std::optional<int32_t> glue = HostGlue(text, start, end)) {
+          uregex_setRegion(regex, *glue, to, &status);
+          if (!MatchesWhole(detector, text, len, start, *glue)) continue;
+          end = *glue;
+        }
+        end = WebEnd(detector, text, len, start, end, to);
+      }
       const std::string group = Utf8(text + start, end - start);
       std::optional<std::string> url = kind == kKindWeb     ? CanonicalWebUrl(group)
                                        : kind == kKindEmail ? "mailto:" + group
