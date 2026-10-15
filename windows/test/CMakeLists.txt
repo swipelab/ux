@@ -17,9 +17,12 @@ add_executable(ux_test
   "ux_test.cpp"
   "check.h"
   "file_types_test.cpp"
+  "media_foundation_test.cpp"
   "platform_thread_test.cpp"
+  "raster_test.cpp"
+  "support.h"
   "url_detect_test.cpp"
-  "video_device_test.cpp"
+  "video_export_test.cpp"
   ${UX_PLUGIN_SOURCES}
   "${WRAPPER}/core_implementations.cc"
   "${WRAPPER}/standard_codec.cc"
@@ -37,6 +40,8 @@ add_custom_command(TARGET ux_test POST_BUILD
 
 enable_testing()
 add_test(NAME file_types COMMAND ux_test file_types)
+add_test(NAME media_foundation COMMAND ux_test media_foundation)
 add_test(NAME platform_thread COMMAND ux_test platform_thread)
+add_test(NAME raster COMMAND ux_test raster)
 add_test(NAME url_detect COMMAND ux_test url_detect)
-add_test(NAME video_device COMMAND ux_test video_device)
+add_test(NAME video_export COMMAND ux_test video_export)
