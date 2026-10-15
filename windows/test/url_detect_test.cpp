@@ -93,7 +93,7 @@ const std::vector<Case>& Corpus() {
        u"\u8BBF\u95EEexample.com\u548Cgoogle.com",
        {{2, 13, kWeb, "http://example.com"}, {14, 24, kWeb, "http://google.com"}}},
       {"a port CJK letters follow stays in the bare domain link",
-       u"访问example.com:8080然后",
+       u"\u8BBF\u95EEexample.com:8080\u7136\u540E",
        {{2, 18, kWeb, "http://example.com:8080"}}},
       {"a bare domain glued after Thai letters leaves them out",
        u"\u0E02\u0E49\u0E2D\u0E21\u0E39\u0E25\u0E17\u0E35\u0E48example.com",
