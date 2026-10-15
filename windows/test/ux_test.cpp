@@ -4,6 +4,7 @@
 #include "check.h"
 
 void FileTypesSuite();
+void ImageProbeSuite();
 void MediaFoundationSuite();
 void PlatformThreadSuite();
 void RasterSuite();
@@ -19,6 +20,7 @@ struct Suite {
 
 constexpr Suite kSuites[] = {
     {"file_types", FileTypesSuite},
+    {"image_probe", ImageProbeSuite},
     {"media_foundation", MediaFoundationSuite},
     {"platform_thread", PlatformThreadSuite},
     {"raster", RasterSuite},

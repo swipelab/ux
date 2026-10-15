@@ -3,6 +3,8 @@
 
 #include <windows.h>
 
+#include <wincodec.h>
+
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -59,6 +61,9 @@ void ToNv12(const Image& image, YuvMatrix matrix, uint8_t* nv12, size_t stride);
 
 // The PNG of [image], with straight alpha.
 HRESULT EncodePng(const Image& image, std::vector<uint8_t>& png);
+
+// The PNG of [source], whose pixels are 32bppBGRA.
+HRESULT EncodePng(IWICImagingFactory* factory, IWICBitmapSource* source, std::vector<uint8_t>& png);
 
 // Decodes the image file at [path] into [image].
 HRESULT DecodeImage(const std::wstring& path, Image& image);

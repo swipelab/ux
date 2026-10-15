@@ -1,4 +1,10 @@
 ### 0.18.0
+- **Windows probes images.** `XImageProbe.size` and `XImageProbe.thumbnail`
+  answer on Windows through WIC, upright with the image's orientation applied,
+  for every format an installed codec decodes, HEIC and HEIF included where
+  Windows has the HEIF and HEVC extensions, and null for a file none decodes.
+  `XImageProbe.supported` is true on Windows, and the file dialog's `image/*`
+  filter there allows heic and heif.
 - **Windows extracts video frames and exports videos.** `XFiles.videoThumbnail`
   and `videoThumbnails` decode through Media Foundation the frame nearest each
   time, within 500 ms, upright, scaled to `maxWidth` or baked with the transform

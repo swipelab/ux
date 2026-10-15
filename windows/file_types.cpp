@@ -18,9 +18,10 @@ struct FileType {
 // The image and video files the app handles on Windows.
 const std::vector<FileType>& MediaTypes() {
   static const std::vector<FileType> types = {
-      {"image/jpeg", {L"jpg", L"jpeg"}}, {"image/png", {L"png"}},        {"image/gif", {L"gif"}},
-      {"image/webp", {L"webp"}},         {"image/bmp", {L"bmp"}},        {"video/mp4", {L"mp4"}},
-      {"video/x-m4v", {L"m4v"}},         {"video/quicktime", {L"mov"}},
+      {"image/jpeg", {L"jpg", L"jpeg"}}, {"image/png", {L"png"}},   {"image/gif", {L"gif"}},
+      {"image/webp", {L"webp"}},         {"image/bmp", {L"bmp"}},   {"image/heic", {L"heic"}},
+      {"image/heif", {L"heif"}},         {"video/mp4", {L"mp4"}},   {"video/x-m4v", {L"m4v"}},
+      {"video/quicktime", {L"mov"}},
   };
   return types;
 }

@@ -12,7 +12,7 @@ namespace {
 
 using Extensions = std::vector<std::wstring>;
 
-const Extensions kImages = {L"jpg", L"jpeg", L"png", L"gif", L"webp", L"bmp"};
+const Extensions kImages = {L"jpg", L"jpeg", L"png", L"gif", L"webp", L"bmp", L"heic", L"heif"};
 const Extensions kVideos = {L"mp4", L"m4v", L"mov"};
 
 }  // namespace
@@ -24,7 +24,8 @@ void FileTypesSuite() {
   CHECK(PickExtensions({"image/*", "video/*"}) == media);
 
   CHECK(PickExtensions({"video/quicktime", "IMAGE/JPEG"}) == Extensions({L"mov", L"jpg", L"jpeg"}));
-  CHECK(PickExtensions({"image/png", "image/*"}) == Extensions({L"png", L"jpg", L"jpeg", L"gif", L"webp", L"bmp"}));
+  CHECK(PickExtensions({"image/png", "image/*"}) ==
+        Extensions({L"png", L"jpg", L"jpeg", L"gif", L"webp", L"bmp", L"heic", L"heif"}));
   CHECK(PickExtensions({"application/pdf"}) == Extensions({L"pdf"}));
 
   CHECK(!PickExtensions({}));
