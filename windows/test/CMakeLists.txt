@@ -16,14 +16,19 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/../sources.cmake")
 add_executable(ux_test
   "ux_test.cpp"
   "check.h"
+  "png.h"
+  "dib_test.cpp"
+  "drop_test.cpp"
   "file_types_test.cpp"
   "image_probe_test.cpp"
   "media_foundation_test.cpp"
   "platform_thread_test.cpp"
   "raster_test.cpp"
   "support.h"
+  "toast_test.cpp"
   "url_detect_test.cpp"
   "video_export_test.cpp"
+  "window_test.cpp"
   ${UX_PLUGIN_SOURCES}
   "${WRAPPER}/core_implementations.cc"
   "${WRAPPER}/standard_codec.cc"
@@ -34,16 +39,21 @@ target_compile_options(ux_test PRIVATE /W4 /WX /wd4100 /EHsc)
 target_compile_definitions(ux_test PRIVATE UNICODE _UNICODE _HAS_EXCEPTIONS=0 "$<$<CONFIG:Debug>:_DEBUG>"
   ${UX_PLUGIN_DEFINITIONS})
 target_include_directories(ux_test PRIVATE "${ENGINE}" "${WRAPPER}/include")
-target_link_libraries(ux_test PRIVATE "${ENGINE}/flutter_windows.dll.lib" ${UX_PLUGIN_LIBRARIES} dxgi)
+target_link_libraries(ux_test PRIVATE "${ENGINE}/flutter_windows.dll.lib" ${UX_PLUGIN_LIBRARIES} dxgi powrprof)
 target_link_options(ux_test PRIVATE ${UX_PLUGIN_LINK_OPTIONS})
 add_custom_command(TARGET ux_test POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ENGINE}/flutter_windows.dll" "$<TARGET_FILE_DIR:ux_test>")
 
 enable_testing()
+add_test(NAME dib COMMAND ux_test dib)
+add_test(NAME drop COMMAND ux_test drop)
 add_test(NAME file_types COMMAND ux_test file_types)
 add_test(NAME image_probe COMMAND ux_test image_probe)
 add_test(NAME media_foundation COMMAND ux_test media_foundation)
 add_test(NAME platform_thread COMMAND ux_test platform_thread)
 add_test(NAME raster COMMAND ux_test raster)
+add_test(NAME toast COMMAND ux_test toast)
 add_test(NAME url_detect COMMAND ux_test url_detect)
 add_test(NAME video_export COMMAND ux_test video_export)
+add_test(NAME window COMMAND ux_test window)
+set_tests_properties(window PROPERTIES SKIP_RETURN_CODE 77)
