@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:ux/url.dart';
@@ -345,8 +343,51 @@ void main() {
         ),
       ]);
     },
-    // macOS and iOS also link http://page.com here (#3175).
-    skip: !(Platform.isAndroid || Platform.isWindows),
+  );
+
+  testWidgets(
+    'a path and query a web link runs on into past fullwidth parentheses do '
+    'not link on their own',
+    (tester) async {
+      expect(XUrl.match('https://example.com/a（1）/page.html?x=1'), const [
+        UrlMatch(
+          start: 0,
+          end: 21,
+          url: 'https://example.com/a',
+          kind: UrlMatchKind.web,
+        ),
+      ]);
+    },
+  );
+
+  testWidgets(
+    'a domain in the query a web link runs on into past fullwidth parentheses '
+    'does not link on its own',
+    (tester) async {
+      expect(XUrl.match('https://example.com/a（1）?q=example.org'), const [
+        UrlMatch(
+          start: 0,
+          end: 21,
+          url: 'https://example.com/a',
+          kind: UrlMatchKind.web,
+        ),
+      ]);
+    },
+  );
+
+  testWidgets(
+    'a domain in the path a web link runs on into past a trailing period and '
+    'fullwidth parentheses does not link on its own',
+    (tester) async {
+      expect(XUrl.match('https://example.com/a.（1）/page.com'), const [
+        UrlMatch(
+          start: 0,
+          end: 21,
+          url: 'https://example.com/a',
+          kind: UrlMatchKind.web,
+        ),
+      ]);
+    },
   );
 
   testWidgets(
