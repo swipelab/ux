@@ -85,7 +85,7 @@ void main() {
   testWidgets('a zero width space stays in the path of a bare domain link', (
     tester,
   ) async {
-    expect(XUrl.match('see example.com/a​b x'), const [
+    expect(XUrl.match('see example.com/a\u200Bb x'), const [
       UrlMatch(
         start: 4,
         end: 19,
