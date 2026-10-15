@@ -49,9 +49,14 @@ static NSRegularExpression *ux_url_bare_domain_regex(void) {
     static NSRegularExpression *regex;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        // Hostname segment + at least one dot-segment + `/` or `?` suffix.
-        // ASCII-only; bare IDN domains stay undetected.
-        NSString *pattern = @"\\b[a-z0-9-]+(\\.[a-z0-9-]+)+([/?][^\\s]*)";
+        // Hostname segment + at least one dot-segment + `/` or `?` suffix,
+        // which ends before whitespace and CJK punctuation: U+3000's block's
+        // punctuation and the vertical, compatibility, small, fullwidth and
+        // halfwidth forms of punctuation. ASCII-only; bare IDN domains stay
+        // undetected.
+        NSString *pattern = @"\\b[a-z0-9-]+(\\.[a-z0-9-]+)+([/?][^\\s"
+                            @"\\u3001-\\u3003\\u3008-\\u3011\\u3014-\\u301F\\uFE10-\\uFE19\\uFE30-\\uFE6B"
+                            @"\\uFF01-\\uFF0F\\uFF1A-\\uFF20\\uFF3B-\\uFF40\\uFF5B-\\uFF65]*)";
         NSError *err = nil;
         regex = [NSRegularExpression
             regularExpressionWithPattern:pattern
@@ -62,7 +67,7 @@ static NSRegularExpression *ux_url_bare_domain_regex(void) {
 }
 
 // The end of the web match [start, end) before a trailing '.', ',', ';' or '!'
-// and a trailing ')' it does not open, which the bare-domain regex's `[^\s]*`
+// and a trailing ')' it does not open, which the bare-domain regex's suffix
 // takes in.
 static NSUInteger ux_web_end(const uint16_t *chars, NSUInteger start, NSUInteger end) {
     NSInteger unopened = 0;

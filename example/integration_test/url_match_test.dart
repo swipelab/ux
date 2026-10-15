@@ -38,4 +38,26 @@ void main() {
           kind: UrlMatchKind.web),
     ]);
   });
+
+  testWidgets('a web link ends before CJK punctuation', (tester) async {
+    expect(XUrl.match('看 https://example.com/a?b=1。下一句'), const [
+      UrlMatch(
+          start: 2,
+          end: 27,
+          url: 'https://example.com/a?b=1',
+          kind: UrlMatchKind.web),
+    ]);
+  });
+
+  testWidgets(
+      'a bare domain link between CJK punctuation takes in neither mark',
+      (tester) async {
+    expect(XUrl.match('链接：example.com/a。下'), const [
+      UrlMatch(
+          start: 3,
+          end: 16,
+          url: 'http://example.com/a',
+          kind: UrlMatchKind.web),
+    ]);
+  });
 }

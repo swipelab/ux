@@ -180,22 +180,38 @@ int32_t WebEnd(const UChar* text, int32_t start, int32_t end) {
   return end;
 }
 
+// U+3000's block's punctuation and the vertical, compatibility, small,
+// fullwidth and halfwidth forms of punctuation.
+bool IsCjkPunctuation(UChar c) {
+  return (c >= 0x3001 && c <= 0x3003) || (c >= 0x3008 && c <= 0x3011) || (c >= 0x3014 && c <= 0x301F) ||
+         (c >= 0xFE10 && c <= 0xFE19) || (c >= 0xFE30 && c <= 0xFE6B) || (c >= 0xFF01 && c <= 0xFF0F) ||
+         (c >= 0xFF1A && c <= 0xFF20) || (c >= 0xFF3B && c <= 0xFF40) || (c >= 0xFF5B && c <= 0xFF65);
+}
+
 // A clone per call, since a URegularExpression holds its matcher's state.
+// Each stretch of the text between CJK punctuation is a region the detector
+// matches as a text of its own, so no link takes a mark in.
 void Find(const URegularExpression* detector, const UChar* text, int32_t len, uint32_t kind,
           std::vector<RawMatch>& out) {
   UErrorCode status = U_ZERO_ERROR;
   URegularExpression* regex = uregex_clone(detector, &status);
   uregex_setText(regex, text, len, &status);
-  while (uregex_findNext(regex, &status)) {
-    const int32_t start = uregex_start(regex, 0, &status);
-    const int32_t matched = uregex_end(regex, 0, &status);
-    if (U_FAILURE(status)) break;
-    const int32_t end = kind == kKindWeb ? WebEnd(text, start, matched) : matched;
-    const std::string group = Utf8(text + start, end - start);
-    std::optional<std::string> url = kind == kKindWeb     ? CanonicalWebUrl(group)
-                                     : kind == kKindEmail ? "mailto:" + group
-                                                          : CanonicalPhone(group);
-    if (url) out.push_back(RawMatch{start, end, kind, std::move(*url)});
+  for (int32_t from = 0; from <= len;) {
+    int32_t to = from;
+    while (to < len && !IsCjkPunctuation(text[to])) to++;
+    uregex_setRegion(regex, from, to, &status);
+    while (uregex_findNext(regex, &status)) {
+      const int32_t start = uregex_start(regex, 0, &status);
+      const int32_t matched = uregex_end(regex, 0, &status);
+      if (U_FAILURE(status)) break;
+      const int32_t end = kind == kKindWeb ? WebEnd(text, start, matched) : matched;
+      const std::string group = Utf8(text + start, end - start);
+      std::optional<std::string> url = kind == kKindWeb     ? CanonicalWebUrl(group)
+                                       : kind == kKindEmail ? "mailto:" + group
+                                                            : CanonicalPhone(group);
+      if (url) out.push_back(RawMatch{start, end, kind, std::move(*url)});
+    }
+    from = to + 1;
   }
   uregex_close(regex);
 }
