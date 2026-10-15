@@ -220,23 +220,29 @@ bool IsCjk(UChar c) {
          (c >= 0xFF66 && c <= 0xFFDC);
 }
 
-// The glue of the host that begins the web match [start, end): its first
-// change between CJK and other characters inside a label. A low surrogate goes
-// with its high surrogate.
+// The glue of the host that begins the web match [start, end): where the host
+// begins with CJK letters, its first change between them and other characters,
+// else, where it ends with CJK letters, its last change to them. A glue after a
+// '.' is at the '.'. A low surrogate goes with its high surrogate.
 std::optional<int32_t> HostGlue(const UChar* text, int32_t start, int32_t end) {
-  std::optional<bool> cjk;
-  for (int32_t i = start; i < end; i++) {
+  const bool leading = IsCjk(text[start]);
+  bool cjk = leading;
+  std::optional<int32_t> glue;
+  for (int32_t i = start + 1; i < end; i++) {
     const UChar c = text[i];
-    if (c == u'.') {
-      cjk.reset();
-    } else if (c < 0x80 && !(std::isalnum(c) || c == u'-' || c == u'_')) {
-      break;
-    } else if (c < 0xDC00 || c > 0xDFFF) {
-      if (cjk && *cjk != IsCjk(c)) return i;
-      cjk = IsCjk(c);
+    if (c == u'.' || (c >= 0xDC00 && c <= 0xDFFF)) continue;
+    if (c < 0x80 && !(std::isalnum(c) || c == u'-' || c == u'_')) break;
+    if (IsCjk(c) == cjk) continue;
+    cjk = !cjk;
+    const int32_t at = text[i - 1] == u'.' ? i - 1 : i;
+    if (leading) return at;
+    if (cjk) {
+      glue = at;
+    } else {
+      glue.reset();
     }
   }
-  return std::nullopt;
+  return glue;
 }
 
 // A clone per call, since a URegularExpression holds its matcher's state.

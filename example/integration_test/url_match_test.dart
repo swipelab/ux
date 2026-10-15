@@ -116,4 +116,16 @@ void main() {
           kind: UrlMatchKind.web),
     ]);
   });
+
+  testWidgets(
+      'a bare domain leaves out a period and the CJK letters after it',
+      (tester) async {
+    expect(XUrl.match('请看example.com.谢谢'), const [
+      UrlMatch(
+          start: 2,
+          end: 13,
+          url: 'http://example.com',
+          kind: UrlMatchKind.web),
+    ]);
+  });
 }
