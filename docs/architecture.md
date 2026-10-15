@@ -144,6 +144,13 @@ with either separator.
   message-only window on the platform thread, and drops a value that arrives
   once the handler is gone. `ux_match_url` runs on the calling isolate's thread
   and is safe from several at once.
+- **Lifetime.** The registrar destroys its handlers while the engine shuts
+  down, after the engine has detached the messenger, so a handler's destructor
+  neither unregisters a channel nor emits an event:
+  `FlutterDesktopMessengerSetCallback` and `FlutterDesktopMessengerSend`
+  dereference the engine the messenger no longer holds. The registrar's
+  messenger, which holds the channels' callbacks, goes right after the
+  handlers, and the client wrapper drops a reply a destructor completes.
 - **Memory.** What a native call hands to Dart returns to the allocator that
   made it: `ux_free` frees the buffer `ux_match_url` returns.
 - **SDK only.** C++17, built by MSVC, on the Windows SDK alone (Win32, COM,

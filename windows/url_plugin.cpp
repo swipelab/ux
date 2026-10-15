@@ -31,8 +31,6 @@ UrlPlugin::UrlPlugin(flutter::BinaryMessenger* messenger)
   channel_->SetMethodCallHandler([this](const auto& call, auto result) { HandleMethodCall(call, std::move(result)); });
 }
 
-UrlPlugin::~UrlPlugin() { channel_->SetMethodCallHandler(nullptr); }
-
 void UrlPlugin::HandleMethodCall(const flutter::MethodCall<flutter::EncodableValue>& call,
                                  std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
   if (call.method_name() != "launch") {

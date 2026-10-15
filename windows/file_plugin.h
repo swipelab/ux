@@ -20,7 +20,6 @@ namespace ux {
 class FilePlugin : public flutter::Plugin {
  public:
   explicit FilePlugin(flutter::PluginRegistrarWindows* registrar);
-  ~FilePlugin() override;
 
   FilePlugin(const FilePlugin&) = delete;
   FilePlugin& operator=(const FilePlugin&) = delete;

@@ -190,8 +190,6 @@ FilePlugin::FilePlugin(flutter::PluginRegistrarWindows* registrar)
   channel_->SetMethodCallHandler([this](const auto& call, auto result) { HandleMethodCall(call, std::move(result)); });
 }
 
-FilePlugin::~FilePlugin() { channel_->SetMethodCallHandler(nullptr); }
-
 void FilePlugin::HandleMethodCall(const flutter::MethodCall<EncodableValue>& call, std::unique_ptr<Result> result) {
   const std::string& method = call.method_name();
   const auto* args = std::get_if<EncodableMap>(call.arguments());
