@@ -1,4 +1,7 @@
 ### 0.18.0
+- **A cancelled video export ends.** On iOS and macOS, cancelling an export
+  that re-encodes with a `transform` while it runs fails `done` with
+  `cancelled` and deletes the partial file, as on Android and Windows.
 - **A video keeps its speed when it starts playing.** On iOS and macOS,
   `XVideoPlayerController.play` plays at the speed `setPlaybackSpeed` last
   set, a speed set while paused included, so the speed holds after a pause and
