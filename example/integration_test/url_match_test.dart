@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:ux/url.dart';
@@ -165,6 +167,86 @@ void main() {
           start: 0,
           end: 21,
           url: 'https://example.com/a',
+          kind: UrlMatchKind.web,
+        ),
+      ]);
+    },
+  );
+
+  testWidgets(
+    'a domain in the path a web link runs on into past fullwidth parentheses '
+    'does not link on its own',
+    (tester) async {
+      expect(XUrl.match('https://example.com/a（1）/page.com'), const [
+        UrlMatch(
+          start: 0,
+          end: 21,
+          url: 'https://example.com/a',
+          kind: UrlMatchKind.web,
+        ),
+      ]);
+    },
+    // macOS and iOS also link http://page.com here (#3175).
+    skip: !(Platform.isAndroid || Platform.isWindows),
+  );
+
+  testWidgets(
+    "a bare domain past a web link's fullwidth comma and a path delimiter "
+    'links on its own',
+    (tester) async {
+      expect(XUrl.match('https://example.com/a，/example.org'), const [
+        UrlMatch(
+          start: 0,
+          end: 21,
+          url: 'https://example.com/a',
+          kind: UrlMatchKind.web,
+        ),
+        UrlMatch(
+          start: 23,
+          end: 34,
+          url: 'http://example.org',
+          kind: UrlMatchKind.web,
+        ),
+      ]);
+    },
+  );
+
+  testWidgets(
+    "a bare domain past a web link's fullwidth parentheses, another mark and "
+    'a path delimiter links on its own',
+    (tester) async {
+      expect(XUrl.match('https://example.com/a（1）。/example.org'), const [
+        UrlMatch(
+          start: 0,
+          end: 21,
+          url: 'https://example.com/a',
+          kind: UrlMatchKind.web,
+        ),
+        UrlMatch(
+          start: 26,
+          end: 37,
+          url: 'http://example.org',
+          kind: UrlMatchKind.web,
+        ),
+      ]);
+    },
+  );
+
+  testWidgets(
+    "a bare domain past a web link's fullwidth closing parenthesis and a path "
+    'delimiter links on its own',
+    (tester) async {
+      expect(XUrl.match('https://example.com/a）/page.com'), const [
+        UrlMatch(
+          start: 0,
+          end: 21,
+          url: 'https://example.com/a',
+          kind: UrlMatchKind.web,
+        ),
+        UrlMatch(
+          start: 23,
+          end: 31,
+          url: 'http://page.com',
           kind: UrlMatchKind.web,
         ),
       ]);
