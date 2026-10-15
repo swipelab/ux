@@ -94,4 +94,26 @@ void main() {
           kind: UrlMatchKind.web),
     ]);
   });
+
+  testWidgets('a bare domain glued after CJK letters leaves them out',
+      (tester) async {
+    expect(XUrl.match('访问example.com，然后'), const [
+      UrlMatch(
+          start: 2,
+          end: 13,
+          url: 'http://example.com',
+          kind: UrlMatchKind.web),
+    ]);
+  });
+
+  testWidgets('CJK letters glued after a bare domain stay out of it',
+      (tester) async {
+    expect(XUrl.match('example.com然后'), const [
+      UrlMatch(
+          start: 0,
+          end: 11,
+          url: 'http://example.com',
+          kind: UrlMatchKind.web),
+    ]);
+  });
 }
