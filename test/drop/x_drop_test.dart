@@ -239,8 +239,16 @@ void main() {
 
     test('a failed job throws and leaves no directory', () async {
       final unreadable = p.join(tree.path, 'readme.txt');
-      expect((await Process.run('chmod', ['000', unreadable])).exitCode, 0);
-      addTearDown(() => Process.runSync('chmod', ['644', unreadable]));
+      // Windows ignores chmod's mode bits, but fails a read of a range that
+      // another handle has locked.
+      if (Platform.isWindows) {
+        final holder = await File(unreadable).open(mode: FileMode.append);
+        await holder.lock();
+        addTearDown(holder.close);
+      } else {
+        expect((await Process.run('chmod', ['000', unreadable])).exitCode, 0);
+        addTearDown(() => Process.runSync('chmod', ['644', unreadable]));
+      }
       final before = _drops();
 
       await expectLater(zip().result, throwsA(isA<FileSystemException>()));
