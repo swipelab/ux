@@ -321,6 +321,21 @@ void main() {
     },
   );
 
+  testWidgets(
+    'a bare domain after CJK letters and a space links whole where a label '
+    'follows the word a period glues to its first labels',
+    (tester) async {
+      expect(XUrl.match('访问 api.example.com.mirror.dev/docs'), const [
+        UrlMatch(
+          start: 3,
+          end: 34,
+          url: 'http://api.example.com.mirror.dev/docs',
+          kind: UrlMatchKind.web,
+        ),
+      ]);
+    },
+  );
+
   testWidgets('a bare domain links on com, edu, gov, net or org in capitals', (
     tester,
   ) async {
