@@ -10,6 +10,7 @@ library of its own:
 
 | Library | Holds |
 | --- | --- |
+| `accessibility.dart` | `XAccessibility`, the OS's Reduce Motion on macOS and Windows |
 | `app_group.dart` | storage shared with app extensions |
 | `audio.dart` | `XAudioCapture`, `XAudioSink` |
 | `camera.dart` | `XCamera`, preview, effects |

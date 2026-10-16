@@ -1,4 +1,13 @@
 ### 0.18.0
+- **macOS and Windows report Reduce Motion.** `XAccessibility.reduceMotion`
+  (`package:ux/accessibility.dart`) holds whether the OS asks apps to reduce
+  motion where Flutter's embedder does not report it, and follows its changes
+  while the app runs: on macOS the Reduce motion setting, `NSWorkspace`'s
+  `accessibilityDisplayShouldReduceMotion`, read again on each
+  `accessibilityDisplayOptionsDidChangeNotification`, and on Windows Animation
+  effects off, `SPI_GETCLIENTAREAANIMATION`, read again on each
+  `WM_SETTINGCHANGE`. On iOS, Android and Linux, whose Flutter
+  `AccessibilityFeatures` carry the setting, it stays false.
 - **A web link leaves out the quotes and brackets around it.**
   `XUrl.match` ends a web link before a trailing `'` or `(`, and before a `"`,
   `<`, `>`, `[`, `\`, `]`, `^`, `` ` ``, `{`, `|`, `}` or a `%` that two hex

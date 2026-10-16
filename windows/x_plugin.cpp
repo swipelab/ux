@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include "accessibility_plugin.h"
 #include "camera_plugin.h"
 #include "clipboard_plugin.h"
 #include "crypto_plugin.h"
@@ -17,6 +18,7 @@
 namespace ux {
 
 void XPlugin::RegisterWithRegistrar(flutter::PluginRegistrarWindows* registrar) {
+  registrar->AddPlugin(std::make_unique<AccessibilityPlugin>(registrar));
   registrar->AddPlugin(std::make_unique<CameraPlugin>(registrar));
   registrar->AddPlugin(std::make_unique<ClipboardPlugin>(registrar->messenger()));
   registrar->AddPlugin(std::make_unique<CryptoPlugin>(registrar->messenger()));
