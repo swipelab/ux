@@ -290,6 +290,67 @@ void main() {
     },
   );
 
+  testWidgets(
+    'a word a period glues to a bare domain glued after CJK letters makes it '
+    'no link',
+    (tester) async {
+      expect(XUrl.match('访问example.com.Then'), const <UrlMatch>[]);
+    },
+  );
+
+  testWidgets(
+    'no part of a bare domain glued after CJK letters links where a period '
+    'glues a word and a path to it',
+    (tester) async {
+      expect(XUrl.match('访问example.com.Then/a'), const <UrlMatch>[]);
+    },
+  );
+
+  testWidgets(
+    'a bare domain glued after CJK letters links where a space follows its '
+    'period',
+    (tester) async {
+      expect(XUrl.match('访问example.com. Then'), const [
+        UrlMatch(
+          start: 2,
+          end: 13,
+          url: 'http://example.com',
+          kind: UrlMatchKind.web,
+        ),
+      ]);
+    },
+  );
+
+  testWidgets(
+    'a bare domain after CJK letters and a space links whole where a label '
+    'follows the word a period glues to its first labels',
+    (tester) async {
+      expect(XUrl.match('访问 api.example.com.mirror.dev/docs'), const [
+        UrlMatch(
+          start: 3,
+          end: 34,
+          url: 'http://api.example.com.mirror.dev/docs',
+          kind: UrlMatchKind.web,
+        ),
+      ]);
+    },
+  );
+
+  testWidgets(
+    'a bare domain after CJK letters and a space links whole where the word a '
+    'period glues to its first labels ends its host',
+    (tester) async {
+      expect(XUrl.match('访问 how.to.dev/guide'), const [
+        UrlMatch(
+          start: 3,
+          end: 19,
+          url: 'http://how.to.dev/guide',
+          kind: UrlMatchKind.web,
+        ),
+      ]);
+    },
+  );
+
   testWidgets('a bare domain links on com, edu, gov, net or org in capitals', (
     tester,
   ) async {

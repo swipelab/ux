@@ -59,7 +59,10 @@
   an IP address or ends in a top-level domain on IANA's list, in lowercase or as
   its Unicode label, or in com, edu, gov, net or org in any case.
   `see example.com.Then you`, `see example.com.It works` and
-  `see example.com.Über x` link nothing, as on macOS.
+  `see example.com.Über x` link nothing, as on macOS. On iOS and macOS, Chinese
+  or Japanese text before such a domain does not change this:
+  `访问example.com.Then` and `访问example.com.Then/a` link nothing, as on
+  Android and Windows.
 - **A cancelled video export ends.** On iOS and macOS, cancelling an export
   that re-encodes with a `transform` while it runs fails `done` with
   `cancelled` and deletes the partial file, as on Android and Windows.
