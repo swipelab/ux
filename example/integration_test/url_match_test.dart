@@ -290,6 +290,37 @@ void main() {
     },
   );
 
+  testWidgets(
+    'a word a period glues to a bare domain glued after CJK letters makes it '
+    'no link',
+    (tester) async {
+      expect(XUrl.match('访问example.com.Then'), const <UrlMatch>[]);
+    },
+  );
+
+  testWidgets(
+    'no part of a bare domain glued after CJK letters links where a period '
+    'glues a word and a path to it',
+    (tester) async {
+      expect(XUrl.match('访问example.com.Then/a'), const <UrlMatch>[]);
+    },
+  );
+
+  testWidgets(
+    'a bare domain glued after CJK letters links where a space follows its '
+    'period',
+    (tester) async {
+      expect(XUrl.match('访问example.com. Then'), const [
+        UrlMatch(
+          start: 2,
+          end: 13,
+          url: 'http://example.com',
+          kind: UrlMatchKind.web,
+        ),
+      ]);
+    },
+  );
+
   testWidgets('a bare domain links on com, edu, gov, net or org in capitals', (
     tester,
   ) async {
