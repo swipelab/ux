@@ -254,6 +254,13 @@
   render of the current edits, and a render an edit overtakes is discarded.
 - **A video compose entry decodes its crop poster once.** Tools opened
   together share the one poster.
+- **A compose entry deletes the draw overlays it keeps.** A video
+  `ComposeEntry` writes its draw overlay PNG into the temporary directory's
+  `ux_compose` folder. It deletes the PNG when a later draw apply replaces or
+  clears it and when the entry is disposed, a PNG still being written
+  included. `ComposePage`'s submit hands the overlay over with
+  `ComposeResult.videoEdit` through `ComposeEntry.handOverVideoEdit`, and the
+  receiver deletes `VideoEditValues.overlay`'s file once used.
 - **The screen that shows holds focus, so keys reach it.** When a
   `ScreenStack`'s top screen shows, its focus scope takes focus if focus is in
   the stack, on a scope around it, or nowhere, as when `XApp` starts, and asks

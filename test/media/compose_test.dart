@@ -303,7 +303,7 @@ void main() {
       expect(entry.source, isNull);
     });
 
-    test('leaves its edit unset when its draw overlay lands', () async {
+    test('leaves no edit and no file when its draw overlay lands', () async {
       final png = await _png(4, 4);
       messenger.setMockMethodCallHandler(
         fileChannel,
@@ -324,6 +324,87 @@ void main() {
       held.complete();
       await snapshot;
       expect(entry.videoEdit.overlay, isNull);
+      expect(temporary.listSync(recursive: true).whereType<File>(), isEmpty);
+    });
+  });
+
+  group('a video entry with an applied drawing', () {
+    const fileChannel = MethodChannel('ux/file');
+    const pathChannel = MethodChannel('plugins.flutter.io/path_provider');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    late Directory temporary;
+
+    setUp(() async {
+      MediaHost.current = FakeMediaHost();
+      temporary = Directory.systemTemp.createTempSync('ux-compose-');
+      final png = await _png(4, 4);
+      messenger
+        ..setMockMethodCallHandler(
+          fileChannel,
+          (_) async => {'png': png, 'width': 4, 'height': 4},
+        )
+        ..setMockMethodCallHandler(pathChannel, (_) async => temporary.path);
+    });
+
+    tearDown(() {
+      messenger
+        ..setMockMethodCallHandler(fileChannel, null)
+        ..setMockMethodCallHandler(pathChannel, null);
+      temporary.deleteSync(recursive: true);
+    });
+
+    /// [entry]'s overlay file once a caption is drawn on it and applied.
+    Future<File> applyDrawing(ComposeEntry entry) async {
+      await entry.ensureVideoPosterForTest();
+      entry.entityLayer ??= EntityLayer(imageSize: entry.sourceSize!)
+        ..add(_caption());
+      await entry.snapshotDrawOverlayForTest();
+      return File(entry.videoEdit.overlay!.path);
+    }
+
+    test('deletes its overlay when disposed', () async {
+      final entry = ComposeEntry(input: VideoMedia(file: File('clip.mp4')));
+      final overlay = await applyDrawing(entry);
+      expect(overlay.existsSync(), isTrue);
+      entry.dispose();
+      expect(overlay.existsSync(), isFalse);
+    });
+
+    test('deletes the overlay a second apply replaces', () async {
+      final entry = ComposeEntry(input: VideoMedia(file: File('clip.mp4')));
+      final first = await applyDrawing(entry);
+      final second = await applyDrawing(entry);
+      expect(first.existsSync(), isFalse);
+      expect(second.existsSync(), isTrue);
+      entry.dispose();
+    });
+
+    test('deletes its overlay when an apply clears the drawing', () async {
+      final entry = ComposeEntry(input: VideoMedia(file: File('clip.mp4')));
+      final overlay = await applyDrawing(entry);
+      final layer = entry.entityLayer!;
+      layer.remove(layer.entities.single.id);
+      await entry.snapshotDrawOverlayForTest();
+      expect(entry.videoEdit.overlay, isNull);
+      expect(overlay.existsSync(), isFalse);
+      entry.dispose();
+    });
+
+    test('hands its overlay to the submitted result', () async {
+      late List<ComposeResult> submitted;
+      final page = ComposePage(
+        assets: [VideoMedia(file: File('clip.mp4'))],
+        onSubmit: (results) async {
+          submitted = results;
+          return ChatSendResult(cids: [], sourceForCid: (_) => null);
+        },
+      );
+      final overlay = await applyDrawing(page.entries.single);
+      await page.handleSubmit();
+      page.dispose();
+      expect(submitted.single.videoEdit!.overlay!.path, overlay.path);
+      expect(overlay.existsSync(), isTrue);
     });
   });
 }
