@@ -290,6 +290,19 @@ void main() {
     },
   );
 
+  testWidgets('a word a period glues to a www. host makes it no link', (
+    tester,
+  ) async {
+    expect(XUrl.match('see www.example.com.Then you'), const <UrlMatch>[]);
+  });
+
+  testWidgets(
+    'a word a period glues to a bare domain with a path makes it no link',
+    (tester) async {
+      expect(XUrl.match('see example.com.Then/x you'), const <UrlMatch>[]);
+    },
+  );
+
   testWidgets(
     'a word a period glues to a bare domain glued after CJK letters makes it '
     'no link',
@@ -359,6 +372,28 @@ void main() {
         start: 4,
         end: 15,
         url: 'http://EXAMPLE.COM',
+        kind: UrlMatchKind.web,
+      ),
+    ]);
+  });
+
+  testWidgets('a bare domain with no path links on app', (tester) async {
+    expect(XUrl.match('banlu.app'), const [
+      UrlMatch(
+        start: 0,
+        end: 9,
+        url: 'http://banlu.app',
+        kind: UrlMatchKind.web,
+      ),
+    ]);
+  });
+
+  testWidgets('an IPv4 address with a path links', (tester) async {
+    expect(XUrl.match('see 10.0.0.1/x y'), const [
+      UrlMatch(
+        start: 4,
+        end: 14,
+        url: 'http://10.0.0.1/x',
         kind: UrlMatchKind.web,
       ),
     ]);
@@ -582,6 +617,20 @@ void main() {
     ]);
   });
 
+  testWidgets(
+    'a bare domain with a path on app glued after CJK letters leaves them out',
+    (tester) async {
+      expect(XUrl.match('访问banlu.app/x'), const [
+        UrlMatch(
+          start: 2,
+          end: 13,
+          url: 'http://banlu.app/x',
+          kind: UrlMatchKind.web,
+        ),
+      ]);
+    },
+  );
+
   testWidgets('CJK letters glued after a bare domain stay out of it', (
     tester,
   ) async {
@@ -668,6 +717,19 @@ void main() {
       UrlMatch(
         start: 9,
         end: 20,
+        url: 'http://example.com',
+        kind: UrlMatchKind.web,
+      ),
+    ]);
+  });
+
+  testWidgets('a bare domain glued after Khmer letters leaves them out', (
+    tester,
+  ) async {
+    expect(XUrl.match('មើលexample.com'), const [
+      UrlMatch(
+        start: 3,
+        end: 14,
         url: 'http://example.com',
         kind: UrlMatchKind.web,
       ),
