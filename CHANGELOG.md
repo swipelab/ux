@@ -265,9 +265,9 @@
 - **Esc goes back.** Esc pops the top screen where it `isModal`, and otherwise
   goes to `XRouter.backDispatcher`, as system back does: the top pushed
   screen's `handleBack` takes it, or the screen pops where its `canPop` holds
-  and stays where it does not. Esc in a focused text field unfocuses it, and a
-  handler nearer the focus takes Esc first; one disabled for it, such as a
-  `Scaffold`'s with no drawer open, hands Esc on to the nearest enabled one
+  and stays where it does not. Esc in a focused text field doesn't go back,
+  and a handler nearer the focus takes Esc first; one disabled for it, such as
+  a `Scaffold`'s with no drawer open, hands Esc on to the nearest enabled one
   around it. A `ScreenStack` with no modal screen to pop hands Esc on to the
   one around it, so Esc in a modal `SheetScreen` pops the sheet.
 - **A `ScreenShell` keeps screens it hosts but does not show.**
