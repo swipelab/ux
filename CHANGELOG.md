@@ -266,11 +266,17 @@
   the stack, on a scope around it, or nowhere, as when `XApp` starts, and asks
   for no keyboard. A stack inside a screen other than the top one, such as a
   covered `SheetScreen`'s, draws no focus into itself from outside it. Tab moves
-  to the screen's first control, Enter and Space activate it, and Esc pops the
-  top screen where it `isModal`. A `ScreenStack` with no modal screen to pop
-  hands Esc on to the handler around it, so Esc in a modal `SheetScreen` pops
-  the sheet. `XApp`'s default shortcuts, actions and text-editing shortcuts sit
-  above its overlay, so they reach entries a host inserts through `overlayKey`.
+  to the screen's first control, and Enter and Space activate it. `XApp`'s
+  default shortcuts, actions and text-editing shortcuts sit above its overlay,
+  so they reach entries a host inserts through `overlayKey`.
+- **Esc goes back.** Esc pops the top screen where it `isModal`, and otherwise
+  goes to `XRouter.backDispatcher`, as system back does: the top pushed
+  screen's `handleBack` takes it, or the screen pops where its `canPop` holds
+  and stays where it does not. Esc in a focused text field doesn't go back,
+  and a handler nearer the focus takes Esc first; one disabled for it, such as
+  a `Scaffold`'s with no drawer open, hands Esc on to the nearest enabled one
+  around it. A `ScreenStack` with no modal screen to pop hands Esc on to the
+  one around it, so Esc in a modal `SheetScreen` pops the sheet.
 - **A `ScreenShell` keeps screens it hosts but does not show.**
   `ScreenShell.hosted` lists every screen a shell hosts and `pages` the ones
   it shows. A hosted screen left out of `pages` stays mounted offstage with
