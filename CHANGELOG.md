@@ -8,6 +8,17 @@
   effects off, `SPI_GETCLIENTAREAANIMATION`, read again on each
   `WM_SETTINGCHANGE`. On iOS, Android and Linux, whose Flutter
   `AccessibilityFeatures` carry the setting, it stays false.
+- **A bare domain links on iOS and macOS as on Android and Windows.** On iOS
+  and macOS, `XUrl.match` links a web match with no scheme only where its host
+  is an IP address or ends in a top-level domain on IANA's list, as on Android
+  and Windows, so `see www.example.com.Then you` and
+  `see example.com.Then/x you` link nothing. A bare domain on a top-level
+  domain `NSDataDetector` does not know links with no path after it, and
+  straight after Chinese, Japanese, Korean, Thai, Lao, Khmer or Myanmar
+  letters: `banlu.app` links `http://banlu.app` and `访问banlu.app/x` links
+  `http://banlu.app/x`. A bare domain straight after Lao, Khmer or Myanmar
+  letters links on any top-level domain: `មើលexample.com` links
+  `http://example.com`.
 - **A web link leaves out the quotes and brackets around it.**
   `XUrl.match` ends a web link before a trailing `'` or `(`, and before a `"`,
   `<`, `>`, `[`, `\`, `]`, `^`, `` ` ``, `{`, `|`, `}` or a `%` that two hex
