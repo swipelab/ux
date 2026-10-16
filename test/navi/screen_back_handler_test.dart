@@ -217,6 +217,24 @@ void main() {
     expect(router.stack, hasLength(1));
   });
 
+  testWidgets('an edge swipe whose theme leaves iOS springs the screen back, '
+      'and its release pops nothing', (tester) async {
+    final router = await _boot(tester);
+
+    final drag = await _edgeDrag(tester, _width / 4, steps: 24);
+    await tester.pumpWidget(
+      XApp(
+        router: router,
+        theme: ThemeData(platform: TargetPlatform.android),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await drag.up();
+    await tester.pumpAndSettle();
+    expect(_offset(tester), 0);
+    expect(router.stack, hasLength(1));
+  });
+
   testWidgets('a screen popped during an edge swipe leaves from where the '
       'finger left it', (tester) async {
     final router = await _boot(tester);

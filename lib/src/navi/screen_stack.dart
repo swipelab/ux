@@ -559,6 +559,12 @@ class ScreenBackHandlerState extends State<ScreenBackHandler>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _cancelRevoked();
+  }
+
+  @override
   void didUpdateWidget(ScreenBackHandler oldWidget) {
     super.didUpdateWidget(oldWidget);
     _cancelRevoked();
