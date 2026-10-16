@@ -70,11 +70,9 @@ std::optional<std::wstring> StringArg(const EncodableMap* args, const char* key)
 }
 
 std::optional<std::wstring> PathArg(const EncodableMap* args, const char* key) {
-  const auto* path = std::get_if<std::string>(Arg(args, key));
-  if (path == nullptr) return std::nullopt;
-  std::optional<std::wstring> wide = Utf16(*path);
-  if (wide) std::replace(wide->begin(), wide->end(), L'/', L'\\');
-  return wide;
+  std::optional<std::wstring> path = StringArg(args, key);
+  if (path) std::replace(path->begin(), path->end(), L'/', L'\\');
+  return path;
 }
 
 }  // namespace ux
