@@ -384,6 +384,14 @@ class _RenderSurface extends RenderProxyBox {
   bool get alwaysNeedsCompositing => true;
 
   @override
+  void markNeedsPaint() {
+    super.markNeedsPaint();
+    final f = _flight;
+    // The flight paints its snapshot from this surface's last paint.
+    if (f != null && f.paintSnapshot) f.repaint?.call();
+  }
+
+  @override
   void dispose() {
     _captureLayer.layer = null;
     super.dispose();
