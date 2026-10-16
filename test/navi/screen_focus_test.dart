@@ -26,6 +26,26 @@ class _Sheet with Screen<void>, SheetScreen<void> {
 
 FocusNode? get _primary => FocusManager.instance.primaryFocus;
 
+/// Focuses a node in an entry inserted beside the router's.
+Future<FocusNode> _focusBeside(
+  WidgetTester tester,
+  GlobalKey<OverlayState> overlay,
+) async {
+  final node = FocusNode(debugLabel: 'beside');
+  addTearDown(node.dispose);
+  final entry = OverlayEntry(
+    builder: (_) =>
+        Focus(focusNode: node, child: const SizedBox(width: 10, height: 10)),
+  );
+  addTearDown(entry.dispose);
+  addTearDown(entry.remove);
+  overlay.currentState!.insert(entry);
+  await tester.pump();
+  node.requestFocus();
+  await tester.pump();
+  return node;
+}
+
 void main() {
   testWidgets('Tab reaches a focusable on the home screen', (tester) async {
     final s = Center(
@@ -82,6 +102,28 @@ void main() {
     expect(sheet.popped, isTrue);
   });
 
+  testWidgets('sheets that mount under another screen leave it the focus', (
+    tester,
+  ) async {
+    final router = XRouter(home: _Screen(const SizedBox()));
+    await tester.pumpWidget(XApp(router: router));
+    final sheet = _Sheet();
+    router.push(sheet);
+    sheet.nestedHost.push(_Sheet());
+    router.push(
+      _Screen(
+        const Focus(
+          debugLabel: 'target',
+          child: SizedBox(width: 10, height: 10),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    expect(_primary?.debugLabel, 'target');
+  });
+
   testWidgets('Tab moves focus in an entry inserted beside the router\'s', (
     tester,
   ) async {
@@ -114,5 +156,33 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.tab);
     await tester.pump();
     expect(_primary, same(b));
+  });
+
+  testWidgets('a push from an entry inserted beside the router\'s focuses '
+      'the new screen', (tester) async {
+    final overlay = GlobalKey<OverlayState>();
+    final router = XRouter(home: _Screen(const SizedBox()));
+    await tester.pumpWidget(XApp(router: router, overlayKey: overlay));
+    await _focusBeside(tester, overlay);
+    router.push(_Screen(const SizedBox(key: Key('page'))));
+    await tester.pumpAndSettle();
+    expect(
+      _primary,
+      FocusScope.of(tester.element(find.byKey(const Key('page')))),
+    );
+  });
+
+  testWidgets('a push in the top sheet leaves focus in an entry inserted '
+      'beside the router\'s', (tester) async {
+    final overlay = GlobalKey<OverlayState>();
+    final router = XRouter(home: _Screen(const SizedBox()));
+    await tester.pumpWidget(XApp(router: router, overlayKey: overlay));
+    final sheet = _Sheet();
+    router.push(sheet);
+    await tester.pumpAndSettle();
+    final node = await _focusBeside(tester, overlay);
+    sheet.nestedHost.push(_Screen(const SizedBox()));
+    await tester.pumpAndSettle();
+    expect(_primary, same(node));
   });
 }

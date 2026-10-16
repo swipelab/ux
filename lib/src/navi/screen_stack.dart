@@ -109,9 +109,11 @@ class ScreenStackState extends State<ScreenStack>
   /// focused but never becomes the active scope, so the keyboard token
   /// is never consumed and the system keyboard doesn't open.
   ///
-  /// The top scope takes focus when focus is in this stack, on a scope
-  /// around it, or nowhere, so keys reach the top screen; focus elsewhere
-  /// stays put.
+  /// The top scope takes focus when focus is in this stack, or when focus is
+  /// on a scope around it or nowhere and this stack is [_onTop], so keys reach
+  /// the top screen; focus elsewhere stays put. [_onTop] reads the stacks, not
+  /// focus, because `primaryFocus` lags a request made earlier in the same
+  /// frame.
   void _scheduleTopFocusHandoff() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -119,7 +121,7 @@ class ScreenStackState extends State<ScreenStack>
       if (top == _focusedSlot) return;
       _focusedSlot = top;
       final focus = FocusManager.instance.primaryFocus;
-      if (focus == null || _outerScope.ancestors.contains(focus)) {
+      if (_onTop && (focus == null || _outerScope.ancestors.contains(focus))) {
         top.focusScope.requestFocus();
       } else {
         _outerScope.setFirstFocus(top.focusScope);
@@ -287,6 +289,15 @@ class ScreenStackState extends State<ScreenStack>
   /// else home. Used for focus handoff.
   ScreenSlot get _topSlot =>
       _entries.lastWhereOrNull((e) => e._covers) ?? _homeSlot;
+
+  /// Whether the screen holding this stack is the top one of every stack
+  /// around it.
+  bool get _onTop {
+    final outer = ScreenStack.maybeOf(context);
+    if (outer == null) return true;
+    final slot = context.getInheritedWidgetOfExactType<_SlotScope>()?.slot;
+    return slot == outer._topSlot && outer._onTop;
+  }
 
   Widget _place(BuildContext context, ScreenSlot entry, Widget slot) =>
       entry._place?.call(context, entry.page, slot) ?? slot;
