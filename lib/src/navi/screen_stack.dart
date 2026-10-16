@@ -108,13 +108,22 @@ class ScreenStackState extends State<ScreenStack>
   /// it, a freshly-pushed page's `autofocus: true` TextField ends up
   /// focused but never becomes the active scope, so the keyboard token
   /// is never consumed and the system keyboard doesn't open.
+  ///
+  /// The top scope takes focus when focus is in this stack, on a scope
+  /// around it, or nowhere, so keys reach the top screen; focus elsewhere
+  /// stays put.
   void _scheduleTopFocusHandoff() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final top = _topSlot;
       if (top == _focusedSlot) return;
       _focusedSlot = top;
-      _outerScope.setFirstFocus(top.focusScope);
+      final focus = FocusManager.instance.primaryFocus;
+      if (focus == null || _outerScope.ancestors.contains(focus)) {
+        top.focusScope.requestFocus();
+      } else {
+        _outerScope.setFirstFocus(top.focusScope);
+      }
     });
   }
 
@@ -288,7 +297,7 @@ class ScreenStackState extends State<ScreenStack>
     return Actions(
       actions: {
         DismissIntent: CallbackAction<DismissIntent>(
-          onInvoke: (_) {
+          onInvoke: (intent) {
             final focus = FocusManager.instance.primaryFocus;
             if (focus != null &&
                 focus.context != null &&
@@ -299,8 +308,9 @@ class ScreenStackState extends State<ScreenStack>
             }
             if (top != null && top.page.isModal) {
               top.page.pop();
+              return null;
             }
-            return null;
+            return Actions.maybeInvoke(context, intent);
           },
         ),
       },

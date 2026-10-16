@@ -254,6 +254,15 @@
   render of the current edits, and a render an edit overtakes is discarded.
 - **A video compose entry decodes its crop poster once.** Tools opened
   together share the one poster.
+- **The screen that shows holds focus, so keys reach it.** When a
+  `ScreenStack`'s top screen shows, its focus scope takes focus if focus is in
+  the stack, on a scope around it, or nowhere, as when `XApp` starts, and asks
+  for no keyboard. Tab moves to the screen's first control, Enter and Space
+  activate it, and Esc pops the top screen where it `isModal`. A `ScreenStack`
+  with no modal screen to pop hands Esc on to the handler around it, so Esc in
+  a modal `SheetScreen` pops the sheet. `XApp`'s default shortcuts, actions and
+  text-editing shortcuts sit above its overlay, so they reach entries a host
+  inserts through `overlayKey`.
 - **A `ScreenShell` keeps screens it hosts but does not show.**
   `ScreenShell.hosted` lists every screen a shell hosts and `pages` the ones
   it shows. A hosted screen left out of `pages` stays mounted offstage with
