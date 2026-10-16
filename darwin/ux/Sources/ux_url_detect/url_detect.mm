@@ -173,16 +173,13 @@ static BOOL ux_glues_word(const uint16_t *chars, NSUInteger len, NSUInteger star
     return [NSCharacterSet.letterCharacterSet longCharacterIsMember:c];
 }
 
-// Whether the web match [start, end) has the TLD it needs: a match with a
-// scheme or an IPv4 address needs none, and a host's last label is one where
+// Whether the web match [start, end), which has no scheme, has the TLD it
+// needs: an IPv4 address needs none, and a host's last label is one where
 // IsTld holds.
 static BOOL ux_has_tld(const uint16_t *chars, NSUInteger start, NSUInteger end) {
     NSUInteger host_end = start;
     while (host_end < end && chars[host_end] != ':' && chars[host_end] != '/' && chars[host_end] != '?' &&
            chars[host_end] != '#') host_end++;
-    if (host_end + 2 < end && chars[host_end] == ':' && chars[host_end + 1] == '/' && chars[host_end + 2] == '/') {
-        return YES;
-    }
     NSUInteger label = host_end;
     while (label > start && chars[label - 1] != '.') label--;
     return (chars[label] >= '0' && chars[label] <= '9') || IsTld(std::u16string(chars + label, chars + host_end));
@@ -308,16 +305,15 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
                         // such a host cut before the '.'; elsewhere it links
                         // none.
                         if (ux_glues_word(utf16, text.length, r.location, end)) return;
-                        if (!ux_has_tld(utf16, r.location, end)) return;
+                        NSString *kept = [text substringWithRange:NSMakeRange(r.location, end - r.location)];
+                        NSString *prefix = [scheme stringByAppendingString:@":"];
+                        const BOOL written = [kept.lowercaseString hasPrefix:prefix];
+                        if (!written && !ux_has_tld(utf16, r.location, end)) return;
                         // NSDataDetector's URL covers the uncut text, escaped,
                         // so a cut link's URL is the text it keeps, after the
                         // scheme NSDataDetector adds where the text has none.
                         if (end < NSMaxRange(r)) {
-                            NSString *kept = [text substringWithRange:NSMakeRange(r.location, end - r.location)];
-                            NSString *prefix = [scheme stringByAppendingString:@":"];
-                            url = [kept.lowercaseString hasPrefix:prefix]
-                                      ? kept
-                                      : [NSString stringWithFormat:@"%@//%@", prefix, kept];
+                            url = written ? kept : [NSString stringWithFormat:@"%@//%@", prefix, kept];
                         }
                     }
                 } else {
