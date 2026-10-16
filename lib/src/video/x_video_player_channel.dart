@@ -41,8 +41,13 @@ class MethodChannelXVideoPlayerBackend implements XVideoPlayerBackend {
   }
 
   @override
-  Future<void> disposeInstance(int handle) =>
-      _invokeVoid('dispose', {'handle': handle});
+  Future<void> disposeInstance(int handle) async {
+    try {
+      await _invokeVoid('dispose', {'handle': handle});
+    } on XVideoPlayerException catch (e) {
+      if (e.code != 'disposed') rethrow;
+    }
+  }
 
   @override
   Future<void> play(int handle) => _invokeVoid('play', {'handle': handle});

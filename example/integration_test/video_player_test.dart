@@ -94,6 +94,15 @@ void main() {
     await initialized;
   });
 
+  testWidgets('disposing a player twice succeeds', (tester) async {
+    final file = await _assetFile('portrait.mp4');
+    final backend = MethodChannelXVideoPlayerBackend();
+
+    final created = await backend.create(uri: 'file://${file.path}');
+    await backend.disposeInstance(created.handle);
+    await backend.disposeInstance(created.handle);
+  });
+
   testWidgets(
     'a video that fails to load before initialize emits playback_failed, '
     'then initialize fails with decode_failed',

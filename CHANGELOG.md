@@ -99,6 +99,12 @@
   On Windows, a player whose video fails to load before `initialize` emits an
   `XVideoPlayerError` with `playback_failed` and the load's error, and
   `initialize` then fails with `decode_failed`, as on iOS and macOS.
+- **A second dispose of a video player is a no-op.**
+  `MethodChannelXVideoPlayerBackend.disposeInstance` completes when the
+  platform answers that the player is already disposed, as
+  `XVideoPlayerBackend.disposeInstance` documents.
+  `XVideoPlayerController.dispose` fails with any other error the platform
+  answers.
 - **A link's path past fullwidth parentheses is no second link.** On every
   platform, `XUrl.match` links no part of the path a web link runs on into
   past fullwidth parentheses, `（` and `）`, so
@@ -243,9 +249,8 @@
   `XVideoPlayerController.dispose` is disposed at once, and no listener hears
   from the controller after `dispose`. A call the native side answers after
   `dispose`, `initialize` included, changes nothing and fails with
-  `XVideoPlayerException('disposed')`. `dispose` completes when the native
-  player fails to tear down. Disposing a player while its `initialize` waits
-  for the video fails that `initialize` with
+  `XVideoPlayerException('disposed')`. Disposing a player while its
+  `initialize` waits for the video fails that `initialize` with
   `XVideoPlayerException('disposed')`.
 - **A disposed compose entry stays disposed.** A `ComposeEntry` disposed
   while its video, crop poster, draw overlay or composite is still loading

@@ -2,8 +2,7 @@ import 'dart:async';
 import 'dart:io' as io;
 import 'dart:ui' show Size;
 
-import 'package:flutter/services.dart'
-    show EventChannel, MethodChannel, PlatformException;
+import 'package:flutter/services.dart' show MethodChannel, PlatformException;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ux/log.dart';
 import 'package:ux/testing.dart';
@@ -261,49 +260,29 @@ void main() {
     expect(fake.disposeCalls.single, 1);
   });
 
-  test('a native dispose failure on the channel backend leaves dispose '
-      'completing its teardown', () async {
+  test("the channel backend's second dispose of a handle is a no-op", () async {
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     const channel = MethodChannel('ux/video');
+    final live = {1};
     final disposeCalls = <Object?>[];
     messenger.setMockMethodCallHandler(channel, (call) async {
-      switch (call.method) {
-        case 'create':
-          return {'handle': 1};
-        case 'initialize':
-          return {
-            'size': {'width': 720, 'height': 1280},
-            'durationMs': 1000,
-          };
-        case 'dispose':
-          disposeCalls.add(call.arguments);
-          throw PlatformException(code: 'native_error');
+      disposeCalls.add(call.arguments);
+      if (!live.remove((call.arguments as Map)['handle'])) {
+        throw PlatformException(code: 'disposed');
       }
       return null;
     });
-    messenger.setMockStreamHandler(
-      const EventChannel('ux/video/events'),
-      MockStreamHandler.inline(onListen: (_, _) {}),
-    );
-    addTearDown(() {
-      messenger.setMockMethodCallHandler(channel, null);
-      messenger.setMockStreamHandler(
-        const EventChannel('ux/video/events'),
-        null,
-      );
-    });
-    XVideoPlayerBackend.instance = MethodChannelXVideoPlayerBackend();
-    final ctrl = XVideoPlayerController.file(io.File('/tmp/fake.mp4'));
-    await ctrl.initialize();
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    final backend = MethodChannelXVideoPlayerBackend();
 
-    await ctrl.dispose();
-    await ctrl.dispose();
+    await backend.disposeInstance(1);
+    await backend.disposeInstance(1);
 
     expect(disposeCalls, [
       {'handle': 1},
+      {'handle': 1},
     ]);
-    expect(() => ctrl.addListener(() {}), throwsFlutterError);
   });
 
   group('dispose while a native call is pending', () {
