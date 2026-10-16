@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:ux/url.dart';
@@ -304,6 +306,14 @@ void main() {
   );
 
   testWidgets(
+    'a word a period glues to a bare domain with a path after CJK letters and '
+    'a space makes it no link',
+    (tester) async {
+      expect(XUrl.match('访问 example.com.Then/a'), const <UrlMatch>[]);
+    },
+  );
+
+  testWidgets(
     'a word a period glues to a bare domain glued after CJK letters makes it '
     'no link',
     (tester) async {
@@ -398,6 +408,18 @@ void main() {
       ),
     ]);
   });
+
+  // Android and Windows link no written sms: URI.
+  testWidgets('a written sms: URI links as itself', (tester) async {
+    expect(XUrl.match('text sms:+15551234567 now'), const [
+      UrlMatch(
+        start: 5,
+        end: 21,
+        url: 'sms:+15551234567',
+        kind: UrlMatchKind.web,
+      ),
+    ]);
+  }, skip: !Platform.isIOS && !Platform.isMacOS);
 
   testWidgets('a web link ends before CJK punctuation', (tester) async {
     expect(XUrl.match('看 https://example.com/a?b=1。下一句'), const [
