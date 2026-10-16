@@ -164,9 +164,9 @@ class XFiles {
   /// chooser title on Android, the share window's title on Windows,
   /// which is the file's name when [title] is null).
   ///
-  /// Returns true if the sheet was presented. Returns false if the host
-  /// couldn't present it (no activity on Android, no window on macOS or
-  /// Windows).
+  /// Returns true if the sheet was presented, or false on Windows with no
+  /// window. Throws a [PlatformException] with no activity on Android
+  /// (`no_activity`) or no view on iOS and macOS (`no_view`).
   static Future<bool> share({
     required String path,
     String? title,
