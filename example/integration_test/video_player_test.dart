@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:math';
@@ -92,6 +93,39 @@ void main() {
     await backend.disposeInstance(created.handle);
     await initialized;
   });
+
+  testWidgets(
+    'initializing a player whose video already failed to load fails with decode_failed',
+    (tester) async {
+      final server = await _HeldVideoServer.start(
+        Uint8List.fromList(utf8.encode('not a video')),
+      );
+      addTearDown(server.close);
+      final backend = MethodChannelXVideoPlayerBackend();
+
+      final created = await backend.create(uri: server.uri.toString());
+      addTearDown(() => backend.disposeInstance(created.handle));
+      final failed = backend
+          .events(created.handle)
+          .firstWhere((e) => e is XVideoPlayerError);
+      server.release();
+      await failed;
+
+      await expectLater(
+        backend.initialize(created.handle).timeout(const Duration(seconds: 5)),
+        throwsA(
+          isA<XVideoPlayerException>().having(
+            (e) => e.code,
+            'code',
+            'decode_failed',
+          ),
+        ),
+      );
+    },
+    // Android starts loading a video in initialize, and Windows plays local
+    // files alone.
+    skip: !Platform.isIOS && !Platform.isMacOS,
+  );
 
   testWidgets(
     'a speed set while paused holds once playback starts, and after a pause',
