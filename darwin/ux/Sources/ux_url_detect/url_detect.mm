@@ -9,16 +9,19 @@
 //   count * { i32 start, i32 end, u32 kind, u32 url_len, u8[url_len] url_utf8 }
 // where kind ∈ { 0=web, 1=email, 2=phone }.
 //
-// Backed by NSDataDetector (.link | .phoneNumber). The detector itself
-// won't flag bare domains like `google.com` (Apple's stock apps make
-// the same trade-off), so we run a second pass with a tight regex that
-// requires a `/` or `?` after the domain — that pulls in `example.com/path`
-// without dragging in `etc.` / `v1.2.3` / `Mr.Smith` false positives.
+// Backed by NSDataDetector (.link | .phoneNumber) and a second pass for the
+// bare domains it misses, such as a host on a TLD it does not know, and IPv4
+// addresses with a path. A web match with no scheme links only where its host
+// is an IPv4 address or ends in a TLD IsTld holds for.
 
 #import <Foundation/Foundation.h>
 #import <stdint.h>
 #import <stdlib.h>
 #import <string.h>
+
+#include <string>
+
+#include "../../../../src/tld.h"
 
 static const uint32_t kKindWeb   = 0;
 static const uint32_t kKindEmail = 1;
@@ -49,14 +52,32 @@ static NSRegularExpression *ux_url_bare_domain_regex(void) {
     static NSRegularExpression *regex;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        // Hostname segment + at least one dot-segment + `/` or `?` suffix,
-        // which ends before whitespace, ux_is_cjk_punctuation's CJK
+        // ux_is_unspaced's letters.
+        NSString *unspaced = @"[\\u0E00-\\u0EFF\\u1000-\\u109F\\u1100-\\u11FF\\u1780-\\u17FF\\u2E80-\\u9FFF"
+                             @"\\uA960-\\uA97F\\uAC00-\\uD7FF\\uF900-\\uFAFF\\uFF66-\\uFFDC\\U00020000-\\U0003FFFF]";
+        // Patterns.WEB_URL's host name with ASCII labels and its port, then a
+        // path, or a word boundary or an unspaced letter where no '@' and an
+        // email's domain follow; or its IPv4 address and port, then a path. A
+        // host starts at a word boundary, after a '_' or after an unspaced
+        // letter, but neither after a scheme's "://" nor inside a label or a
+        // host the pass does not match from its start: after a letter, mark or
+        // digit outside the unspaced scripts and a run of '_' and '-' or a '.'.
+        // The path ends before whitespace, ux_is_cjk_punctuation's CJK
         // punctuation and the ASCII marks ux_web_end ends a path before, so a
         // bare domain glued after one links on its own.
-        // ASCII-only; bare IDN domains stay undetected.
-        NSString *pattern = @"\\b[a-z0-9-]+(\\.[a-z0-9-]+)+([/?](?:[^\\s\"%<>\\[\\\\\\]^`{|}"
-                            @"\\u3001-\\u3003\\u3008-\\u3011\\u3014-\\u301F\\uFE10-\\uFE19\\uFE30-\\uFE6B"
-                            @"\\uFF01-\\uFF0F\\uFF1A-\\uFF20\\uFF3B-\\uFF40\\uFF5B-\\uFF65]|%[0-9a-f]{2})*)";
+        NSString *path = @"[/?](?:[^\\s\"%<>\\[\\\\\\]^`{|}"
+                         @"\\u3001-\\u3003\\u3008-\\u3011\\u3014-\\u301F\\uFE10-\\uFE19\\uFE30-\\uFE6B"
+                         @"\\uFF01-\\uFF0F\\uFF1A-\\uFF20\\uFF3B-\\uFF40\\uFF5B-\\uFF65]|%[0-9a-f]{2})*";
+        NSString *pattern = [NSString stringWithFormat:
+            @"(?:\\b|(?<=[_%1$@]))(?<![[\\p{L}\\p{M}\\p{Nd}]--%1$@](?:[_-]{1,62}|\\.))(?<!://)"
+            @"(?:(?:[a-z0-9](?:[a-z0-9_-]{0,61}[a-z0-9])?\\.)+(?:xn--[a-z0-9-]{0,58}[a-z0-9]|[a-z]{2,63})"
+            @"(?::\\d{1,5})?(?:%2$@|(?:\\b|(?=%1$@))(?!@[a-z0-9][a-z0-9-]{0,64}\\.[a-z0-9]))"
+            @"|(?:25[0-5]|2[0-4][0-9]|[0-1][0-9]{2}|[1-9][0-9]|[1-9])"
+            @"\\.(?:25[0-5]|2[0-4][0-9]|[0-1][0-9]{2}|[1-9][0-9]|[1-9]|0)"
+            @"\\.(?:25[0-5]|2[0-4][0-9]|[0-1][0-9]{2}|[1-9][0-9]|[1-9]|0)"
+            @"\\.(?:25[0-5]|2[0-4][0-9]|[0-1][0-9]{2}|[1-9][0-9]|[0-9])"
+            @"(?::\\d{1,5})?%2$@)",
+            unspaced, path];
         NSError *err = nil;
         regex = [NSRegularExpression
             regularExpressionWithPattern:pattern
@@ -152,10 +173,19 @@ static BOOL ux_glues_word(const uint16_t *chars, NSUInteger len, NSUInteger star
     return [NSCharacterSet.letterCharacterSet longCharacterIsMember:c];
 }
 
-// Whether the bare-domain match at `start` starts in a host of `glued` past its
-// first character.
-static BOOL ux_splits_glued(NSIndexSet *glued, NSUInteger start) {
-    return start > 0 && [glued containsIndex:start] && [glued containsIndex:start - 1];
+// Whether the web match [start, end) has the TLD it needs: a match with a
+// scheme or an IPv4 address needs none, and a host's last label is one where
+// IsTld holds.
+static BOOL ux_has_tld(const uint16_t *chars, NSUInteger start, NSUInteger end) {
+    NSUInteger host_end = start;
+    while (host_end < end && chars[host_end] != ':' && chars[host_end] != '/' && chars[host_end] != '?' &&
+           chars[host_end] != '#') host_end++;
+    if (host_end + 2 < end && chars[host_end] == ':' && chars[host_end + 1] == '/' && chars[host_end + 2] == '/') {
+        return YES;
+    }
+    NSUInteger label = host_end;
+    while (label > start && chars[label - 1] != '.') label--;
+    return (chars[label] >= '0' && chars[label] <= '9') || IsTld(std::u16string(chars + label, chars + host_end));
 }
 
 // The fullwidth '(' that ends the stretch of the text between CJK punctuation
@@ -211,7 +241,7 @@ static NSData *ux_utf8(NSString *s) {
     return [s dataUsingEncoding:NSUTF8StringEncoding allowLossyConversion:YES];
 }
 
-__attribute__((used, visibility("default")))
+extern "C" __attribute__((used, visibility("default")))
 uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
     if (out_size) *out_size = 0;
     if (utf16 == NULL || len <= 0) return NULL;
@@ -223,8 +253,6 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
 
         NSRange whole = NSMakeRange(0, text.length);
         NSMutableArray<XUrlRawMatch *> *raws = [NSMutableArray array];
-        // The hosts a '.' glues a word to.
-        NSMutableIndexSet *glued = [NSMutableIndexSet indexSet];
 
         NSDataDetector *detector = ux_url_data_detector();
         if (detector != nil) {
@@ -279,10 +307,8 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
                         // After Chinese or Japanese text, NSDataDetector links
                         // such a host cut before the '.'; elsewhere it links
                         // none.
-                        if (ux_glues_word(utf16, text.length, r.location, end)) {
-                            [glued addIndexesInRange:NSMakeRange(r.location, end - r.location)];
-                            return;
-                        }
+                        if (ux_glues_word(utf16, text.length, r.location, end)) return;
+                        if (!ux_has_tld(utf16, r.location, end)) return;
                         // NSDataDetector's URL covers the uncut text, escaped,
                         // so a cut link's URL is the text it keeps, after the
                         // scheme NSDataDetector adds where the text has none.
@@ -319,8 +345,8 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
                 if (result == nil) return;
                 const NSRange r = result.range;
                 if (r.location == NSNotFound || r.length == 0) return;
-                if (ux_splits_glued(glued, r.location)) return;
                 const NSUInteger end = ux_web_end(utf16, r.location, NSMaxRange(r));
+                if (ux_glues_word(utf16, text.length, r.location, end) || !ux_has_tld(utf16, r.location, end)) return;
                 NSString *substr = [text substringWithRange:NSMakeRange(r.location, end - r.location)];
                 NSString *withScheme = [@"http://" stringByAppendingString:substr];
                 XUrlRawMatch *m = [[XUrlRawMatch alloc] init];
@@ -389,7 +415,7 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
     }
 }
 
-__attribute__((used, visibility("default")))
+extern "C" __attribute__((used, visibility("default")))
 void ux_free(uint8_t *buf) {
     if (buf != NULL) free(buf);
 }

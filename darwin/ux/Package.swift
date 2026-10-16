@@ -11,7 +11,7 @@ import PackageDescription
 // across the target (SPM emits one object file per basename, so a second
 // `FilePlugin.swift` would collide).
 //
-// `url_detect.m` is its own C target: SPM forbids mixing Objective-C and
+// `url_detect.mm` is its own C target: SPM forbids mixing Objective-C and
 // Swift in a single target. Nothing imports it — Dart reaches
 // `ux_match_url`/`ux_free` through dart:ffi — so it needs no headers
 // exposed to the Swift side, only to be linked into the binary.
@@ -89,5 +89,7 @@ let package = Package(
       dependencies: ["ux_macos_core"],
       path: "Tests/ux_macos_coreTests"
     ),
-  ]
+  ],
+  // src/tld.h, which url_detect.mm shares with Android and Windows, is C++17.
+  cxxLanguageStandard: .cxx17
 )
