@@ -336,6 +336,21 @@ void main() {
     },
   );
 
+  testWidgets(
+    'a bare domain after CJK letters and a space links whole where the word a '
+    'period glues to its first labels ends its host',
+    (tester) async {
+      expect(XUrl.match('访问 how.to.dev/guide'), const [
+        UrlMatch(
+          start: 3,
+          end: 19,
+          url: 'http://how.to.dev/guide',
+          kind: UrlMatchKind.web,
+        ),
+      ]);
+    },
+  );
+
   testWidgets('a bare domain links on com, edu, gov, net or org in capitals', (
     tester,
   ) async {
