@@ -126,6 +126,32 @@ static BOOL ux_is_path_delimiter(uint16_t c) {
     return c == '/' || c == '?' || c == '#' || c == '&' || c == '=';
 }
 
+// Whether c belongs to a script whose text runs onto a domain with no space
+// between: Han, kana, Bopomofo, Hangul, Thai, Lao, Khmer and Myanmar by block,
+// and an ideograph of the supplementary planes by its high surrogate.
+static BOOL ux_is_unspaced(uint16_t c) {
+    return (c >= 0x0E00 && c <= 0x0EFF) || (c >= 0x1000 && c <= 0x109F) ||
+           (c >= 0x1100 && c <= 0x11FF) || (c >= 0x1780 && c <= 0x17FF) ||
+           (c >= 0x2E80 && c <= 0x9FFF) || (c >= 0xA960 && c <= 0xA97F) ||
+           (c >= 0xAC00 && c <= 0xD7FF) || (c >= 0xD840 && c <= 0xD8BF) ||
+           (c >= 0xF900 && c <= 0xFAFF) || (c >= 0xFF66 && c <= 0xFFDC);
+}
+
+// Whether the web match [start, end) is a host alone that a '.' glues a word
+// to: a letter outside the unspaced scripts follows the '.'.
+static BOOL ux_glues_word(const uint16_t *chars, NSUInteger len, NSUInteger start, NSUInteger end) {
+    if (end + 1 >= len || chars[end] != '.' || ux_is_unspaced(chars[end + 1])) return NO;
+    for (NSUInteger i = start; i < end; i++) {
+        if (chars[i] == ':' || chars[i] == '/' || chars[i] == '?' || chars[i] == '#') return NO;
+    }
+    UTF32Char c = chars[end + 1];
+    if (CFStringIsSurrogateHighCharacter(chars[end + 1]) && end + 2 < len &&
+        CFStringIsSurrogateLowCharacter(chars[end + 2])) {
+        c = CFStringGetLongCharacterForSurrogatePair(chars[end + 1], chars[end + 2]);
+    }
+    return [NSCharacterSet.letterCharacterSet longCharacterIsMember:c];
+}
+
 // The fullwidth '(' that ends the stretch of the text between CJK punctuation
 // the web match [start, end) ends in, where the match has a path that runs on
 // to it; nil otherwise.
@@ -191,6 +217,8 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
 
         NSRange whole = NSMakeRange(0, text.length);
         NSMutableArray<XUrlRawMatch *> *raws = [NSMutableArray array];
+        // The hosts a '.' glues a word to, no part of which links.
+        NSMutableIndexSet *glued = [NSMutableIndexSet indexSet];
 
         NSDataDetector *detector = ux_url_data_detector();
         if (detector != nil) {
@@ -242,6 +270,13 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
                     url = u.absoluteString;
                     if (kind == kKindWeb) {
                         end = ux_web_end(utf16, r.location, end);
+                        // After Chinese or Japanese text, NSDataDetector links
+                        // such a host cut before the '.'; elsewhere it links
+                        // none.
+                        if (ux_glues_word(utf16, text.length, r.location, end)) {
+                            [glued addIndexesInRange:NSMakeRange(r.location, end - r.location)];
+                            return;
+                        }
                         // NSDataDetector's URL covers the uncut text, escaped,
                         // so a cut link's URL is the text it keeps, after the
                         // scheme NSDataDetector adds where the text has none.
@@ -277,7 +312,7 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
                                                BOOL *stop) {
                 if (result == nil) return;
                 const NSRange r = result.range;
-                if (r.location == NSNotFound || r.length == 0) return;
+                if (r.location == NSNotFound || r.length == 0 || [glued intersectsIndexesInRange:r]) return;
                 const NSUInteger end = ux_web_end(utf16, r.location, NSMaxRange(r));
                 NSString *substr = [text substringWithRange:NSMakeRange(r.location, end - r.location)];
                 NSString *withScheme = [@"http://" stringByAppendingString:substr];
