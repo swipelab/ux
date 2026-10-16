@@ -90,6 +90,11 @@
   `XVideoPlayerController.play` plays at the speed `setPlaybackSpeed` last
   set, a speed set while paused included, so the speed holds after a pause and
   when a looping video restarts, as on Android and Windows.
+- **A video that already failed to load fails `initialize`.** On iOS and
+  macOS, `XVideoPlayerController.initialize` and
+  `XVideoPlayerBackend.initialize` fail at once with `decode_failed` and the
+  load's error when the video failed to load before `initialize` was called,
+  as when it fails while `initialize` waits.
 - **A link's path past fullwidth parentheses is no second link.** On every
   platform, `XUrl.match` links no part of the path a web link runs on into
   past fullwidth parentheses, `（` and `）`, so

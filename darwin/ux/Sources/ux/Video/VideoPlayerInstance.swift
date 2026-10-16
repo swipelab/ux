@@ -51,7 +51,7 @@ final class UxVideoPlayerInstance: NSObject {
     /// `AspectRatio` and stretches it. Loaded from the first video
     /// track's `preferredTransform` once the asset's tracks arrive — for
     /// a remote asset, after its header downloads — and nil until then.
-    /// [prepare] completes only once it is known.
+    /// [prepare] answers ready only once it is known.
     private var rotationQuarterTurns: Int?
 
     private var disposed = false
@@ -136,14 +136,25 @@ final class UxVideoPlayerInstance: NSObject {
         completePrepare()
     }
 
-    /// Resolves [prepare] once the item is ready to play and the
-    /// rotation has loaded.
+    /// Resolves [prepare] once the item fails, or once it is ready to
+    /// play and the rotation has loaded.
     private func completePrepare() {
-        guard let completion = prepareCompletion,
-              let item = item,
-              item.status == .readyToPlay,
-              let rotationQuarterTurns
-        else { return }
+        guard let completion = prepareCompletion, let item = item else { return }
+        if item.status == .failed {
+            prepareCompletion = nil
+            completion(
+                .failed(
+                    item.error
+                        ?? NSError(
+                            domain: "ux.video",
+                            code: -2,
+                            userInfo: [NSLocalizedDescriptionKey: "AVPlayerItem failed"],
+                        )
+                )
+            )
+            return
+        }
+        guard item.status == .readyToPlay, let rotationQuarterTurns else { return }
         prepareCompletion = nil
         let dims = item.presentationSize
         let durMs = Self.toMs(item.duration)
@@ -303,18 +314,8 @@ final class UxVideoPlayerInstance: NSObject {
             case .readyToPlay:
                 completePrepare()
             case .failed:
-                if let completion = prepareCompletion {
-                    prepareCompletion = nil
-                    completion(
-                        .failed(
-                            item.error
-                                ?? NSError(
-                                    domain: "ux.video",
-                                    code: -2,
-                                    userInfo: [NSLocalizedDescriptionKey: "AVPlayerItem failed"],
-                                )
-                        )
-                    )
+                if prepareCompletion != nil {
+                    completePrepare()
                 } else if let error = item.error {
                     emit([
                         "event": "error",
