@@ -3,6 +3,7 @@
 
 #include "check.h"
 
+void AccessibilitySuite();
 void CameraSuite();
 void CryptoSuite();
 void DibSuite();
@@ -29,6 +30,7 @@ struct Suite {
 constexpr int kSkipped = 77;
 
 constexpr Suite kSuites[] = {
+    {"accessibility", AccessibilitySuite},
     {"camera", CameraSuite},
     {"crypto", CryptoSuite},
     {"dib", DibSuite},
