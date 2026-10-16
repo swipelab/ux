@@ -522,7 +522,9 @@ class _GestureCurve extends Animation<double>
 /// finger's travel since the touch went down, over the entry's width, and
 /// Android's predictive back by the gesture's progress. Once the gesture lets
 /// go the entry settles from there, popping when the gesture commits and
-/// otherwise returning to 1 over 150 ms.
+/// otherwise returning to 1 over 150 ms. A gesture the handler stops taking
+/// before it lets go is cancelled: the entry returns to 1 unless it is
+/// leaving.
 class ScreenBackHandler extends StatefulWidget {
   /// Binds the slot the gesture drags and the pop it commits to.
   const ScreenBackHandler({
@@ -557,9 +559,32 @@ class ScreenBackHandlerState extends State<ScreenBackHandler>
   }
 
   @override
+  void didUpdateWidget(ScreenBackHandler oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _cancelRevoked();
+  }
+
+  @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  /// Cancels a gesture the handler no longer takes. The edge swipe's strip
+  /// leaves the tree with it, so its drag reports no end.
+  void _cancelRevoked() {
+    if (_gestureInProgress && !widget.enabled) {
+      _gestureInProgress = false;
+      _cancel();
+    }
+    if (_swiping && !_canSwipe) {
+      _swiping = false;
+      _cancel();
+    }
+  }
+
+  void _cancel() {
+    if (!widget.entry.removing) _springBack();
   }
 
   @override
@@ -613,11 +638,13 @@ class ScreenBackHandlerState extends State<ScreenBackHandler>
 
   // ── iOS edge swipe ──
 
+  bool _swiping = false;
   late double _swipeStart;
 
   static const _edgeWidth = 40.0;
 
   void _onHorizontalDragStart(DragStartDetails d) {
+    _swiping = true;
     _swipeStart = d.localPosition.dx;
     widget.entry._backGesture = const _Tracking();
   }
@@ -629,6 +656,7 @@ class ScreenBackHandlerState extends State<ScreenBackHandler>
   }
 
   void _onHorizontalDragEnd(DragEndDetails d) {
+    _swiping = false;
     if (widget.entry.controller.value < 0.5 ||
         d.velocity.pixelsPerSecond.dx > 300) {
       _pop();
@@ -642,6 +670,9 @@ class ScreenBackHandlerState extends State<ScreenBackHandler>
     return platform == TargetPlatform.iOS || platform == TargetPlatform.macOS;
   }
 
+  bool get _canSwipe =>
+      _isIOSLike && widget.enabled && widget.entry.page.canSwipeBack;
+
   @override
   Widget build(BuildContext context) {
     return Stack(
@@ -650,7 +681,7 @@ class ScreenBackHandlerState extends State<ScreenBackHandler>
         widget.entry.build(context),
         // Left edge swipe strip — sits on top to catch horizontal drags
         // without competing with the page's scroll views.
-        if (_isIOSLike && widget.enabled && widget.entry.page.canSwipeBack)
+        if (_canSwipe)
           Positioned(
             left: 0,
             top: 0,

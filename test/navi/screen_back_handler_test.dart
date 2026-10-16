@@ -22,12 +22,25 @@ class _Page with Screen<void> {
       ColoredBox(key: _pageKey, color: Colors.white);
 }
 
-/// Pumps a router on [platform] and pushes a [_Page], settled unless
-/// [settle] is false.
+/// A [_Page] whose edge swipe and pop its fields turn off.
+class _Gated extends _Page {
+  bool swipeBack = true;
+  bool pops = true;
+
+  @override
+  bool get canSwipeBack => swipeBack;
+
+  @override
+  bool get canPop => pops;
+}
+
+/// Pumps a router on [platform] and pushes [page], a [_Page] unless given,
+/// settled unless [settle] is false.
 Future<XRouter> _boot(
   WidgetTester tester, {
   TargetPlatform platform = TargetPlatform.iOS,
   bool settle = true,
+  _Page? page,
 }) async {
   tester.view.physicalSize = const Size(_width, 800);
   tester.view.devicePixelRatio = 1;
@@ -39,7 +52,7 @@ Future<XRouter> _boot(
       theme: ThemeData(platform: platform),
     ),
   );
-  router.push(_Page());
+  router.push(page ?? _Page());
   if (settle) await tester.pumpAndSettle();
   return router;
 }
@@ -183,6 +196,44 @@ void main() {
     expect(router.stack, isEmpty);
   });
 
+  testWidgets('an edge swipe its screen turns off springs the screen back on '
+      'the transition\'s curve over 150 ms, and its release pops nothing', (
+    tester,
+  ) async {
+    final page = _Gated();
+    final router = await _boot(tester, page: page);
+
+    final drag = await _edgeDrag(tester, _width / 4, steps: 24);
+    page.swipeBack = false;
+    router.pagesChanged();
+    await tester.pump();
+    await drag.up();
+    await _expectSettle(
+      tester,
+      _width / 4,
+      0,
+      const Duration(milliseconds: 150),
+    );
+    expect(router.stack, hasLength(1));
+  });
+
+  testWidgets('a screen popped during an edge swipe leaves from where the '
+      'finger left it', (tester) async {
+    final router = await _boot(tester);
+
+    final drag = await _edgeDrag(tester, _width / 4, steps: 24);
+    router.stack.single.pop();
+    await tester.pump();
+    await drag.up();
+    await _expectSettle(
+      tester,
+      _width / 4,
+      _width,
+      const Duration(milliseconds: 300) * 0.75,
+    );
+    expect(find.byKey(_pageKey), findsNothing);
+  });
+
   testWidgets('a predictive back sets the screen at the gesture\'s progress, '
       'and its cancel springs it back on the transition\'s curve over 150 ms', (
     tester,
@@ -195,6 +246,34 @@ void main() {
     expect(_offset(tester), moreOrLessEquals(_width / 4, epsilon: 0.5));
 
     await _backGesture(tester, 'cancelBackGesture');
+    await _expectSettle(
+      tester,
+      _width / 4,
+      0,
+      const Duration(milliseconds: 150),
+    );
+    expect(router.stack, hasLength(1));
+  });
+
+  testWidgets('a predictive back its screen turns off springs the screen back '
+      'on the transition\'s curve over 150 ms, and its commit pops nothing', (
+    tester,
+  ) async {
+    final page = _Gated();
+    final router = await _boot(
+      tester,
+      platform: TargetPlatform.android,
+      page: page,
+    );
+
+    await _backGesture(tester, 'startBackGesture', 0);
+    await _backGesture(tester, 'updateBackGestureProgress', 0.25);
+    await tester.pump();
+    page.pops = false;
+    router.pagesChanged();
+    await tester.pump();
+    await _backGesture(tester, 'updateBackGestureProgress', 0.5);
+    await _backGesture(tester, 'commitBackGesture');
     await _expectSettle(
       tester,
       _width / 4,
