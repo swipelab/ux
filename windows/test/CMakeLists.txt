@@ -32,6 +32,7 @@ add_executable(ux_test
   "toast_test.cpp"
   "url_detect_test.cpp"
   "video_export_test.cpp"
+  "video_player_test.cpp"
   "window_test.cpp"
   "work_queue_test.cpp"
   ${UX_PLUGIN_SOURCES}
@@ -64,6 +65,7 @@ add_test(NAME raster COMMAND ux_test raster)
 add_test(NAME toast COMMAND ux_test toast)
 add_test(NAME url_detect COMMAND ux_test url_detect)
 add_test(NAME video_export COMMAND ux_test video_export)
+add_test(NAME video_player COMMAND ux_test video_player)
 add_test(NAME window COMMAND ux_test window)
 add_test(NAME work_queue COMMAND ux_test work_queue)
 set_tests_properties(window PROPERTIES SKIP_RETURN_CODE 77)

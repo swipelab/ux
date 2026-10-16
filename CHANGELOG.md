@@ -95,6 +95,10 @@
   `XVideoPlayerBackend.initialize` fail at once with `decode_failed` and the
   load's error when the video failed to load before `initialize` was called,
   as when it fails while `initialize` waits.
+- **A video that fails to load before `initialize` reports it on Windows.**
+  On Windows, a player whose video fails to load before `initialize` emits an
+  `XVideoPlayerError` with `playback_failed` and the load's error, and
+  `initialize` then fails with `decode_failed`, as on iOS and macOS.
 - **A link's path past fullwidth parentheses is no second link.** On every
   platform, `XUrl.match` links no part of the path a web link runs on into
   past fullwidth parentheses, `（` and `）`, so

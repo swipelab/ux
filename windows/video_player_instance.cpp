@@ -216,16 +216,16 @@ void VideoPlayerInstance::OnEvent(DWORD event, DWORD_PTR param1, DWORD param2) {
 }
 
 void VideoPlayerInstance::Fail(std::string message) {
-  if (ready_) {
-    emit_({
-        {EncodableValue("event"), EncodableValue("error")},
-        {EncodableValue("code"), EncodableValue("playback_failed")},
-        {EncodableValue("description"), EncodableValue(std::move(message))},
-    });
+  if (!ready_ && !failure_) failure_ = message;
+  if (completion_) {
+    CompletePrepare();
     return;
   }
-  if (!failure_) failure_ = std::move(message);
-  CompletePrepare();
+  emit_({
+      {EncodableValue("event"), EncodableValue("error")},
+      {EncodableValue("code"), EncodableValue("playback_failed")},
+      {EncodableValue("description"), EncodableValue(std::move(message))},
+  });
 }
 
 void VideoPlayerInstance::CompletePrepare() {
