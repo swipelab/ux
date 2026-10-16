@@ -332,10 +332,15 @@
   transition's curve.
 - **A back gesture its screen stops taking is cancelled.** An iOS edge swipe
   or a predictive back that its screen stops taking before it lets go, as
-  `canPop` turns false, `canSwipeBack` turns false for the swipe, or another
-  screen covers it, springs the screen back over 150 ms, and its release or
-  commit pops nothing. A screen that leaves during one goes from where the
-  gesture left it.
+  `canPop` or `canSwipeBack` turns false, or another screen covers it, springs
+  the screen back over 150 ms, and its release or commit pops nothing. A
+  screen that leaves during one goes from where the gesture left it.
+- **A predictive back asks the screen's `handleBack`.** Android's predictive
+  back drags a screen only where its `canSwipeBack` holds, as the iOS edge
+  swipe does; on any other screen it goes back as system back does, through
+  `handleBack`. A predictive back's commit asks the screen's `handleBack`
+  before it pops, and one that `handleBack` consumes springs the screen back
+  over 150 ms.
 - **An `XApp` over another `XRouter` shows that router's screens.** An `XApp`
   rebuilt with another `router` shows that router's screens, which take no
   State from the old router's, and the old router's screens leave the tree.

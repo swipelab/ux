@@ -39,8 +39,10 @@ mixin Screen<T> {
   /// pops while it is the top screen.
   bool get isModal => false;
 
-  /// Whether the iOS edge-swipe gesture should be enabled for this page.
-  /// Set to `false` for bottom sheets and overlays that dismiss differently.
+  /// Whether the back gesture (the iOS edge swipe, Android's predictive back)
+  /// drags this page. Set to `false` for bottom sheets and overlays that
+  /// dismiss differently; Android's back gesture then goes back as system
+  /// back does.
   bool get canSwipeBack => true;
 
   /// Device orientations this screen supports while it is the topmost
@@ -71,7 +73,9 @@ mixin Screen<T> {
   /// Whether back pops this page: system back, the swipe and Esc.
   bool get canPop => true;
 
-  /// Custom back-button handling. Return `true` to consume the event.
+  /// Custom back handling, asked by system back and by a predictive back as
+  /// it commits. Return `true` to consume the back: the page stays, and a
+  /// predictive back springs it back.
   bool handleBack() => false;
 
   /// Called after the page is pushed onto the router.
