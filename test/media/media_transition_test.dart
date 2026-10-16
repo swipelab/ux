@@ -165,14 +165,17 @@ class _ProbePage with Screen<void> {
     this.fromSource = true,
     this.openingSnapshot = true,
     this.paintWhileLoading = false,
+    this.innerImage = false,
   }) : ready = ValueNotifier(ready);
   final ui.Image snapshot;
   final bool fromSource;
   final bool openingSnapshot;
   final bool paintWhileLoading;
+  final bool innerImage;
   final GallerySource? source;
   final ValueNotifier<bool> ready;
   final color = ValueNotifier<Color>(Colors.blue);
+  final image = ValueNotifier<ui.Image?>(null);
   @override
   Duration get transitionDuration => kMediaFlightDuration;
   @override
@@ -212,11 +215,19 @@ class _ProbePage with Screen<void> {
             listenable: Listenable.merge([ready, color]),
             builder: (_, _) => MediaFlightSurface(
               ready: ready.value,
-              child: ColoredBox(
-                color: ready.value || paintWhileLoading
-                    ? color.value
-                    : Colors.transparent,
-              ),
+              child: innerImage
+                  ? RepaintBoundary(
+                      child: ValueListenableBuilder(
+                        valueListenable: image,
+                        builder: (_, value, _) =>
+                            RawImage(image: value, fit: BoxFit.fill),
+                      ),
+                    )
+                  : ColoredBox(
+                      color: ready.value || paintWhileLoading
+                          ? color.value
+                          : Colors.transparent,
+                    ),
             ),
           ),
         ),
@@ -226,8 +237,10 @@ class _ProbePage with Screen<void> {
   @override
   void onRemoved() {
     snapshot.dispose();
+    image.value?.dispose();
     ready.dispose();
     color.dispose();
+    image.dispose();
     super.onRemoved();
   }
 }
@@ -708,6 +721,36 @@ void main() {
       await expectLater(
         find.byKey(host.boundary),
         matchesGoldenFile('goldens/media_ready_again_settled.png'),
+      );
+      await tester.pumpWidget(const SizedBox());
+      host.router.dispose();
+      host.lifecycle.dispose();
+    },
+    tags: 'golden',
+  );
+
+  testWidgets(
+    'an image behind its own repaint boundary that decodes after the flight shows its live pixels',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final host = _Host(false);
+      MediaHost.current = host;
+      await tester.pumpWidget(host.app);
+      final page = _ProbePage(await _snapshot(tester), null, innerImage: true);
+      host.push(page);
+      await tester.pumpAndSettle();
+      final recorder = ui.PictureRecorder();
+      Canvas(recorder).drawColor(Colors.green, BlendMode.src);
+      final picture = recorder.endRecording();
+      page.image.value = picture.toImageSync(18, 24);
+      picture.dispose();
+      await tester.pumpAndSettle();
+      await expectLater(
+        find.byKey(host.boundary),
+        matchesGoldenFile('goldens/media_inner_image_settled.png'),
       );
       await tester.pumpWidget(const SizedBox());
       host.router.dispose();

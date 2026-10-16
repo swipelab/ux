@@ -397,17 +397,8 @@ class _RenderSurface extends RenderProxyBox {
     super.dispose();
   }
 
-  @override
-  void paint(PaintingContext context, Offset offset) {
-    final f = flight;
-    final rect = contentRect == null ? Offset.zero & size : contentRect!(size);
-    if (f == null || rect == null || rect.isEmpty) {
-      super.paint(context, offset);
-      return;
-    }
-    final global = MatrixUtils.transformRect(getTransformTo(null), rect);
-    f.surfaceRect = global;
-    f.surface = this;
+  /// Whether [child] holds images and none of them is decoded.
+  bool get _imagePending {
     var hasImage = false;
     var decodedImage = false;
     void visit(RenderObject object) {
@@ -419,8 +410,46 @@ class _RenderSurface extends RenderProxyBox {
     }
 
     if (child != null) visit(child!);
-    final pixelsReady = ready && (!hasImage || decodedImage);
+    return hasImage && !decodedImage;
+  }
+
+  bool _awaitingDecode = false;
+  bool _decodeCheckScheduled = false;
+
+  /// An image behind its own repaint boundary decodes without repainting this
+  /// surface, so while the snapshot waits on images they are rechecked after
+  /// each frame.
+  void _checkDecodeAfterFrame() {
+    if (_decodeCheckScheduled) return;
+    _decodeCheckScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _decodeCheckScheduled = false;
+      if (!attached || !_awaitingDecode) return;
+      if (_imagePending) {
+        _checkDecodeAfterFrame();
+      } else {
+        markNeedsPaint();
+      }
+    });
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    final f = flight;
+    final rect = contentRect == null ? Offset.zero & size : contentRect!(size);
+    if (f == null || rect == null || rect.isEmpty) {
+      _awaitingDecode = false;
+      super.paint(context, offset);
+      return;
+    }
+    final global = MatrixUtils.transformRect(getTransformTo(null), rect);
+    f.surfaceRect = global;
+    f.surface = this;
+    final imagePending = _imagePending;
+    final pixelsReady = ready && !imagePending;
     f.paintSnapshot = f.transporting || (!f.openingComplete && !pixelsReady);
+    _awaitingDecode = f.paintSnapshot && ready && imagePending;
+    if (_awaitingDecode) _checkDecodeAfterFrame();
     if (!f.paintSnapshot) {
       f.openingComplete = true;
       super.paint(context, offset);
