@@ -147,8 +147,6 @@ class XRouter extends BackButtonDispatcher
     _updateActive();
   }
 
-  late final _overlayEntry = OverlayEntry(builder: _buildContent);
-
   /// Whether a back gesture has something to pop inside the app.
   bool get canPop {
     final top = stack.lastOrNull;
@@ -207,11 +205,13 @@ class XRouter extends BackButtonDispatcher
     );
   }
 
-  /// Builds the router's overlay, holding the current [pages].
-  Widget build(BuildContext context) {
-    _overlayEntry.markNeedsBuild();
-    return Overlay(initialEntries: [_overlayEntry]);
-  }
+  /// Builds the router's overlay, holding the current [pages]. Another
+  /// router builds another overlay, so its screens take no State from this
+  /// one's.
+  Widget build(BuildContext context) => Overlay.wrap(
+    key: ObjectKey(this),
+    child: Builder(builder: _buildContent),
+  );
 
   /// Pops everything above [home], including [home]'s hosted screens.
   void popAll() {
@@ -491,7 +491,7 @@ class XRouteParser extends RouteInformationParser<Object> {
 /// Resolves a [XRouter] from the [Store] and sets up theming,
 /// localization, scroll behavior, and back-button dispatching —
 /// without pulling in Flutter's [Navigator] or [MaterialApp].
-class XApp extends StatelessWidget {
+class XApp extends StatefulWidget {
   /// Binds the router to render and the app-wide theming and localization
   /// it renders under.
   const XApp({
@@ -532,25 +532,56 @@ class XApp extends StatelessWidget {
   final GlobalKey<OverlayState>? overlayKey;
 
   @override
+  State<XApp> createState() => _XAppState();
+}
+
+class _XAppState extends State<XApp> {
+  /// Keeps the root overlay, and [_routerEntry] in it, when the widgets above
+  /// it change shape, as [DefaultTextEditingShortcuts]'s do between platforms.
+  final _overlayKey = GlobalKey<OverlayState>();
+
+  late final _routerEntry = OverlayEntry(builder: _buildRouter);
+
+  @override
+  void dispose() {
+    _routerEntry
+      ..remove()
+      ..dispose();
+    super.dispose();
+  }
+
+  Widget _buildRouter(BuildContext context) {
+    final router = widget.router;
+    return _InspectorScope(
+      child: Router(
+        routeInformationParser: router.routeParser,
+        routeInformationProvider: router.routeInformationProvider,
+        routerDelegate: router.delegate,
+        backButtonDispatcher: router.backDispatcher,
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final data = theme ?? ThemeData();
+    final data = widget.theme ?? ThemeData();
 
     return Title(
-      title: title,
+      title: widget.title,
       color: data.primaryColor,
       child: MediaQuery.fromView(
         view: View.of(context),
         child: Localizations(
-          locale: supportedLocales.first,
+          locale: widget.supportedLocales.first,
           delegates: [
-            ...?localizationsDelegates,
+            ...?widget.localizationsDelegates,
             DefaultMaterialLocalizations.delegate,
             DefaultWidgetsLocalizations.delegate,
           ],
           child: AnimatedTheme(
             data: data,
             child: ScrollConfiguration(
-              behavior: scrollBehavior ?? const MaterialScrollBehavior(),
+              behavior: widget.scrollBehavior ?? const MaterialScrollBehavior(),
               child: Focus(
                 canRequestFocus: false,
                 skipTraversal: true,
@@ -565,20 +596,8 @@ class XApp extends StatelessWidget {
                     },
                     child: DefaultTextEditingShortcuts(
                       child: Overlay(
-                        key: overlayKey,
-                        initialEntries: [
-                          OverlayEntry(
-                            builder: (_) => _InspectorScope(
-                              child: Router(
-                                routeInformationParser: router.routeParser,
-                                routeInformationProvider:
-                                    router.routeInformationProvider,
-                                routerDelegate: router.delegate,
-                                backButtonDispatcher: router.backDispatcher,
-                              ),
-                            ),
-                          ),
-                        ],
+                        key: widget.overlayKey ?? _overlayKey,
+                        initialEntries: [_routerEntry],
                       ),
                     ),
                   ),
@@ -767,12 +786,8 @@ class _DismissPastDisabledDispatcher extends ActionDispatcher {
 /// not stay mounted when idle).
 ///
 /// The child is kept under a stable [GlobalKey] so that inserting/removing the
-/// inspector *reparents* the subtree rather than rebuilding it. Without this,
-/// the toggle tears down and recreates the screen-stack [Overlay] below while
-/// the router still owns its [OverlayEntry]s — "entry already present in a
-/// different Overlay". `WidgetsApp` survives the same toggle for free because
-/// its `Navigator` carries an intrinsic [GlobalKey]; the screen-stack [Overlay]
-/// here has none, so we add the wrapper key explicitly.
+/// inspector *reparents* the subtree rather than rebuilding it, and the
+/// [Router] and its screens keep their State.
 ///
 /// Debug-only and inert until toggled. The on-device exit/move/tap-behavior
 /// buttons are left unbuilt (null) — Material's defaults rely on a private

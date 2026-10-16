@@ -318,6 +318,11 @@
   the screen shows to where the transition settles. `ScreenTransitions` take
   their curves through it. The spring back returns over 150 ms on the
   transition's curve.
+- **An `XApp` over another `XRouter` shows that router's screens.** An `XApp`
+  rebuilt with another `router` shows that router's screens, which take no
+  State from the old router's, and the old router's screens leave the tree.
+  Across a change of `defaultTargetPlatform`, an `XApp` keeps its router's
+  screens and their State. `XApp` is a `StatefulWidget`.
 - **A media caption is what the host's caption field holds.**
   `ComposeResult.caption` is what `MediaHost.caption` reads from the item's
   caption controller when the page submits, in the host's own type: the host
