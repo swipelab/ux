@@ -133,21 +133,82 @@ void main() {
     expect(modal.popped, isTrue);
   });
 
-  testWidgets('Esc in a text field unfocuses it and leaves its screen', (
-    tester,
-  ) async {
+  testWidgets(
+    'Esc in a text field in a Scaffold unfocuses it, and a second '
+    'Esc pops its screen',
+    (tester) async {
+      final router = XRouter(home: _Screen(const SizedBox()));
+      await tester.pumpWidget(XApp(router: router));
+      final field = FocusNode();
+      addTearDown(field.dispose);
+      final page = _Screen(
+        Scaffold(
+          body: Center(child: TextField(focusNode: field)),
+        ),
+      );
+      router.push(page);
+      await tester.pumpAndSettle();
+      field.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(field.hasFocus, isFalse);
+      expect(page.popped, isFalse);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(page.popped, isTrue);
+    },
+    variant: TargetPlatformVariant({
+      TargetPlatform.macOS,
+      TargetPlatform.windows,
+    }),
+  );
+
+  testWidgets('Esc in a text field with its menu shown hides the menu and '
+      'leaves the field focused', (tester) async {
     final router = XRouter(home: _Screen(const SizedBox()));
     await tester.pumpWidget(XApp(router: router));
     final field = FocusNode();
     addTearDown(field.dispose);
-    final page = _Screen(Center(child: TextField(focusNode: field)));
+    router.push(_Screen(Center(child: TextField(focusNode: field))));
+    await tester.pumpAndSettle();
+    field.requestFocus();
+    await tester.pump();
+    final editable = tester.state<EditableTextState>(find.byType(EditableText));
+    editable.showToolbar();
+    await tester.pumpAndSettle();
+    expect(editable.selectionOverlay!.toolbarIsVisible, isTrue);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(editable.selectionOverlay!.toolbarIsVisible, isFalse);
+    expect(field.hasFocus, isTrue);
+  });
+
+  testWidgets('Esc in a text field in an open drawer closes the drawer', (
+    tester,
+  ) async {
+    final router = XRouter(home: _Screen(const SizedBox()));
+    await tester.pumpWidget(XApp(router: router));
+    final scaffold = GlobalKey<ScaffoldState>();
+    final field = FocusNode();
+    addTearDown(field.dispose);
+    final page = _Screen(
+      Scaffold(
+        key: scaffold,
+        drawer: Drawer(child: TextField(focusNode: field)),
+        body: const SizedBox(),
+      ),
+    );
     router.push(page);
+    await tester.pumpAndSettle();
+    scaffold.currentState!.openDrawer();
     await tester.pumpAndSettle();
     field.requestFocus();
     await tester.pump();
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
-    expect(field.hasFocus, isFalse);
+    expect(scaffold.currentState!.isDrawerOpen, isFalse);
     expect(page.popped, isFalse);
   });
 
