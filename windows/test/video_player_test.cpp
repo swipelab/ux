@@ -14,6 +14,7 @@
 #include "../platform_thread.h"
 #include "../video_device.h"
 #include "../video_player_instance.h"
+#include "../video_player_plugin.h"
 #include "check.h"
 #include "support.h"
 
@@ -22,6 +23,11 @@ using flutter::EncodableValue;
 using Microsoft::WRL::ComPtr;
 
 void VideoPlayerSuite() {
+  // A create URI reaches the media engine as a file URI's path, or as an http(s) URI as it is.
+  CHECK(ux::VideoSourceUrl("file://C:/videos/a b.mp4") == std::wstring(L"C:\\videos\\a b.mp4"));
+  CHECK(ux::VideoSourceUrl("https://example.com/v.mp4?t=1") == std::wstring(L"https://example.com/v.mp4?t=1"));
+  CHECK(!ux::VideoSourceUrl("rtsp://example.com/v"));
+
   CHECK(SUCCEEDED(CoInitializeEx(nullptr, COINIT_MULTITHREADED)));
   ComPtr<IDXGIFactory1> factory;
   ComPtr<IDXGIAdapter> adapter;

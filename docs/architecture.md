@@ -368,7 +368,9 @@ handle, each an `IMFMediaEngine` in frame-server mode.
   the display size with `rotationQuarterTurns` 0, as on Android.
 - **Sources.** `create` takes the `file://<path>` URI `XVideoPlayerController.file`
   builds, with either separator, and the engine opens the path as it is, spaces
-  and non-ASCII characters included; any other URI answers `bad_args`.
+  and non-ASCII characters included. It hands an http(s) URI, as
+  `XVideoPlayerController.network` builds, to the engine as it is, and the
+  engine streams it. Any other URI answers `bad_args`.
 - **Initialize.** `initialize` answers once the engine can play
   (`MF_MEDIA_ENGINE_EVENT_CANPLAY`), and fails with `decode_failed` and the
   engine's error when it cannot, as for a codec Windows has no decoder for.

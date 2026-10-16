@@ -115,10 +115,10 @@ HRESULT VideoPlayerInstance::Start() {
   return factory->CreateInstance(0, attributes.Get(), &engine_);
 }
 
-void VideoPlayerInstance::Open(const std::wstring& path, std::function<void()> frame_available) {
-  BSTR url = SysAllocString(path.c_str());
-  const HRESULT hr = engine_->SetSource(url);
-  SysFreeString(url);
+void VideoPlayerInstance::Open(const std::wstring& url, std::function<void()> frame_available) {
+  BSTR source = SysAllocString(url.c_str());
+  const HRESULT hr = engine_->SetSource(source);
+  SysFreeString(source);
   if (FAILED(hr)) {
     post_([weak = weak_from_this(), message = "cannot open the video (" + Hex(hr) + ")"]() {
       if (auto self = weak.lock(); self && !self->disposed_) self->Fail(message);
