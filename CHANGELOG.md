@@ -1,4 +1,16 @@
 ### 0.18.0
+- **A `ScreenHero` flies.** A `ScreenHero` registers with the `ScreenStack`
+  around it. When a screen is pushed over another or popped off it, a hero on
+  one that shares its tag with a hero on the other flies from its place to the
+  other's over the transition, in the `Overlay` around the stack; a pop that a
+  back gesture drives does not fly, and a flight lands as either screen hides.
+  `ScreenHeroController` takes a hero's state in `register` and `unregister`,
+  flies heroes between two slots with `fly` and lands the flights from or to a
+  slot with `land`, and `ScreenSlot.maybeOf` finds the slot whose screen holds
+  a context. Breaking: `ScreenHeroController.register` and `unregister` take
+  the hero's state alone, and `ScreenHeroController.snapshot`,
+  `ScreenHeroController.maybeStartFlights` and `ScreenHeroState.globalRect`
+  are removed.
 - **macOS and Windows report Reduce Motion.** `XAccessibility.reduceMotion`
   (`package:ux/accessibility.dart`) holds whether the OS asks apps to reduce
   motion where Flutter's embedder does not report it, and follows its changes
