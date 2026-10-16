@@ -543,16 +543,16 @@ class XApp extends StatelessWidget {
             data: data,
             child: ScrollConfiguration(
               behavior: scrollBehavior ?? const MaterialScrollBehavior(),
-              child: Overlay(
-                key: overlayKey,
-                initialEntries: [
-                  OverlayEntry(
-                    builder: (_) => Shortcuts(
-                      shortcuts: WidgetsApp.defaultShortcuts,
-                      child: Actions(
-                        actions: WidgetsApp.defaultActions,
-                        child: DefaultTextEditingShortcuts(
-                          child: _InspectorScope(
+              child: Shortcuts(
+                shortcuts: WidgetsApp.defaultShortcuts,
+                child: Actions(
+                  actions: WidgetsApp.defaultActions,
+                  child: DefaultTextEditingShortcuts(
+                    child: Overlay(
+                      key: overlayKey,
+                      initialEntries: [
+                        OverlayEntry(
+                          builder: (_) => _InspectorScope(
                             child: Router(
                               routeInformationParser: router.routeParser,
                               routeInformationProvider:
@@ -562,10 +562,10 @@ class XApp extends StatelessWidget {
                             ),
                           ),
                         ),
-                      ),
+                      ],
                     ),
                   ),
-                ],
+                ),
               ),
             ),
           ),
