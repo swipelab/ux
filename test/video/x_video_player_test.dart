@@ -2,7 +2,8 @@ import 'dart:async';
 import 'dart:io' as io;
 import 'dart:ui' show Size;
 
-import 'package:flutter/services.dart' show MethodChannel, PlatformException;
+import 'package:flutter/services.dart'
+    show EventChannel, MethodChannel, PlatformException;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ux/log.dart';
 import 'package:ux/testing.dart';
@@ -283,6 +284,51 @@ void main() {
       {'handle': 1},
       {'handle': 1},
     ]);
+  });
+
+  test('a dispose the platform answers with an error other than disposed '
+      'fails with it, once it has disposed the controller', () async {
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    const channel = MethodChannel('ux/video');
+    const events = EventChannel('ux/video/events');
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      switch (call.method) {
+        case 'create':
+          return {'handle': 1};
+        case 'initialize':
+          return {
+            'size': {'width': 720, 'height': 1280},
+            'durationMs': 1000,
+          };
+        case 'dispose':
+          throw PlatformException(code: 'native_error');
+      }
+      return null;
+    });
+    messenger.setMockStreamHandler(
+      events,
+      MockStreamHandler.inline(onListen: (_, _) {}),
+    );
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(channel, null);
+      messenger.setMockStreamHandler(events, null);
+    });
+    XVideoPlayerBackend.instance = MethodChannelXVideoPlayerBackend();
+    final ctrl = XVideoPlayerController.file(io.File('/tmp/fake.mp4'));
+    await ctrl.initialize();
+
+    await expectLater(
+      ctrl.dispose(),
+      throwsA(
+        isA<XVideoPlayerException>().having(
+          (e) => e.code,
+          'code',
+          'native_error',
+        ),
+      ),
+    );
+    expect(() => ctrl.addListener(() {}), throwsFlutterError);
   });
 
   group('dispose while a native call is pending', () {

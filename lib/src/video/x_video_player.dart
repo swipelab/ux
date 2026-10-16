@@ -351,11 +351,14 @@ class XVideoPlayerController extends ChangeNotifier
     _handle = null;
     final cancelled = _eventsSub?.cancel();
     _eventsSub = null;
-    if (handle != null) {
-      await XVideoPlayerBackend.instance.disposeInstance(handle);
+    try {
+      if (handle != null) {
+        await XVideoPlayerBackend.instance.disposeInstance(handle);
+      }
+    } finally {
+      await cancelled;
+      super.dispose();
     }
-    await cancelled;
-    super.dispose();
   }
 
   /// Runs [call] against the native session and fails with `disposed`

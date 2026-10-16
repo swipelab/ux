@@ -104,7 +104,7 @@
   platform answers that the player is already disposed, as
   `XVideoPlayerBackend.disposeInstance` documents.
   `XVideoPlayerController.dispose` fails with any other error the platform
-  answers.
+  answers, once it has disposed the controller.
 - **A link's path past fullwidth parentheses is no second link.** On every
   platform, `XUrl.match` links no part of the path a web link runs on into
   past fullwidth parentheses, `（` and `）`, so
