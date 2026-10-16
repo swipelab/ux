@@ -312,6 +312,10 @@
   trims it and keeps what its field holds beside the text, such as formats.
   Breaking: hosts implement `MediaHost.caption`, and `ComposeResult.caption`
   is an `Object?`.
+- **`swipelab_webp` comes from GitHub.** ux depends on `swipelab_webp` from
+  the git repository https://github.com/swipelab/swipelab_webp, so it
+  resolves with no sibling checkout. A host that also depends on
+  `swipelab_webp` names the same git source or overrides it.
 
 ### 0.17.0
 - **`media.dart` holds one snapshot flight.** `GalleryTransition` uses
