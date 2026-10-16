@@ -90,18 +90,19 @@ void main() {
       expect(batches, [3, 2]);
     });
 
-    test('retries on 5xx with exponential backoff', () async {
-      final attempts = <DateTime>[];
+    test('retries on 5xx with exponential backoff up to maxBackoff', () async {
+      var attempts = 0;
+      final delays = <Duration>[];
       final sink = HttpSink(
         endpoint: endpoint,
         token: 't',
         flushInterval: const Duration(milliseconds: 1),
         initialBackoff: const Duration(milliseconds: 10),
-        maxBackoff: const Duration(milliseconds: 200),
+        maxBackoff: const Duration(milliseconds: 50),
+        delay: (backoff) async => delays.add(backoff),
         sender: (url, token, body) async {
-          attempts.add(DateTime.now());
-          if (attempts.length < 4) return 503;
-          return 204;
+          attempts += 1;
+          return attempts < 5 ? 503 : 204;
         },
       );
 
@@ -114,16 +115,13 @@ void main() {
       );
       await sink.flush();
 
-      expect(attempts.length, 4);
-      // 10ms → 20ms → 40ms gaps (within maxBackoff cap of 200ms). Each gap
-      // should be roughly double the prior, but we leave slack for scheduler
-      // jitter and just assert monotonically non-decreasing positive gaps.
-      final gap1 = attempts[1].difference(attempts[0]).inMicroseconds;
-      final gap2 = attempts[2].difference(attempts[1]).inMicroseconds;
-      final gap3 = attempts[3].difference(attempts[2]).inMicroseconds;
-      expect(gap1, greaterThan(0));
-      expect(gap2, greaterThanOrEqualTo(gap1));
-      expect(gap3, greaterThanOrEqualTo(gap2));
+      expect(attempts, 5);
+      expect(delays, const [
+        Duration(milliseconds: 10),
+        Duration(milliseconds: 20),
+        Duration(milliseconds: 40),
+        Duration(milliseconds: 50),
+      ]);
     });
 
     test('drops batch on 4xx after one warning', () async {
