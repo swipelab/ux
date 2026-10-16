@@ -203,7 +203,8 @@
   through Media Foundation's Media Engine into a Flutter texture. `initialize`
   answers the display size and the duration, with `rotationQuarterTurns` 0
   since the frames arrive upright, and fails with `decode_failed` for a file
-  Windows cannot decode. Play, pause, seek, looping, volume and speed act as on
+  Windows cannot decode, an H.264 video stored at most 32 pixels wide or 16
+  tall among them. Play, pause, seek, looping, volume and speed act as on
   the other platforms, and the player reports its state, size, completion and
   errors. Where Media Foundation is missing, as on a Windows N edition without
   the Media Feature Pack, `initialize` fails with `create_failed` while the

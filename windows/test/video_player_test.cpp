@@ -85,5 +85,20 @@ void VideoPlayerSuite() {
     CHECK(!PumpUntil([&events] { return !events.empty(); }, std::chrono::milliseconds(500)));
   }
 
+  // An H.264 video too small for Media Foundation's decoder fails initialize, and its player disposes.
+  for (const char* name : {"h264_32x32.mp4", "h264_16x64.mp4"}) {
+    const std::optional<std::wstring> url = ux::VideoSourceUrl(std::string("file://") + UX_TEST_ASSETS + "/" + name);
+    std::shared_ptr<ux::VideoPlayerInstance> player;
+    CHECK(SUCCEEDED(ux::VideoPlayerInstance::Create(device, platform.poster(), [](EncodableMap) {}, player)));
+    player->Open(*url, [] {});
+    std::optional<ux::VideoPrepared> prepared;
+    player->Prepare([&prepared](ux::VideoPrepared result) { prepared = std::move(result); });
+    CHECK(PumpUntil([&prepared] { return prepared.has_value(); }));
+    CHECK(prepared && std::holds_alternative<ux::VideoFailed>(*prepared));
+    player->Play();
+    PumpUntil([] { return false; }, std::chrono::seconds(1));
+    player->Dispose();
+  }
+
   DeleteFileW(broken.c_str());
 }
