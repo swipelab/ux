@@ -152,19 +152,10 @@ static BOOL ux_glues_word(const uint16_t *chars, NSUInteger len, NSUInteger star
     return [NSCharacterSet.letterCharacterSet longCharacterIsMember:c];
 }
 
-// Whether the bare-domain match [start, end) starts in a host of `glued` past
-// its first character, or at its first character with the glued word for its
-// top-level domain.
-static BOOL ux_splits_glued(NSIndexSet *glued, const uint16_t *chars, NSUInteger start, NSUInteger end) {
-    if (![glued containsIndex:start]) return NO;
-    if (start > 0 && [glued containsIndex:start - 1]) return YES;
-    NSUInteger i = start;
-    while ([glued containsIndex:i]) i++;
-    const NSUInteger host = ux_path_start(chars, start, end);
-    while (++i < host) {
-        if (chars[i] == '.') return NO;
-    }
-    return YES;
+// Whether the bare-domain match at `start` starts in a host of `glued` past its
+// first character.
+static BOOL ux_splits_glued(NSIndexSet *glued, NSUInteger start) {
+    return start > 0 && [glued containsIndex:start] && [glued containsIndex:start - 1];
 }
 
 // The fullwidth '(' that ends the stretch of the text between CJK punctuation
@@ -328,7 +319,7 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
                 if (result == nil) return;
                 const NSRange r = result.range;
                 if (r.location == NSNotFound || r.length == 0) return;
-                if (ux_splits_glued(glued, utf16, r.location, NSMaxRange(r))) return;
+                if (ux_splits_glued(glued, r.location)) return;
                 const NSUInteger end = ux_web_end(utf16, r.location, NSMaxRange(r));
                 NSString *substr = [text substringWithRange:NSMakeRange(r.location, end - r.location)];
                 NSString *withScheme = [@"http://" stringByAppendingString:substr];
