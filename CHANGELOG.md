@@ -330,6 +330,12 @@
   the screen shows to where the transition settles. `ScreenTransitions` take
   their curves through it. The spring back returns over 150 ms on the
   transition's curve.
+- **A back gesture its screen stops taking is cancelled.** An iOS edge swipe
+  or a predictive back that its screen stops taking before it lets go, as
+  `canPop` turns false, `canSwipeBack` turns false for the swipe, or another
+  screen covers it, springs the screen back over 150 ms, and its release or
+  commit pops nothing. A screen that leaves during one goes from where the
+  gesture left it.
 - **An `XApp` over another `XRouter` shows that router's screens.** An `XApp`
   rebuilt with another `router` shows that router's screens, which take no
   State from the old router's, and the old router's screens leave the tree.
