@@ -22,16 +22,26 @@ class _Page with Screen<void> {
       ColoredBox(key: _pageKey, color: Colors.white);
 }
 
-/// A [_Page] whose edge swipe and pop its fields turn off.
+/// A [_Page] whose back gesture and pop its fields turn off, and whose
+/// [handleBack] counts the backs it is asked and consumes them while
+/// [guards].
 class _Gated extends _Page {
   bool swipeBack = true;
   bool pops = true;
+  bool guards = false;
+  int backs = 0;
 
   @override
   bool get canSwipeBack => swipeBack;
 
   @override
   bool get canPop => pops;
+
+  @override
+  bool handleBack() {
+    backs++;
+    return guards;
+  }
 }
 
 /// Pumps a router on [platform] and pushes [page], a [_Page] unless given,
@@ -299,6 +309,74 @@ void main() {
       const Duration(milliseconds: 150),
     );
     expect(router.stack, hasLength(1));
+  });
+
+  testWidgets('a predictive back leaves a screen without the back gesture in '
+      'place, and its commit goes back through handleBack', (tester) async {
+    final page = _Gated()
+      ..swipeBack = false
+      ..guards = true;
+    final router = await _boot(
+      tester,
+      platform: TargetPlatform.android,
+      page: page,
+    );
+
+    await _backGesture(tester, 'startBackGesture', 0);
+    await _backGesture(tester, 'updateBackGestureProgress', 0.25);
+    await tester.pump();
+    expect(_offset(tester), 0);
+
+    await _backGesture(tester, 'commitBackGesture');
+    await tester.pumpAndSettle();
+    expect(page.backs, 1);
+    expect(router.stack, hasLength(1));
+  });
+
+  testWidgets('a predictive back\'s commit that handleBack consumes springs '
+      'the screen back on the transition\'s curve over 150 ms', (tester) async {
+    final page = _Gated()..guards = true;
+    final router = await _boot(
+      tester,
+      platform: TargetPlatform.android,
+      page: page,
+    );
+
+    await _backGesture(tester, 'startBackGesture', 0);
+    await _backGesture(tester, 'updateBackGestureProgress', 0.25);
+    await tester.pump();
+    await _backGesture(tester, 'commitBackGesture');
+    await _expectSettle(
+      tester,
+      _width / 4,
+      0,
+      const Duration(milliseconds: 150),
+    );
+    expect(page.backs, 1);
+    expect(router.stack, hasLength(1));
+  });
+
+  testWidgets('a predictive back\'s commit that handleBack declines pops the '
+      'screen from where the gesture left it', (tester) async {
+    final page = _Gated();
+    final router = await _boot(
+      tester,
+      platform: TargetPlatform.android,
+      page: page,
+    );
+
+    await _backGesture(tester, 'startBackGesture', 0);
+    await _backGesture(tester, 'updateBackGestureProgress', 0.25);
+    await tester.pump();
+    await _backGesture(tester, 'commitBackGesture');
+    await _expectSettle(
+      tester,
+      _width / 4,
+      _width,
+      const Duration(milliseconds: 300) * 0.75,
+    );
+    expect(page.backs, 1);
+    expect(router.stack, isEmpty);
   });
 
   testWidgets('a pushed screen slides in on its transition\'s curve', (
