@@ -96,6 +96,30 @@ void main() {
     expect(pinned.popped, isFalse);
   });
 
+  testWidgets('Esc in a Scaffold with no drawer open pops its screen', (
+    tester,
+  ) async {
+    final router = XRouter(home: _Screen(const SizedBox()));
+    await tester.pumpWidget(XApp(router: router));
+    final control = FocusNode();
+    addTearDown(control.dispose);
+    final page = _Screen(
+      Scaffold(
+        body: Focus(
+          focusNode: control,
+          child: const SizedBox(width: 10, height: 10),
+        ),
+      ),
+    );
+    router.push(page);
+    await tester.pumpAndSettle();
+    control.requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(page.popped, isTrue);
+  });
+
   testWidgets('Esc pops a modal top screen whose back is disabled', (
     tester,
   ) async {
