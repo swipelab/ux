@@ -172,6 +172,7 @@ class _ProbePage with Screen<void> {
   final bool paintWhileLoading;
   final GallerySource? source;
   final ValueNotifier<bool> ready;
+  final color = ValueNotifier<Color>(Colors.blue);
   @override
   Duration get transitionDuration => kMediaFlightDuration;
   @override
@@ -205,14 +206,17 @@ class _ProbePage with Screen<void> {
         top: 150,
         width: 180,
         height: 240,
-        child: ValueListenableBuilder<bool>(
-          valueListenable: ready,
-          builder: (_, loaded, _) => MediaFlightSurface(
-            ready: loaded,
-            child: ColoredBox(
-              color: loaded || paintWhileLoading
-                  ? Colors.blue
-                  : Colors.transparent,
+        // The surface repaints apart from the flight, as in a host's pager.
+        child: RepaintBoundary(
+          child: ListenableBuilder(
+            listenable: Listenable.merge([ready, color]),
+            builder: (_, _) => MediaFlightSurface(
+              ready: ready.value,
+              child: ColoredBox(
+                color: ready.value || paintWhileLoading
+                    ? color.value
+                    : Colors.transparent,
+              ),
             ),
           ),
         ),
@@ -223,6 +227,7 @@ class _ProbePage with Screen<void> {
   void onRemoved() {
     snapshot.dispose();
     ready.dispose();
+    color.dispose();
     super.onRemoved();
   }
 }
@@ -674,6 +679,36 @@ void main() {
         matchesGoldenFile('goldens/media_no_snapshot_ready_150.png'),
       );
       await tester.pumpAndSettle();
+      await tester.pumpWidget(const SizedBox());
+      host.router.dispose();
+      host.lifecycle.dispose();
+    },
+    tags: 'golden',
+  );
+
+  testWidgets(
+    'a surface ready again after the flight ends shows its live pixels',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final host = _Host(false);
+      MediaHost.current = host;
+      await tester.pumpWidget(host.app);
+      final page = _ProbePage(await _snapshot(tester), null);
+      host.push(page);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 150));
+      page.ready.value = false;
+      page.color.value = Colors.green;
+      await tester.pumpAndSettle();
+      page.ready.value = true;
+      await tester.pumpAndSettle();
+      await expectLater(
+        find.byKey(host.boundary),
+        matchesGoldenFile('goldens/media_ready_again_settled.png'),
+      );
       await tester.pumpWidget(const SizedBox());
       host.router.dispose();
       host.lifecycle.dispose();

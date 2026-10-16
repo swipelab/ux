@@ -285,6 +285,10 @@
   included. `ComposePage`'s submit hands the overlay over with
   `ComposeResult.videoEdit` through `ComposeEntry.handOverVideoEdit`, and the
   receiver deletes `VideoEditValues.overlay`'s file once used.
+- **A media surface ready again after its open flight shows its live pixels.**
+  A `MediaFlightSurface` whose `ready` turns false after `GalleryTransition`'s
+  open flight captures it, and true again once the flight ends, shows its live
+  pixels as it turns ready, with no snapshot of the flight over them.
 - **The screen that shows holds focus, so keys reach it.** When a
   `ScreenStack`'s top screen shows, its focus scope takes focus if focus is in
   the stack, on a scope around it, or nowhere, as when `XApp` starts, and asks
