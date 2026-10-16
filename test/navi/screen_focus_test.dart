@@ -256,6 +256,57 @@ void main() {
     expect(defaults, 1);
   });
 
+  testWidgets('Esc that an action hands on through an app\'s dispatcher '
+      'pops its screen', (tester) async {
+    final router = XRouter(home: _Screen(const SizedBox()));
+    await tester.pumpWidget(XApp(router: router));
+    var defaults = 0;
+    final node = FocusNode();
+    addTearDown(node.dispose);
+    final page = _Screen(
+      Actions(
+        dispatcher: const ActionDispatcher(),
+        actions: const {},
+        child: Builder(
+          builder: (context) => Actions(
+            actions: {
+              DismissIntent: CallbackAction<DismissIntent>(
+                onInvoke: (intent) =>
+                    Actions.handler<Intent>(context, intent)?.call(),
+              ),
+            },
+            child: Scaffold(
+              body: Builder(
+                builder: (context) => Actions(
+                  actions: {
+                    DismissIntent: Action<DismissIntent>.overridable(
+                      defaultAction: CallbackAction(
+                        onInvoke: (_) => defaults++,
+                      ),
+                      context: context,
+                    ),
+                  },
+                  child: Focus(
+                    focusNode: node,
+                    child: const SizedBox(width: 10, height: 10),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    router.push(page);
+    await tester.pumpAndSettle();
+    node.requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(page.popped, isTrue);
+    expect(defaults, 0);
+  });
+
   testWidgets('Esc in a modal sheet pops the sheet', (tester) async {
     final router = XRouter(home: _Screen(const SizedBox()));
     await tester.pumpWidget(XApp(router: router));

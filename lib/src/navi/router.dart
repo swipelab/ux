@@ -613,37 +613,50 @@ KeyEventResult _dismissPastDisabled(FocusNode node, KeyEvent event) {
   };
 }
 
-/// Invokes the action bound to [DismissIntent] nearest [context], or, where
-/// [above] is given, nearest around it, that is enabled for a
-/// [_DismissPastDisabledIntent], and returns it with what it returned; null
-/// where no such action is.
+/// Invokes the action [_nearestEnabled] finds, and returns it with what it
+/// returned.
 (Action<Intent>, Object?)? _dismissNearestEnabled(
   BuildContext context, {
-  Action<Intent>? above,
-}) {
-  var past = above == null;
-  (Action<Intent>, Object?)? dismissed;
-  context.visitAncestorElements((element) {
-    final widget = element.widget;
-    if (widget is! Actions) return true;
-    final action = widget.actions[DismissIntent];
-    if (action == null) return true;
-    if (!past) {
-      past = identical(action, above);
-      return true;
-    }
-    final dispatcher = widget.dispatcher ?? const ActionDispatcher();
-    final (enabled, invoked) = dispatcher.invokeActionIfEnabled(
+  BuildContext? above,
+}) => switch (_nearestEnabled(context, above: above)) {
+  (final action, final dispatcher) => (
+    action,
+    dispatcher.invokeAction(
       action,
       _DismissPastDisabledIntent(action),
       context,
-    );
-    if (!enabled) return true;
-    dismissed = (action, invoked);
+    ),
+  ),
+  null => null,
+};
+
+/// The action bound to [DismissIntent] nearest [context], or, where [above] is
+/// given, nearest around it, that is enabled for a [_DismissPastDisabledIntent]
+/// in [context], with the dispatcher of the [Actions] that binds it; null
+/// where no such action is.
+(Action<Intent>, ActionDispatcher)? _nearestEnabled(
+  BuildContext context, {
+  BuildContext? above,
+}) {
+  (Action<Intent>, ActionDispatcher)? found;
+  (above ?? context).visitAncestorElements((element) {
+    final widget = element.widget;
+    if (widget is! Actions) return true;
+    final action = widget.actions[DismissIntent];
+    if (action == null ||
+        !_isEnabled(action, _DismissPastDisabledIntent(action), context)) {
+      return true;
+    }
+    found = (action, widget.dispatcher ?? const ActionDispatcher());
     return false;
   });
-  return dismissed;
+  return found;
 }
+
+bool _isEnabled(Action<Intent> action, Intent intent, BuildContext context) =>
+    action is ContextAction<Intent>
+    ? action.isEnabled(intent, context)
+    : action.isEnabled(intent);
 
 /// The intent [XApp] invokes [DismissIntent] actions with. [Actions] looks an
 /// action up by its intent's runtime type, so where an action hands this on
@@ -660,26 +673,54 @@ class _DismissPastDisabledIntent extends DismissIntent {
 
 /// Invokes the [DismissIntent] action nearest the context it comes from that
 /// is enabled for a [_DismissPastDisabledIntent]. Found as the override of an
-/// [Action.overridable], whose intent is for the overridable, it invokes the
-/// nearest such action around the overridable, and where none is, the
-/// overridable's default action.
+/// [Action.overridable], it invokes the nearest such action around the
+/// overridable, and where none is, it is enabled as the overridable's default
+/// action is, and invokes that.
 ///
 /// Handles [Intent] rather than [DismissIntent], as [callingAction] holds the
 /// default action of the overridable, which may handle any intent, such as a
 /// [DoNothingAction].
 class _DismissPastDisabledAction extends ContextAction<Intent> {
   @override
+  bool isEnabled(Intent intent, [BuildContext? context]) {
+    final overridable = _overridable(intent, context);
+    return overridable == null ||
+        _isEnabled(callingAction!, intent, context!) ||
+        _nearestEnabled(context, above: overridable) != null;
+  }
+
+  @override
   Object? invoke(Intent intent, [BuildContext? context]) {
-    final target = (intent as _DismissPastDisabledIntent).action;
-    if (identical(target, this)) return _dismissNearestEnabled(context!)?.$2;
-    final overridden = callingAction!;
-    return switch (_dismissNearestEnabled(context!, above: target)) {
+    final overridden = callingAction;
+    final overridable = _overridable(intent, context);
+    return switch (_dismissNearestEnabled(context!, above: overridable)) {
       (_, final invoked) => invoked,
-      null =>
+      null when overridable != null =>
         const ActionDispatcher()
-            .invokeActionIfEnabled(overridden, intent, context)
+            .invokeActionIfEnabled(overridden!, intent, context)
             .$2,
+      null => null,
     };
+  }
+
+  /// The [Actions] around [context] binding the [Action.overridable] this is
+  /// invoked as the override of, where [callingAction] is set: the one whose
+  /// [DismissIntent] action [intent] is for. An intent handed on through a
+  /// dispatcher other than [XApp]'s stays for the action handing it on, which
+  /// is not around the context it is handed on from.
+  BuildContext? _overridable(Intent intent, BuildContext? context) {
+    if (callingAction == null) return null;
+    final action = (intent as _DismissPastDisabledIntent).action;
+    BuildContext? actions;
+    context!.visitAncestorElements((element) {
+      final widget = element.widget;
+      if (widget is Actions &&
+          identical(widget.actions[DismissIntent], action)) {
+        actions = element;
+      }
+      return actions == null;
+    });
+    return actions;
   }
 }
 
