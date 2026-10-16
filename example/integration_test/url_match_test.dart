@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:ux/url.dart';
@@ -79,6 +77,19 @@ void main() {
         start: 5,
         end: 18,
         url: 'http://example.com/a',
+        kind: UrlMatchKind.web,
+      ),
+    ]);
+  });
+
+  testWidgets('a zero width space stays in the path of a bare domain link', (
+    tester,
+  ) async {
+    expect(XUrl.match('see example.com/a\u200Bb x'), const [
+      UrlMatch(
+        start: 4,
+        end: 19,
+        url: 'http://example.com/ab',
         kind: UrlMatchKind.web,
       ),
     ]);
@@ -345,8 +356,51 @@ void main() {
         ),
       ]);
     },
-    // macOS and iOS also link http://page.com here (#3175).
-    skip: !(Platform.isAndroid || Platform.isWindows),
+  );
+
+  testWidgets(
+    'a path and query a web link runs on into past fullwidth parentheses do '
+    'not link on their own',
+    (tester) async {
+      expect(XUrl.match('https://example.com/a（1）/page.html?x=1'), const [
+        UrlMatch(
+          start: 0,
+          end: 21,
+          url: 'https://example.com/a',
+          kind: UrlMatchKind.web,
+        ),
+      ]);
+    },
+  );
+
+  testWidgets(
+    'a domain in the path a web link runs on into past a trailing period and '
+    'fullwidth parentheses does not link on its own',
+    (tester) async {
+      expect(XUrl.match('https://example.com/a.（1）/page.com'), const [
+        UrlMatch(
+          start: 0,
+          end: 21,
+          url: 'https://example.com/a',
+          kind: UrlMatchKind.web,
+        ),
+      ]);
+    },
+  );
+
+  testWidgets(
+    'a domain past fullwidth parentheses in the path after an email does not '
+    'link on its own',
+    (tester) async {
+      expect(XUrl.match('a@example.com/x（1）/page.com'), const [
+        UrlMatch(
+          start: 0,
+          end: 13,
+          url: 'mailto:a@example.com',
+          kind: UrlMatchKind.email,
+        ),
+      ]);
+    },
   );
 
   testWidgets(
