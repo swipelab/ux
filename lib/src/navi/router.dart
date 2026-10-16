@@ -147,8 +147,6 @@ class XRouter extends BackButtonDispatcher
     _updateActive();
   }
 
-  late final _overlayEntry = OverlayEntry(builder: _buildContent);
-
   /// Whether a back gesture has something to pop inside the app.
   bool get canPop {
     final top = stack.lastOrNull;
@@ -208,10 +206,8 @@ class XRouter extends BackButtonDispatcher
   }
 
   /// Builds the router's overlay, holding the current [pages].
-  Widget build(BuildContext context) {
-    _overlayEntry.markNeedsBuild();
-    return Overlay(initialEntries: [_overlayEntry]);
-  }
+  Widget build(BuildContext context) =>
+      Overlay.wrap(child: Builder(builder: _buildContent));
 
   /// Pops everything above [home], including [home]'s hosted screens.
   void popAll() {
@@ -564,21 +560,12 @@ class XApp extends StatelessWidget {
                       _DismissPastDisabledIntent: _DismissPastDisabledAction(),
                     },
                     child: DefaultTextEditingShortcuts(
-                      child: Overlay(
-                        key: overlayKey,
-                        initialEntries: [
-                          OverlayEntry(
-                            builder: (_) => _InspectorScope(
-                              child: Router(
-                                routeInformationParser: router.routeParser,
-                                routeInformationProvider:
-                                    router.routeInformationProvider,
-                                routerDelegate: router.delegate,
-                                backButtonDispatcher: router.backDispatcher,
-                              ),
-                            ),
-                          ),
-                        ],
+                      child: _AppRouter(
+                        router: router,
+                        child: Overlay(
+                          key: overlayKey,
+                          initialEntries: [OverlayEntry(builder: _buildRouter)],
+                        ),
                       ),
                     ),
                   ),
@@ -590,6 +577,38 @@ class XApp extends StatelessWidget {
       ),
     );
   }
+
+  /// The [Router] over the nearest [_AppRouter]'s router, keyed by that
+  /// router: another router gets a [Router] and screens of its own, and where
+  /// the root overlay is built anew, as when the widgets above it change shape
+  /// between platforms, the [Router] and its screens move there with their
+  /// State.
+  static Widget _buildRouter(BuildContext context) {
+    final router = context
+        .dependOnInheritedWidgetOfExactType<_AppRouter>()!
+        .router;
+    return _InspectorScope(
+      key: GlobalObjectKey(router),
+      child: Router(
+        routeInformationParser: router.routeParser,
+        routeInformationProvider: router.routeInformationProvider,
+        routerDelegate: router.delegate,
+        backButtonDispatcher: router.backDispatcher,
+      ),
+    );
+  }
+}
+
+/// The router of the [XApp] above, for the [Router] in its root overlay's
+/// entry to read: the overlay keeps the entry it was first built with.
+class _AppRouter extends InheritedWidget {
+  const _AppRouter({required this.router, required super.child});
+
+  final XRouter router;
+
+  @override
+  bool updateShouldNotify(_AppRouter oldWidget) =>
+      !identical(router, oldWidget.router);
 }
 
 /// Hands a key bound to [DismissIntent] that the action nearest the focus is
@@ -767,18 +786,14 @@ class _DismissPastDisabledDispatcher extends ActionDispatcher {
 /// not stay mounted when idle).
 ///
 /// The child is kept under a stable [GlobalKey] so that inserting/removing the
-/// inspector *reparents* the subtree rather than rebuilding it. Without this,
-/// the toggle tears down and recreates the screen-stack [Overlay] below while
-/// the router still owns its [OverlayEntry]s — "entry already present in a
-/// different Overlay". `WidgetsApp` survives the same toggle for free because
-/// its `Navigator` carries an intrinsic [GlobalKey]; the screen-stack [Overlay]
-/// here has none, so we add the wrapper key explicitly.
+/// inspector *reparents* the subtree rather than rebuilding it, and the
+/// [Router] and its screens keep their State.
 ///
 /// Debug-only and inert until toggled. The on-device exit/move/tap-behavior
 /// buttons are left unbuilt (null) — Material's defaults rely on a private
 /// button widget we can't reuse — so select mode is toggled from DevTools.
 class _InspectorScope extends StatefulWidget {
-  const _InspectorScope({required this.child});
+  const _InspectorScope({super.key, required this.child});
 
   final Widget child;
 
