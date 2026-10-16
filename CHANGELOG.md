@@ -330,6 +330,11 @@
   trims it and keeps what its field holds beside the text, such as formats.
   Breaking: hosts implement `MediaHost.caption`, and `ComposeResult.caption`
   is an `Object?`.
+- **A pane builds only its own children.** A pane's children rebuild in a
+  `BuildScope` of its `PaneElement`'s own as the pane lays out, so
+  `Pane.buildChild` and `Pane.flushLayoutSync` build no widget outside the
+  pane: one dirty beside a pane laid out in a post-frame callback rebuilds on
+  the next frame.
 - **`swipelab_webp` comes from GitHub.** ux depends on `swipelab_webp` from
   the git repository https://github.com/swipelab/swipelab_webp, so it
   resolves with no sibling checkout. A host that also depends on
