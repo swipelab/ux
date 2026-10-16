@@ -380,6 +380,17 @@ void main() {
       entry.dispose();
     });
 
+    test('deletes its overlay when an apply clears the drawing', () async {
+      final entry = ComposeEntry(input: VideoMedia(file: File('clip.mp4')));
+      final overlay = await applyDrawing(entry);
+      final layer = entry.entityLayer!;
+      layer.remove(layer.entities.single.id);
+      await entry.snapshotDrawOverlayForTest();
+      expect(entry.videoEdit.overlay, isNull);
+      expect(overlay.existsSync(), isFalse);
+      entry.dispose();
+    });
+
     test('hands its overlay to the submitted result', () async {
       late List<ComposeResult> submitted;
       final page = ComposePage(
