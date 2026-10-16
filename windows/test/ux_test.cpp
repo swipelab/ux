@@ -10,6 +10,7 @@ void DropSuite();
 void FileTypesSuite();
 void ImageProbeSuite();
 void MediaFoundationSuite();
+void MethodArgsSuite();
 void PlatformThreadSuite();
 void RasterSuite();
 void ToastSuite();
@@ -36,6 +37,7 @@ constexpr Suite kSuites[] = {
     {"file_types", FileTypesSuite},
     {"image_probe", ImageProbeSuite},
     {"media_foundation", MediaFoundationSuite},
+    {"method_args", MethodArgsSuite},
     {"platform_thread", PlatformThreadSuite},
     {"raster", RasterSuite},
     {"toast", ToastSuite},
