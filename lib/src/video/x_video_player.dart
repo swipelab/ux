@@ -170,10 +170,9 @@ class XVideoPlayerController extends ChangeNotifier
   XVideoPlayerController.file(io.File file) : _uri = 'file://${file.path}';
 
   /// Stream from a network URL. The native side hands the URI straight
-  /// to Media3 (Android, `MediaItem.fromUri`) / `AVURLAsset` (Apple),
-  /// both of which stream http(s) natively — no extra setup. Windows
-  /// plays local files alone, so there [initialize] fails with
-  /// `bad_args`.
+  /// to Media3 (Android, `MediaItem.fromUri`) / `AVURLAsset` (Apple) /
+  /// Media Foundation's media engine (Windows), each of which streams
+  /// http(s) natively — no extra setup.
   XVideoPlayerController.network(Uri uri) : _uri = uri.toString();
 
   /// Fully-qualified source URI handed to the native side at

@@ -29,9 +29,12 @@ void main() {
 
     server.release();
     final metadata = await backend.initialize(created.handle);
-    expect(metadata.size, const Size(16, 32));
+    expect(metadata.size, const Size(32, 64));
     expect(metadata.duration, const Duration(seconds: 1));
-    expect(metadata.rotationQuarterTurns, Platform.isAndroid ? 0 : 1);
+    expect(
+      metadata.rotationQuarterTurns,
+      Platform.isAndroid || Platform.isWindows ? 0 : 1,
+    );
   });
 
   testWidgets('a rotated video renders upright through XVideoPlayerView', (

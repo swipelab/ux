@@ -99,6 +99,10 @@
   On Windows, a player whose video fails to load before `initialize` emits an
   `XVideoPlayerError` with `playback_failed` and the load's error, and
   `initialize` then fails with `decode_failed`, as on iOS and macOS.
+- **A video streams over http(s) on Windows.** On Windows,
+  `XVideoPlayerController.network` and `XVideoPlayerBackend.create` take an
+  http(s) URL, which Media Foundation's media engine streams, as on iOS, macOS
+  and Android.
 - **A second dispose of a video player is a no-op.**
   `MethodChannelXVideoPlayerBackend.disposeInstance` completes when the
   platform answers that the player is already disposed, as
@@ -201,10 +205,9 @@
   since the frames arrive upright, and fails with `decode_failed` for a file
   Windows cannot decode. Play, pause, seek, looping, volume and speed act as on
   the other platforms, and the player reports its state, size, completion and
-  errors. On Windows a network URI fails `initialize` with `bad_args`, and
-  where Media Foundation is missing, as on a Windows N edition without the
-  Media Feature Pack, `initialize` fails with `create_failed` while the rest of
-  the plugin works.
+  errors. Where Media Foundation is missing, as on a Windows N edition without
+  the Media Feature Pack, `initialize` fails with `create_failed` while the
+  rest of the plugin works.
 - **A video player logs its metadata.** `XVideoPlayerController.initialize`
   logs `initialized` at info level, tagged `video`, with the player's handle,
   size, duration and quarter turns.

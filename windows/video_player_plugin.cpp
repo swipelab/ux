@@ -22,16 +22,6 @@ using flutter::EncodableMap;
 using flutter::EncodableValue;
 using Microsoft::WRL::ComPtr;
 
-// The path of a `file://<path>` URI, with either separator, or none for any
-// other URI.
-std::optional<std::wstring> FilePath(const std::string& uri) {
-  constexpr char kScheme[] = "file://";
-  if (uri.rfind(kScheme, 0) != 0) return std::nullopt;
-  std::optional<std::wstring> path = Utf16(uri.substr(sizeof(kScheme) - 1));
-  if (path) std::replace(path->begin(), path->end(), L'/', L'\\');
-  return path;
-}
-
 void Reply(flutter::MethodResult<EncodableValue>& result, const VideoPrepared& prepared) {
   if (const auto* ready = std::get_if<VideoReady>(&prepared)) {
     result.Success(EncodableValue(EncodableMap{
@@ -48,6 +38,17 @@ void Reply(flutter::MethodResult<EncodableValue>& result, const VideoPrepared& p
 }
 
 }  // namespace
+
+std::optional<std::wstring> VideoSourceUrl(const std::string& uri) {
+  constexpr char kFile[] = "file://";
+  if (uri.rfind(kFile, 0) == 0) {
+    std::optional<std::wstring> path = Utf16(uri.substr(sizeof(kFile) - 1));
+    if (path) std::replace(path->begin(), path->end(), L'/', L'\\');
+    return path;
+  }
+  if (uri.rfind("http://", 0) == 0 || uri.rfind("https://", 0) == 0) return Utf16(uri);
+  return std::nullopt;
+}
 
 VideoPlayerPlugin::VideoPlayerPlugin(flutter::PluginRegistrarWindows* registrar)
     : registrar_(registrar),
@@ -145,8 +146,8 @@ void VideoPlayerPlugin::Create(const EncodableMap* args, Result& result) {
     result.Error("bad_args", "create");
     return;
   }
-  const std::optional<std::wstring> path = FilePath(*uri);
-  if (!path) {
+  const std::optional<std::wstring> url = VideoSourceUrl(*uri);
+  if (!url) {
     result.Error("bad_args", "create uri");
     return;
   }
@@ -185,7 +186,7 @@ void VideoPlayerPlugin::Create(const EncodableMap* args, Result& result) {
       {EncodableValue("textureId"), EncodableValue(texture_id)},
   }));
   // After the answer: the player emits only from tasks posted after it, so every event reaches Dart after the handle.
-  instance->Open(*path, [textures = textures_, texture_id]() { textures->MarkTextureFrameAvailable(texture_id); });
+  instance->Open(*url, [textures = textures_, texture_id]() { textures->MarkTextureFrameAvailable(texture_id); });
 }
 
 void VideoPlayerPlugin::Release(Player& player) {

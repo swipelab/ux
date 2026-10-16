@@ -65,10 +65,10 @@ class VideoPlayerInstance : public std::enable_shared_from_this<VideoPlayerInsta
 
   const std::shared_ptr<VideoSurface>& surface() const { return surface_; }
 
-  // Loads the file at [path] and transfers its frames, calling
-  // [frame_available] on the pump thread after each one. It emits nothing
-  // before it returns, a failure to open included.
-  void Open(const std::wstring& path, std::function<void()> frame_available);
+  // Loads the media at [url], a path or an http(s) URL, and transfers its
+  // frames, calling [frame_available] on the pump thread after each one. It
+  // emits nothing before it returns, a failure to open included.
+  void Open(const std::wstring& url, std::function<void()> frame_available);
 
   // Calls [completion] once the player can play, fails, or is disposed.
   void Prepare(std::function<void(VideoPrepared)> completion);

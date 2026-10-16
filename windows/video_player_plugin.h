@@ -11,12 +11,19 @@
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <optional>
+#include <string>
 
 #include "platform_thread.h"
 #include "video_device.h"
 #include "video_player_instance.h"
 
 namespace ux {
+
+// The URL IMFMediaEngine::SetSource takes for a `create` URI: the path of a
+// `file://<path>` URI, with either separator, or an http(s) URI as it is. None
+// for any other URI.
+std::optional<std::wstring> VideoSourceUrl(const std::string& uri);
 
 // `ux/video` and `ux/video/events`: one VideoPlayerInstance per handle, each
 // rendering into a Flutter texture of its own.
