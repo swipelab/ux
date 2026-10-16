@@ -133,22 +133,178 @@ void main() {
     expect(modal.popped, isTrue);
   });
 
-  testWidgets('Esc in a text field unfocuses it and leaves its screen', (
-    tester,
-  ) async {
+  testWidgets(
+    'Esc in a text field in a Scaffold unfocuses it, and a second '
+    'Esc pops its screen',
+    (tester) async {
+      final router = XRouter(home: _Screen(const SizedBox()));
+      await tester.pumpWidget(XApp(router: router));
+      final field = FocusNode();
+      addTearDown(field.dispose);
+      final page = _Screen(
+        Scaffold(
+          body: Center(child: TextField(focusNode: field)),
+        ),
+      );
+      router.push(page);
+      await tester.pumpAndSettle();
+      field.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(field.hasFocus, isFalse);
+      expect(page.popped, isFalse);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(page.popped, isTrue);
+    },
+    variant: TargetPlatformVariant({
+      TargetPlatform.macOS,
+      TargetPlatform.windows,
+    }),
+  );
+
+  testWidgets('Esc in a text field with its menu shown hides the menu and '
+      'leaves the field focused', (tester) async {
     final router = XRouter(home: _Screen(const SizedBox()));
     await tester.pumpWidget(XApp(router: router));
     final field = FocusNode();
     addTearDown(field.dispose);
-    final page = _Screen(Center(child: TextField(focusNode: field)));
+    router.push(_Screen(Center(child: TextField(focusNode: field))));
+    await tester.pumpAndSettle();
+    field.requestFocus();
+    await tester.pump();
+    final editable = tester.state<EditableTextState>(find.byType(EditableText));
+    editable.showToolbar();
+    await tester.pumpAndSettle();
+    expect(editable.selectionOverlay!.toolbarIsVisible, isTrue);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(editable.selectionOverlay!.toolbarIsVisible, isFalse);
+    expect(field.hasFocus, isTrue);
+  });
+
+  testWidgets('Esc in a text field in an open drawer closes the drawer', (
+    tester,
+  ) async {
+    final router = XRouter(home: _Screen(const SizedBox()));
+    await tester.pumpWidget(XApp(router: router));
+    final scaffold = GlobalKey<ScaffoldState>();
+    final field = FocusNode();
+    addTearDown(field.dispose);
+    final page = _Screen(
+      Scaffold(
+        key: scaffold,
+        drawer: Drawer(child: TextField(focusNode: field)),
+        body: const SizedBox(),
+      ),
+    );
     router.push(page);
+    await tester.pumpAndSettle();
+    scaffold.currentState!.openDrawer();
     await tester.pumpAndSettle();
     field.requestFocus();
     await tester.pump();
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
-    expect(field.hasFocus, isFalse);
+    expect(scaffold.currentState!.isDrawerOpen, isFalse);
     expect(page.popped, isFalse);
+  });
+
+  testWidgets('Esc on an overridable action goes to the nearest enabled one '
+      'around it, and with none, to its default', (tester) async {
+    final overlay = GlobalKey<OverlayState>();
+    final router = XRouter(home: _Screen(const SizedBox()));
+    await tester.pumpWidget(XApp(router: router, overlayKey: overlay));
+    var defaults = 0;
+    final node = FocusNode();
+    addTearDown(node.dispose);
+    final overridable = Builder(
+      builder: (context) => Actions(
+        actions: {
+          DismissIntent: Action<DismissIntent>.overridable(
+            defaultAction: CallbackAction(onInvoke: (_) => defaults++),
+            context: context,
+          ),
+        },
+        child: Focus(
+          focusNode: node,
+          child: const SizedBox(width: 10, height: 10),
+        ),
+      ),
+    );
+    final page = _Screen(Scaffold(body: overridable));
+    router.push(page);
+    await tester.pumpAndSettle();
+    node.requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(page.popped, isTrue);
+    expect(defaults, 0);
+
+    final entry = OverlayEntry(builder: (_) => overridable);
+    addTearDown(entry.dispose);
+    addTearDown(entry.remove);
+    overlay.currentState!.insert(entry);
+    await tester.pump();
+    node.requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+    expect(defaults, 1);
+  });
+
+  testWidgets('Esc that an action hands on through an app\'s dispatcher '
+      'pops its screen', (tester) async {
+    final router = XRouter(home: _Screen(const SizedBox()));
+    await tester.pumpWidget(XApp(router: router));
+    var defaults = 0;
+    final node = FocusNode();
+    addTearDown(node.dispose);
+    final page = _Screen(
+      Actions(
+        dispatcher: const ActionDispatcher(),
+        actions: const {},
+        child: Builder(
+          builder: (context) => Actions(
+            actions: {
+              DismissIntent: CallbackAction<DismissIntent>(
+                onInvoke: (intent) =>
+                    Actions.handler<Intent>(context, intent)?.call(),
+              ),
+            },
+            child: Scaffold(
+              body: Builder(
+                builder: (context) => Actions(
+                  actions: {
+                    DismissIntent: Action<DismissIntent>.overridable(
+                      defaultAction: CallbackAction(
+                        onInvoke: (_) => defaults++,
+                      ),
+                      context: context,
+                    ),
+                  },
+                  child: Focus(
+                    focusNode: node,
+                    child: const SizedBox(width: 10, height: 10),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    router.push(page);
+    await tester.pumpAndSettle();
+    node.requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(page.popped, isTrue);
+    expect(defaults, 0);
   });
 
   testWidgets('Esc in a modal sheet pops the sheet', (tester) async {
