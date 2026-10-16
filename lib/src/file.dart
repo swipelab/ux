@@ -160,13 +160,13 @@ class XFiles {
   /// platforms and Windows (the share sheet infers from the file
   /// extension).
   ///
-  /// [title] populates the subject hint (Mail subject on iOS/macOS,
-  /// chooser title on Android, the share window's title on Windows,
-  /// which is the file's name when [title] is null).
+  /// [title] populates the subject hint (Mail subject on iOS, chooser
+  /// title on Android, the share window's title on Windows, which is the
+  /// file's name when [title] is null). Ignored on macOS.
   ///
-  /// Returns true if the sheet was presented. Returns false if the host
-  /// couldn't present it (no activity on Android, no window on macOS or
-  /// Windows).
+  /// Returns true if the sheet was presented, or false on Windows with no
+  /// window. Throws a [PlatformException] with no activity on Android
+  /// (`no_activity`) or no view on iOS and macOS (`no_view`).
   static Future<bool> share({
     required String path,
     String? title,

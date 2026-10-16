@@ -25,6 +25,7 @@ add_executable(ux_test
   "file_types_test.cpp"
   "image_probe_test.cpp"
   "media_foundation_test.cpp"
+  "method_args_test.cpp"
   "platform_thread_test.cpp"
   "raster_test.cpp"
   "support.h"
@@ -57,6 +58,7 @@ add_test(NAME drop COMMAND ux_test drop)
 add_test(NAME file_types COMMAND ux_test file_types)
 add_test(NAME image_probe COMMAND ux_test image_probe)
 add_test(NAME media_foundation COMMAND ux_test media_foundation)
+add_test(NAME method_args COMMAND ux_test method_args)
 add_test(NAME platform_thread COMMAND ux_test platform_thread)
 add_test(NAME raster COMMAND ux_test raster)
 add_test(NAME toast COMMAND ux_test toast)
