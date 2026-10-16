@@ -179,16 +179,23 @@ class XRouter extends BackButtonDispatcher
       child: NotificationListener<NavigationNotification>(
         onNotification: (_) =>
             true, // absorb — router manages system back directly
-        child: ScreenStack(
-          home: screens.first,
-          stack: screens.sublist(1),
-          hidden: {...screens}..removeAll(shown),
-          beside: {
-            for (final MapEntry(key: screen, value: shell) in shells.entries)
-              if (shell.isBeside(screen)) screen,
+        child: Actions(
+          actions: {
+            DismissIntent: CallbackAction<DismissIntent>(
+              onInvoke: (_) => backDispatcher.didPopRoute(),
+            ),
           },
-          place: (context, screen, slot) =>
-              shells[screen]?.place(context, screen, slot) ?? slot,
+          child: ScreenStack(
+            home: screens.first,
+            stack: screens.sublist(1),
+            hidden: {...screens}..removeAll(shown),
+            beside: {
+              for (final MapEntry(key: screen, value: shell) in shells.entries)
+                if (shell.isBeside(screen)) screen,
+            },
+            place: (context, screen, slot) =>
+                shells[screen]?.place(context, screen, slot) ?? slot,
+          ),
         ),
       ),
     );
@@ -323,7 +330,8 @@ class XRouter extends BackButtonDispatcher
   }
 }
 
-/// Routes the system back gesture to the topmost unpopped screen.
+/// Routes system back, and Esc no [ScreenStack] takes, to the topmost
+/// unpopped screen.
 class XRouterBack extends RootBackButtonDispatcher {
   /// Binds the router whose stack answers back.
   XRouterBack({required this.router});

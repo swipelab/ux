@@ -68,7 +68,7 @@ mixin Screen<T> {
   /// sheet body land within the sheet rather than escaping it.
   ScreenHost? get host => parentHost;
 
-  /// Whether the back button / swipe should pop this page.
+  /// Whether back pops this page: system back, the swipe and Esc.
   bool get canPop => true;
 
   /// Custom back-button handling. Return `true` to consume the event.
