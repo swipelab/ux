@@ -94,22 +94,39 @@ void main() {
     await initialized;
   });
 
-  testWidgets(
-    'initializing a player whose video already failed to load fails with decode_failed',
-    (tester) async {
-      final server = await _HeldVideoServer.start(
-        Uint8List.fromList(utf8.encode('not a video')),
-      );
-      addTearDown(server.close);
-      final backend = MethodChannelXVideoPlayerBackend();
+  testWidgets('disposing a player twice succeeds', (tester) async {
+    final file = await _assetFile('portrait.mp4');
+    final backend = MethodChannelXVideoPlayerBackend();
 
-      final created = await backend.create(uri: server.uri.toString());
+    final created = await backend.create(uri: 'file://${file.path}');
+    await backend.disposeInstance(created.handle);
+    await backend.disposeInstance(created.handle);
+  });
+
+  testWidgets(
+    'a video that fails to load before initialize emits playback_failed, '
+    'then initialize fails with decode_failed',
+    (tester) async {
+      final file = await _tempFile('broken.mp4', utf8.encode('not a video'));
+      final backend = MethodChannelXVideoPlayerBackend();
+      // Opens the event channel before create; no player has handle 0.
+      final channel = backend.events(0).listen(null);
+      addTearDown(channel.cancel);
+
+      final created = await backend.create(uri: 'file://${file.path}');
       addTearDown(() => backend.disposeInstance(created.handle));
-      final failed = backend
+      final event = await backend
           .events(created.handle)
-          .firstWhere((e) => e is XVideoPlayerError);
-      server.release();
-      await failed;
+          .first
+          .timeout(const Duration(seconds: 5));
+      expect(
+        event,
+        isA<XVideoPlayerError>().having(
+          (e) => e.code,
+          'code',
+          'playback_failed',
+        ),
+      );
 
       await expectLater(
         backend.initialize(created.handle).timeout(const Duration(seconds: 5)),
@@ -122,9 +139,8 @@ void main() {
         ),
       );
     },
-    // Android starts loading a video in initialize, and Windows plays local
-    // files alone.
-    skip: !Platform.isIOS && !Platform.isMacOS,
+    // Android starts loading a video in initialize.
+    skip: Platform.isAndroid,
   );
 
   testWidgets(
@@ -160,10 +176,14 @@ void main() {
 
 Future<File> _assetFile(String name) async {
   final video = await rootBundle.load('integration_test/assets/$name');
+  return _tempFile(name, video.buffer.asUint8List());
+}
+
+Future<File> _tempFile(String name, List<int> bytes) async {
   final dir = await Directory.systemTemp.createTemp();
   addTearDown(() => dir.delete(recursive: true));
   final file = File('${dir.path}/$name');
-  await file.writeAsBytes(video.buffer.asUint8List());
+  await file.writeAsBytes(bytes);
   return file;
 }
 

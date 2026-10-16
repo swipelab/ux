@@ -261,12 +261,37 @@ void main() {
     expect(fake.disposeCalls.single, 1);
   });
 
-  test('a native dispose failure on the channel backend leaves dispose '
-      'completing its teardown', () async {
+  test("the channel backend's second dispose of a handle is a no-op", () async {
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     const channel = MethodChannel('ux/video');
+    final live = {1};
     final disposeCalls = <Object?>[];
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      disposeCalls.add(call.arguments);
+      if (!live.remove((call.arguments as Map)['handle'])) {
+        throw PlatformException(code: 'disposed');
+      }
+      return null;
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    final backend = MethodChannelXVideoPlayerBackend();
+
+    await backend.disposeInstance(1);
+    await backend.disposeInstance(1);
+
+    expect(disposeCalls, [
+      {'handle': 1},
+      {'handle': 1},
+    ]);
+  });
+
+  test('a dispose the platform answers with an error other than disposed '
+      'fails with it, once it has disposed the controller', () async {
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    const channel = MethodChannel('ux/video');
+    const events = EventChannel('ux/video/events');
     messenger.setMockMethodCallHandler(channel, (call) async {
       switch (call.method) {
         case 'create':
@@ -277,32 +302,32 @@ void main() {
             'durationMs': 1000,
           };
         case 'dispose':
-          disposeCalls.add(call.arguments);
           throw PlatformException(code: 'native_error');
       }
       return null;
     });
     messenger.setMockStreamHandler(
-      const EventChannel('ux/video/events'),
+      events,
       MockStreamHandler.inline(onListen: (_, _) {}),
     );
     addTearDown(() {
       messenger.setMockMethodCallHandler(channel, null);
-      messenger.setMockStreamHandler(
-        const EventChannel('ux/video/events'),
-        null,
-      );
+      messenger.setMockStreamHandler(events, null);
     });
     XVideoPlayerBackend.instance = MethodChannelXVideoPlayerBackend();
     final ctrl = XVideoPlayerController.file(io.File('/tmp/fake.mp4'));
     await ctrl.initialize();
 
-    await ctrl.dispose();
-    await ctrl.dispose();
-
-    expect(disposeCalls, [
-      {'handle': 1},
-    ]);
+    await expectLater(
+      ctrl.dispose(),
+      throwsA(
+        isA<XVideoPlayerException>().having(
+          (e) => e.code,
+          'code',
+          'native_error',
+        ),
+      ),
+    );
     expect(() => ctrl.addListener(() {}), throwsFlutterError);
   });
 

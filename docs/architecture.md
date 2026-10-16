@@ -381,7 +381,11 @@ handle, each an `IMFMediaEngine` in frame-server mode.
   and playing events, and the position with the buffered ranges every 100 ms once the player is
   ready. `sizeChanged` fires at ready and on a format change, `completed` when
   playback ends without looping, and `error` (`playback_failed`) for an engine
-  error after ready.
+  error while no `initialize` waits, as on darwin: a source that fails before
+  `initialize` reports it, and `initialize` then fails with its error. `create`
+  opens the source after it answers, and the player emits each event, a failure
+  to open included, from a task it posts to the platform thread, so every event
+  reaches Dart after the handle.
 - **Dispose.** `dispose` stops the pump, shuts the engine down and unregisters
   the texture, which Flutter releases once it is done with it.
 

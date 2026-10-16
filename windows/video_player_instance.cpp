@@ -120,7 +120,9 @@ void VideoPlayerInstance::Open(const std::wstring& path, std::function<void()> f
   const HRESULT hr = engine_->SetSource(url);
   SysFreeString(url);
   if (FAILED(hr)) {
-    Fail("cannot open the video (" + Hex(hr) + ")");
+    post_([weak = weak_from_this(), message = "cannot open the video (" + Hex(hr) + ")"]() {
+      if (auto self = weak.lock(); self && !self->disposed_) self->Fail(message);
+    });
     return;
   }
   pump_ = std::thread(Pump, engine_, device_->context(), surface_, std::move(frame_available),
@@ -216,16 +218,16 @@ void VideoPlayerInstance::OnEvent(DWORD event, DWORD_PTR param1, DWORD param2) {
 }
 
 void VideoPlayerInstance::Fail(std::string message) {
-  if (ready_) {
-    emit_({
-        {EncodableValue("event"), EncodableValue("error")},
-        {EncodableValue("code"), EncodableValue("playback_failed")},
-        {EncodableValue("description"), EncodableValue(std::move(message))},
-    });
+  if (!ready_ && !failure_) failure_ = message;
+  if (completion_) {
+    CompletePrepare();
     return;
   }
-  if (!failure_) failure_ = std::move(message);
-  CompletePrepare();
+  emit_({
+      {EncodableValue("event"), EncodableValue("error")},
+      {EncodableValue("code"), EncodableValue("playback_failed")},
+      {EncodableValue("description"), EncodableValue(std::move(message))},
+  });
 }
 
 void VideoPlayerInstance::CompletePrepare() {

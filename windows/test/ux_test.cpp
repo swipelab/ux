@@ -17,6 +17,7 @@ void RasterSuite();
 void ToastSuite();
 void UrlDetectSuite();
 void VideoExportSuite();
+void VideoPlayerSuite();
 void WindowSuite();
 void WorkQueueSuite();
 
@@ -45,6 +46,7 @@ constexpr Suite kSuites[] = {
     {"toast", ToastSuite},
     {"url_detect", UrlDetectSuite},
     {"video_export", VideoExportSuite},
+    {"video_player", VideoPlayerSuite},
     {"window", WindowSuite},
     {"work_queue", WorkQueueSuite},
 };

@@ -224,7 +224,9 @@ class XVideoPlayerController extends ChangeNotifier
   Future<void> _initInternal() async {
     try {
       final result = await XVideoPlayerBackend.instance.create(uri: _uri);
-      if (_disposed) await _disposeInstance(result.handle);
+      if (_disposed) {
+        await XVideoPlayerBackend.instance.disposeInstance(result.handle);
+      }
       _throwIfDisposed('initialize');
       _handle = result.handle;
       _textureId = result.textureId;
@@ -349,17 +351,13 @@ class XVideoPlayerController extends ChangeNotifier
     _handle = null;
     final cancelled = _eventsSub?.cancel();
     _eventsSub = null;
-    if (handle != null) await _disposeInstance(handle);
-    await cancelled;
-    super.dispose();
-  }
-
-  Future<void> _disposeInstance(int handle) async {
     try {
-      await XVideoPlayerBackend.instance.disposeInstance(handle);
-    } on XVideoPlayerException {
-      // The native side may already have torn down, e.g. while the engine
-      // detaches; dispose completes regardless.
+      if (handle != null) {
+        await XVideoPlayerBackend.instance.disposeInstance(handle);
+      }
+    } finally {
+      await cancelled;
+      super.dispose();
     }
   }
 
