@@ -37,46 +37,50 @@ void main() {
     );
   });
 
-  testWidgets('a rotated video renders upright through XVideoPlayerView', (
-    tester,
-  ) async {
-    final controller = XVideoPlayerController.file(
-      await _assetFile('portrait.mp4'),
-    );
-    addTearDown(controller.dispose);
-    await tester.runAsync(() async {
-      await controller.initialize();
-      await controller.play();
-      await Future<void>.delayed(const Duration(milliseconds: 500));
-    });
+  testWidgets(
+    'a rotated video renders upright through XVideoPlayerView',
+    (tester) async {
+      final controller = XVideoPlayerController.file(
+        await _assetFile('portrait.mp4'),
+      );
+      addTearDown(controller.dispose);
+      await tester.runAsync(() async {
+        await controller.initialize();
+        await controller.play();
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+      });
 
-    final boundary = GlobalKey();
-    await tester.pumpWidget(
-      Center(
-        child: RepaintBoundary(
-          key: boundary,
-          child: SizedBox(
-            width: 160,
-            height: 320,
-            child: XVideoPlayerView(controller: controller),
+      final boundary = GlobalKey();
+      await tester.pumpWidget(
+        Center(
+          child: RepaintBoundary(
+            key: boundary,
+            child: SizedBox(
+              width: 160,
+              height: 320,
+              child: XVideoPlayerView(controller: controller),
+            ),
           ),
         ),
-      ),
-    );
-    final pixels = (await tester.runAsync(() async {
-      final render =
-          boundary.currentContext!.findRenderObject()! as RenderRepaintBoundary;
-      final image = await render.toImage();
-      return image.toByteData(format: ui.ImageByteFormat.rawRgba);
-    }))!;
-    int luma(int x, int y) => pixels.getUint8((y * 160 + x) * 4 + 1);
+      );
+      final pixels = (await tester.runAsync(() async {
+        final render =
+            boundary.currentContext!.findRenderObject()!
+                as RenderRepaintBoundary;
+        final image = await render.toImage();
+        return image.toByteData(format: ui.ImageByteFormat.rawRgba);
+      }))!;
+      int luma(int x, int y) => pixels.getUint8((y * 160 + x) * 4 + 1);
 
-    // portrait.mp4 shows white over black once its -90° display matrix applies.
-    expect(
-      [luma(40, 80), luma(120, 80), luma(40, 240), luma(120, 240)],
-      [greaterThan(200), greaterThan(200), lessThan(55), lessThan(55)],
-    );
-  });
+      // portrait.mp4 shows white over black once its -90° display matrix applies.
+      expect(
+        [luma(40, 80), luma(120, 80), luma(40, 240), luma(120, 240)],
+        [greaterThan(200), greaterThan(200), lessThan(55), lessThan(55)],
+      );
+    },
+    // Media Foundation's H.264 decoder outputs no frame of a video at most 32 px wide or 16 px tall.
+    skip: Platform.isWindows,
+  );
 
   testWidgets('disposing a player answers its pending initialize', (
     tester,
@@ -174,6 +178,8 @@ void main() {
       });
       expect(speeds, everyElement(closeTo(2, 0.3)));
     },
+    // Media Foundation's H.264 decoder outputs no frame of a video at most 32 px wide or 16 px tall.
+    skip: Platform.isWindows,
   );
 }
 

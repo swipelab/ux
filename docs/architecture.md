@@ -362,7 +362,8 @@ handle, each an `IMFMediaEngine` in frame-server mode.
   marks the texture's frame available. A frame of a new size goes into a new
   texture, shown once it is drawn; the one it replaces stays alive until
   Flutter next asks for the surface. Flutter sees no surface until the first
-  frame.
+  frame. Media Foundation's H.264 decoder outputs no frame of a video stored at
+  most 32 pixels wide or 16 tall.
 - **Rotation.** The engine applies the track's rotation
   (`MF_MT_VIDEO_ROTATION`), so frames land upright and `initialize` answers
   the display size with `rotationQuarterTurns` 0, as on Android.
