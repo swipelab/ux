@@ -8,7 +8,8 @@ import 'package:ux/src/navi/screen_stack.dart';
 /// Place [ScreenHero] widgets with the same [tag] on different screens.
 /// When a screen is pushed over another or popped off it, the hero "flies"
 /// from its place on one to its place on the other inside an [Overlay], over
-/// the transition. A pop that a back gesture drives does not fly.
+/// the transition. A pop that a back gesture drives does not fly, and a
+/// flight lands as either screen hides.
 class ScreenHero extends StatefulWidget {
   /// Binds the matching [tag] to the [child] that flies under it.
   const ScreenHero({
@@ -87,7 +88,9 @@ class ScreenHeroState extends State<ScreenHero> {
 /// Registry + flight controller, owned by [ScreenStackState].
 class ScreenHeroController {
   final Set<ScreenHeroState> _heroes = {};
-  final Set<VoidCallback> _landings = {};
+
+  /// What lands each flight in the air, with the slots it flies between.
+  final Map<VoidCallback, Set<ScreenSlot>> _landings = {};
 
   /// Makes [hero] one that flies between the stack's screens.
   void register(ScreenHeroState hero) => _heroes.add(hero);
@@ -116,14 +119,22 @@ class ScreenHeroController {
       final begin = source._restingRect(from, space);
       final end = target._restingRect(to, space);
       if (begin == null || end == null) continue;
-      _launch(source, target, begin, end, progress, overlay);
+      _launch(from, to, source, target, begin, end, progress, overlay);
+    }
+  }
+
+  /// Lands every flight from or to [slot].
+  void land(ScreenSlot slot) {
+    for (final MapEntry(key: landing, value: slots)
+        in _landings.entries.toList()) {
+      if (slots.contains(slot)) landing();
     }
   }
 
   /// Lands every flight in the air.
   void dispose() {
-    for (final land in _landings.toList()) {
-      land();
+    for (final landing in _landings.keys.toList()) {
+      landing();
     }
   }
 
@@ -133,6 +144,8 @@ class ScreenHeroController {
   };
 
   void _launch(
+    ScreenSlot from,
+    ScreenSlot to,
     ScreenHeroState source,
     ScreenHeroState target,
     Rect begin,
@@ -171,7 +184,7 @@ class ScreenHeroController {
       if (!status.isAnimating) land();
     };
     progress.addStatusListener(onStatus);
-    _landings.add(land);
+    _landings[land] = {from, to};
     overlay.insert(entry);
   }
 }

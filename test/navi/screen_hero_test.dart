@@ -26,6 +26,36 @@ class _Screen with Screen<void> {
   );
 }
 
+/// A tab host with its hero at [_small], keeping one detail per tab and
+/// showing the selected tab's.
+class _Tabs extends _Screen with ScreenShell {
+  _Tabs() : super(_small);
+
+  int tab = 0;
+  final details = <int, Screen>{};
+
+  void select(int index) {
+    tab = index;
+    pagesChanged();
+  }
+
+  @override
+  bool accept(Screen screen) {
+    details[tab] = screen;
+    return true;
+  }
+
+  @override
+  void remove(Screen screen) =>
+      details.removeWhere((_, hosted) => identical(hosted, screen));
+
+  @override
+  Iterable<Screen> get pages => [?details[tab]];
+
+  @override
+  Iterable<Screen> get hosted => details.values;
+}
+
 class _Avatar extends StatelessWidget {
   const _Avatar();
 
@@ -45,6 +75,34 @@ Future<XRouter> _boot(WidgetTester tester, {TargetPlatform? platform}) async {
   );
   return router;
 }
+
+/// Pumps, in a [MaterialApp]'s overlay and [inset] in from it, a
+/// [ScreenStack] over a screen with its hero at [_small] that holds the
+/// screens [stack] holds, each [place] in from the stack; while [stack] holds
+/// `null` there is no stack.
+Future<void> _bootStack(
+  WidgetTester tester,
+  ValueNotifier<List<Screen>?> stack, {
+  EdgeInsets inset = EdgeInsets.zero,
+  EdgeInsets place = EdgeInsets.zero,
+}) => tester.pumpWidget(
+  MaterialApp(
+    home: Padding(
+      padding: inset,
+      child: ValueListenableBuilder(
+        valueListenable: stack,
+        builder: (context, screens, _) => screens == null
+            ? const SizedBox()
+            : ScreenStack(
+                home: _Screen(_small),
+                stack: screens,
+                place: (context, screen, slot) =>
+                    Padding(padding: place, child: slot),
+              ),
+      ),
+    ),
+  ),
+);
 
 void main() {
   testWidgets('a hero flies from its place on the screen below to its place '
@@ -110,5 +168,64 @@ void main() {
     expect(tester.getRect(_avatar.first), _small);
     await tester.pumpAndSettle();
     expect(router.stack, isEmpty);
+  });
+
+  testWidgets('a hero flies from where it shows on the screen below to where '
+      'it shows on a pushed screen, with the stack and the screen placed in '
+      'from the overlay', (tester) async {
+    final stack = ValueNotifier<List<Screen>?>([]);
+    await _bootStack(
+      tester,
+      stack,
+      inset: const EdgeInsets.only(left: 10, top: 20),
+      place: const EdgeInsets.only(left: 50, top: 30),
+    );
+    final begin = _small.shift(const Offset(10, 20));
+    final end = _large.shift(const Offset(60, 50));
+
+    stack.value = [_Screen(_large)];
+    await tester.pump();
+    await tester.pump();
+    expect(tester.getRect(_avatar), rectMoreOrLessEquals(begin));
+    await tester.pump(const Duration(milliseconds: 150));
+    expect(
+      tester.getRect(_avatar),
+      rectMoreOrLessEquals(Rect.lerp(begin, end, 0.5)!),
+    );
+  });
+
+  testWidgets('a stack that leaves mid-flight takes its shuttles out of the '
+      'overlay', (tester) async {
+    final stack = ValueNotifier<List<Screen>?>([]);
+    await _bootStack(tester, stack);
+
+    stack.value = [_Screen(_large)];
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(_avatar, findsOneWidget);
+    stack.value = null;
+    await tester.pumpAndSettle();
+    expect(_avatar, findsNothing);
+  });
+
+  testWidgets('a flight to a screen that hides lands, and the hero below '
+      'keeps its place once the hidden screen leaves', (tester) async {
+    final tabs = _Tabs();
+    final router = XRouter(home: tabs);
+    await tester.pumpWidget(XApp(router: router));
+    final detail = _Screen(_large);
+
+    router.push(detail);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    tabs.select(1);
+    await tester.pump();
+    expect(_avatar, findsOneWidget);
+    await tester.pump();
+    expect(tester.getRect(_avatar), _small);
+    await tester.pump(const Duration(milliseconds: 50));
+    detail.pop();
+    await tester.pumpAndSettle();
+    expect(tester.getRect(_avatar), _small);
   });
 }

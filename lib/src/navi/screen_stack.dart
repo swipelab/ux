@@ -96,7 +96,15 @@ class ScreenStackState extends State<ScreenStack>
     var under = _homeSlot;
     for (final entry in _entries) {
       if (entry.removing) continue;
-      entry.hidden = widget.hidden.contains(entry.page);
+      final hidden = widget.hidden.contains(entry.page);
+      if (hidden && !entry.hidden) {
+        // A shuttle removed while a frame builds stays in the overlay for the
+        // next frame, beside the heroes holding their children again.
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => heroController.land(entry),
+        );
+      }
+      entry.hidden = hidden;
       entry.beside = widget.beside.contains(entry.page) ? under : null;
       entry._place = widget.place;
       if (entry._covers) under = entry;
