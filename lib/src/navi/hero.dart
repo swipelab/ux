@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 
+import 'package:ux/src/navi/screen_stack.dart';
+
 /// A shared-element widget that animates between two positions
 /// when the [ScreenStack] pushes or pops a screen.
 ///
 /// Place [ScreenHero] widgets with the same [tag] on different screens.
-/// When a transition occurs, the hero "flies" from the old position
-/// to the new one inside an [Overlay].
+/// When a screen is pushed over another or popped off it, the hero "flies"
+/// from its place on one to its place on the other inside an [Overlay], over
+/// the transition. A pop that a back gesture drives does not fly.
 class ScreenHero extends StatefulWidget {
   /// Binds the matching [tag] to the [child] that flies under it.
   const ScreenHero({
@@ -31,7 +34,20 @@ class ScreenHero extends StatefulWidget {
 /// Flight state of a [ScreenHero]: it holds the child's place in the layout
 /// while the overlay copy is in the air.
 class ScreenHeroState extends State<ScreenHero> {
+  ScreenHeroController? _controller;
   Size? _placeholderSize;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = ScreenStack.maybeOf(context)?.heroController?..register(this);
+  }
+
+  @override
+  void dispose() {
+    _controller?.unregister(this);
+    super.dispose();
+  }
 
   /// Hands the child over to the overlay, leaving a gap of its last size.
   void startFlight() {
@@ -46,12 +62,15 @@ class ScreenHeroState extends State<ScreenHero> {
     setState(() => _placeholderSize = null);
   }
 
-  /// Bounds in global coordinates, or `null` before the first layout.
-  Rect? get globalRect {
-    final box = context.findRenderObject() as RenderBox?;
-    if (box == null || !box.hasSize) return null;
+  /// Where this hero lies in [space] once [slot]'s transition settles, which
+  /// leaves the screen right on the slot; `null` before the first layout.
+  Rect? _restingRect(ScreenSlot slot, RenderBox space) {
+    final box = context.findRenderObject()! as RenderBox;
+    if (!box.hasSize) return null;
+    final screen = slot.contentKey.currentContext!.findRenderObject()!;
+    final frame = slot.key.currentContext!.findRenderObject()!;
     return MatrixUtils.transformRect(
-      box.getTransformTo(null),
+      frame.getTransformTo(space)..multiply(box.getTransformTo(screen)),
       Offset.zero & box.size,
     );
   }
@@ -67,99 +86,92 @@ class ScreenHeroState extends State<ScreenHero> {
 
 /// Registry + flight controller, owned by [ScreenStackState].
 class ScreenHeroController {
-  final Map<Object, ScreenHeroState> _heroes = {};
+  final Set<ScreenHeroState> _heroes = {};
+  final Set<VoidCallback> _landings = {};
 
-  /// Makes [state] the hero answering to [tag].
-  void register(Object tag, ScreenHeroState state) => _heroes[tag] = state;
+  /// Makes [hero] one that flies between the stack's screens.
+  void register(ScreenHeroState hero) => _heroes.add(hero);
 
-  /// Drops [tag], if [state] is still the hero registered under it.
-  void unregister(Object tag, ScreenHeroState state) {
-    if (_heroes[tag] == state) _heroes.remove(tag);
-  }
+  /// Drops [hero] from the ones that fly.
+  void unregister(ScreenHeroState hero) => _heroes.remove(hero);
 
-  /// Snapshot current hero Rects. Call before the page list changes.
-  Map<Object, Rect> snapshot() {
-    final result = <Object, Rect>{};
-    for (final entry in _heroes.entries) {
-      final rect = entry.value.globalRect;
-      if (rect != null) result[entry.key] = rect;
-    }
-    return result;
-  }
-
-  /// Start flights for any heroes whose position changed between
-  /// [before] snapshot and the current state.
-  void maybeStartFlights({
-    required Map<Object, Rect> before,
-    required Animation<double> animation,
+  /// Flies each hero on [from]'s screen to the hero with its tag on [to]'s,
+  /// in [overlay], as [progress] runs from 0 to 1. A hero already in the air
+  /// stays on its flight.
+  void fly({
+    required ScreenSlot from,
+    required ScreenSlot to,
+    required Animation<double> progress,
     required OverlayState overlay,
   }) {
-    for (final tag in before.keys) {
-      final hero = _heroes[tag];
-      if (hero == null) continue;
-      final fromRect = before[tag]!;
-      final toRect = hero.globalRect;
-      if (toRect == null) continue;
-      if (fromRect == toRect) continue;
-
-      _startFlight(
-        tag: tag,
-        hero: hero,
-        fromRect: fromRect,
-        toRect: toRect,
-        animation: animation,
-        overlay: overlay,
-      );
-    }
-  }
-
-  void _startFlight({
-    required Object tag,
-    required ScreenHeroState hero,
-    required Rect fromRect,
-    required Rect toRect,
-    required Animation<double> animation,
-    required OverlayState overlay,
-  }) {
-    hero.startFlight();
-
-    final createTween = hero.widget.createRectTween;
-    final rectTween = createTween != null
-        ? createTween(fromRect, toRect)
-        : RectTween(begin: fromRect, end: toRect);
-
-    final child = hero.widget.child;
-    OverlayEntry? entry;
-
-    void onEnd(AnimationStatus status) {
-      if (status == AnimationStatus.completed ||
-          status == AnimationStatus.dismissed) {
-        entry?.remove();
-        entry = null;
-        hero.endFlight();
-        animation.removeStatusListener(onEnd);
+    final space = overlay.context.findRenderObject()! as RenderBox;
+    final targets = _heroesOn(to);
+    for (final source in _heroesOn(from).values) {
+      final target = targets[source.widget.tag];
+      if (target == null ||
+          source._placeholderSize != null ||
+          target._placeholderSize != null) {
+        continue;
       }
+      final begin = source._restingRect(from, space);
+      final end = target._restingRect(to, space);
+      if (begin == null || end == null) continue;
+      _launch(source, target, begin, end, progress, overlay);
     }
+  }
 
-    animation.addStatusListener(onEnd);
+  /// Lands every flight in the air.
+  void dispose() {
+    for (final land in _landings.toList()) {
+      land();
+    }
+  }
 
-    entry = OverlayEntry(
+  Map<Object, ScreenHeroState> _heroesOn(ScreenSlot slot) => {
+    for (final hero in _heroes)
+      if (ScreenSlot.maybeOf(hero.context) == slot) hero.widget.tag: hero,
+  };
+
+  void _launch(
+    ScreenHeroState source,
+    ScreenHeroState target,
+    Rect begin,
+    Rect end,
+    Animation<double> progress,
+    OverlayState overlay,
+  ) {
+    source.startFlight();
+    target.startFlight();
+    final rect =
+        target.widget.createRectTween?.call(begin, end) ??
+        RectTween(begin: begin, end: end);
+    final entry = OverlayEntry(
       builder: (context) => AnimatedBuilder(
-        animation: animation,
-        builder: (context, _) {
-          final rect = rectTween.evaluate(animation);
-          if (rect == null) return const SizedBox.shrink();
-          return Positioned(
-            left: rect.left,
-            top: rect.top,
-            width: rect.width,
-            height: rect.height,
-            child: IgnorePointer(child: child),
-          );
-        },
+        animation: progress,
+        child: IgnorePointer(child: target.widget.child),
+        builder: (context, shuttle) => Positioned.fromRect(
+          rect: rect.evaluate(progress)!,
+          child: shuttle!,
+        ),
       ),
     );
 
-    overlay.insert(entry!);
+    late final AnimationStatusListener onStatus;
+    void land() {
+      progress.removeStatusListener(onStatus);
+      _landings.remove(land);
+      entry
+        ..remove()
+        ..dispose();
+      source.endFlight();
+      target.endFlight();
+    }
+
+    onStatus = (status) {
+      if (!status.isAnimating) land();
+    };
+    progress.addStatusListener(onStatus);
+    _landings.add(land);
+    overlay.insert(entry);
   }
 }

@@ -165,15 +165,7 @@ class ScreenStackState extends State<ScreenStack>
   void _diffStack(List<Screen> oldStack, List<Screen> newStack) {
     final oldSet = <Screen>{...oldStack};
     final newSet = <Screen>{...newStack};
-
-    final hasChanges =
-        oldStack.length != newStack.length ||
-        oldSet.any((p) => !newSet.contains(p)) ||
-        newSet.any((p) => !oldSet.contains(p));
-
-    // Snapshot only on actual mutation; otherwise every host-driven
-    // rebuild would schedule a post-frame flight check.
-    final heroSnapshot = hasChanges ? heroController.snapshot() : null;
+    final oldTop = _topSlot;
 
     for (final entry in _entries.toList()) {
       if (entry.removing) continue;
@@ -211,25 +203,41 @@ class ScreenStackState extends State<ScreenStack>
       ..clear()
       ..addAll(result);
 
-    if (heroSnapshot != null && heroSnapshot.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        final topEntry = _entries.lastWhereOrNull((e) => !e.removing);
-        if (topEntry == null) return;
-        final overlay = Overlay.maybeOf(context);
-        if (overlay == null) return;
-        heroController.maybeStartFlights(
-          before: heroSnapshot,
-          animation: topEntry.controller,
-          overlay: overlay,
-        );
-      });
-    }
-
     _sync();
+    final top = _topSlot;
+    _flyHeroes(
+      oldTop,
+      top,
+      entered: top != _homeSlot && !oldSet.contains(top.page),
+    );
     _updateCanPop();
     _scheduleTopFocusHandoff();
     setState(() {});
+  }
+
+  /// Flies the heroes from [from], the top screen before a change, to [to],
+  /// the one after, over the transition of [to] entering or of [from]
+  /// leaving. A pop that a back gesture drives does not fly.
+  void _flyHeroes(ScreenSlot from, ScreenSlot to, {required bool entered}) {
+    final Animation<double> progress;
+    if (entered) {
+      progress = to.controller;
+    } else if (from.removing && from._backGesture == null) {
+      progress = ReverseAnimation(from.controller);
+    } else {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !progress.isAnimating) return;
+      final overlay = Overlay.maybeOf(context);
+      if (overlay == null) return;
+      heroController.fly(
+        from: from,
+        to: to,
+        progress: progress,
+        overlay: overlay,
+      );
+    });
   }
 
   ScreenSlot _createHomeSlot(Screen home) {
@@ -275,6 +283,7 @@ class ScreenStackState extends State<ScreenStack>
 
   @override
   void dispose() {
+    heroController.dispose();
     _homeSlot.controller.dispose();
     _homeSlot.focusScope.dispose();
     for (final entry in _entries) {
@@ -367,10 +376,14 @@ class ScreenSlot {
     Animation<double> animation,
     Curve curve,
   ) {
-    final slot = context.getInheritedWidgetOfExactType<_SlotScope>()?.slot;
+    final slot = maybeOf(context);
     if (slot == null) return animation.drive(CurveTween(curve: curve));
     return _GestureCurve(animation, curve, slot);
   }
+
+  /// The slot whose screen holds [context], or `null` outside every slot.
+  static ScreenSlot? maybeOf(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<_SlotScope>()?.slot;
 
   /// The screen this slot holds; reassigned when an equal screen updates it.
   Screen page;
