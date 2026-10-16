@@ -604,30 +604,38 @@ KeyEventResult _dismissPastDisabled(FocusNode node, KeyEvent event) {
         entry.key.accepts(event, HardwareKeyboard.instance),
   );
   if (focus == null || !dismisses) return KeyEventResult.ignored;
-  const intent = _DismissPastDisabledIntent();
-  return switch (_dismissNearestEnabled(focus, intent)) {
-    (final action, final invoked) => action.toKeyEventResult(intent, invoked),
+  return switch (_dismissNearestEnabled(focus)) {
+    (final action, final invoked) => action.toKeyEventResult(
+      _DismissPastDisabledIntent(action),
+      invoked,
+    ),
     null => KeyEventResult.ignored,
   };
 }
 
-/// Invokes the action nearest [context] that is bound to [DismissIntent] and
-/// enabled for [intent], and returns it with what it returned; null where no
-/// such action is.
+/// Invokes the action bound to [DismissIntent] nearest [context], or, where
+/// [above] is given, nearest around it, that is enabled for a
+/// [_DismissPastDisabledIntent], and returns it with what it returned; null
+/// where no such action is.
 (Action<Intent>, Object?)? _dismissNearestEnabled(
-  BuildContext context,
-  DismissIntent intent,
-) {
+  BuildContext context, {
+  Action<Intent>? above,
+}) {
+  var past = above == null;
   (Action<Intent>, Object?)? dismissed;
   context.visitAncestorElements((element) {
     final widget = element.widget;
     if (widget is! Actions) return true;
     final action = widget.actions[DismissIntent];
     if (action == null) return true;
+    if (!past) {
+      past = identical(action, above);
+      return true;
+    }
     final dispatcher = widget.dispatcher ?? const ActionDispatcher();
     final (enabled, invoked) = dispatcher.invokeActionIfEnabled(
       action,
-      intent,
+      _DismissPastDisabledIntent(action),
       context,
     );
     if (!enabled) return true;
@@ -639,24 +647,45 @@ KeyEventResult _dismissPastDisabled(FocusNode node, KeyEvent event) {
 
 /// The intent [XApp] invokes [DismissIntent] actions with. [Actions] looks an
 /// action up by its intent's runtime type, so where an action hands this on
-/// with [Actions.invoke], as a focused [EditableText]'s does, it reaches
+/// with [Actions.invoke], as a focused [EditableText]'s does, or looks up its
+/// override with it, as an [Action.overridable] does, it reaches
 /// [_DismissPastDisabledAction] rather than stopping at the nearest
 /// [DismissIntent] action, enabled or not.
 class _DismissPastDisabledIntent extends DismissIntent {
-  const _DismissPastDisabledIntent();
+  const _DismissPastDisabledIntent(this.action);
+
+  /// The action this intent is invoked on.
+  final Action<Intent> action;
 }
 
-/// Hands a [_DismissPastDisabledIntent] to the [DismissIntent] action nearest
-/// the context it comes from that is enabled for it.
-class _DismissPastDisabledAction
-    extends ContextAction<_DismissPastDisabledIntent> {
+/// Invokes the [DismissIntent] action nearest the context it comes from that
+/// is enabled for a [_DismissPastDisabledIntent]. Found as the override of an
+/// [Action.overridable], whose intent is for the overridable, it invokes the
+/// nearest such action around the overridable, and where none is, the
+/// overridable's default action.
+///
+/// Handles [Intent] rather than [DismissIntent], as [callingAction] holds the
+/// default action of the overridable, which may handle any intent, such as a
+/// [DoNothingAction].
+class _DismissPastDisabledAction extends ContextAction<Intent> {
   @override
-  Object? invoke(_DismissPastDisabledIntent intent, [BuildContext? context]) =>
-      _dismissNearestEnabled(context!, intent)?.$2;
+  Object? invoke(Intent intent, [BuildContext? context]) {
+    final target = (intent as _DismissPastDisabledIntent).action;
+    if (identical(target, this)) return _dismissNearestEnabled(context!)?.$2;
+    final overridden = callingAction!;
+    return switch (_dismissNearestEnabled(context!, above: target)) {
+      (_, final invoked) => invoked,
+      null =>
+        const ActionDispatcher()
+            .invokeActionIfEnabled(overridden, intent, context)
+            .$2,
+    };
+  }
 }
 
-/// Invokes an action with a [_DismissPastDisabledIntent] in place of a
-/// [DismissIntent]. A subclass of [DismissIntent] is bound to actions of its
+/// Invokes an action with a [_DismissPastDisabledIntent] for that action in
+/// place of a [DismissIntent], or of a [_DismissPastDisabledIntent] for
+/// another. Any other subclass of [DismissIntent] is bound to actions of its
 /// own type, and reaches them as it is.
 class _DismissPastDisabledDispatcher extends ActionDispatcher {
   const _DismissPastDisabledDispatcher();
@@ -666,17 +695,23 @@ class _DismissPastDisabledDispatcher extends ActionDispatcher {
     Action<Intent> action,
     Intent intent, [
     BuildContext? context,
-  ]) => super.invokeAction(action, _pastDisabled(intent), context);
+  ]) => super.invokeAction(action, _pastDisabled(action, intent), context);
 
   @override
   (bool, Object?) invokeActionIfEnabled(
     Action<Intent> action,
     Intent intent, [
     BuildContext? context,
-  ]) => super.invokeActionIfEnabled(action, _pastDisabled(intent), context);
+  ]) => super.invokeActionIfEnabled(
+    action,
+    _pastDisabled(action, intent),
+    context,
+  );
 
-  Intent _pastDisabled(Intent intent) => intent.runtimeType == DismissIntent
-      ? const _DismissPastDisabledIntent()
+  Intent _pastDisabled(Action<Intent> action, Intent intent) =>
+      intent is _DismissPastDisabledIntent ||
+          intent.runtimeType == DismissIntent
+      ? _DismissPastDisabledIntent(action)
       : intent;
 }
 

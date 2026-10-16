@@ -212,6 +212,50 @@ void main() {
     expect(page.popped, isFalse);
   });
 
+  testWidgets('Esc on an overridable action goes to the nearest enabled one '
+      'around it, and with none, to its default', (tester) async {
+    final overlay = GlobalKey<OverlayState>();
+    final router = XRouter(home: _Screen(const SizedBox()));
+    await tester.pumpWidget(XApp(router: router, overlayKey: overlay));
+    var defaults = 0;
+    final node = FocusNode();
+    addTearDown(node.dispose);
+    final overridable = Builder(
+      builder: (context) => Actions(
+        actions: {
+          DismissIntent: Action<DismissIntent>.overridable(
+            defaultAction: CallbackAction(onInvoke: (_) => defaults++),
+            context: context,
+          ),
+        },
+        child: Focus(
+          focusNode: node,
+          child: const SizedBox(width: 10, height: 10),
+        ),
+      ),
+    );
+    final page = _Screen(Scaffold(body: overridable));
+    router.push(page);
+    await tester.pumpAndSettle();
+    node.requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(page.popped, isTrue);
+    expect(defaults, 0);
+
+    final entry = OverlayEntry(builder: (_) => overridable);
+    addTearDown(entry.dispose);
+    addTearDown(entry.remove);
+    overlay.currentState!.insert(entry);
+    await tester.pump();
+    node.requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+    expect(defaults, 1);
+  });
+
   testWidgets('Esc in a modal sheet pops the sheet', (tester) async {
     final router = XRouter(home: _Screen(const SizedBox()));
     await tester.pumpWidget(XApp(router: router));
