@@ -63,7 +63,8 @@ class ComposeResult {
 
   /// Trim / mute values for video entries; baked into the upload by
   /// `OutgoingVideoFromFile` at send time. Null for images or
-  /// untouched videos.
+  /// untouched videos. The receiver owns [VideoEditValues.overlay]'s file
+  /// and deletes it once used.
   final VideoEditValues? videoEdit;
 
   /// The final image as bytes: [imageBytes], else [composedImage] as PNG, else [source]'s file.
@@ -481,7 +482,7 @@ class ComposePage with Screen<List<ComposeResult>?>, Emitter {
           caption: _showsCaption
               ? MediaHost.current.caption(e.composerController)
               : null,
-          videoEdit: e.videoEdit.hasEdits ? e.videoEdit : null,
+          videoEdit: e.handOverVideoEdit(),
           imageBytes: purpose == ComposePurpose.avatar
               ? (_avatarBytes(e.input, await e.captureImage(), maxImageExtent)
                   ..ignore())

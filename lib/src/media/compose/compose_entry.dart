@@ -383,6 +383,17 @@ class ComposeEntry with Emitter {
   /// pipeline via `ComposeResult.videoEdit`.
   VideoEditValues videoEdit = const VideoEditValues();
 
+  /// The overlay PNG this entry wrote and still owns, deleted when an apply
+  /// replaces it or the entry is disposed; [handOverVideoEdit] gives it up.
+  io.File? _overlayFile;
+
+  /// [videoEdit] for a submitted `ComposeResult`, absent without edits. Its
+  /// overlay's file passes to the caller, which deletes it once used.
+  VideoEditValues? handOverVideoEdit() {
+    _overlayFile = null;
+    return videoEdit.hasEdits ? videoEdit : null;
+  }
+
   static final Logger _log = Log.tag('compose');
 
   /// Scrubber/mute write path: stores the values, applies volume
@@ -598,11 +609,11 @@ class ComposeEntry with Emitter {
   }
 
   /// Bake strokes and text entities into a transparent source-dims PNG
-  /// in the upload staging dir and snapshot it into [videoEdit].overlay —
-  /// the file the native export composites over every frame. An empty
-  /// overlay (no strokes, no entities) clears it. The vector state stays
-  /// on [drawLayer] / [entityLayer], so re-entering the tool keeps it
-  /// editable.
+  /// in the temporary `ux_compose` directory and snapshot it into
+  /// [videoEdit].overlay — the file the native export composites over every
+  /// frame. An empty overlay (no strokes, no entities) clears it. The vector
+  /// state stays on [drawLayer] / [entityLayer], so re-entering the tool
+  /// keeps it editable.
   Future<void> _snapshotDrawOverlay() async {
     final src = sourceSize;
     if (src == null) return;
@@ -610,6 +621,7 @@ class ComposeEntry with Emitter {
     final hasEntities = entityLayer?.hasAppliedEdits ?? false;
     if (!hasDraw && !hasEntities) {
       setVideoEdit(videoEdit.copyWith(clearOverlay: true));
+      _ownOverlayFile(null);
       return;
     }
     final recorder = ui.PictureRecorder();
@@ -622,7 +634,7 @@ class ComposeEntry with Emitter {
     final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
     image.dispose();
     final base = await path_provider.getTemporaryDirectory();
-    final dir = io.Directory('${base.path}/banlu_uploads');
+    final dir = io.Directory('${base.path}/ux_compose');
     await dir.create(recursive: true);
     final file = io.File(
       '${dir.path}/draw_${clock.now().microsecondsSinceEpoch}.png',
@@ -633,7 +645,10 @@ class ComposeEntry with Emitter {
         byteData.lengthInBytes,
       ),
     );
-    if (disposed) return;
+    if (disposed) {
+      await file.delete();
+      return;
+    }
     setVideoEdit(
       videoEdit.copyWith(
         overlay: VideoDrawOverlay(
@@ -643,6 +658,14 @@ class ComposeEntry with Emitter {
         ),
       ),
     );
+    _ownOverlayFile(file);
+  }
+
+  /// Makes [file] the overlay this entry owns, deleting the one it owned.
+  void _ownOverlayFile(io.File? file) {
+    final owned = _overlayFile;
+    _overlayFile = file;
+    if (owned != null && owned.existsSync()) owned.deleteSync();
   }
 
   void _invalidatePreview() {
@@ -798,6 +821,7 @@ class ComposeEntry with Emitter {
     isZoomed.dispose();
     videoController?.dispose();
     composerController.dispose();
+    _ownOverlayFile(null);
     super.dispose();
   }
 }

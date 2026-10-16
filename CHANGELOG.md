@@ -254,6 +254,13 @@
   render of the current edits, and a render an edit overtakes is discarded.
 - **A video compose entry decodes its crop poster once.** Tools opened
   together share the one poster.
+- **A compose entry deletes the draw overlays it keeps.** A video
+  `ComposeEntry` writes its draw overlay PNG into the temporary directory's
+  `ux_compose` folder. It deletes the PNG when a later draw apply replaces or
+  clears it and when the entry is disposed, a PNG still being written
+  included. `ComposePage`'s submit hands the overlay over with
+  `ComposeResult.videoEdit` through `ComposeEntry.handOverVideoEdit`, and the
+  receiver deletes `VideoEditValues.overlay`'s file once used.
 - **A `ScreenShell` keeps screens it hosts but does not show.**
   `ScreenShell.hosted` lists every screen a shell hosts and `pages` the ones
   it shows. A hosted screen left out of `pages` stays mounted offstage with
