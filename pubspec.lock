@@ -635,9 +635,11 @@ packages:
   swipelab_webp:
     dependency: "direct main"
     description:
-      path: "../swipelab_webp"
-      relative: true
-    source: path
+      path: "."
+      ref: HEAD
+      resolved-ref: "9c105c165d8681ece6714a70ec6759e5d6064b0e"
+      url: "https://github.com/swipelab/swipelab_webp"
+    source: git
     version: "1.1.0"
   term_glyph:
     dependency: transitive
