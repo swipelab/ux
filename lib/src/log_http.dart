@@ -19,7 +19,8 @@ import 'log.dart';
 class HttpSink extends LogSink {
   /// Creates a sink that POSTs batched records to [endpoint] with bearer
   /// [token] auth. [device] and [app] are merged into every record's JSON
-  /// envelope. [sender] is overridable for tests.
+  /// envelope. [sender] and [delay], which waits out each retry backoff, are
+  /// overridable for tests.
   HttpSink({
     required this._endpoint,
     required this._token,
@@ -32,6 +33,7 @@ class HttpSink extends LogSink {
     this._device,
     this._app,
     HttpSender? sender,
+    this._delay = Future<void>.delayed,
   }) : _sender = sender ?? _defaultSender;
 
   /// The full URL the batched POST hits (e.g. `http://nas:8000/log`).
@@ -41,6 +43,7 @@ class HttpSink extends LogSink {
   final Map<String, Object?>? _device;
   final Map<String, Object?>? _app;
   final HttpSender _sender;
+  final Future<void> Function(Duration) _delay;
 
   /// Flush when the queue reaches this many records.
   final int batchSize;
@@ -123,7 +126,7 @@ class HttpSink extends LogSink {
         );
         return;
       }
-      await Future.delayed(backoff);
+      await _delay(backoff);
       backoff = backoff * 2;
       if (backoff > maxBackoff) backoff = maxBackoff;
     }
