@@ -3,6 +3,7 @@
 #include <dxgi.h>
 #include <wrl/client.h>
 
+#include <chrono>
 #include <memory>
 #include <optional>
 #include <string>
@@ -65,6 +66,17 @@ void VideoPlayerSuite() {
     CHECK(PumpUntil([&prepared] { return prepared.has_value(); }));
     CHECK(prepared && std::holds_alternative<ux::VideoFailed>(*prepared));
     CHECK(events.empty());
+  }
+
+  // A player opened once disposed, whose engine refuses the source at once, emits nothing.
+  {
+    std::vector<EncodableMap> events;
+    std::shared_ptr<ux::VideoPlayerInstance> player;
+    CHECK(SUCCEEDED(ux::VideoPlayerInstance::Create(
+        device, platform.poster(), [&events](EncodableMap event) { events.push_back(std::move(event)); }, player)));
+    player->Dispose();
+    player->Open(broken, [] {});
+    CHECK(!PumpUntil([&events] { return !events.empty(); }, std::chrono::milliseconds(500)));
   }
 
   DeleteFileW(broken.c_str());

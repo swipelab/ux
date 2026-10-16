@@ -120,7 +120,9 @@ void VideoPlayerInstance::Open(const std::wstring& path, std::function<void()> f
   const HRESULT hr = engine_->SetSource(url);
   SysFreeString(url);
   if (FAILED(hr)) {
-    Fail("cannot open the video (" + Hex(hr) + ")");
+    post_([weak = weak_from_this(), message = "cannot open the video (" + Hex(hr) + ")"]() {
+      if (auto self = weak.lock(); self && !self->disposed_) self->Fail(message);
+    });
     return;
   }
   pump_ = std::thread(Pump, engine_, device_->context(), surface_, std::move(frame_available),

@@ -184,7 +184,7 @@ void VideoPlayerPlugin::Create(const EncodableMap* args, Result& result) {
       {EncodableValue("handle"), EncodableValue(handle)},
       {EncodableValue("textureId"), EncodableValue(texture_id)},
   }));
-  // After the answer, so the error of a source that fails to open reaches Dart once it knows the handle.
+  // After the answer: the player emits only from tasks posted after it, so every event reaches Dart after the handle.
   instance->Open(*path, [textures = textures_, texture_id]() { textures->MarkTextureFrameAvailable(texture_id); });
 }
 
