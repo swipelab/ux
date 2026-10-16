@@ -17,6 +17,7 @@ add_executable(ux_test
   "ux_test.cpp"
   "check.h"
   "png.h"
+  "accessibility_test.cpp"
   "camera_test.cpp"
   "crypto_test.cpp"
   "dib_test.cpp"
@@ -48,6 +49,7 @@ add_custom_command(TARGET ux_test POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ENGINE}/flutter_windows.dll" "$<TARGET_FILE_DIR:ux_test>")
 
 enable_testing()
+add_test(NAME accessibility COMMAND ux_test accessibility)
 add_test(NAME camera COMMAND ux_test camera)
 add_test(NAME crypto COMMAND ux_test crypto)
 add_test(NAME dib COMMAND ux_test dib)

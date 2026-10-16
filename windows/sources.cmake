@@ -2,6 +2,8 @@
 set(UX_PLUGIN_SOURCES
   "${CMAKE_CURRENT_LIST_DIR}/x_plugin.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/x_plugin.h"
+  "${CMAKE_CURRENT_LIST_DIR}/accessibility_plugin.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/accessibility_plugin.h"
   "${CMAKE_CURRENT_LIST_DIR}/aes_ctr.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/aes_ctr.h"
   "${CMAKE_CURRENT_LIST_DIR}/camera_devices.cpp"

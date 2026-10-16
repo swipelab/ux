@@ -1,4 +1,13 @@
 ### 0.18.0
+- **macOS and Windows report Reduce Motion.** `XAccessibility.reduceMotion`
+  (`package:ux/accessibility.dart`) holds whether the OS asks apps to reduce
+  motion where Flutter's embedder does not report it, and follows its changes
+  while the app runs: on macOS the Reduce motion setting, `NSWorkspace`'s
+  `accessibilityDisplayShouldReduceMotion`, read again on each
+  `accessibilityDisplayOptionsDidChangeNotification`, and on Windows Animation
+  effects off, `SPI_GETCLIENTAREAANIMATION`, read again on each
+  `WM_SETTINGCHANGE`. On iOS, Android and Linux, whose Flutter
+  `AccessibilityFeatures` carry the setting, it stays false.
 - **A bare domain links on iOS and macOS as on Android and Windows.** On iOS
   and macOS, `XUrl.match` links a web match with no scheme only where its host
   is an IP address or ends in a top-level domain on IANA's list, as on Android
