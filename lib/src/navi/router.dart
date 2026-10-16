@@ -179,16 +179,23 @@ class XRouter extends BackButtonDispatcher
       child: NotificationListener<NavigationNotification>(
         onNotification: (_) =>
             true, // absorb — router manages system back directly
-        child: ScreenStack(
-          home: screens.first,
-          stack: screens.sublist(1),
-          hidden: {...screens}..removeAll(shown),
-          beside: {
-            for (final MapEntry(key: screen, value: shell) in shells.entries)
-              if (shell.isBeside(screen)) screen,
+        child: Actions(
+          actions: {
+            DismissIntent: CallbackAction<DismissIntent>(
+              onInvoke: (_) => backDispatcher.didPopRoute(),
+            ),
           },
-          place: (context, screen, slot) =>
-              shells[screen]?.place(context, screen, slot) ?? slot,
+          child: ScreenStack(
+            home: screens.first,
+            stack: screens.sublist(1),
+            hidden: {...screens}..removeAll(shown),
+            beside: {
+              for (final MapEntry(key: screen, value: shell) in shells.entries)
+                if (shell.isBeside(screen)) screen,
+            },
+            place: (context, screen, slot) =>
+                shells[screen]?.place(context, screen, slot) ?? slot,
+          ),
         ),
       ),
     );
@@ -323,7 +330,8 @@ class XRouter extends BackButtonDispatcher
   }
 }
 
-/// Routes the system back gesture to the topmost unpopped screen.
+/// Routes system back, and Esc no [ScreenStack] takes, to the topmost
+/// unpopped screen.
 class XRouterBack extends RootBackButtonDispatcher {
   /// Binds the router whose stack answers back.
   XRouterBack({required this.router});
@@ -543,26 +551,31 @@ class XApp extends StatelessWidget {
             data: data,
             child: ScrollConfiguration(
               behavior: scrollBehavior ?? const MaterialScrollBehavior(),
-              child: Shortcuts(
-                shortcuts: WidgetsApp.defaultShortcuts,
-                child: Actions(
-                  actions: WidgetsApp.defaultActions,
-                  child: DefaultTextEditingShortcuts(
-                    child: Overlay(
-                      key: overlayKey,
-                      initialEntries: [
-                        OverlayEntry(
-                          builder: (_) => _InspectorScope(
-                            child: Router(
-                              routeInformationParser: router.routeParser,
-                              routeInformationProvider:
-                                  router.routeInformationProvider,
-                              routerDelegate: router.delegate,
-                              backButtonDispatcher: router.backDispatcher,
+              child: Focus(
+                canRequestFocus: false,
+                skipTraversal: true,
+                onKeyEvent: _dismissPastDisabled,
+                child: Shortcuts(
+                  shortcuts: WidgetsApp.defaultShortcuts,
+                  child: Actions(
+                    actions: WidgetsApp.defaultActions,
+                    child: DefaultTextEditingShortcuts(
+                      child: Overlay(
+                        key: overlayKey,
+                        initialEntries: [
+                          OverlayEntry(
+                            builder: (_) => _InspectorScope(
+                              child: Router(
+                                routeInformationParser: router.routeParser,
+                                routeInformationProvider:
+                                    router.routeInformationProvider,
+                                routerDelegate: router.delegate,
+                                backButtonDispatcher: router.backDispatcher,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -573,6 +586,38 @@ class XApp extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Hands a key bound to [DismissIntent] that the action nearest the focus is
+/// disabled for, such as a [Scaffold]'s with no drawer open, to the nearest
+/// action around it that is enabled for it. [Shortcuts] stops at the nearest
+/// action, enabled or not.
+KeyEventResult _dismissPastDisabled(FocusNode node, KeyEvent event) {
+  final focus = FocusManager.instance.primaryFocus?.context;
+  final dismisses = WidgetsApp.defaultShortcuts.entries.any(
+    (entry) =>
+        entry.value is DismissIntent &&
+        entry.key.accepts(event, HardwareKeyboard.instance),
+  );
+  if (focus == null || !dismisses) return KeyEventResult.ignored;
+  const intent = DismissIntent();
+  var result = KeyEventResult.ignored;
+  focus.visitAncestorElements((element) {
+    final widget = element.widget;
+    if (widget is! Actions) return true;
+    final action = widget.actions[DismissIntent];
+    if (action == null) return true;
+    final dispatcher = widget.dispatcher ?? const ActionDispatcher();
+    final (enabled, invoked) = dispatcher.invokeActionIfEnabled(
+      action,
+      intent,
+      focus,
+    );
+    if (!enabled) return true;
+    result = action.toKeyEventResult(intent, invoked);
+    return false;
+  });
+  return result;
 }
 
 /// Inserts a [WidgetInspector] when DevTools' "select widget" mode is active.

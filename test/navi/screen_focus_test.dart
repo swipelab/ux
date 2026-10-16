@@ -4,12 +4,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ux/ux.dart';
 
 class _Screen with Screen<void> {
-  _Screen(this.child, {this.isModal = false});
+  _Screen(this.child, {this.isModal = false, this.canPop = true});
 
   final Widget child;
 
   @override
   final bool isModal;
+
+  @override
+  final bool canPop;
 
   @override
   Widget buildPresenter(BuildContext context) => child;
@@ -73,7 +76,9 @@ void main() {
     expect(tester.testTextInput.isVisible, isFalse);
   });
 
-  testWidgets('Esc pops the top screen where it is modal', (tester) async {
+  testWidgets('Esc pops the top screen where its back is enabled', (
+    tester,
+  ) async {
     final router = XRouter(home: _Screen(const SizedBox()));
     await tester.pumpWidget(XApp(router: router));
     final page = _Screen(const SizedBox());
@@ -81,14 +86,69 @@ void main() {
     await tester.pumpAndSettle();
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
-    expect(page.popped, isFalse);
+    expect(page.popped, isTrue);
 
-    final modal = _Screen(const SizedBox(), isModal: true);
+    final pinned = _Screen(const SizedBox(), canPop: false);
+    router.push(pinned);
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(pinned.popped, isFalse);
+  });
+
+  testWidgets('Esc in a Scaffold with no drawer open pops its screen', (
+    tester,
+  ) async {
+    final router = XRouter(home: _Screen(const SizedBox()));
+    await tester.pumpWidget(XApp(router: router));
+    final control = FocusNode();
+    addTearDown(control.dispose);
+    final page = _Screen(
+      Scaffold(
+        body: Focus(
+          focusNode: control,
+          child: const SizedBox(width: 10, height: 10),
+        ),
+      ),
+    );
+    router.push(page);
+    await tester.pumpAndSettle();
+    control.requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(page.popped, isTrue);
+  });
+
+  testWidgets('Esc pops a modal top screen whose back is disabled', (
+    tester,
+  ) async {
+    final router = XRouter(home: _Screen(const SizedBox()));
+    await tester.pumpWidget(XApp(router: router));
+    final modal = _Screen(const SizedBox(), isModal: true, canPop: false);
     router.push(modal);
     await tester.pumpAndSettle();
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
     expect(modal.popped, isTrue);
+  });
+
+  testWidgets('Esc in a text field unfocuses it and leaves its screen', (
+    tester,
+  ) async {
+    final router = XRouter(home: _Screen(const SizedBox()));
+    await tester.pumpWidget(XApp(router: router));
+    final field = FocusNode();
+    addTearDown(field.dispose);
+    final page = _Screen(Center(child: TextField(focusNode: field)));
+    router.push(page);
+    await tester.pumpAndSettle();
+    field.requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(field.hasFocus, isFalse);
+    expect(page.popped, isFalse);
   });
 
   testWidgets('Esc in a modal sheet pops the sheet', (tester) async {
