@@ -289,6 +289,10 @@
   A `MediaFlightSurface` whose `ready` turns false after `GalleryTransition`'s
   open flight captures it, and true again once the flight ends, shows its live
   pixels as it turns ready, with no snapshot of the flight over them.
+- **An image behind its own repaint boundary takes over from the open flight's
+  snapshot.** When an image in a `MediaFlightSurface` sits behind a
+  `RepaintBoundary` of its own and decodes after `GalleryTransition`'s open
+  flight ends, the flight hands its snapshot off to the image as it decodes.
 - **The screen that shows holds focus, so keys reach it.** When a
   `ScreenStack`'s top screen shows, its focus scope takes focus if focus is in
   the stack, on a scope around it, or nowhere, as when `XApp` starts, and asks
