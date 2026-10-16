@@ -35,7 +35,8 @@ mixin Screen<T> {
   /// Duration of the enter/exit animation.
   Duration get transitionDuration => const Duration(milliseconds: 300);
 
-  /// Whether this screen is a modal (dialog, bottom sheet, etc.).
+  /// Whether this screen is a modal (dialog, bottom sheet, etc.), which Esc
+  /// pops while it is the top screen.
   bool get isModal => false;
 
   /// Whether the iOS edge-swipe gesture should be enabled for this page.

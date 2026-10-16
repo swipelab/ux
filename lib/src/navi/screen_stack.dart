@@ -108,13 +108,24 @@ class ScreenStackState extends State<ScreenStack>
   /// it, a freshly-pushed page's `autofocus: true` TextField ends up
   /// focused but never becomes the active scope, so the keyboard token
   /// is never consumed and the system keyboard doesn't open.
+  ///
+  /// The top scope takes focus when focus is in this stack, or when focus is
+  /// on a scope around it or nowhere and this stack is [_onTop], so keys reach
+  /// the top screen; focus elsewhere stays put. [_onTop] reads the stacks, not
+  /// focus, because `primaryFocus` lags a request made earlier in the same
+  /// frame.
   void _scheduleTopFocusHandoff() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final top = _topSlot;
       if (top == _focusedSlot) return;
       _focusedSlot = top;
-      _outerScope.setFirstFocus(top.focusScope);
+      final focus = FocusManager.instance.primaryFocus;
+      if (_onTop && (focus == null || _outerScope.ancestors.contains(focus))) {
+        top.focusScope.requestFocus();
+      } else {
+        _outerScope.setFirstFocus(top.focusScope);
+      }
     });
   }
 
@@ -279,6 +290,15 @@ class ScreenStackState extends State<ScreenStack>
   ScreenSlot get _topSlot =>
       _entries.lastWhereOrNull((e) => e._covers) ?? _homeSlot;
 
+  /// Whether the screen holding this stack is the top one of every stack
+  /// around it.
+  bool get _onTop {
+    final outer = ScreenStack.maybeOf(context);
+    if (outer == null) return true;
+    final slot = context.getInheritedWidgetOfExactType<_SlotScope>()?.slot;
+    return slot == outer._topSlot && outer._onTop;
+  }
+
   Widget _place(BuildContext context, ScreenSlot entry, Widget slot) =>
       entry._place?.call(context, entry.page, slot) ?? slot;
 
@@ -288,7 +308,7 @@ class ScreenStackState extends State<ScreenStack>
     return Actions(
       actions: {
         DismissIntent: CallbackAction<DismissIntent>(
-          onInvoke: (_) {
+          onInvoke: (intent) {
             final focus = FocusManager.instance.primaryFocus;
             if (focus != null &&
                 focus.context != null &&
@@ -299,8 +319,9 @@ class ScreenStackState extends State<ScreenStack>
             }
             if (top != null && top.page.isModal) {
               top.page.pop();
+              return null;
             }
-            return null;
+            return Actions.maybeInvoke(context, intent);
           },
         ),
       },
