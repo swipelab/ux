@@ -286,6 +286,10 @@ class PaneViewport extends RenderObjectWidget {
 
 /// Element of a [PaneViewport]. Every child-management call is forwarded to
 /// the pane, which decides which slots exist.
+///
+/// The pane's children rebuild in a [BuildScope] of the element's own, which
+/// [PaneRender] flushes as it lays out, so building them never builds a
+/// widget outside the pane.
 class PaneElement extends RenderObjectElement {
   /// Binds the element to the pane it forwards to.
   PaneElement(super.widget, this._controller);
@@ -294,6 +298,13 @@ class PaneElement extends RenderObjectElement {
 
   /// The pane this element forwards child management to.
   Pane get controller => _controller;
+
+  @override
+  BuildScope get buildScope => _buildScope;
+
+  late final BuildScope _buildScope = BuildScope(
+    scheduleRebuild: () => renderObject.markNeedsLayout(),
+  );
 
   @override
   void insertRenderObjectChild(
@@ -430,6 +441,9 @@ class PaneRender extends RenderBox {
   @override
   void performLayout() {
     if (controller.renderer == null) return;
+    if (controller.element case final element?) {
+      invokeLayoutCallback((_) => element.owner!.buildScope(element));
+    }
     controller.performLayout();
   }
 
