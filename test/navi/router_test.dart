@@ -62,6 +62,25 @@ void main() {
     expect(events, ['init A', 'init B', 'dispose A', 'tap B']);
   });
 
+  testWidgets('an XApp over another router and another overlay key shows the '
+      'new router\'s screens', (tester) async {
+    final events = <String>[];
+    await tester.pumpWidget(
+      XApp(
+        router: XRouter(home: _Screen(_Tile('A', events))),
+        overlayKey: GlobalKey(),
+      ),
+    );
+    await tester.pumpWidget(
+      XApp(
+        router: XRouter(home: _Screen(_Tile('B', events))),
+        overlayKey: GlobalKey(),
+      ),
+    );
+    await tester.tap(find.text('B'));
+    expect(events, ['init A', 'init B', 'dispose A', 'tap B']);
+  });
+
   testWidgets('an XApp keeps its router\'s screens where the widgets above its '
       'overlay change shape between platforms', (tester) async {
     final events = <String>[];
@@ -72,5 +91,16 @@ void main() {
     await tester.tap(find.text('A'));
     debugDefaultTargetPlatformOverride = null;
     expect(events, ['init A', 'tap A']);
+  });
+
+  testWidgets('an XApp over a router whose screens left the tree shows them '
+      'again', (tester) async {
+    final events = <String>[];
+    final router = XRouter(home: _Screen(_Tile('A', events)));
+    await tester.pumpWidget(XApp(router: router));
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(XApp(router: router));
+    await tester.tap(find.text('A'));
+    expect(events, ['init A', 'dispose A', 'init A', 'tap A']);
   });
 }

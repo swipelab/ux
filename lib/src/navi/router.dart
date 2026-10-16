@@ -205,13 +205,9 @@ class XRouter extends BackButtonDispatcher
     );
   }
 
-  /// Builds the router's overlay, holding the current [pages]. Another
-  /// router builds another overlay, so its screens take no State from this
-  /// one's.
-  Widget build(BuildContext context) => Overlay.wrap(
-    key: ObjectKey(this),
-    child: Builder(builder: _buildContent),
-  );
+  /// Builds the router's overlay, holding the current [pages].
+  Widget build(BuildContext context) =>
+      Overlay.wrap(child: Builder(builder: _buildContent));
 
   /// Pops everything above [home], including [home]'s hosted screens.
   void popAll() {
@@ -491,7 +487,7 @@ class XRouteParser extends RouteInformationParser<Object> {
 /// Resolves a [XRouter] from the [Store] and sets up theming,
 /// localization, scroll behavior, and back-button dispatching —
 /// without pulling in Flutter's [Navigator] or [MaterialApp].
-class XApp extends StatefulWidget {
+class XApp extends StatelessWidget {
   /// Binds the router to render and the app-wide theming and localization
   /// it renders under.
   const XApp({
@@ -532,56 +528,25 @@ class XApp extends StatefulWidget {
   final GlobalKey<OverlayState>? overlayKey;
 
   @override
-  State<XApp> createState() => _XAppState();
-}
-
-class _XAppState extends State<XApp> {
-  /// Keeps the root overlay, and [_routerEntry] in it, when the widgets above
-  /// it change shape, as [DefaultTextEditingShortcuts]'s do between platforms.
-  final _overlayKey = GlobalKey<OverlayState>();
-
-  late final _routerEntry = OverlayEntry(builder: _buildRouter);
-
-  @override
-  void dispose() {
-    _routerEntry
-      ..remove()
-      ..dispose();
-    super.dispose();
-  }
-
-  Widget _buildRouter(BuildContext context) {
-    final router = widget.router;
-    return _InspectorScope(
-      child: Router(
-        routeInformationParser: router.routeParser,
-        routeInformationProvider: router.routeInformationProvider,
-        routerDelegate: router.delegate,
-        backButtonDispatcher: router.backDispatcher,
-      ),
-    );
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final data = widget.theme ?? ThemeData();
+    final data = theme ?? ThemeData();
 
     return Title(
-      title: widget.title,
+      title: title,
       color: data.primaryColor,
       child: MediaQuery.fromView(
         view: View.of(context),
         child: Localizations(
-          locale: widget.supportedLocales.first,
+          locale: supportedLocales.first,
           delegates: [
-            ...?widget.localizationsDelegates,
+            ...?localizationsDelegates,
             DefaultMaterialLocalizations.delegate,
             DefaultWidgetsLocalizations.delegate,
           ],
           child: AnimatedTheme(
             data: data,
             child: ScrollConfiguration(
-              behavior: widget.scrollBehavior ?? const MaterialScrollBehavior(),
+              behavior: scrollBehavior ?? const MaterialScrollBehavior(),
               child: Focus(
                 canRequestFocus: false,
                 skipTraversal: true,
@@ -595,9 +560,12 @@ class _XAppState extends State<XApp> {
                       _DismissPastDisabledIntent: _DismissPastDisabledAction(),
                     },
                     child: DefaultTextEditingShortcuts(
-                      child: Overlay(
-                        key: widget.overlayKey ?? _overlayKey,
-                        initialEntries: [_routerEntry],
+                      child: _AppRouter(
+                        router: router,
+                        child: Overlay(
+                          key: overlayKey,
+                          initialEntries: [OverlayEntry(builder: _buildRouter)],
+                        ),
                       ),
                     ),
                   ),
@@ -609,6 +577,38 @@ class _XAppState extends State<XApp> {
       ),
     );
   }
+
+  /// The [Router] over the nearest [_AppRouter]'s router, keyed by that
+  /// router: another router gets a [Router] and screens of its own, and where
+  /// the root overlay is built anew, as when the widgets above it change shape
+  /// between platforms, the [Router] and its screens move there with their
+  /// State.
+  static Widget _buildRouter(BuildContext context) {
+    final router = context
+        .dependOnInheritedWidgetOfExactType<_AppRouter>()!
+        .router;
+    return _InspectorScope(
+      key: GlobalObjectKey(router),
+      child: Router(
+        routeInformationParser: router.routeParser,
+        routeInformationProvider: router.routeInformationProvider,
+        routerDelegate: router.delegate,
+        backButtonDispatcher: router.backDispatcher,
+      ),
+    );
+  }
+}
+
+/// The router of the [XApp] above, for the [Router] in its root overlay's
+/// entry to read: the overlay keeps the entry it was first built with.
+class _AppRouter extends InheritedWidget {
+  const _AppRouter({required this.router, required super.child});
+
+  final XRouter router;
+
+  @override
+  bool updateShouldNotify(_AppRouter oldWidget) =>
+      !identical(router, oldWidget.router);
 }
 
 /// Hands a key bound to [DismissIntent] that the action nearest the focus is
@@ -793,7 +793,7 @@ class _DismissPastDisabledDispatcher extends ActionDispatcher {
 /// buttons are left unbuilt (null) — Material's defaults rely on a private
 /// button widget we can't reuse — so select mode is toggled from DevTools.
 class _InspectorScope extends StatefulWidget {
-  const _InspectorScope({required this.child});
+  const _InspectorScope({super.key, required this.child});
 
   final Widget child;
 

@@ -321,8 +321,9 @@
 - **An `XApp` over another `XRouter` shows that router's screens.** An `XApp`
   rebuilt with another `router` shows that router's screens, which take no
   State from the old router's, and the old router's screens leave the tree.
-  Across a change of `defaultTargetPlatform`, an `XApp` keeps its router's
-  screens and their State. `XApp` is a `StatefulWidget`.
+  An `XApp` over a router whose screens left the tree shows them again. Across
+  a change of `defaultTargetPlatform`, an `XApp` keeps its router's screens
+  and their State.
 - **A media caption is what the host's caption field holds.**
   `ComposeResult.caption` is what `MediaHost.caption` reads from the item's
   caption controller when the page submits, in the host's own type: the host
