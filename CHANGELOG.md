@@ -1,4 +1,16 @@
 ### 0.18.0
+- **A link hiding a bidi isolate does not launch.** `XUrl.match` keeps the
+  bidi isolates U+2066–U+2069 in a link's URL, as it keeps the other bidi
+  controls, so `XUrl.launch` refuses the link whichever pass finds it: in
+  `see evil.com/` with `good.com` in a right-to-left isolate, the link's URL
+  keeps the isolate and does not launch.
+- **A link's URL is the same whichever pass finds it.** `XUrl.match` strips
+  a zero-width space, joiner or non-joiner and U+2060–U+206F but the bidi
+  isolates from the URL of a link its any-scheme pass finds, as from one the
+  native detector finds, so `see ftp://a.io/a#` with a zero-width space after
+  the `#` links `ftp://a.io/a#` on Android and Windows, as on iOS and macOS,
+  and a zero-width space after `bl://x?code=1` stays out of its URL on every
+  platform. `XUrl.debugDetect` stands in for the native detector in tests.
 - **A camera page showing an error leaves the picker's camera cell in view.**
   A `CameraPage` covers its picker's camera cell only while it flies the
   cell's preview, so the cell shows under a camera page with an error, as
