@@ -12,8 +12,9 @@
   `访问example.com:8080abc然后` links `http://example.com`. A port those letters
   follow has ASCII digits: `访问example.com:8080٣然后` links
   `http://example.com`. A URL with a scheme that `NSDataDetector` misses links
-  as `Patterns.WEB_URL` matches it: `foo _http://example.com:8080abc x` links
-  `http://example.com`.
+  as `Patterns.WEB_URL` matches it where a `_` that begins a word or follows
+  those letters comes before its scheme: `foo _http://example.com:8080abc x`
+  links `http://example.com`.
 - **A `ScreenHero` flies.** A `ScreenHero` registers with the `ScreenStack`
   around it. When a screen is pushed over another or popped off it, a hero on
   one that shares its tag with a hero on the other flies from its place to the

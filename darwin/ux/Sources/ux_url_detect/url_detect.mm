@@ -83,14 +83,16 @@ static NSRegularExpression *ux_url_web_regex(void) {
         // a scheme's "://" nor inside a label or a host the pass does not
         // match from its start: after a letter, mark or digit outside the
         // unspaced scripts and a run of '_' and '-' or a '.'.
+        // NSRegularExpression can miss a second '\b' in a row at the end of
+        // the text, so the end of the text ends a port of its own.
         NSString *pattern = [NSString stringWithFormat:
             @"(?:\\b|(?<=[_%1$@]))(?<![[\\p{L}\\p{M}\\p{Nd}]--%1$@](?:[_-]{1,62}|\\.))(?<!://)"
             @"(?:((?:https?|rtsp|ftp)://(?:(?:[a-z0-9$_.+!*'(),;?&=-]|%%[0-9a-f]{2}){1,64}"
             @"(?::(?:[a-z0-9$_.+!*'(),;?&=-]|%%[0-9a-f]{2}){1,25})?@)?)"
-            @"(?:(?:[a-z0-9%3$@](?:[a-z0-9_\\-%3$@]{0,61}[a-z0-9%3$@])?\\.)+(?:xn--[\\w-]{0,58}\\w|[a-z%3$@]{2,63})"
+            @"(?:(?:[a-z0-9%3$@](?:[a-z0-9_\\-%3$@]{0,61}[a-z0-9%3$@])?\\.)+(?:(?-i:xn)--[\\w-]{0,58}\\w|[a-z%3$@]{2,63})"
             @"|%4$@)(?::[0-9]{1,5}(?=%1$@)|(?::\\d{1,5})?(?:%2$@|\\b))"
             @"|(?:(?:[a-z0-9](?:[a-z0-9_-]{0,61}[a-z0-9])?\\.)+(?:xn--[a-z0-9-]{0,58}[a-z0-9]|[a-z]{2,63})|%4$@)"
-            @"(?::[0-9]{1,5}|:\\d{1,5}\\b)?(?:%2$@|(?:\\b|(?=%1$@))(?!@[a-z0-9][a-z0-9-]{0,64}\\.[a-z0-9])))",
+            @"(?::[0-9]{1,5}|:\\d{1,5}\\b)?(?:%2$@|(?:\\b|$|(?=%1$@))(?!@[a-z0-9][a-z0-9-]{0,64}\\.[a-z0-9])))",
             unspaced, path, ucs, ipv4];
         NSError *err = nil;
         regex = [NSRegularExpression

@@ -831,6 +831,18 @@ void main() {
     ]);
   });
 
+  testWidgets('a port of non-ASCII digits ending the text stays in the bare '
+      'domain link', (tester) async {
+    expect(XUrl.match('see example.com:٣'), const [
+      UrlMatch(
+        start: 4,
+        end: 17,
+        url: 'http://example.com:٣',
+        kind: UrlMatchKind.web,
+      ),
+    ]);
+  });
+
   testWidgets('a bare domain glued after Thai letters leaves them out', (
     tester,
   ) async {
