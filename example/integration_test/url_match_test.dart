@@ -435,14 +435,6 @@ void main() {
     ]);
   });
 
-  testWidgets(
-    'an IPv4 address with no path links nothing where its digits make a '
-    'phone number',
-    (tester) async {
-      expect(XUrl.match('ip 192.168.1.1 x'), const <UrlMatch>[]);
-    },
-  );
-
   // Android and Windows link no written sms: URI.
   testWidgets('a written sms: URI links as itself', (tester) async {
     expect(XUrl.match('text sms:+15551234567 now'), const [

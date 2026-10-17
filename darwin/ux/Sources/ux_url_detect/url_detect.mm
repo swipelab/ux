@@ -27,9 +27,6 @@ static const uint32_t kKindWeb   = 0;
 static const uint32_t kKindEmail = 1;
 static const uint32_t kKindPhone = 2;
 
-// A dialable number has at least this many digits.
-static const NSUInteger kMinPhoneDigits = 7;
-
 @interface XUrlRawMatch : NSObject
 @property (nonatomic) int32_t start;
 @property (nonatomic) int32_t end;
@@ -260,24 +257,6 @@ static NSUInteger ux_web_end(const uint16_t *chars, NSUInteger start, NSUInteger
     return end;
 }
 
-// The tel: URL of the bare-domain match [start, end) where it is an IPv4
-// address alone with kMinPhoneDigits digits or more, which Android and Windows
-// take for a phone number: Patterns.PHONE matches it whole there and outranks
-// the web match. nil otherwise.
-static NSString *ux_ipv4_tel(const uint16_t *chars, NSUInteger start, NSUInteger end) {
-    NSMutableString *tel = [NSMutableString stringWithString:@"tel:"];
-    NSUInteger digits = 0;
-    for (NSUInteger i = start; i < end; i++) {
-        if (chars[i] >= '0' && chars[i] <= '9') {
-            [tel appendFormat:@"%C", chars[i]];
-            digits++;
-        } else if (chars[i] != '.') {
-            return nil;
-        }
-    }
-    return digits >= kMinPhoneDigits ? tel : nil;
-}
-
 static NSData *ux_utf8(NSString *s) {
     return [s dataUsingEncoding:NSUTF8StringEncoding allowLossyConversion:YES];
 }
@@ -331,7 +310,10 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
                             seenLetter = YES;
                         }
                     }
-                    if (digitCount < kMinPhoneDigits) return;
+                    // 7 digits is the conventional minimum dialable
+                    // length; below that the match is almost certainly a
+                    // short code / version / ZIP / score, not a phone.
+                    if (digitCount < 7) return;
                     url = [NSString stringWithFormat:@"tel:%@", digits];
                     kind = kKindPhone;
                 } else if (result.resultType == NSTextCheckingTypeLink) {
@@ -389,12 +371,12 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
                 const NSUInteger end = ux_web_end(utf16, r.location, NSMaxRange(r));
                 if (ux_glues_word(utf16, text.length, r.location, end) || !ux_has_tld(utf16, r.location, end)) return;
                 NSString *substr = [text substringWithRange:NSMakeRange(r.location, end - r.location)];
-                NSString *tel = ux_ipv4_tel(utf16, r.location, end);
+                NSString *withScheme = [@"http://" stringByAppendingString:substr];
                 XUrlRawMatch *m = [[XUrlRawMatch alloc] init];
                 m.start = (int32_t)r.location;
                 m.end   = (int32_t)end;
-                m.kind  = tel != nil ? kKindPhone : kKindWeb;
-                m.urlUtf8 = ux_utf8(tel ?: [@"http://" stringByAppendingString:substr]);
+                m.kind  = kKindWeb;
+                m.urlUtf8 = ux_utf8(withScheme);
                 [raws addObject:m];
             }];
         }
