@@ -1,4 +1,8 @@
 ### 0.18.0
+- **A link hiding an Arabic letter mark does not launch.** `XUrl.launch`
+  refuses a URL holding U+061C ARABIC LETTER MARK, as it refuses the other
+  bidi controls, so in `see evil.com/` with an Arabic letter mark before
+  `good.com`, the link's URL keeps the mark and does not launch.
 - **A link hiding a bidi isolate does not launch.** `XUrl.match` keeps the
   bidi isolates U+2066–U+2069 in a link's URL, as it keeps the other bidi
   controls, so `XUrl.launch` refuses the link whichever pass finds it: in
