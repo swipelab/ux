@@ -344,9 +344,12 @@
   transition's curve.
 - **A back gesture its screen stops taking is cancelled.** An iOS edge swipe
   or a predictive back that its screen stops taking before it lets go, as
-  `canPop` or `canSwipeBack` turns false, or another screen covers it, springs
-  the screen back over 150 ms, and its release or commit pops nothing. A
-  screen that leaves during one goes from where the gesture left it.
+  `canPop` turns false through `XRouter.pagesChanged` or another screen covers
+  it, springs the screen back over 150 ms, and its release or commit pops
+  nothing. An edge swipe is cancelled as `canSwipeBack` turns false too, while
+  a predictive back goes on and its commit goes back through `handleBack`, as
+  system back does. A screen that leaves during one goes from where the
+  gesture left it.
 - **A predictive back asks the screen's `handleBack`.** Android's predictive
   back drags a screen only where its `canSwipeBack` holds, as the iOS edge
   swipe does; on any other screen it goes back as system back does, through

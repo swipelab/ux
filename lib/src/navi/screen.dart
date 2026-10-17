@@ -71,7 +71,9 @@ mixin Screen<T> {
   /// sheet body land within the sheet rather than escaping it.
   ScreenHost? get host => parentHost;
 
-  /// Whether back pops this page: system back, the swipe and Esc.
+  /// Whether back pops this page: system back, the swipe and Esc. The back
+  /// gestures and the system-back state take it as the router renders, so a
+  /// page whose `canPop` changes calls [XRouter.pagesChanged].
   bool get canPop => true;
 
   /// Custom back handling, asked by system back and by a predictive back as
