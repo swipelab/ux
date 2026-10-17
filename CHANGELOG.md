@@ -354,10 +354,11 @@
   their curves through it. The spring back returns over 150 ms on the
   transition's curve.
 - **A back gesture its screen stops taking is cancelled.** An iOS edge swipe
-  or a predictive back that its screen stops taking before it lets go, as
-  `canPop` turns false through `XRouter.pagesChanged` or another screen covers
-  it, springs the screen back over 150 ms, and its release or commit pops
-  nothing. An edge swipe is cancelled as `canSwipeBack` turns false too, while
+  or a predictive back that its screen stops taking before it lets go springs
+  the screen back over 150 ms, and its release or commit pops nothing. A
+  screen stops taking it as `canPop` turns false through
+  `XRouter.pagesChanged`, and as it or a screen it sits in is covered or
+  hidden. An edge swipe is cancelled as `canSwipeBack` turns false too, while
   a predictive back goes on and its commit goes back through `handleBack`, as
   system back does. A screen that leaves during one goes from where the
   gesture left it.
