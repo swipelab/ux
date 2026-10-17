@@ -121,8 +121,8 @@ bool _isBidiControl(int c) =>
 /// [url], the native detector's URL for the link of [text] from [start] to
 /// [end], or, where the link's text holds a bidi control that [url] leaves
 /// out, as NSDataDetector's email and phone URLs do, [url]'s scheme and then
-/// the text after any scheme the text starts with, so [_isLaunchable]
-/// refuses it as it does a web link, whose URL keeps its text.
+/// the text, or the text alone where it starts with that scheme, so
+/// [_isLaunchable] refuses it as it does a web link, whose URL keeps its text.
 String _keepBidiControls(String url, String text, int start, int end) {
   if (url.codeUnits.any(_isBidiControl)) return url;
   final linked = text.substring(start, end);
@@ -175,8 +175,12 @@ class UrlMatch {
   /// Exclusive UTF-16 code-unit offset.
   final int end;
 
-  /// Canonical openable URL: `www.x.com` → `http://www.x.com`,
-  /// phone → `tel:<digits>`, email → `mailto:<addr>`.
+  /// Canonical URL: `www.x.com` → `http://www.x.com`, phone →
+  /// `tel:<digits>`, email → `mailto:<addr>`. Where the link's text
+  /// holds a bidi control that the native detector's URL leaves out, it is
+  /// that URL's scheme and then the text, or the text alone where it starts
+  /// with that scheme, such as `tel:+1 ` and a right-to-left mark before
+  /// `555 123 4567`, which [XUrl.launch] refuses.
   final String url;
 
   /// What kind of thing was detected.
@@ -371,14 +375,18 @@ bool _phoneLeadingCharOk(String text, int start, int end) {
 /// not exhaustive. This pass surfaces every RFC-3986 scheme so the
 /// renderer can style and the tap router can decide; [_dedupeMatches]
 /// collapses anything overlapping with what native already found. A match
-/// ends before whitespace, a C0 or C1 control, CJK punctuation (U+3000's
-/// block's punctuation and the vertical, compatibility, small, fullwidth and
-/// halfwidth forms of punctuation) and the ASCII marks `Patterns.WEB_URL`'s
-/// path does not take: `"`, `<`, `>`, `[`, `\`, `]`, `^`, `` ` ``, `{`, `|`,
-/// `}` and a `%` that two hex digits do not follow. A bracketed IP literal
-/// host, after any userinfo, keeps its brackets.
+/// takes the scheme characters before its `://` from where they begin, and
+/// its link starts at their first letter, so a `_` or a digit before a scheme
+/// does not keep it from linking, as `Patterns.WEB_URL` links an http URL
+/// after one. A match ends before whitespace, a C0 or C1 control or DEL, CJK
+/// punctuation (U+3000's block's punctuation and the vertical, compatibility,
+/// small, fullwidth and halfwidth forms of punctuation) and the ASCII marks
+/// `Patterns.WEB_URL`'s path does not take: `"`, `<`, `>`, `[`, `\`, `]`, `^`,
+/// `` ` ``, `{`, `|`, `}` and a `%` that two hex digits do not follow. A
+/// bracketed IP literal host, after any userinfo, keeps its brackets.
 final RegExp _kAnySchemeRegex = RegExp(
-  r'\b[a-zA-Z][a-zA-Z0-9+.\-]*://'
+  // Matching from where the scheme characters begin scans each run once.
+  r'(?<![a-zA-Z0-9+.\-])([0-9+.\-]*)[a-zA-Z][a-zA-Z0-9+.\-]*://'
   r"(?:(?:(?:[\w\-.~!$&'()*+,;=:]|%[0-9a-fA-F]{2})*@)?\[[0-9a-fA-F:.]+\])?"
   r'(?:[^\s\x00-\x1F\x7F-\x9F"%<>\[\\\]^`{|}'
   r'\u3001-\u3003\u3008-\u3011\u3014-\u301F\uFE10-\uFE19\uFE30-\uFE6B'
@@ -389,13 +397,14 @@ List<UrlMatch> _mergeCustomSchemeMatches(List<UrlMatch> native, String text) {
   if (!text.contains('://')) return native;
   final extra = <UrlMatch>[];
   for (final m in _kAnySchemeRegex.allMatches(text)) {
-    final end = _trimUrlTrailingPunctuation(text, m.start, m.end);
-    if (end - m.start < 4 /* "x://" minimum */ ) continue;
+    final start = m.start + m[1]!.length;
+    final end = _trimUrlTrailingPunctuation(text, start, m.end);
+    if (end - start < 4 /* "x://" minimum */ ) continue;
     extra.add(
       UrlMatch(
-        start: m.start,
+        start: start,
         end: end,
-        url: _sanitizeUrl(text.substring(m.start, end)),
+        url: _sanitizeUrl(text.substring(start, end)),
         kind: UrlMatchKind.web,
       ),
     );
@@ -404,25 +413,30 @@ List<UrlMatch> _mergeCustomSchemeMatches(List<UrlMatch> native, String text) {
   return _dedupeMatches([...native, ...extra]);
 }
 
-/// Drops the trailing sentence-end punctuation, quote and parentheses
-/// [_kAnySchemeRegex] would otherwise drag into the match
-/// (`bl://x?code=1.` → `bl://x?code=1`).
+/// The end of the [_kAnySchemeRegex] link [start, end) before a trailing `.`,
+/// `,`, `;`, `!`, `'` or `(` and a trailing `)` the link does not open, as the
+/// native detectors end a web link (`bl://x?code=1.` → `bl://x?code=1`).
 int _trimUrlTrailingPunctuation(String text, int start, int end) {
+  int unopened = 0;
+  for (int i = start; i < end; i++) {
+    final c = text.codeUnitAt(i);
+    if (c == 0x29 /* ) */ ) unopened++;
+    if (c == 0x28 /* ( */ ) unopened--;
+  }
   while (end > start) {
     final c = text.codeUnitAt(end - 1);
-    if (c == 0x2E /* . */ ||
+    if (c == 0x29 /* ) */ && unopened > 0) {
+      unopened--;
+    } else if (c == 0x28 /* ( */ ) {
+      unopened++;
+    } else if (!(c == 0x2E /* . */ ||
         c == 0x2C /* , */ ||
         c == 0x3B /* ; */ ||
-        c == 0x3A /* : */ ||
         c == 0x21 /* ! */ ||
-        c == 0x3F /* ? */ ||
-        c == 0x27 /* ' */ ||
-        c == 0x28 /* ( */ ||
-        c == 0x29 /* ) */ ) {
-      end--;
-    } else {
+        c == 0x27 /* ' */ )) {
       break;
     }
+    end--;
   }
   return end;
 }

@@ -181,8 +181,9 @@ void main() {
       );
       // darwin's native link ties the any-scheme pass's; Windows' ends before
       // the zero-width space, so the any-scheme pass's longer link is kept.
-      const native = {
-        'darwin': [
+      _expectMatch(
+        text,
+        darwin: const [
           UrlMatch(
             start: 1,
             end: 15,
@@ -191,7 +192,7 @@ void main() {
           ),
           phone,
         ],
-        'Windows': [
+        windows: const [
           UrlMatch(
             start: 1,
             end: 14,
@@ -200,10 +201,7 @@ void main() {
           ),
           phone,
         ],
-      };
-      for (final MapEntry(key: platform, value: matches) in native.entries) {
-        XUrl.debugDetect = (_) => _wire(matches);
-        expect(XUrl.match(text), const [
+        expected: const [
           UrlMatch(
             start: 1,
             end: 15,
@@ -211,10 +209,91 @@ void main() {
             kind: UrlMatchKind.web,
           ),
           phone,
-        ], reason: platform);
-      }
+        ],
+      );
+    });
+
+    test("a scheme link starts after a '_'", () {
+      const banlu = UrlMatch(
+        start: 1,
+        end: 16,
+        url: 'banlu://chat/42',
+        kind: UrlMatchKind.web,
+      );
+      _expectMatch(
+        '_banlu://chat/42 x',
+        darwin: const [banlu],
+        windows: const [],
+        expected: const [banlu],
+      );
+    });
+
+    test('a scheme link starts after a digit', () {
+      const https = UrlMatch(
+        start: 1,
+        end: 14,
+        url: 'https://a.com',
+        kind: UrlMatchKind.web,
+      );
+      _expectMatch(
+        '1https://a.com x',
+        darwin: const [
+          UrlMatch(
+            start: 9,
+            end: 14,
+            url: 'http://a.com',
+            kind: UrlMatchKind.web,
+          ),
+        ],
+        windows: const [https],
+        expected: const [https],
+      );
+    });
+
+    test("a '?' ending a scheme link stays in it", () {
+      const tg = UrlMatch(
+        start: 0,
+        end: 24,
+        url: 'tg://resolve?domain=abc?',
+        kind: UrlMatchKind.web,
+      );
+      _expectMatch(
+        'tg://resolve?domain=abc?',
+        darwin: const [tg],
+        windows: const [],
+        expected: const [tg],
+      );
+    });
+
+    test("a ')' a scheme link opens stays in it", () {
+      const bl = UrlMatch(
+        start: 5,
+        end: 17,
+        url: 'bl://x/a_(b)',
+        kind: UrlMatchKind.web,
+      );
+      _expectMatch(
+        '(see bl://x/a_(b)).',
+        darwin: const [bl],
+        windows: const [],
+        expected: const [bl],
+      );
     });
   });
+}
+
+/// Expects [XUrl.match] of [text] to be [expected] with each platform's
+/// native reading of it.
+void _expectMatch(
+  String text, {
+  required List<UrlMatch> darwin,
+  required List<UrlMatch> windows,
+  required List<UrlMatch> expected,
+}) {
+  for (final (platform, native) in [('darwin', darwin), ('Windows', windows)]) {
+    XUrl.debugDetect = (_) => _wire(native);
+    expect(XUrl.match(text), expected, reason: platform);
+  }
 }
 
 /// [matches] in the native detector's wire layout.

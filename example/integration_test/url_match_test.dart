@@ -271,13 +271,13 @@ void main() {
     ]);
   });
 
-  testWidgets('a port ASCII letters follow stays out of a web link after an '
-      'underscore', (tester) async {
+  testWidgets('a web link with a scheme after an underscore keeps a port ASCII '
+      'letters follow, as after a space', (tester) async {
     expect(XUrl.match('foo _http://example.com:8080abc x'), const [
       UrlMatch(
         start: 5,
-        end: 23,
-        url: 'http://example.com',
+        end: 31,
+        url: 'http://example.com:8080abc',
         kind: UrlMatchKind.web,
       ),
     ]);
