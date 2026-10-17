@@ -367,6 +367,16 @@
   `handleBack`. A predictive back's commit asks the screen's `handleBack`
   before it pops, and one that `handleBack` consumes springs the screen back
   over 150 ms.
+- **Back inside a `SheetScreen` goes to its nested page.** System back on a
+  `SheetScreen` with a nested page asks that page's `handleBack`, and pops the
+  page only where `handleBack` declines and its `canPop` holds.
+- **A screen takes no back gesture that a page inside it takes.** A screen
+  takes an edge swipe or a predictive back only while it is shown, the top
+  one or one shown beside it in every `ScreenStack` around it, and takes
+  none while a `ScreenStack` inside it, or inside a screen shown beside it,
+  shows a screen above its home. So a predictive back on a sheet asks its
+  nested page's `handleBack` once, and one on a page pushed over the sheet
+  pops that page alone.
 - **A back gesture reads `canSwipeBack` as it starts.** The iOS edge swipe
   reads the screen's `canSwipeBack` as the touch goes down or the trackpad pan
   starts, as Android's predictive back reads it as the gesture starts, so a

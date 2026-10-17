@@ -84,6 +84,9 @@ class ScreenStackState extends State<ScreenStack>
   bool _canPop = false;
   ScreenSlot? _focusedSlot;
 
+  /// The slot of the screen this stack is built in; null at the top level.
+  ScreenSlot? _outerSlot;
+
   @override
   void initState() {
     super.initState();
@@ -94,6 +97,15 @@ class ScreenStackState extends State<ScreenStack>
     _sync();
     _updateCanPop();
     _scheduleTopFocusHandoff();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final slot = context.dependOnInheritedWidgetOfExactType<_SlotScope>()?.slot;
+    if (slot == _outerSlot) return;
+    _outerSlot?._stacks.remove(this);
+    _outerSlot = slot?.._stacks.add(this);
   }
 
   void _sync() {
@@ -295,6 +307,7 @@ class ScreenStackState extends State<ScreenStack>
 
   @override
   void dispose() {
+    _outerSlot?._stacks.remove(this);
     heroController.dispose();
     _homeSlot.controller.dispose();
     _homeSlot.focusScope.dispose();
@@ -316,9 +329,32 @@ class ScreenStackState extends State<ScreenStack>
   bool get _onTop {
     final outer = ScreenStack.maybeOf(context);
     if (outer == null) return true;
-    final slot = context.getInheritedWidgetOfExactType<_SlotScope>()?.slot;
-    return slot == outer._topSlot && outer._onTop;
+    return _outerSlot == outer._topSlot && outer._onTop;
   }
+
+  /// Whether the screen holding this stack is, in every stack around it, the
+  /// top one or one shown beside it.
+  bool get _shown {
+    final outer = ScreenStack.maybeOf(context);
+    if (outer == null) return true;
+    return outer._withBeside(outer._topSlot).contains(_outerSlot) &&
+        outer._shown;
+  }
+
+  /// [slot] and the screens shown beside it.
+  Iterable<ScreenSlot> _withBeside(ScreenSlot slot) => [
+    slot,
+    ..._entries.where((e) => e.beside == slot && !e.removing && !e.hidden),
+  ];
+
+  /// Whether a stack inside [slot], or inside a screen shown beside it, has
+  /// its home covered.
+  bool _holdsCover(ScreenSlot slot) =>
+      _withBeside(slot)
+          .any((shown) => shown._stacks.any((stack) => stack._homeCovered));
+
+  bool get _homeCovered =>
+      _entries.any((e) => e._covers) || _holdsCover(_homeSlot);
 
   Widget _place(BuildContext context, ScreenSlot entry, Widget slot) =>
       entry._place?.call(context, entry.page, slot) ?? slot;
@@ -425,6 +461,10 @@ class ScreenSlot {
 
   /// The back gesture driving [controller], while one does.
   _BackGesture? _backGesture;
+
+  /// The stacks built inside the screen; while one's home is covered, the
+  /// screen takes no back gesture.
+  final Set<ScreenStackState> _stacks = {};
 
   /// Whether the screen is kept offstage: mounted with its State, but
   /// unpainted, out of hit testing and focus, its tickers muted.
@@ -546,13 +586,17 @@ class _GestureCurve extends Animation<double>
 /// [AnimationController] by each back gesture that starts where its screen's
 /// [Screen.canSwipeBack] holds: the iOS edge swipe by the finger's travel
 /// since the touch went down, over the entry's width, and Android's predictive
-/// back by the gesture's progress. Once the gesture lets go the entry settles
-/// from there, popping when the gesture commits and otherwise returning to 1
-/// over 150 ms; a predictive back's commit asks [Screen.handleBack] first, and
-/// one it consumes returns the entry to 1 as well. A gesture is cancelled if
-/// the handler is disabled before it lets go, and an edge swipe also if its
-/// screen turns [Screen.canSwipeBack] false: the entry returns to 1 unless it
-/// is leaving.
+/// back by the gesture's progress. A handler takes a back gesture only in a
+/// shown screen, one that in every [ScreenStack] around it is the top one or
+/// one shown beside it, and takes none while a [ScreenStack] inside its
+/// screen, or inside a screen shown beside it, shows a screen above its home,
+/// so no handler takes a back gesture along with a handler inside its screen.
+/// Once the gesture lets go the entry settles from there, popping when the
+/// gesture commits and otherwise returning to 1 over 150 ms; a predictive
+/// back's commit asks [Screen.handleBack] first, and one it consumes returns
+/// the entry to 1 as well. A gesture is cancelled if the handler is disabled
+/// before it lets go, and an edge swipe also if its screen turns
+/// [Screen.canSwipeBack] false: the entry returns to 1 unless it is leaving.
 class ScreenBackHandler extends StatefulWidget {
   /// Binds the slot the gesture drags and the pop it commits to.
   const ScreenBackHandler({
@@ -714,7 +758,13 @@ class ScreenBackHandlerState extends State<ScreenBackHandler>
     return platform == TargetPlatform.iOS || platform == TargetPlatform.macOS;
   }
 
-  bool get _takesBack => widget.enabled && widget.entry.page.canSwipeBack;
+  bool get _takesBack {
+    final stack = ScreenStack.of(context);
+    return widget.enabled &&
+        widget.entry.page.canSwipeBack &&
+        stack._shown &&
+        !stack._holdsCover(widget.entry);
+  }
 
   bool get _canSwipe => _isIOSLike && _takesBack;
 

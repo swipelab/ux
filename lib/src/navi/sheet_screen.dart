@@ -123,16 +123,16 @@ mixin SheetScreen<T> on Screen<T> {
     );
   }
 
-  /// System back / iOS edge swipe pops the innermost nested page
-  /// first. With the nested stack empty, declines — the router's
-  /// pop-the-top fallback then dismisses the sheet itself.
+  /// Back goes to the top nested page first: its [handleBack], then,
+  /// unless that consumes the back, a pop where its [canPop] holds. With
+  /// the nested stack empty, declines — the router's pop-the-top fallback
+  /// then dismisses the sheet itself.
   @override
   bool handleBack() {
-    if (_nestedHost.pages.isNotEmpty) {
-      _nestedHost.pages.last.pop();
-      return true;
-    }
-    return super.handleBack();
+    final top = _nestedHost.pages.lastOrNull;
+    if (top == null) return super.handleBack();
+    if (!top.handleBack() && top.canPop) top.pop();
+    return true;
   }
 
   @override
