@@ -14,6 +14,7 @@ import 'diff.dart';
 import 'classes.dart';
 import 'harness.dart';
 import 'intree.dart';
+import 'props.dart';
 import 'selfcheck.dart';
 import 'win_icu.dart';
 import 'wire.dart';
@@ -34,6 +35,7 @@ Future<void> main(List<String> args) async {
     'catalog' => await _catalog(harness, options),
     'win' => await _win(harness),
     'diff' => await _diff(harness, options),
+    'props' => await _props(harness),
     _ => _usage(),
   };
   exit(ok ? 0 : 1);
@@ -194,6 +196,14 @@ Future<bool> _diff(Harness harness, _Options options) async {
     ..writeAll([for (final d in unclassified) 'UNCLASSIFIED $d'], '\n')
     ..writeln();
   return ok && unclassified.isEmpty;
+}
+
+Future<bool> _props(Harness harness) async {
+  stdout
+    ..writeln(header(harness.host, commit: harness.commit, locale: 'en_US'))
+    ..writeAll(await props(harness), '\n')
+    ..writeln();
+  return true;
 }
 
 Future<bool> _win(Harness harness) async {
