@@ -357,11 +357,11 @@
   or a predictive back that its screen stops taking before it lets go springs
   the screen back over 150 ms, and its release or commit pops nothing. A
   screen stops taking it as `canPop` turns false through
-  `XRouter.pagesChanged`, and as it or a screen it sits in is covered or
-  hidden. An edge swipe is cancelled as `canSwipeBack` turns false too, while
-  a predictive back goes on and its commit goes back through `handleBack`, as
-  system back does. A screen that leaves during one goes from where the
-  gesture left it.
+  `XRouter.pagesChanged`, and as it stops being shown: as it or a screen it
+  sits in is covered, hidden or leaves. An edge swipe is cancelled as
+  `canSwipeBack` turns false too, while a predictive back goes on and its
+  commit goes back through `handleBack`, as system back does. A screen that
+  leaves during one goes from where the gesture left it.
 - **A predictive back asks the screen's `handleBack`.** Android's predictive
   back drags a screen only where its `canSwipeBack` holds, as the iOS edge
   swipe does; on any other screen it goes back as system back does, through
