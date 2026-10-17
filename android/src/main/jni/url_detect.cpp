@@ -334,7 +334,11 @@ bool is_path_delimiter(jchar c) {
 // fullwidth ')' is that link's path where the stretch holds a path delimiter
 // before it and the pattern matches the link through it whole. No host runs
 // across its glue: the web match is the part before the glue where the pattern
-// matches that whole, and the search goes on from the glue.
+// matches that whole, and the search goes on from the glue. A phone match that
+// Patterns.WEB_URL matches whole is a dotted IPv4 address, no phone, unless it
+// starts with a '0', a national trunk prefix; the address is a web link where
+// an unspaced letter follows it, since no word boundary ends a Patterns.WEB_URL
+// match there.
 void run_pattern(JNIEnv* env, jstring text, const jchar* chars, jint len, jobject pattern,
                  uint32_t kind, std::vector<RawMatch>& out) {
   jobject matcher = env->CallObjectMethod(pattern, g_matcher_method, text);
@@ -371,19 +375,25 @@ void run_pattern(JNIEnv* env, jstring text, const jchar* chars, jint len, jobjec
         if (end == to && to < len && chars[to] == u'\uFF08') cut = start;
         end = web_end(env, pattern, text, chars, start, end, to);
       }
+      uint32_t found = kind;
+      if (kind == kKindPhone && chars[start] != u'0' &&
+          matches_whole(env, g_web_url_pattern, text, start, end)) {
+        if (end == len || !is_unspaced(chars[end])) continue;
+        found = kKindWeb;
+      }
 
       std::string group = utf16_to_utf8(chars + start, end - start);
 
       std::string url;
-      if (kind == kKindWeb) {
+      if (found == kKindWeb) {
         url = canonical_web_url(group);
-      } else if (kind == kKindEmail) {
+      } else if (found == kKindEmail) {
         url = std::string("mailto:") + group;
-      } else if (kind == kKindPhone) {
+      } else if (found == kKindPhone) {
         url = canonical_phone(group);
       }
       if (url.empty()) continue;
-      out.push_back(RawMatch{(int32_t)start, (int32_t)end, kind, std::move(url)});
+      out.push_back(RawMatch{(int32_t)start, (int32_t)end, found, std::move(url)});
     }
     from = to + 1;
   }

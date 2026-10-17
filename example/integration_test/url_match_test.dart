@@ -471,6 +471,81 @@ void main() {
     ]);
   });
 
+  testWidgets('an IPv4 address of seven digits or more links, as no phone '
+      'number', (tester) async {
+    expect(XUrl.match('ip 192.168.1.1 x'), const [
+      UrlMatch(
+        start: 3,
+        end: 14,
+        url: 'http://192.168.1.1',
+        kind: UrlMatchKind.web,
+      ),
+    ]);
+  });
+
+  testWidgets('a zero-padded IPv4 address that a 0 starts is a phone number', (
+    tester,
+  ) async {
+    expect(XUrl.match('ip 010.000.000.001 x'), const [
+      UrlMatch(
+        start: 3,
+        end: 18,
+        url: 'tel:010000000001',
+        kind: UrlMatchKind.phone,
+      ),
+    ]);
+  });
+
+  testWidgets(
+    'a number dotted like an IPv4 address that a 0 trunk prefix starts is a '
+    'phone number',
+    (tester) async {
+      expect(XUrl.match('call 044.123.45.67 now'), const [
+        UrlMatch(
+          start: 5,
+          end: 18,
+          url: 'tel:0441234567',
+          kind: UrlMatchKind.phone,
+        ),
+      ]);
+    },
+  );
+
+  testWidgets(
+    'an IPv4 address that ASCII letters follow is no link and no phone number',
+    (tester) async {
+      expect(XUrl.match('ip 192.168.1.1abc x'), const <UrlMatch>[]);
+    },
+  );
+
+  testWidgets('an IPv4 address glued between CJK letters leaves them out', (
+    tester,
+  ) async {
+    expect(XUrl.match('访问192.168.1.1然后'), const [
+      UrlMatch(
+        start: 2,
+        end: 13,
+        url: 'http://192.168.1.1',
+        kind: UrlMatchKind.web,
+      ),
+    ]);
+  });
+
+  testWidgets(
+    'an IPv4 address of fewer than seven digits glued between CJK letters '
+    'leaves them out',
+    (tester) async {
+      expect(XUrl.match('访问10.0.0.1然后'), const [
+        UrlMatch(
+          start: 2,
+          end: 10,
+          url: 'http://10.0.0.1',
+          kind: UrlMatchKind.web,
+        ),
+      ]);
+    },
+  );
+
   // Android and Windows link no written sms: URI.
   testWidgets('a written sms: URI links as itself', (tester) async {
     expect(XUrl.match('text sms:+15551234567 now'), const [
