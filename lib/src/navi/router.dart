@@ -478,6 +478,20 @@ class XRouteParser extends RouteInformationParser<Object> {
 /// Resolves a [XRouter] from the [Store] and sets up theming,
 /// localization, scroll behavior, and back-button dispatching —
 /// without pulling in Flutter's [Navigator] or [MaterialApp].
+///
+/// XApp's [ActionDispatcher] invokes a [DismissIntent] action with an intent
+/// that an action handing it on with [Actions.invoke], as a focused text
+/// field's does, takes past actions disabled for it, such as a [Scaffold]'s
+/// with no drawer open. A dispatcher an app sets on an [Actions] under XApp
+/// invokes the actions under that [Actions] in place of XApp's, so it must
+/// pass each [ActionDispatcher.invokeAction] and
+/// [ActionDispatcher.invokeActionIfEnabled] call for a [DismissIntent] to the
+/// dispatcher [Actions.of] gives for a context above its [Actions], with the
+/// action, intent and context as given. One that invokes the action itself
+/// leaves the intent a plain [DismissIntent], which a text field hands on to
+/// the nearest [DismissIntent] action around it, enabled or not, so Esc in a
+/// focused text field inside a [Scaffold] neither unfocuses the field nor
+/// goes back.
 class XApp extends StatelessWidget {
   /// Binds the router to render and the app-wide theming and localization
   /// it renders under.

@@ -27,6 +27,34 @@ class _Sheet with Screen<void>, SheetScreen<void> {
       TextButton(onPressed: () {}, child: const Text('body'));
 }
 
+class _PassingDispatcher extends ActionDispatcher {
+  const _PassingDispatcher(this.above);
+
+  final ActionDispatcher above;
+
+  @override
+  Object? invokeAction(
+    Action<Intent> action,
+    Intent intent, [
+    BuildContext? context,
+  ]) => above.invokeAction(action, intent, context);
+
+  @override
+  (bool, Object?) invokeActionIfEnabled(
+    Action<Intent> action,
+    Intent intent, [
+    BuildContext? context,
+  ]) => above.invokeActionIfEnabled(action, intent, context);
+}
+
+class _Disabled extends DismissAction {
+  @override
+  bool isEnabled(DismissIntent intent) => false;
+
+  @override
+  void invoke(DismissIntent intent) {}
+}
+
 FocusNode? get _primary => FocusManager.instance.primaryFocus;
 
 /// Focuses a node in an entry inserted beside the router's.
@@ -165,6 +193,45 @@ void main() {
     }),
   );
 
+  testWidgets(
+    'Esc in a text field in a Scaffold under an app\'s dispatcher that '
+    'passes its calls to XApp\'s unfocuses it, and a second Esc pops its '
+    'screen',
+    (tester) async {
+      final router = XRouter(home: _Screen(const SizedBox()));
+      await tester.pumpWidget(XApp(router: router));
+      final field = FocusNode();
+      addTearDown(field.dispose);
+      final page = _Screen(
+        Builder(
+          builder: (context) => Actions(
+            dispatcher: _PassingDispatcher(Actions.of(context)),
+            actions: const {},
+            child: Scaffold(
+              body: Center(child: TextField(focusNode: field)),
+            ),
+          ),
+        ),
+      );
+      router.push(page);
+      await tester.pumpAndSettle();
+      field.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(field.hasFocus, isFalse);
+      expect(page.popped, isFalse);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(page.popped, isTrue);
+    },
+    variant: TargetPlatformVariant({
+      TargetPlatform.macOS,
+      TargetPlatform.windows,
+    }),
+  );
+
   testWidgets('Esc in a text field with its menu shown hides the menu and '
       'leaves the field focused', (tester) async {
     final router = XRouter(home: _Screen(const SizedBox()));
@@ -254,6 +321,42 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pump();
     expect(defaults, 1);
+  });
+
+  testWidgets('Esc on an overridable action whose default is disabled, with '
+      'no enabled one around it, goes unhandled', (tester) async {
+    final overlay = GlobalKey<OverlayState>();
+    await tester.pumpWidget(
+      XApp(
+        router: XRouter(home: _Screen(const SizedBox())),
+        overlayKey: overlay,
+      ),
+    );
+    final node = FocusNode();
+    addTearDown(node.dispose);
+    final entry = OverlayEntry(
+      builder: (_) => Builder(
+        builder: (context) => Actions(
+          actions: {
+            DismissIntent: Action<DismissIntent>.overridable(
+              defaultAction: _Disabled(),
+              context: context,
+            ),
+          },
+          child: Focus(
+            focusNode: node,
+            child: const SizedBox(width: 10, height: 10),
+          ),
+        ),
+      ),
+    );
+    addTearDown(entry.dispose);
+    addTearDown(entry.remove);
+    overlay.currentState!.insert(entry);
+    await tester.pump();
+    node.requestFocus();
+    await tester.pump();
+    expect(await tester.sendKeyEvent(LogicalKeyboardKey.escape), isFalse);
   });
 
   testWidgets('Esc that an action hands on through an app\'s dispatcher '
