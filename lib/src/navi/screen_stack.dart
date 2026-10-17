@@ -88,11 +88,18 @@ class ScreenStackState extends State<ScreenStack>
   final ScreenHeroController heroController = ScreenHeroController();
   final FocusScopeNode _outerScope = FocusScopeNode(debugLabel: 'ScreenStack');
 
-  bool _canPop = false;
   ScreenSlot? _focusedSlot;
 
   /// The slot of the screen this stack is built in; null at the top level.
   ScreenSlot? _outerSlot;
+
+  /// The outermost stack around this one as this one last built.
+  late ScreenStackState _builtRoot;
+
+  /// [canPop] as this stack last told the [NavigationNotification] listeners
+  /// around it.
+  bool? _toldCanPop;
+  bool _reviewingCanPop = false;
 
   @override
   void initState() {
@@ -102,7 +109,6 @@ class ScreenStackState extends State<ScreenStack>
       _entries.add(_createEntry(page, animated: false));
     }
     _sync();
-    _updateCanPop();
     _scheduleTopFocusHandoff();
   }
 
@@ -160,14 +166,16 @@ class ScreenStackState extends State<ScreenStack>
     });
   }
 
-  void _updateCanPop() {
-    final canPop = _entries.any((e) => e._covers && e.page.canPop);
-    if (canPop == _canPop) return;
-    _canPop = canPop;
+  /// Tells the [NavigationNotification] listeners around this stack after the
+  /// frame what [canPop] holds, where that changed.
+  void _reviewCanPop() {
+    if (_reviewingCanPop) return;
+    _reviewingCanPop = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        NavigationNotification(canHandlePop: canPop).dispatch(context);
-      }
+      _reviewingCanPop = false;
+      if (!mounted || canPop == _toldCanPop) return;
+      _toldCanPop = canPop;
+      NavigationNotification(canHandlePop: canPop).dispatch(context);
     });
   }
 
@@ -241,7 +249,6 @@ class ScreenStackState extends State<ScreenStack>
       top,
       entered: top != _homeSlot && !oldSet.contains(top.page),
     );
-    _updateCanPop();
     _scheduleTopFocusHandoff();
     setState(() {});
   }
@@ -327,6 +334,7 @@ class ScreenStackState extends State<ScreenStack>
   @override
   void dispose() {
     _outerSlot?._stacks.remove(this);
+    _builtRoot._reviewCanPop();
     heroController.dispose();
     _homeSlot.controller.dispose();
     _homeSlot.focusScope.dispose();
@@ -406,10 +414,28 @@ class ScreenStackState extends State<ScreenStack>
   /// stacks, none inside another, as two side by side or one in a screen and
   /// one in the screen shown beside it, it is the screen pushed last of those
   /// each would name, so back undoes the last push still shown. A screen
-  /// popped before its stack rebuilds counts as gone. Back goes to the
-  /// outermost stack's: an `XRouter`'s system back, and a predictive back to
-  /// its [ScreenBackHandler] alone.
+  /// popped before its stack rebuilds counts as gone.
   Screen? get nestedTop => _nestedBack?.page;
+
+  /// The screen above [ScreenStack.home] that back goes to: [nestedTop] where
+  /// there is one, else the top unpopped screen covering the ones under it;
+  /// null where back goes to home. Back goes to the outermost stack's: an
+  /// `XRouter`'s system back and Esc, and a predictive back to its
+  /// [ScreenBackHandler] alone.
+  Screen? get backTop {
+    final slot = _back;
+    return slot == _homeSlot ? null : slot.page;
+  }
+
+  /// Whether back has a screen to go to: [backTop] where its [Screen.canPop]
+  /// holds, or, where back goes to home, an unpopped screen shown beside
+  /// home. After each frame in which it changes, by a change in this stack or
+  /// in one inside it, the outermost stack tells the [NavigationNotification]
+  /// listeners around it.
+  bool get canPop {
+    if (backTop case final page?) return page.canPop;
+    return _withBeside(_homeSlot).any((e) => e != _homeSlot && !e.page.popped);
+  }
 
   /// The outermost stack around this one, or this one at the top level.
   ScreenStackState get _root => ScreenStack.maybeOf(context)?._root ?? this;
@@ -420,6 +446,7 @@ class ScreenStackState extends State<ScreenStack>
   @override
   Widget build(BuildContext context) {
     ScreenBackHandlerState._reviewBacks();
+    (_builtRoot = _root)._reviewCanPop();
     final top = _entries.lastWhereOrNull((e) => e._covers);
     final shown = _shown ? _withBeside(_topSlot) : const <ScreenSlot>[];
     for (final slot in [_homeSlot, ..._entries]) {
@@ -461,7 +488,7 @@ class ScreenStackState extends State<ScreenStack>
                 ScreenBackHandler(
                   key: entry.key,
                   entry: entry,
-                  enabled: entry == top && _canPop && entry.page.canPop,
+                  enabled: entry == top && entry.page.canPop,
                   onPop: () => entry.page.pop(),
                 ),
               ),
@@ -672,9 +699,8 @@ class _GestureCurve extends Animation<double>
 /// back by the gesture's progress.
 ///
 /// One predictive back goes to one handler: that of the outermost
-/// [ScreenStack]'s [ScreenStackState.nestedTop], which an `XRouter`'s system
-/// back goes to first, or, where there is none, that of the outermost stack's
-/// top unpopped screen. The handler that took it cancels it once a stack's
+/// [ScreenStack]'s [ScreenStackState.backTop], which an `XRouter`'s system
+/// back and Esc go to too. The handler that took it cancels it once a stack's
 /// build or the commit names another, as when a [ScreenStack] inside its
 /// screen starts showing a screen above its home, or its screen is covered,
 /// hidden, popped or leaves.
