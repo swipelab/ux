@@ -904,6 +904,57 @@ void main() {
     expect(right.backs, 0);
   });
 
+  testWidgets('a predictive back and system back on a shell showing a '
+      'covering screen it hosts go to that screen alone', (tester) async {
+    final guard = _Guard();
+    final router = await _boot(
+      tester,
+      platform: TargetPlatform.android,
+      page: _Tabs([guard, _Holder(const SizedBox.expand())]),
+    );
+
+    await _backGesture(tester, 'startBackGesture', 0);
+    await _backGesture(tester, 'commitBackGesture');
+    await tester.pumpAndSettle();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(guard.backs, 2);
+    expect(router.stack, hasLength(1));
+  });
+
+  testWidgets('the framework takes back while a ScreenStack in the router\'s '
+      'home shows a page, and leaves it to the OS once the page pops', (
+    tester,
+  ) async {
+    final handlesBack = <Object?>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'SystemNavigator.setFrameworkHandlesBack') {
+          handlesBack.add(call.arguments);
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    final pages = ValueNotifier<List<Screen>>([]);
+    addTearDown(pages.dispose);
+    await tester.pumpWidget(XApp(router: XRouter(home: _Holder(_fed(pages)))));
+
+    pages.value = [_Page()];
+    await tester.pumpAndSettle();
+    expect(handlesBack.lastOrNull, isTrue);
+
+    pages.value = [];
+    await tester.pumpAndSettle();
+    expect(handlesBack.lastOrNull, isFalse);
+  });
+
   testWidgets('a predictive back whose screen pops before it commits, in one '
       'frame, asks the screen nothing', (tester) async {
     final page = _Gated();

@@ -413,26 +413,37 @@
 - **Back inside a `SheetScreen` goes to its nested page.** System back on a
   `SheetScreen` with a nested page asks that page's `handleBack`, and pops the
   page only where `handleBack` declines and its `canPop` holds.
-- **One back goes to one screen.** A predictive back goes to the screen
-  `ScreenStackState.nestedTop` names, which system back goes to first, and
-  where it names none, to the top unpopped screen. Of `ScreenStack`s that
-  each show a page above their home, none inside another, such as two side
-  by side or one in a screen and one in the screen shown beside it, back
-  goes to the page pushed last. An iOS edge swipe goes to the screen whose
-  edge it starts on, an unpopped one shown in every `ScreenStack` around it,
-  and to none while a `ScreenStack` inside that screen, or inside a screen
-  shown beside it, shows a screen above its home. So a predictive back on a
-  sheet asks its nested page's `handleBack` once, and one on a page pushed
-  over the sheet pops that page alone.
-- **System back goes to a page inside a screen first.** System back, and Esc
-  no `ScreenStack` takes, go to the top screen of the innermost `ScreenStack`
-  that shows a screen above its home inside the shown screens, of several the
-  one pushed last, which `ScreenStackState.nestedTop` names:
-  `XRouter.backDispatcher` asks its `handleBack`, then pops it where its
-  `canPop` holds. Where there is none, the top pushed screen's `handleBack`
-  takes back, or the screen pops where its `canPop` holds and stays where it
-  does not. So system back in a wide `ScreenShell` asks a page in its beside
-  screen's `ScreenStack` before the shell.
+- **One back goes to one screen.** A predictive back, system back and Esc no
+  `ScreenStack` takes go to the screen `ScreenStackState.backTop` names in
+  the outermost `ScreenStack`: the one `ScreenStackState.nestedTop` names, the
+  top screen of the innermost `ScreenStack` that shows a screen above its home
+  inside the shown screens, and where it names none, the top unpopped screen
+  covering the ones under it, pushed or hosted by a `ScreenShell`. Of
+  `ScreenStack`s that each show a page above their home, none inside another,
+  such as two side by side or one in a screen and one in the screen shown
+  beside it, back goes to the page pushed last. An iOS edge swipe goes to the
+  screen whose edge it starts on, an unpopped one shown in every
+  `ScreenStack` around it, and to none while a `ScreenStack` inside that
+  screen, or inside a screen shown beside it, shows a screen above its home.
+  So a predictive back on a sheet asks its nested page's `handleBack` once,
+  and one on a page pushed over the sheet pops that page alone.
+- **System back asks the screen back goes to.** `XRouter.backDispatcher`
+  asks the `handleBack` of the screen `ScreenStackState.backTop` names in the
+  router's `ScreenStack`, then pops it where its `canPop` holds, and leaves
+  back to the OS where it does not. Where `backTop` names none, back goes to
+  the `handleBack` of the bottom screen of `XRouter.pages`. So system back on
+  a `ScreenShell` showing a covering screen it hosts asks that screen, as a
+  predictive back does, and not the shell.
+- **The framework takes back wherever back has a screen to go to.**
+  `XRouter.canPop`, which the router hands to
+  `SystemNavigator.setFrameworkHandlesBack`, holds where the screen
+  `ScreenStackState.backTop` names can pop, and where back goes to the bottom
+  screen of `XRouter.pages` while a screen shows beside it.
+  `ScreenStackState.canPop` holds the same for any `ScreenStack`, and the
+  outermost one tells the `NavigationNotification` listeners around it after
+  each frame in which it changes, by a change in it or in a `ScreenStack`
+  inside it. So on Android 13 and later a back gesture on a page that a
+  `ScreenStack` in the router's home shows goes to the page, not to the OS.
 - **A back gesture reads `canSwipeBack` as it starts.** The iOS edge swipe
   reads the screen's `canSwipeBack` as the touch goes down or the trackpad pan
   starts, as Android's predictive back reads it as the gesture starts, so a

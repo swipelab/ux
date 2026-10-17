@@ -149,21 +149,14 @@ class XRouter extends BackButtonDispatcher
     _updateActive();
   }
 
-  /// Whether a back gesture has something to pop inside the app.
-  bool get canPop {
-    final top = stack.lastOrNull;
-    if (top != null) return top.canPop;
-    if (home is ScreenShell) {
-      for (final screen in (home as ScreenShell).pages) {
-        if (!screen.popped) return true;
-      }
-    }
-    return false;
-  }
-
-  void _updateSystemBack() {
-    SystemNavigator.setFrameworkHandlesBack(canPop);
-  }
+  /// Whether back has something to go back to in the app: the screen
+  /// [XRouterBack] takes it to, where its [Screen.canPop] holds, as a pushed
+  /// screen, a page a [ScreenStack] inside a screen shows or a covering
+  /// screen a [ScreenShell] hosts; or, where it takes back to the bottom
+  /// screen of [pages], a screen shown beside that one. After each frame in
+  /// which it changes, the router hands it to
+  /// [SystemNavigator.setFrameworkHandlesBack].
+  bool get canPop => _screens.currentState?.canPop ?? false;
 
   Widget _buildContent(BuildContext context) {
     // [pages] (not the [home]/[stack] fields) so subclasses can
@@ -177,8 +170,10 @@ class XRouter extends BackButtonDispatcher
     };
     final content = Material(
       child: NotificationListener<NavigationNotification>(
-        onNotification: (_) =>
-            true, // absorb — router manages system back directly
+        onNotification: (_) {
+          SystemNavigator.setFrameworkHandlesBack(canPop);
+          return true;
+        },
         child: Actions(
           actions: {
             DismissIntent: CallbackAction<DismissIntent>(
@@ -329,10 +324,12 @@ class XRouter extends BackButtonDispatcher
   }
 }
 
-/// Routes system back, and Esc no [ScreenStack] takes, to the router's
-/// [ScreenStackState.nestedTop] where there is one, asking its
-/// [Screen.handleBack], then popping it where its [Screen.canPop] holds, and
-/// otherwise to the topmost unpopped screen.
+/// Routes system back, and Esc no [ScreenStack] takes, to the screen the
+/// router's [ScreenStackState.backTop] names, the one a predictive back goes
+/// to: asks its [Screen.handleBack], then pops it where its [Screen.canPop]
+/// holds. Where it names none, back goes to the [Screen.handleBack] of the
+/// bottom screen of [XRouter.pages]. Back that none of them takes returns
+/// false, and goes to the OS.
 class XRouterBack extends RootBackButtonDispatcher {
   /// Binds the router whose stack answers back.
   XRouterBack({required this.router});
@@ -342,29 +339,16 @@ class XRouterBack extends RootBackButtonDispatcher {
 
   @override
   Future<bool> didPopRoute() async {
-    if (router._screens.currentState?.nestedTop case final page?) {
-      if (!page.handleBack() && page.canPop) page.pop();
-      return true;
-    }
-    // System back belongs to the topmost unpopped stack screen — a
-    // covered screen (or the home shell under a modal) must never see
-    // it, else back dismisses content UNDER the visible screen. The
-    // home shell handles back only once the stack is empty.
-    //
-    // Unhandled back returns `false` — NOT `super.didPopRoute()`,
-    // which re-invokes the `Router`'s registered callback and recurses
-    // straight back into this method. `false` lets the binding hand
-    // the event to the OS (the app backgrounds).
-    for (final page in router.stack.reversed) {
-      if (page.popped) continue;
-      if (page.handleBack()) return true;
-      if (page.canPop) {
-        page.pop();
-        return true;
-      }
-      return false;
-    }
-    return router.home.handleBack();
+    final screens = router._screens.currentState;
+    if (screens == null) return false;
+    final page = screens.backTop;
+    if (page == null) return screens.widget.home.handleBack();
+    if (page.handleBack()) return true;
+    // Not super.didPopRoute(): it calls the Router's callback, which calls
+    // this again.
+    if (!page.canPop) return false;
+    page.pop();
+    return true;
   }
 }
 
@@ -386,11 +370,10 @@ class XRouterDelegate extends RouterDelegate<Screen> with Emitter {
   Future<void> setNewRoutePath(Screen? configuration) async =>
       router.setNewRoutePath(configuration);
 
+  /// Re-renders the router's [XRouter.pages]; public, for the router and its
+  /// subclasses to call.
   @override
-  void notifyListeners() {
-    super.notifyListeners();
-    router._updateSystemBack();
-  }
+  void notifyListeners() => super.notifyListeners();
 
   @override
   Screen? get currentConfiguration => router.currentConfiguration;
