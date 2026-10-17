@@ -64,7 +64,7 @@ Future<bool> _diff(Harness harness, _Options options) async {
   final catalog = {for (final e in entries) e.text}.toList();
   final tlds = readTlds(await host.show(harness.commit, 'src/tld.h'));
   final inputs = CorpusInputs(
-    catalog: catalog,
+    catalog: [...catalog]..sort(),
     inTree: await inTreeTexts(host, harness.commit),
     asciiTlds: tlds.ascii,
     idnTlds: tlds.idn,
@@ -75,8 +75,10 @@ Future<bool> _diff(Harness harness, _Options options) async {
     ),
   );
   final corpus = generateCorpus(seed, inputs);
-  final deterministic =
-      encodeCorpus(corpus) == encodeCorpus(generateCorpus(seed, inputs));
+  final encoded = encodeCorpus(corpus);
+  final deterministic = encoded == encodeCorpus(generateCorpus(seed, inputs));
+  File('${harness.commitDir.path}/corpus-$seed.jsonl')
+      .writeAsStringSync(encoded);
   final head = header(
     host,
     commit: harness.commit,
