@@ -10,6 +10,7 @@ import 'package:ux/gallery.dart';
 import 'package:ux/media.dart';
 import 'package:ux/testing.dart';
 import 'package:ux/ux.dart';
+import 'package:ux/video.dart';
 
 import 'camera_test_backend.dart';
 import 'fake_host.dart';
@@ -799,6 +800,43 @@ void main() {
       expect(host.pages.value, isEmpty);
       expect(compose.disposed, isTrue);
       expect(entry.disposed, isTrue);
+    },
+  );
+
+  pickerTest(
+    'a video compose reopened during its exit keeps a live player after the exit',
+    (tester) async {
+      final backend = FakeXVideoPlayerBackend();
+      XVideoPlayerBackend.instance = backend;
+      addTearDown(
+        () => XVideoPlayerBackend.instance = MethodChannelXVideoPlayerBackend(),
+      );
+      final video = XAsset(
+        id: 'video',
+        kind: XAssetKind.video,
+        width: 12,
+        height: 8,
+        createdAt: DateTime(2026),
+      );
+      gallery = _Gallery(recents: [video]);
+      XGallery.backend = gallery;
+      final picker = await mount(tester);
+      final composing = picker.handleAssetTap(video);
+      await tester.pumpAndSettle();
+      final first = host.pages.value.last as ComposePage;
+      first.pop();
+      await tester.pump(const Duration(milliseconds: 50));
+      final reopening = picker.handleAssetTap(video);
+      await tester.pumpAndSettle();
+      await composing;
+      final second = host.pages.value.last as ComposePage;
+      expect(first.disposed, isTrue);
+      expect(second.focusedEntry.videoController?.handle, isNotNull);
+      expect(find.byType(ComposePlayOverlay), findsOneWidget);
+      second.pop();
+      await tester.pumpAndSettle();
+      await reopening;
+      expect(backend.disposeCalls, hasLength(backend.createCalls.length));
     },
   );
 

@@ -82,7 +82,8 @@ single-item `ComposePage` with the picker's purpose and submission handler;
 the picker filter also restricts capture. Confirmation dismisses the picker
 with the editor's results. Gallery picks open `ComposePage.borrowed` on the
 picker's `ComposeEntry`s, which the picker and the page each hold; an entry
-is disposed when the last of them leaves.
+is disposed when the last of them leaves. Each `ComposePage` likewise holds
+the preview player of the video entry it shows.
 
 The picker lends `CameraPage` its `CameraCellSource`. The page's
 `buildTransition` interpolates the live preview's bounds and corner radius,

@@ -281,9 +281,9 @@ void main() {
     });
 
     test('settles its video teardown without notifying', () async {
-      await entry.ensureVideoInitialized();
+      await entry.retainVideo();
       final held = backend.disposeHeld = Completer<void>();
-      final teardown = entry.disposeVideo();
+      final teardown = entry.releaseVideo();
       entry.dispose();
       held.complete();
       await teardown;
