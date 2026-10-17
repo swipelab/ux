@@ -1,4 +1,8 @@
-import 'package:flutter/gestures.dart' show DragStartBehavior;
+import 'package:flutter/gestures.dart'
+    show
+        DragStartBehavior,
+        HorizontalDragGestureRecognizer,
+        PointerPanZoomStartEvent;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show PredictiveBackEvent;
 
@@ -538,15 +542,15 @@ class _GestureCurve extends Animation<double>
       curve.transform(parent.value);
 }
 
-/// Wraps a screen entry and, while it is the top one and its screen's
-/// [Screen.canSwipeBack] holds, drives its [AnimationController] by the back
-/// gestures: the iOS edge swipe by the finger's travel since the touch went
-/// down, over the entry's width, and Android's predictive back by the
-/// gesture's progress. Once the gesture lets go the entry settles from there,
-/// popping when the gesture commits and otherwise returning to 1 over 150 ms;
-/// a predictive back's commit asks [Screen.handleBack] first, and one it
-/// consumes returns the entry to 1 as well. A gesture the handler stops taking
-/// before it lets go is cancelled: the entry returns to 1 unless it is
+/// Wraps a screen entry and, while it is the top one, drives its
+/// [AnimationController] by each back gesture that starts where its screen's
+/// [Screen.canSwipeBack] holds: the iOS edge swipe by the finger's travel
+/// since the touch went down, over the entry's width, and Android's predictive
+/// back by the gesture's progress. Once the gesture lets go the entry settles
+/// from there, popping when the gesture commits and otherwise returning to 1
+/// over 150 ms; a predictive back's commit asks [Screen.handleBack] first, and
+/// one it consumes returns the entry to 1 as well. A gesture the handler stops
+/// taking before it lets go is cancelled: the entry returns to 1 unless it is
 /// leaving.
 class ScreenBackHandler extends StatefulWidget {
   /// Binds the slot the gesture drags and the pop it commits to.
@@ -600,7 +604,8 @@ class ScreenBackHandlerState extends State<ScreenBackHandler>
   }
 
   /// Cancels a gesture the handler no longer takes. The edge swipe's strip
-  /// leaves the tree with it, so its drag reports no end.
+  /// leaves the tree once the theme leaves iOS or the handler is disabled, so
+  /// its drag reports no end.
   void _cancelRevoked() {
     if (_gestureInProgress && !_takesBack) {
       _gestureInProgress = false;
@@ -683,12 +688,14 @@ class ScreenBackHandlerState extends State<ScreenBackHandler>
   }
 
   void _onHorizontalDragUpdate(DragUpdateDetails d) {
+    if (!_swiping) return;
     final travel = d.localPosition.dx - _swipeStart;
     widget.entry.controller.value =
         1.0 - (travel / context.size!.width).clamp(0.0, 1.0);
   }
 
   void _onHorizontalDragEnd(DragEndDetails d) {
+    if (!_swiping) return;
     _swiping = false;
     if (widget.entry.controller.value < 0.5 ||
         d.velocity.pixelsPerSecond.dx > 300) {
@@ -715,21 +722,52 @@ class ScreenBackHandlerState extends State<ScreenBackHandler>
         widget.entry.build(context),
         // Left edge swipe strip — sits on top to catch horizontal drags
         // without competing with the page's scroll views.
-        if (_canSwipe)
+        if (_isIOSLike && widget.enabled)
           Positioned(
             left: 0,
             top: 0,
             bottom: 0,
             width: _edgeWidth,
-            child: GestureDetector(
-              dragStartBehavior: DragStartBehavior.down,
-              onHorizontalDragStart: _onHorizontalDragStart,
-              onHorizontalDragUpdate: _onHorizontalDragUpdate,
-              onHorizontalDragEnd: _onHorizontalDragEnd,
+            child: RawGestureDetector(
               behavior: HitTestBehavior.translucent,
+              excludeFromSemantics: true,
+              gestures: {
+                _EdgeSwipeRecognizer:
+                    GestureRecognizerFactoryWithHandlers<_EdgeSwipeRecognizer>(
+                      () => _EdgeSwipeRecognizer(this),
+                      (recognizer) => recognizer
+                        ..dragStartBehavior = DragStartBehavior.down
+                        ..multitouchDragStrategy = ScrollConfiguration.of(
+                          context,
+                        ).getMultitouchDragStrategy(context)
+                        ..gestureSettings = MediaQuery.maybeGestureSettingsOf(
+                          context,
+                        )
+                        ..onStart = _onHorizontalDragStart
+                        ..onUpdate = _onHorizontalDragUpdate
+                        ..onEnd = _onHorizontalDragEnd,
+                    ),
+              },
             ),
           ),
       ],
     );
   }
+}
+
+/// The edge swipe's drag. It takes a pointer or trackpad pan only where its
+/// handler takes the back gesture as it starts, and leaves any other to the
+/// page.
+class _EdgeSwipeRecognizer extends HorizontalDragGestureRecognizer {
+  _EdgeSwipeRecognizer(this.handler) : super(debugOwner: handler);
+
+  final ScreenBackHandlerState handler;
+
+  @override
+  bool isPointerAllowed(PointerEvent event) =>
+      handler._takesBack && super.isPointerAllowed(event);
+
+  @override
+  bool isPointerPanZoomAllowed(PointerPanZoomStartEvent event) =>
+      handler._takesBack && super.isPointerPanZoomAllowed(event);
 }
