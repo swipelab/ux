@@ -77,6 +77,8 @@ class XRouter extends BackButtonDispatcher
   /// The back-button dispatcher handed to Flutter's [Router].
   late final backDispatcher = XRouterBack(router: this);
 
+  final _screens = GlobalKey<ScreenStackState>();
+
   /// The screen most recently fired `onActive`. Used to de-duplicate and
   /// pair active/inactive transitions when the topmost visible screen
   /// changes.
@@ -184,6 +186,7 @@ class XRouter extends BackButtonDispatcher
             ),
           },
           child: ScreenStack(
+            key: _screens,
             home: screens.first,
             stack: screens.sublist(1),
             hidden: {...screens}..removeAll(shown),
@@ -326,8 +329,10 @@ class XRouter extends BackButtonDispatcher
   }
 }
 
-/// Routes system back, and Esc no [ScreenStack] takes, to the topmost
-/// unpopped screen.
+/// Routes system back, and Esc no [ScreenStack] takes, to the router's
+/// [ScreenStackState.nestedTop] where it is unpopped, asking its
+/// [Screen.handleBack], then popping it where its [Screen.canPop] holds, and
+/// otherwise to the topmost unpopped screen.
 class XRouterBack extends RootBackButtonDispatcher {
   /// Binds the router whose stack answers back.
   XRouterBack({required this.router});
@@ -337,6 +342,11 @@ class XRouterBack extends RootBackButtonDispatcher {
 
   @override
   Future<bool> didPopRoute() async {
+    if (router._screens.currentState?.nestedTop case final page?
+        when !page.popped) {
+      if (!page.handleBack() && page.canPop) page.pop();
+      return true;
+    }
     // System back belongs to the topmost unpopped stack screen — a
     // covered screen (or the home shell under a modal) must never see
     // it, else back dismisses content UNDER the visible screen. The
@@ -436,8 +446,10 @@ mixin ScreenShell {
   /// A beside screen moves no focus as it comes and goes, except that focus
   /// inside one that leaves goes to this shell. Tab and Shift+Tab cross
   /// between this shell's controls and the screen's. The screen takes no
-  /// edge-swipe or predictive-back drag, so system back reaches this
-  /// shell's [Screen.handleBack].
+  /// edge-swipe or predictive-back drag, and system back reaches this
+  /// shell's [Screen.handleBack], unless a [ScreenStack] inside the screen
+  /// shows a screen above its home: back then goes to the screen inside it
+  /// that [ScreenStackState.nestedTop] names.
   bool isBeside(Screen screen) => false;
 }
 

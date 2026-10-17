@@ -635,6 +635,18 @@ void main() {
     expect(page.popped, isFalse);
   });
 
+  testWidgets('two system backs on a sheet before it rebuilds pop its nested '
+      'page, then the sheet', (tester) async {
+    final page = _Gated();
+    final router = await _bootSheet(tester, page);
+
+    await tester.binding.handlePopRoute();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(page.backs, 1);
+    expect(router.stack, isEmpty);
+  });
+
   testWidgets('a predictive back on a sheet with a nested page drags the '
       'nested page alone, and its commit asks the page\'s handleBack once and '
       'keeps the page when it consumes the back', (tester) async {
@@ -714,6 +726,20 @@ void main() {
     await _backGesture(tester, 'updateBackGestureProgress', 0.25);
     await tester.pump();
     await _backGesture(tester, 'commitBackGesture');
+    await tester.pumpAndSettle();
+    expect(page.backs, 1);
+    expect(router.stack, hasLength(1));
+  });
+
+  testWidgets('system back on a shell whose beside screen\'s ScreenStack shows '
+      'a page asks the page\'s handleBack once, and keeps the shell when it '
+      'consumes the back', (tester) async {
+    final page = _Gated()..guards = true;
+    final router = await _boot(tester, page: _Shell());
+    router.push(_Holder(ScreenStack(home: _Home(), stack: [page])));
+    await tester.pumpAndSettle();
+
+    await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
     expect(page.backs, 1);
     expect(router.stack, hasLength(1));

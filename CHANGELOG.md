@@ -341,13 +341,12 @@
   default shortcuts, actions and text-editing shortcuts sit above its overlay,
   so they reach entries a host inserts through `overlayKey`.
 - **Esc goes back.** Esc pops the top screen where it `isModal`, and otherwise
-  goes to `XRouter.backDispatcher`, as system back does: the top pushed
-  screen's `handleBack` takes it, or the screen pops where its `canPop` holds
-  and stays where it does not. Esc in a focused text field unfocuses it, and a
-  handler nearer the focus takes Esc first; one disabled for it, such as a
-  `Scaffold`'s with no drawer open, hands Esc on to the nearest enabled one
-  around it. A `ScreenStack` with no modal screen to pop hands Esc on to the
-  one around it, so Esc in a modal `SheetScreen` pops the sheet.
+  goes to `XRouter.backDispatcher`, as system back does. Esc in a focused text
+  field unfocuses it, and a handler nearer the focus takes Esc first; one
+  disabled for it, such as a `Scaffold`'s with no drawer open, hands Esc on to
+  the nearest enabled one around it. A `ScreenStack` with no modal screen to
+  pop hands Esc on to the one around it, so Esc in a modal `SheetScreen` pops
+  the sheet.
 - **A `ScreenShell` keeps screens it hosts but does not show.**
   `ScreenShell.hosted` lists every screen a shell hosts and `pages` the ones
   it shows. A hosted screen left out of `pages` stays mounted offstage with
@@ -365,8 +364,8 @@
   under the window's `MediaQuery`. A screen `ScreenShell.isBeside` marks
   moves no focus as it comes and goes, except that focus inside one that
   leaves goes to the shell. Tab and Shift+Tab cross between the shell and the
-  screen, and the screen takes no edge-swipe or predictive-back drag, so
-  system back reaches the shell's `handleBack`. A screen keeps its State when
+  screen, and the screen takes no edge-swipe or predictive-back drag, so back
+  goes to the shell rather than the screen. A screen keeps its State when
   its placement, its beside mark or the shape of its transition changes.
   `ScreenStack` takes `hidden`, `beside` and `place`.
 - **A back gesture moves a screen with the finger.** The iOS edge swipe
@@ -402,6 +401,14 @@
   shows a screen above its home. So a predictive back on a sheet asks its
   nested page's `handleBack` once, and one on a page pushed over the sheet
   pops that page alone.
+- **System back goes to a page inside a screen first.** System back and Esc
+  go to the top screen of the innermost `ScreenStack` that shows a screen
+  above its home inside the shown screens, which `ScreenStackState.nestedTop`
+  names: `XRouter.backDispatcher` asks its `handleBack`, then pops it where
+  its `canPop` holds. Where there is none, the top pushed screen's
+  `handleBack` takes back, or the screen pops where its `canPop` holds and
+  stays where it does not. So system back in a wide `ScreenShell` asks a page
+  in its beside screen's `ScreenStack` before the shell.
 - **A back gesture reads `canSwipeBack` as it starts.** The iOS edge swipe
   reads the screen's `canSwipeBack` as the touch goes down or the trackpad pan
   starts, as Android's predictive back reads it as the gesture starts, so a
