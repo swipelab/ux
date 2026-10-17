@@ -150,11 +150,9 @@ class XRouter extends BackButtonDispatcher
   }
 
   /// Whether back has something to go back to in the app: the screen
-  /// [XRouterBack] takes it to, where its [Screen.canPop] holds, as a pushed
-  /// screen, a page a [ScreenStack] inside a screen shows or a covering
-  /// screen a [ScreenShell] hosts; or, where it takes back to the bottom
-  /// screen of [pages], a screen shown beside that one. After each frame in
-  /// which it changes, the router hands it to
+  /// [XRouterBack] takes it to, where its [Screen.canPop] holds; or, where it
+  /// takes back to the bottom screen of [pages], a screen shown beside that
+  /// one. After each frame in which it changes, the router hands it to
   /// [SystemNavigator.setFrameworkHandlesBack].
   bool get canPop => _screens.currentState?.canPop ?? false;
 
