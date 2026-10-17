@@ -102,6 +102,19 @@ void main() {
       expect(await XUrl.launch(link.url), isFalse);
     });
 
+    test('XUrl.launch refuses a link whose URL holds an Arabic letter '
+        'mark', () async {
+      answer((_) => true);
+      const url = 'http://evil.com/\u061Cgood.com';
+      XUrl.debugDetect = (_) => _wire(const [
+        UrlMatch(start: 4, end: 22, url: url, kind: UrlMatchKind.web),
+      ]);
+
+      final link = XUrl.match('see evil.com/\u061Cgood.com x').single;
+      expect(link.url, url);
+      expect(await XUrl.launch(link.url), isFalse);
+    });
+
     test("a link's URL leaves out a zero-width space whether the native "
         'detector or the any-scheme pass links it', () {
       const text = '"ftp://a.io/a#\u200B +15551234567';
