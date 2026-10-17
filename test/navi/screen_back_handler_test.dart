@@ -635,6 +635,18 @@ void main() {
     expect(page.popped, isFalse);
   });
 
+  testWidgets('two system backs on a sheet before it rebuilds pop its nested '
+      'page, then the sheet', (tester) async {
+    final page = _Gated();
+    final router = await _bootSheet(tester, page);
+
+    await tester.binding.handlePopRoute();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(page.backs, 1);
+    expect(router.stack, isEmpty);
+  });
+
   testWidgets('a predictive back on a sheet with a nested page drags the '
       'nested page alone, and its commit asks the page\'s handleBack once and '
       'keeps the page when it consumes the back', (tester) async {
@@ -717,6 +729,53 @@ void main() {
     await tester.pumpAndSettle();
     expect(page.backs, 1);
     expect(router.stack, hasLength(1));
+  });
+
+  testWidgets('system back on a shell whose beside screen\'s ScreenStack shows '
+      'a page asks the page\'s handleBack once, and keeps the shell when it '
+      'consumes the back', (tester) async {
+    final page = _Gated()..guards = true;
+    final router = await _boot(tester, page: _Shell());
+    router.push(_Holder(ScreenStack(home: _Home(), stack: [page])));
+    await tester.pumpAndSettle();
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(page.backs, 1);
+    expect(router.stack, hasLength(1));
+  });
+
+  testWidgets('two system backs on a shell whose beside screen\'s ScreenStack '
+      'shows a page over a guarded one, before it rebuilds, pop the top page, '
+      'then ask the guarded one and keep the shell', (tester) async {
+    final under = _Gated()..guards = true;
+    final top = _Holder(const SizedBox.expand());
+    final router = await _boot(tester, page: _Shell());
+    router.push(_Holder(ScreenStack(home: _Home(), stack: [under, top])));
+    await tester.pumpAndSettle();
+
+    await tester.binding.handlePopRoute();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(top.popped, isTrue);
+    expect(under.backs, 1);
+    expect(router.stack, hasLength(1));
+  });
+
+  testWidgets('system back right after a shell\'s beside screen pops, before '
+      'it rebuilds, goes to the shell, not to a page in the screen\'s '
+      'ScreenStack', (tester) async {
+    final page = _Gated()..guards = true;
+    final router = await _boot(tester, page: _Shell());
+    final side = _Holder(ScreenStack(home: _Home(), stack: [page]));
+    router.push(side);
+    await tester.pumpAndSettle();
+
+    side.pop();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(page.backs, 0);
+    expect(router.stack, isEmpty);
   });
 
   testWidgets('a predictive back on a page pushed over a sheet with a nested '
