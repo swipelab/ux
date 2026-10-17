@@ -293,6 +293,10 @@
   snapshot.** When an image in a `MediaFlightSurface` sits behind a
   `RepaintBoundary` of its own and decodes after `GalleryTransition`'s open
   flight ends, the flight hands its snapshot off to the image as it decodes.
+- **A camera cell that leaves the tree has no rect.** `CameraCellSource.rect`
+  is null from the moment the picker drops its camera cell, so a `CameraPage`
+  that leaves in that frame, as one a sign-out removes together with its
+  picker does, closes toward where the cell was as it opened.
 - **The screen that shows holds focus, so keys reach it.** When a
   `ScreenStack`'s top screen shows, its focus scope takes focus if focus is in
   the stack, on a scope around it, or nowhere, as when `XApp` starts, and asks

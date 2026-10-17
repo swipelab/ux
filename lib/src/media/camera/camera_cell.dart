@@ -10,9 +10,17 @@ class CameraCellSource {
   final _key = GlobalKey();
   bool _covered = false;
 
+  /// The cell's box while it is in the tree; until the frame ends, the key
+  /// still answers with a cell that left it, whose box is detached.
+  RenderBox? get _box {
+    final cell = _key.currentContext as _CellElement?;
+    final box = cell?.renderObject as RenderBox?;
+    return box != null && box.attached ? box : null;
+  }
+
   /// Screen coordinates, absent when the cell is outside the mounted grid.
   Rect? get rect {
-    final box = _key.currentContext?.findRenderObject() as RenderBox?;
+    final box = _box;
     if (box == null || !box.hasSize) return null;
     return MatrixUtils.transformRect(
       box.getTransformTo(null),
@@ -28,7 +36,7 @@ class CameraCellSource {
   void _setCovered(bool covered) {
     if (_covered == covered) return;
     _covered = covered;
-    final box = _key.currentContext?.findRenderObject();
+    final box = _box;
     box?.markNeedsPaint();
     box?.markNeedsSemanticsUpdate();
   }
