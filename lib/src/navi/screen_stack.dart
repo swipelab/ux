@@ -334,7 +334,12 @@ class ScreenStackState extends State<ScreenStack>
 
   bool get _homeCovered =>
       _entries.any((e) => e._covers) ||
-      _homeSlot._stacks.any((stack) => stack._homeCovered);
+      [_homeSlot, ..._entries].any(
+        (slot) =>
+            !slot.removing &&
+            !slot.hidden &&
+            slot._stacks.any((stack) => stack._homeCovered),
+      );
 
   Widget _place(BuildContext context, ScreenSlot entry, Widget slot) =>
       entry._place?.call(context, entry.page, slot) ?? slot;

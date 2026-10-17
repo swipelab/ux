@@ -69,6 +69,16 @@ class _Sheet with Screen<void>, SheetScreen<void> {
   Widget buildSheetBody(BuildContext context) => body;
 }
 
+/// A screen whose content is [child].
+class _Holder with Screen<void> {
+  _Holder(this.child);
+
+  final Widget child;
+
+  @override
+  Widget buildPresenter(BuildContext context) => child;
+}
+
 /// Pumps a router on [platform] and pushes [page], a [_Page] unless given,
 /// settled unless [settle] is false.
 Future<XRouter> _boot(
@@ -602,6 +612,26 @@ void main() {
 
     await tester.dragFrom(const Offset(10, 600), const Offset(299, 0));
     await tester.pumpAndSettle();
+    expect(router.stack, hasLength(1));
+  });
+
+  testWidgets('a predictive back on a screen whose ScreenStack shows a page '
+      'in a screen beside its home asks the page\'s handleBack once, and keeps '
+      'the screen when it consumes the back', (tester) async {
+    final page = _Gated()..guards = true;
+    final side = _Holder(ScreenStack(home: _Home(), stack: [page]));
+    final router = await _boot(
+      tester,
+      platform: TargetPlatform.android,
+      page: _Holder(ScreenStack(home: _Home(), stack: [side], beside: {side})),
+    );
+
+    await _backGesture(tester, 'startBackGesture', 0);
+    await _backGesture(tester, 'updateBackGestureProgress', 0.25);
+    await tester.pump();
+    await _backGesture(tester, 'commitBackGesture');
+    await tester.pumpAndSettle();
+    expect(page.backs, 1);
     expect(router.stack, hasLength(1));
   });
 }
