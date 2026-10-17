@@ -21,26 +21,17 @@ class XUrl {
   static List<UrlMatch> match(String text) {
     if (text.isEmpty) return const [];
     if (!_hasSigil(text)) return const [];
-    final detect = _matchUrl;
-    final free = _free;
-    if (detect == null || free == null) return const [];
-
-    final inPtr = text.toNativeUtf16();
-    final sizePtr = calloc<Int32>();
-    Pointer<Uint8> out = nullptr;
-    try {
-      out = detect(inPtr.cast<Uint16>(), text.length, sizePtr);
-      final size = sizePtr.value;
-      final native = (out == nullptr || size <= 0)
-          ? const <UrlMatch>[]
-          : _tightenPhoneMatches(_decode(out.asTypedList(size)), text);
-      return _mergeCustomSchemeMatches(native, text);
-    } finally {
-      calloc.free(inPtr);
-      calloc.free(sizePtr);
-      if (out != nullptr) free(out);
-    }
+    final detect = debugDetect ?? _detect;
+    if (detect == null) return const [];
+    final native = _tightenPhoneMatches(_decode(detect(text)), text);
+    return _mergeCustomSchemeMatches(native, text);
   }
+
+  /// Stands in for the native detector, which `flutter test` does not load:
+  /// the buffer `ux_match_url` answers for a text, empty where it finds
+  /// nothing.
+  @visibleForTesting
+  static Uint8List Function(String text)? debugDetect;
 
   /// Opens [url] via the OS handler. Returns false on channel error or
   /// when no handler can resolve the scheme.
@@ -265,8 +256,29 @@ _Free? _lookupFree() {
   }
 }
 
-final _MatchUrl? _matchUrl = _lookupMatchUrl();
-final _Free? _free = _lookupFree();
+Uint8List Function(String text)? _bindDetect() {
+  final detect = _lookupMatchUrl();
+  final free = _lookupFree();
+  if (detect == null || free == null) return null;
+  return (text) {
+    final inPtr = text.toNativeUtf16(allocator: calloc);
+    final sizePtr = calloc<Int32>();
+    Pointer<Uint8> out = nullptr;
+    try {
+      out = detect(inPtr.cast<Uint16>(), text.length, sizePtr);
+      final size = sizePtr.value;
+      return out == nullptr || size <= 0
+          ? Uint8List(0)
+          : Uint8List.fromList(out.asTypedList(size));
+    } finally {
+      calloc.free(inPtr);
+      calloc.free(sizePtr);
+      if (out != nullptr) free(out);
+    }
+  };
+}
+
+final Uint8List Function(String text)? _detect = _bindDetect();
 
 bool _hasSigil(String text) {
   int digits = 0;
@@ -370,7 +382,7 @@ List<UrlMatch> _mergeCustomSchemeMatches(List<UrlMatch> native, String text) {
       UrlMatch(
         start: m.start,
         end: end,
-        url: text.substring(m.start, end),
+        url: _sanitizeUrl(text.substring(m.start, end)),
         kind: UrlMatchKind.web,
       ),
     );
