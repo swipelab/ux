@@ -424,7 +424,13 @@
   disabled for it, such as a `Scaffold`'s with no drawer open, hands Esc on to
   the nearest enabled one around it. A `ScreenStack` with no modal screen to
   pop hands Esc on to the one around it, so Esc in a modal `SheetScreen` pops
-  the sheet.
+  the sheet. An `ActionDispatcher` an app sets on an `Actions` under `XApp`
+  invokes the actions under it in place of `XApp`'s, so it must pass each
+  `invokeAction` and `invokeActionIfEnabled` call for a `DismissIntent` to the
+  dispatcher `Actions.of` gives for a context above its `Actions`, with the
+  action, intent and context as given. One that invokes the action itself
+  leaves Esc in a focused text field inside a `Scaffold` at the `Scaffold`'s
+  disabled action, so Esc neither unfocuses the field nor goes back.
 - **A `ScreenShell` keeps screens it hosts but does not show.**
   `ScreenShell.hosted` lists every screen a shell hosts and `pages` the ones
   it shows. A hosted screen left out of `pages` stays mounted offstage with
