@@ -435,8 +435,10 @@ List<UrlMatch> _mergeCustomSchemeMatches(List<UrlMatch> native, String text) {
 }
 
 /// The end of the [_kAnySchemeRegex] link [start, end) before a trailing `.`,
-/// `,`, `;`, `!`, `'` or `(` and a trailing `)` the link does not open, as the
-/// native detectors end a web link (`bl://x?code=1.` → `bl://x?code=1`).
+/// `,`, `;`, `!`, `'` or `(`, and before a `)` the link does not open that
+/// only these marks, `)`, `?` and `:` follow, as NSDataDetector ends a web
+/// link: `bl://x?code=1.` → `bl://x?code=1` and `(bl://x#y)?` → `bl://x#y`.
+/// A trailing `?` or `:` stays otherwise, as the native detectors keep it.
 int _trimUrlTrailingPunctuation(String text, int start, int end) {
   int unopened = 0;
   for (int i = start; i < end; i++) {
@@ -444,22 +446,25 @@ int _trimUrlTrailingPunctuation(String text, int start, int end) {
     if (c == 0x29 /* ) */ ) unopened++;
     if (c == 0x28 /* ( */ ) unopened--;
   }
-  while (end > start) {
-    final c = text.codeUnitAt(end - 1);
+  int kept = end;
+  for (int i = end; i > start; i--) {
+    final c = text.codeUnitAt(i - 1);
     if (c == 0x29 /* ) */ && unopened > 0) {
       unopened--;
-    } else if (c == 0x28 /* ( */ ) {
-      unopened++;
-    } else if (!(c == 0x2E /* . */ ||
+      kept = i - 1;
+    } else if (c == 0x28 /* ( */ ||
+        c == 0x2E /* . */ ||
         c == 0x2C /* , */ ||
         c == 0x3B /* ; */ ||
         c == 0x21 /* ! */ ||
-        c == 0x27 /* ' */ )) {
+        c == 0x27 /* ' */ ) {
+      if (c == 0x28 /* ( */ ) unopened++;
+      if (kept == i) kept--;
+    } else if (!(c == 0x3F /* ? */ || c == 0x3A /* : */ )) {
       break;
     }
-    end--;
   }
-  return end;
+  return kept;
 }
 
 /// Greedy de-overlap: sort by start asc, longer-first on tie, then drop

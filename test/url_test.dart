@@ -295,6 +295,28 @@ void main() {
       );
     });
 
+    test("a ')' a link does not open ends it with the '?' after it", () {
+      const setup = UrlMatch(
+        start: 1,
+        end: 31,
+        url: 'https://docs.flutter.dev#setup',
+        kind: UrlMatchKind.web,
+      );
+      _expectMatch(
+        '(https://docs.flutter.dev#setup)?',
+        darwin: const [setup],
+        windows: const [
+          UrlMatch(
+            start: 1,
+            end: 25,
+            url: 'https://docs.flutter.dev',
+            kind: UrlMatchKind.web,
+          ),
+        ],
+        expected: const [setup],
+      );
+    });
+
     test("a ':' after a link's port ends it", () {
       const server = UrlMatch(
         start: 0,
