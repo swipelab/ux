@@ -1,4 +1,17 @@
 ### 0.18.0
+- **A link with a scheme starts after a `_` and keeps a trailing `?` on every
+  platform.** `XUrl.match`'s any-scheme pass starts a link at the first letter
+  of the scheme characters before its `://`, as `Patterns.WEB_URL` starts an
+  http link, so a `_` or a digit before a scheme does not keep it from
+  linking: `_banlu://chat/42 x` links `banlu://chat/42` on Android and
+  Windows, as on iOS and macOS, and `foo _http://example.com:8080abc x` links
+  `http://example.com:8080abc`, as `foo http://example.com:8080abc x` does.
+  It ends a link as the native detectors end a web link, before a trailing
+  `.`, `,`, `;`, `!`, `'` or `(` and a trailing `)` the link does not open, so
+  `tg://resolve?domain=abc?` keeps its `?` and `(see bl://x/a_(b)).` links
+  `bl://x/a_(b)` on every platform. The pass reads each run of scheme
+  characters once, so its time stays linear in the text, a long word of
+  letters joined by `-`, `.` or `+` included.
 - **A link whose text hides a bidi control does not launch on iOS and
   macOS.** Where the native detector's URL leaves out a bidi control the
   link's text holds, as NSDataDetector's email and phone URLs do,
@@ -84,10 +97,9 @@
   Japanese, Korean, Thai, Lao, Khmer or Myanmar follows stays out of its link:
   `访问example.com:8080abc然后` links `http://example.com`. A port those letters
   follow has ASCII digits: `访问example.com:8080٣然后` links
-  `http://example.com`. A URL with a scheme that `NSDataDetector` misses links
-  as `Patterns.WEB_URL` matches it where a `_` that begins a word or follows
-  those letters comes before its scheme: `foo _http://example.com:8080abc x`
-  links `http://example.com`.
+  `http://example.com`. A URL with a scheme that `NSDataDetector` misses after
+  a `_` links as on Android and Windows: `_http://example.com:8080@evil.com/x_`
+  links the whole URL.
 - **A `ScreenHero` flies.** A `ScreenHero` registers with the `ScreenStack`
   around it. When a screen is pushed over another or popped off it, a hero on
   one that shares its tag with a hero on the other flies from its place to the
