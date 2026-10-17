@@ -502,4 +502,20 @@ void main() {
       },
     );
   }
+
+  testWidgets('camera leaving in the frame its picker drops the cell leaves '
+      'without it', (tester) async {
+    await mount(tester, false);
+    try {
+      await tester.tap(find.byType(CameraThumb));
+      await tester.pumpAndSettle();
+      host.router.popAll();
+      await tester.pump();
+      expect(find.byType(CameraCell), findsNothing);
+      await tester.pumpAndSettle();
+      expect(find.byType(CameraButton), findsNothing);
+    } finally {
+      await close(tester);
+    }
+  });
 }
