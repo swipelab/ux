@@ -3,6 +3,7 @@ analyzer:
     - build/**
     - android/**
     - windows/**
+    - tool/url_oracle/replay/**
 include: package:flutter_lints/flutter.yaml
 
 linter:
