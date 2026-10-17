@@ -771,6 +771,18 @@ void main() {
     ]);
   });
 
+  testWidgets('a port that runs into a non-ASCII digit before CJK letters '
+      'stays out of the bare domain link', (tester) async {
+    expect(XUrl.match('访问example.com:8080٣然后'), const [
+      UrlMatch(
+        start: 2,
+        end: 13,
+        url: 'http://example.com',
+        kind: UrlMatchKind.web,
+      ),
+    ]);
+  });
+
   testWidgets('a bare domain glued after Thai letters leaves them out', (
     tester,
   ) async {

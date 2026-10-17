@@ -10,9 +10,10 @@
 // where kind ∈ { 0=web, 1=email, 2=phone }.
 //
 // Backed by NSDataDetector (.link | .phoneNumber) and a second pass for the
-// bare domains it misses, such as a host on a TLD it does not know, and IPv4
-// addresses. A web match with no scheme links only where its host is an IPv4
-// address or ends in a TLD IsTld holds for.
+// web links it misses, such as a host on a TLD it does not know, IPv4
+// addresses and a URL with a scheme whose port runs into text. A web match
+// with no scheme links only where its host is an IPv4 address or ends in a
+// TLD IsTld holds for.
 
 #import <Foundation/Foundation.h>
 #import <stdint.h>
@@ -48,20 +49,21 @@ static NSDataDetector *ux_url_data_detector(void) {
     return detector;
 }
 
-static NSRegularExpression *ux_url_bare_domain_regex(void) {
+static NSRegularExpression *ux_url_web_regex(void) {
     static NSRegularExpression *regex;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         // ux_is_unspaced's letters.
         NSString *unspaced = @"[\\u0E00-\\u0EFF\\u1000-\\u109F\\u1100-\\u11FF\\u1780-\\u17FF\\u2E80-\\u9FFF"
                              @"\\uA960-\\uA97F\\uAC00-\\uD7FF\\uF900-\\uFAFF\\uFF66-\\uFFDC\\U00020000-\\U0003FFFF]";
-        // Patterns.WEB_URL's host name with ASCII labels or its IPv4 address,
-        // and its port, then a path, or a word boundary or an unspaced letter
-        // where no '@' and an email's domain follow. A host starts at a word
-        // boundary, after a '_' or after an unspaced letter, but neither after
-        // a scheme's "://" nor inside a label or a host the pass does not match
-        // from its start: after a letter, mark or digit outside the unspaced
-        // scripts and a run of '_' and '-' or a '.'.
+        // Patterns.WEB_URL's protocol, its host name with ASCII labels or its
+        // IPv4 address, and its port, then a path, or a word boundary or an
+        // unspaced letter where no '@' and an email's domain follow. A port
+        // that an unspaced letter follows has ASCII digits. A match starts at
+        // a word boundary, after a '_' or after an unspaced letter, but neither
+        // after a scheme's "://" nor inside a label or a host the pass does not
+        // match from its start: after a letter, mark or digit outside the
+        // unspaced scripts and a run of '_' and '-' or a '.'.
         // The path ends before whitespace, ux_is_cjk_punctuation's CJK
         // punctuation and the ASCII marks ux_web_end ends a path before, so a
         // bare domain glued after one links on its own.
@@ -70,12 +72,13 @@ static NSRegularExpression *ux_url_bare_domain_regex(void) {
                          @"\\uFF01-\\uFF0F\\uFF1A-\\uFF20\\uFF3B-\\uFF40\\uFF5B-\\uFF65]|%[0-9a-f]{2})*";
         NSString *pattern = [NSString stringWithFormat:
             @"(?:\\b|(?<=[_%1$@]))(?<![[\\p{L}\\p{M}\\p{Nd}]--%1$@](?:[_-]{1,62}|\\.))(?<!://)"
+            @"((?:https?|rtsp|ftp)://)?"
             @"(?:(?:[a-z0-9](?:[a-z0-9_-]{0,61}[a-z0-9])?\\.)+(?:xn--[a-z0-9-]{0,58}[a-z0-9]|[a-z]{2,63})"
             @"|(?:25[0-5]|2[0-4][0-9]|[0-1][0-9]{2}|[1-9][0-9]|[1-9])"
             @"\\.(?:25[0-5]|2[0-4][0-9]|[0-1][0-9]{2}|[1-9][0-9]|[1-9]|0)"
             @"\\.(?:25[0-5]|2[0-4][0-9]|[0-1][0-9]{2}|[1-9][0-9]|[1-9]|0)"
             @"\\.(?:25[0-5]|2[0-4][0-9]|[0-1][0-9]{2}|[1-9][0-9]|[0-9]))"
-            @"(?::\\d{1,5})?(?:%2$@|(?:\\b|(?=%1$@))(?!@[a-z0-9][a-z0-9-]{0,64}\\.[a-z0-9]))",
+            @"(?::[0-9]{1,5}|:\\d{1,5}\\b)?(?:%2$@|(?:\\b|(?=%1$@))(?!@[a-z0-9][a-z0-9-]{0,64}\\.[a-z0-9]))",
             unspaced, path];
         NSError *err = nil;
         regex = [NSRegularExpression
@@ -232,10 +235,10 @@ static BOOL ux_continues_path(const uint16_t *chars, NSUInteger paren, NSUIntege
     return from < start && ux_path_mark(chars, paren, end) == end;
 }
 
-// The end of the web match [start, end), which the bare-domain regex's suffix
-// and NSDataDetector run past. The match ends before the first character its
-// path does not take, then before a trailing '.', ',', ';', '!', '\'' or '('
-// and a trailing ')' it does not open.
+// The end of the web match [start, end), which the web regex's suffix and
+// NSDataDetector run past. The match ends before the first character its path
+// does not take, then before a trailing '.', ',', ';', '!', '\'' or '(' and a
+// trailing ')' it does not open.
 static NSUInteger ux_web_end(const uint16_t *chars, NSUInteger start, NSUInteger end) {
     end = ux_path_mark(chars, ux_path_start(chars, start, end), end);
     NSInteger unopened = 0;
@@ -357,26 +360,27 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
             }];
         }
 
-        NSRegularExpression *bareRe = ux_url_bare_domain_regex();
-        if (bareRe != nil) {
-            [bareRe enumerateMatchesInString:text
-                                     options:0
-                                       range:whole
-                                  usingBlock:^(NSTextCheckingResult *result,
-                                               NSMatchingFlags flags,
-                                               BOOL *stop) {
+        NSRegularExpression *webRe = ux_url_web_regex();
+        if (webRe != nil) {
+            [webRe enumerateMatchesInString:text
+                                    options:0
+                                      range:whole
+                                 usingBlock:^(NSTextCheckingResult *result,
+                                              NSMatchingFlags flags,
+                                              BOOL *stop) {
                 if (result == nil) return;
                 const NSRange r = result.range;
                 if (r.location == NSNotFound || r.length == 0) return;
                 const NSUInteger end = ux_web_end(utf16, r.location, NSMaxRange(r));
-                if (ux_glues_word(utf16, text.length, r.location, end) || !ux_has_tld(utf16, r.location, end)) return;
+                const BOOL written = [result rangeAtIndex:1].location != NSNotFound;
+                if (ux_glues_word(utf16, text.length, r.location, end) ||
+                    (!written && !ux_has_tld(utf16, r.location, end))) return;
                 NSString *substr = [text substringWithRange:NSMakeRange(r.location, end - r.location)];
-                NSString *withScheme = [@"http://" stringByAppendingString:substr];
                 XUrlRawMatch *m = [[XUrlRawMatch alloc] init];
                 m.start = (int32_t)r.location;
                 m.end   = (int32_t)end;
                 m.kind  = kKindWeb;
-                m.urlUtf8 = ux_utf8(withScheme);
+                m.urlUtf8 = ux_utf8(written ? substr : [@"http://" stringByAppendingString:substr]);
                 [raws addObject:m];
             }];
         }
