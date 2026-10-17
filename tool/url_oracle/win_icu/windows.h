@@ -8,7 +8,8 @@
 #define CP_UTF8 65001
 
 // wchar_t is 32 bits here, so `wide` holds the UTF-16 code units the caller
-// casts to it. An unpaired surrogate becomes U+FFFD, as on Windows.
+// casts to it. An unpaired surrogate becomes U+FFFD, as WideCharToMultiByte
+// makes it.
 inline int WideCharToMultiByte(unsigned, unsigned long, const wchar_t* wide, int len, char* out, int size, const char*,
                                int*) {
   UErrorCode status = U_ZERO_ERROR;
