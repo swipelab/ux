@@ -1,4 +1,18 @@
 ### 0.18.0
+- **A link whose text hides a bidi control does not launch on iOS and
+  macOS.** Where the native detector's URL leaves out a bidi control the
+  link's text holds, as NSDataDetector's email and phone URLs do,
+  `XUrl.match` gives the link the URL's scheme and then its text, so
+  `XUrl.launch` refuses it as it refuses a web link hiding one: `see mailto:`
+  with an Arabic letter mark before `ops@example.com` links
+  `mailto:ops@example.com` with the mark kept, and `call +1 ` with a
+  right-to-left mark before `555 123 4567` links `tel:+1 555 123 4567` with
+  the mark kept.
+- **A link ends before a C0 or C1 control.** `XUrl.match`'s any-scheme pass
+  ends a link before a C0 or C1 control, as it does at whitespace and as the
+  native detectors do, so no link's URL holds one: `see https://a.com/x`
+  with U+001F before `163.com/1` links `https://a.com/x` and
+  `http://163.com/1`.
 - **A screen can claim back that pops nothing.** `Screen.claimsBack` says
   that the screen's `handleBack` takes back now, as a home's does while it
   closes a search. While back goes to a screen that claims it, the one
