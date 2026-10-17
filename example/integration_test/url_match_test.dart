@@ -483,7 +483,9 @@ void main() {
     ]);
   });
 
-  testWidgets('a zero-padded IPv4 address is a phone number', (tester) async {
+  testWidgets('a zero-padded IPv4 address that a 0 starts is a phone number', (
+    tester,
+  ) async {
     expect(XUrl.match('ip 010.000.000.001 x'), const [
       UrlMatch(
         start: 3,
