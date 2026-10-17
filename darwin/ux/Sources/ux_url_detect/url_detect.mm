@@ -281,6 +281,15 @@ static NSUInteger ux_web_end(const uint16_t *chars, NSUInteger start, NSUInteger
     return end;
 }
 
+// Whether the range r of the text is a dotted IPv4 address: ASCII digits and
+// '.' alone that the web regex matches whole.
+static BOOL ux_is_ipv4(NSRegularExpression *webRe, NSString *text, const uint16_t *chars, NSRange r) {
+    for (NSUInteger i = r.location; i < NSMaxRange(r); i++) {
+        if (chars[i] != '.' && (chars[i] < '0' || chars[i] > '9')) return NO;
+    }
+    return NSEqualRanges([webRe rangeOfFirstMatchInString:text options:NSMatchingAnchored range:r], r);
+}
+
 static NSData *ux_utf8(NSString *s) {
     return [s dataUsingEncoding:NSUTF8StringEncoding allowLossyConversion:YES];
 }
@@ -298,6 +307,7 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
         NSRange whole = NSMakeRange(0, text.length);
         NSMutableArray<XUrlRawMatch *> *raws = [NSMutableArray array];
 
+        NSRegularExpression *webRe = ux_url_web_regex();
         NSDataDetector *detector = ux_url_data_detector();
         if (detector != nil) {
             [detector enumerateMatchesInString:text
@@ -314,6 +324,7 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
                 NSString *url = nil;
                 uint32_t kind = kKindWeb;
                 if (result.resultType == NSTextCheckingTypePhoneNumber) {
+                    if (ux_is_ipv4(webRe, text, utf16, r)) return;
                     NSString *raw = result.phoneNumber ?: @"";
                     // Compat-decompose so full-width / Arabic-Indic digits
                     // collapse to ASCII before we filter — tel: URIs only
@@ -381,7 +392,6 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
             }];
         }
 
-        NSRegularExpression *webRe = ux_url_web_regex();
         if (webRe != nil) {
             [webRe enumerateMatchesInString:text
                                     options:0

@@ -280,7 +280,10 @@ bool IsPathDelimiter(UChar c) { return std::u16string_view(u"/?#&=").find(c) != 
 // fullwidth ')' is that link's path where the stretch holds a path delimiter
 // before it and the detector matches the link through it whole. No host runs
 // across its glue: the web match is the part before the glue where the
-// detector matches that whole, and the search goes on from the glue.
+// detector matches that whole, and the search goes on from the glue. A phone
+// match that Patterns.WEB_URL matches whole is a dotted IPv4 address, no
+// phone; it is a web link where an unspaced letter follows it, since no word
+// boundary ends a Patterns.WEB_URL match there.
 void Find(const URegularExpression* detector, const UChar* text, int32_t len, uint32_t kind,
           std::vector<RawMatch>& out) {
   UErrorCode status = U_ZERO_ERROR;
@@ -307,11 +310,16 @@ void Find(const URegularExpression* detector, const UChar* text, int32_t len, ui
         if (end == to && to < len && text[to] == u'\uFF08') cut = start;
         end = WebEnd(detector, text, len, start, end, to);
       }
+      uint32_t found = kind;
+      if (kind == kKindPhone && MatchesWhole(Compiled().web, text, len, start, end)) {
+        if (end == len || !IsUnspaced(text[end])) continue;
+        found = kKindWeb;
+      }
       const std::string group = Utf8(text + start, end - start);
-      std::optional<std::string> url = kind == kKindWeb     ? CanonicalWebUrl(group)
-                                       : kind == kKindEmail ? "mailto:" + group
-                                                            : CanonicalPhone(group);
-      if (url) out.push_back(RawMatch{start, end, kind, std::move(*url)});
+      std::optional<std::string> url = found == kKindWeb     ? CanonicalWebUrl(group)
+                                       : found == kKindEmail ? "mailto:" + group
+                                                             : CanonicalPhone(group);
+      if (url) out.push_back(RawMatch{start, end, found, std::move(*url)});
     }
     from = to + 1;
   }
