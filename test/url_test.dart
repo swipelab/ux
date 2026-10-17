@@ -265,6 +265,28 @@ void main() {
       );
     });
 
+    test("a '.' before a '?' ending a link stays in it", () {
+      const https = UrlMatch(
+        start: 4,
+        end: 27,
+        url: 'https://example.com#a.?',
+        kind: UrlMatchKind.web,
+      );
+      _expectMatch(
+        'see https://example.com#a.? y',
+        darwin: const [https],
+        windows: const [
+          UrlMatch(
+            start: 4,
+            end: 23,
+            url: 'https://example.com',
+            kind: UrlMatchKind.web,
+          ),
+        ],
+        expected: const [https],
+      );
+    });
+
     test("a ')' a scheme link opens stays in it", () {
       const bl = UrlMatch(
         start: 5,
@@ -292,6 +314,28 @@ void main() {
         darwin: const [docs],
         windows: const [docs],
         expected: const [docs],
+      );
+    });
+
+    test("a ')' a link does not open ends it with the '?' after it", () {
+      const setup = UrlMatch(
+        start: 1,
+        end: 31,
+        url: 'https://docs.flutter.dev#setup',
+        kind: UrlMatchKind.web,
+      );
+      _expectMatch(
+        '(https://docs.flutter.dev#setup)?',
+        darwin: const [setup],
+        windows: const [
+          UrlMatch(
+            start: 1,
+            end: 25,
+            url: 'https://docs.flutter.dev',
+            kind: UrlMatchKind.web,
+          ),
+        ],
+        expected: const [setup],
       );
     });
 

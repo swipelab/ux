@@ -1,15 +1,22 @@
 ### 0.18.0
-- **A link with a scheme starts after a `_` and keeps a trailing `?` on every
-  platform.** `XUrl.match`'s any-scheme pass starts a link at the first letter
-  of the scheme characters before its `://`, as `Patterns.WEB_URL` starts an
-  http link, so a `_` or a digit before a scheme does not keep it from
-  linking: `_banlu://chat/42 x` links `banlu://chat/42` on Android and
-  Windows, as on iOS and macOS. It ends a link as the native detectors end a
-  web link, before a trailing `.`, `,`, `;`, `!`, `'` or `(` and a trailing
-  `)` the link does not open, so `tg://resolve?domain=abc?` keeps its `?` and
-  `(see bl://x/a_(b)).` links `bl://x/a_(b)` on every platform. The pass reads
-  each run of scheme characters once, so its time stays linear in the text, a
-  long word of letters joined by `-`, `.` or `+` included.
+- **A link with a scheme starts after a `_` and keeps a trailing `?` or `:`
+  on every platform.** `XUrl.match`'s any-scheme pass starts a link at the
+  first letter of the scheme characters before its `://`, as
+  `Patterns.WEB_URL` starts an http link, so a `_` or a digit before a scheme
+  does not keep it from linking: `_banlu://chat/42 x` links `banlu://chat/42`
+  on Android and Windows, as on iOS and macOS. It ends a link before a
+  trailing `.`, `,`, `;`, `!`, `'` or `(`, and before a `)` the link does not
+  open with those marks, `?` and `:` after it, as NSDataDetector ends a web
+  link, so `(see bl://x/a_(b)).` links `bl://x/a_(b)` and
+  `(https://docs.flutter.dev#setup)?` links `https://docs.flutter.dev#setup`
+  on every platform. A trailing `?`, or a `:` after its path, query or
+  fragment, stays, as the native detectors keep it: `tg://resolve?domain=abc?`
+  keeps its `?` and `see banlu://chat/42: y` links `banlu://chat/42:`. A
+  native web link that runs on past such a `)` stays:
+  `(https://docs.flutter.dev/setup)?` links
+  `https://docs.flutter.dev/setup)?`. The pass reads each run of scheme
+  characters once, so its time stays linear in the text, a long word of
+  letters joined by `-`, `.` or `+` included.
 - **A link with a scheme ends where its host or port does.** Unless a `/`, `?`
   or `#` follows its host or port, `XUrl.match`'s any-scheme pass ends a link
   there, as the native detectors end a web link, so a `)` the host does not
