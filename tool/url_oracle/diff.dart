@@ -226,11 +226,19 @@ void main(List<String> args) {
 /// A link one side holds and the other does not.
 class Disagreement {
   /// [link] of [reading]'s text, which darwin holds where [darwin] is true
-  /// and the Dart detector otherwise.
-  const Disagreement(this.reading, this.link, {required this.darwin});
+  /// and the Dart detector, whose links of the text are [dart], otherwise.
+  const Disagreement(
+    this.reading,
+    this.dart,
+    this.link, {
+    required this.darwin,
+  });
 
   /// The darwin reading of the text.
   final DarwinReading reading;
+
+  /// The Dart detector's links of the text.
+  final List<Link> dart;
 
   /// The link only one side holds.
   final Link link;
@@ -264,9 +272,9 @@ List<Disagreement> disagreements(
   for (var i = 0; i < darwin.length; i++) ...[
     for (final l in darwin[i].links)
       if (!dart[i].contains(l.link))
-        Disagreement(darwin[i], l.link, darwin: true),
+        Disagreement(darwin[i], dart[i], l.link, darwin: true),
     for (final l in dart[i])
       if (!darwin[i].links.any((d) => d.link == l))
-        Disagreement(darwin[i], l, darwin: false),
+        Disagreement(darwin[i], dart[i], l, darwin: false),
   ],
 ];

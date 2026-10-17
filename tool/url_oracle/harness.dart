@@ -259,8 +259,9 @@ class Harness {
     ];
   }
 
-  /// The texts test/url passes to expectLinks, in the order first seen.
-  Future<List<String>> catalogTexts() async {
+  /// Each expectLinks call of test/url: its text, expected links and apple
+  /// links, where it gives them.
+  Future<List<CatalogEntry>> catalog() async {
     final tree = await _installCatalog();
     final dir = await _scratch('collect');
     final collect = Directory('${dir.path}/collect')..createSync();
@@ -271,14 +272,32 @@ class Harness {
     if (ran.failed > 0) {
       throw StateError('collecting the catalog failed:\n${ran.output}');
     }
-    final texts = <String>{};
     final files = collect.listSync().whereType<File>().toList()
       ..sort((a, b) => a.path.compareTo(b.path));
-    for (final file in files) {
-      texts.addAll(file.readAsLinesSync().map(fromUtf16Base64));
-    }
-    return texts.toList();
+    List<Link> links(Object? json) => [
+      for (final l in json! as List<Object?>)
+        Link.fromJson(l! as List<Object?>),
+    ];
+    return [
+      for (final file in files)
+        for (final line in file.readAsLinesSync())
+          if (jsonDecode(line) case [
+            final String text,
+            final Object expected,
+            ...final apple,
+          ])
+            CatalogEntry(
+              fromUtf16Base64(text),
+              links(expected),
+              apple.isEmpty ? null : links(apple.single),
+            ),
+    ];
   }
+
+  /// The texts test/url passes to expectLinks, each once, in the order first
+  /// seen.
+  Future<List<String>> catalogTexts() async =>
+      {for (final e in await catalog()) e.text}.toList();
 
   /// test/url run against [commit]'s XUrl.match, with each text's
   /// XUrl.debugDetect answering the buffer of its reading in [readings].
@@ -363,6 +382,22 @@ class Harness {
       '${ran.stdout}${ran.stderr}',
     );
   }
+}
+
+/// One expectLinks call of the catalog.
+class CatalogEntry {
+  /// The call for [text] that expects [expected], and [apple] as the darwin
+  /// reading where it departs from it.
+  const CatalogEntry(this.text, this.expected, this.apple);
+
+  /// The text.
+  final String text;
+
+  /// The links the catalog expects.
+  final List<Link> expected;
+
+  /// The darwin reading where [expected] departs from it.
+  final List<Link>? apple;
 }
 
 /// The outcome of one `flutter test` run, from its JSON reporter.

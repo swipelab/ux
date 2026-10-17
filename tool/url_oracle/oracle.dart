@@ -60,7 +60,8 @@ Future<bool> _catalog(Harness harness, _Options options) async {
 Future<bool> _diff(Harness harness, _Options options) async {
   final host = harness.host;
   final seed = int.parse(options.values['--seed'] ?? '3451');
-  final catalog = await harness.catalogTexts();
+  final entries = await harness.catalog();
+  final catalog = {for (final e in entries) e.text}.toList();
   final tlds = readTlds(await host.show(harness.commit, 'src/tld.h'));
   final inputs = CorpusInputs(
     catalog: catalog,
@@ -125,6 +126,55 @@ Future<bool> _diff(Harness harness, _Options options) async {
     ..writeAll([for (final m in raw) 'RAW $m'], '\n')
     ..writeln();
 
+  final oracleTlds = {
+    for (final t in [...tlds.ascii, ...tlds.idn, ...tlds.punycode])
+      t.toLowerCase(),
+  };
+  final classes = disagreementClasses(
+    ClassData(
+      await CharacterClasses.read(harness),
+      oracleTlds,
+      newTlds(host.uxRoot, oracleTlds),
+    ),
+  );
+  final ledger = [
+    for (final e in entries)
+      if (e.apple case final apple?)
+        for (final d in disagreements(
+          [
+            DarwinReading(
+              (family: 'catalog', text: e.text),
+              apple,
+              byText[e.text]!,
+            ),
+          ],
+          [e.expected],
+        ))
+          d,
+  ];
+  final ledgerCounts = <String, int>{};
+  final ledgerUnclassified = <Disagreement>[];
+  for (final d in ledger) {
+    final c = classes.where((c) => c.holds(d)).firstOrNull;
+    if (c == null) {
+      ledgerUnclassified.add(d);
+    } else {
+      ledgerCounts[c.name] = (ledgerCounts[c.name] ?? 0) + 1;
+    }
+  }
+  stdout
+    ..writeln(
+      'self-check: classifier over the catalog\'s apple: readings: '
+      '${ledger.length} disagreeing links, ${ledgerUnclassified.length} '
+      'unclassified',
+    )
+    ..writeAll([
+      for (final c in classes) '  ${c.name}: ${ledgerCounts[c.name] ?? 0}',
+    ], '\n')
+    ..writeln()
+    ..writeAll([for (final d in ledgerUnclassified) 'UNCLASSIFIED $d'], '\n')
+    ..writeln();
+
   final slice = [
     for (final r in darwin)
       if (r.corpus.family == 'phone' ||
@@ -152,7 +202,8 @@ Future<bool> _diff(Harness harness, _Options options) async {
       corpus.length >= 150000 &&
       catalogRun.failed == 0 &&
       catalogRun.passed > 0 &&
-      raw.isEmpty;
+      raw.isEmpty &&
+      ledgerUnclassified.isEmpty;
   if (options.flags.contains('--oracle-only')) return ok;
 
   final kinds = {

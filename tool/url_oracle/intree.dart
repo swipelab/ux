@@ -77,9 +77,11 @@ String? _literals(String source, int at) {
   return any ? value.toString() : null;
 }
 
-/// The ASCII entries of kTlds and the labels of kIdnTlds in [source], the
-/// text of src/tld.h.
-({List<String> ascii, List<String> idn}) readTlds(String source) {
+/// The ASCII entries of kTlds, its xn-- entries and the labels of kIdnTlds
+/// in [source], the text of src/tld.h.
+({List<String> ascii, List<String> punycode, List<String> idn}) readTlds(
+  String source,
+) {
   List<String> entries(String name) {
     final start = source.indexOf('$name[] = {');
     final body = source.substring(start, source.indexOf('};', start));
@@ -89,10 +91,15 @@ String? _literals(String source, int at) {
     ];
   }
 
+  final tlds = entries('kTlds');
   return (
     ascii: [
-      for (final t in entries('kTlds'))
+      for (final t in tlds)
         if (!t.startsWith('xn--')) t,
+    ],
+    punycode: [
+      for (final t in tlds)
+        if (t.startsWith('xn--')) t,
     ],
     idn: entries('kIdnTlds'),
   );

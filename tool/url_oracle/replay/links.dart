@@ -1,5 +1,6 @@
 // test/url/links.dart inside an oracle commit's archive. With
-// UX_ORACLE_MODE=collect, expectLinks records each text; otherwise it checks
+// UX_ORACLE_MODE=collect, expectLinks records each text with its expected and
+// apple links; otherwise it checks
 // `apple ?? expected` against that commit's XUrl.match, whose
 // XUrl.debugDetect answers the probe's buffer for the text.
 import 'dart:io';
@@ -45,8 +46,11 @@ void expectLinks(
   List<UrlMatch>? apple,
 }) {
   if (_mode == 'collect') {
+    List<List<Object>> json(List<UrlMatch> links) => [
+      for (final m in links) [m.start, m.end, m.kind.name, m.url],
+    ];
     File('$_dir/collect/$pid').writeAsStringSync(
-      '${toUtf16Base64(text)}\n',
+      '${asciiJson([toUtf16Base64(text), json(expected), if (apple != null) json(apple)])}\n',
       mode: FileMode.append,
       flush: true,
     );

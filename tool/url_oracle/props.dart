@@ -28,6 +28,21 @@ class CodePoints {
   /// The sorted, disjoint inclusive ranges.
   final List<(int, int)> ranges;
 
+  /// Whether the set holds [c].
+  bool contains(int c) {
+    var lo = 0;
+    var hi = ranges.length;
+    while (lo < hi) {
+      final mid = (lo + hi) >> 1;
+      if (ranges[mid].$2 < c) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+    return lo < ranges.length && ranges[lo].$1 <= c;
+  }
+
   /// How many code points the set holds.
   int get length => ranges.fold(0, (n, r) => n + r.$2 - r.$1 + 1);
 
@@ -76,63 +91,124 @@ CodePoints property(String source, String property) => CodePoints.of([
       (int.parse(m[1]!, radix: 16), int.parse(m[2] ?? m[1]!, radix: 16)),
 ]);
 
+/// The character classes of Unicode 17.0.0 and of macOS 26.4 the oracle
+/// compares.
+class CharacterClasses {
+  CharacterClasses._(this._unicode, this._mac);
+
+  /// Unicode 17.0.0's classes from tool/url_data, and macOS's from the probe
+  /// of [harness].
+  static Future<CharacterClasses> read(Harness harness) async {
+    final data = '${harness.host.uxRoot}/tool/url_data/unicode-17.0.0';
+    final categories = readCategories(
+      File('$data/DerivedGeneralCategory.txt').readAsStringSync(),
+    );
+    CodePoints category(List<String> names) =>
+        CodePoints.of([for (final n in names) ...?categories[n]]);
+    final alphabetic = property(
+      File('$data/DerivedCoreProperties.txt').readAsStringSync(),
+      'Alphabetic',
+    );
+    final marks = category(['Mn', 'Mc', 'Me']);
+    final nd = category(['Nd']);
+    final out = File('${harness.commitDir.path}/props.json');
+    await run(await harness.probe(), ['props', out.path]);
+    final mac = jsonDecode(out.readAsStringSync()) as Map<String, Object?>;
+    CodePoints macSet(String name) => CodePoints.of([
+      for (final r in (mac[name]! as List<Object?>).cast<List<Object?>>())
+        (r[0]! as int, r[1]! as int),
+    ]);
+    return CharacterClasses._(
+      {
+        'L': category(['Lu', 'Ll', 'Lt', 'Lm', 'Lo']),
+        'M': marks,
+        'Nd': nd,
+        'Cf': category(['Cf']),
+        'word':
+            alphabetic |
+            marks |
+            nd |
+            category(['Pc']) |
+            CodePoints.of([(0x200C, 0x200D)]),
+        'space':
+            category(['Zs', 'Zl', 'Zp']) |
+            CodePoints.of([(0x09, 0x0A), (0x0C, 0x0D)]),
+      },
+      {
+        for (final name in ['letter', 'digit', 'word', 'space'])
+          name: macSet(name),
+      },
+    );
+  }
+
+  final Map<String, CodePoints> _unicode;
+  final Map<String, CodePoints> _mac;
+
+  /// Unicode 17.0.0's general category L.
+  CodePoints get letters => _unicode['L']!;
+
+  /// Unicode 17.0.0's general category M.
+  CodePoints get marks => _unicode['M']!;
+
+  /// Unicode 17.0.0's general category Nd.
+  CodePoints get digits => _unicode['Nd']!;
+
+  /// Unicode 17.0.0's general category Cf.
+  CodePoints get format => _unicode['Cf']!;
+
+  /// ICU's `\w` as Unicode 17.0.0 defines it: Alphabetic, M, Nd, Pc, U+200C
+  /// and U+200D.
+  CodePoints get word => _unicode['word']!;
+
+  /// ICU's `\s` as Unicode 17.0.0 defines it: `[\t\n\f\r\p{Z}]`.
+  CodePoints get space => _unicode['space']!;
+
+  /// macOS's NSCharacterSet.letterCharacterSet.
+  CodePoints get macLetters => _mac['letter']!;
+
+  /// macOS's NSCharacterSet.decimalDigitCharacterSet.
+  CodePoints get macDigits => _mac['digit']!;
+
+  /// macOS ICU's `\w`.
+  CodePoints get macWord => _mac['word']!;
+
+  /// macOS ICU's `\s`.
+  CodePoints get macSpace => _mac['space']!;
+
+  /// The pairs the props report compares: a Unicode 17.0.0 class and the
+  /// macOS class that stands for it.
+  List<(String, CodePoints, CodePoints)> get pairs => [
+    ('L against letterCharacterSet without M', letters, macLetters - marks),
+    ('Nd against decimalDigitCharacterSet', digits, macDigits),
+    (r'Alphabetic+M+Nd+Pc+U+200C+U+200D against ICU \w', word, macWord),
+    (r'[\t\n\f\r\p{Z}] against ICU \s', space, macSpace),
+  ];
+
+  /// Every code point where a pair of [pairs] differs.
+  CodePoints get differences =>
+      [for (final (_, unicode, mac) in pairs) (unicode - mac) | (mac - unicode)]
+          .reduce((a, b) => a | b);
+}
+
 /// The props report: where macOS's character classes differ from Unicode
 /// 17.0.0's, and the TLDs NSDataDetector links a host or an email on.
 Future<List<String>> props(Harness harness) async {
   final host = harness.host;
-  final data = '${host.uxRoot}/tool/url_data/unicode-17.0.0';
-  final categories = readCategories(
-    File('$data/DerivedGeneralCategory.txt').readAsStringSync(),
-  );
-  CodePoints category(List<String> names) =>
-      CodePoints.of([for (final n in names) ...?categories[n]]);
-  final alphabetic = property(
-    File('$data/DerivedCoreProperties.txt').readAsStringSync(),
-    'Alphabetic',
-  );
-  final letters = category(['Lu', 'Ll', 'Lt', 'Lm', 'Lo']);
-  final marks = category(['Mn', 'Mc', 'Me']);
-  final nd = category(['Nd']);
-  final word =
-      alphabetic |
-      marks |
-      nd |
-      category(['Pc']) |
-      CodePoints.of([(0x200C, 0x200D)]);
-  final space =
-      category(['Zs', 'Zl', 'Zp']) |
-      CodePoints.of([(0x09, 0x0A), (0x0C, 0x0D)]);
-
-  final out = File('${harness.commitDir.path}/props.json');
-  await run(await harness.probe(), ['props', out.path]);
-  final mac = jsonDecode(out.readAsStringSync()) as Map<String, Object?>;
-  CodePoints macSet(String name) => CodePoints.of([
-    for (final r in (mac[name]! as List<Object?>).cast<List<Object?>>())
-      (r[0]! as int, r[1]! as int),
-  ]);
-  final letterSet = macSet('letter') - marks;
+  final classes = await CharacterClasses.read(harness);
   final report = <String>[];
-  void compare(String name, CodePoints unicode, CodePoints macOS) {
+  for (final (name, unicode, macOS) in classes.pairs) {
     final onlyUnicode = unicode - macOS;
     final onlyMac = macOS - unicode;
     report
       ..add('$name: ${onlyUnicode.length} only in Unicode 17.0.0: $onlyUnicode')
       ..add('$name: ${onlyMac.length} only on macOS: $onlyMac');
   }
-
-  compare('L against letterCharacterSet without M', letters, letterSet);
   report.add(
-    'letterCharacterSet holds ${(macSet('letter') - letters).length} code '
-    'points outside L, ${(macSet('letter') - letters - marks).length} of them '
+    'letterCharacterSet holds '
+    '${(classes.macLetters - classes.letters).length} code points outside L, '
+    '${(classes.macLetters - classes.letters - classes.marks).length} of them '
     'outside M',
   );
-  compare('Nd against decimalDigitCharacterSet', nd, macSet('digit'));
-  compare(
-    r'Alphabetic+M+Nd+Pc+U+200C+U+200D against ICU \w',
-    word,
-    macSet('word'),
-  );
-  compare(r'[\t\n\f\r\p{Z}] against ICU \s', space, macSet('space'));
 
   final tlds = readTlds(await host.show(harness.commit, 'src/tld.h'));
   final all = [...tlds.ascii, ...tlds.idn];
