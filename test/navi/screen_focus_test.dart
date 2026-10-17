@@ -28,16 +28,21 @@ class _Sheet with Screen<void>, SheetScreen<void> {
 }
 
 class _PassingDispatcher extends ActionDispatcher {
-  const _PassingDispatcher(this.above);
+  const _PassingDispatcher(this.above, [this.invoked]);
 
   final ActionDispatcher above;
+
+  final List<Action<Intent>>? invoked;
 
   @override
   Object? invokeAction(
     Action<Intent> action,
     Intent intent, [
     BuildContext? context,
-  ]) => above.invokeAction(action, intent, context);
+  ]) {
+    invoked?.add(action);
+    return above.invokeAction(action, intent, context);
+  }
 
   @override
   (bool, Object?) invokeActionIfEnabled(
@@ -231,6 +236,39 @@ void main() {
       TargetPlatform.windows,
     }),
   );
+
+  testWidgets('Esc that a Scaffold hands on to an action around it goes '
+      'through an app\'s dispatcher around that action', (tester) async {
+    final router = XRouter(home: _Screen(const SizedBox()));
+    await tester.pumpWidget(XApp(router: router));
+    final invoked = <Action<Intent>>[];
+    final appAction = CallbackAction<DismissIntent>(onInvoke: (_) => null);
+    final control = FocusNode();
+    addTearDown(control.dispose);
+    final page = _Screen(
+      Builder(
+        builder: (context) => Actions(
+          dispatcher: _PassingDispatcher(Actions.of(context), invoked),
+          actions: const {},
+          child: Actions(
+            actions: {DismissIntent: appAction},
+            child: Scaffold(
+              body: Focus(
+                focusNode: control,
+                child: const SizedBox(width: 10, height: 10),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    router.push(page);
+    await tester.pumpAndSettle();
+    control.requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    expect(invoked, [appAction]);
+  });
 
   testWidgets('Esc in a text field with its menu shown hides the menu and '
       'leaves the field focused', (tester) async {

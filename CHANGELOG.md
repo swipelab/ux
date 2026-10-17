@@ -422,9 +422,10 @@
   goes to `XRouter.backDispatcher`, as system back does. Esc in a focused text
   field unfocuses it, and a handler nearer the focus takes Esc first; one
   disabled for it, such as a `Scaffold`'s with no drawer open, hands Esc on to
-  the nearest enabled one around it. A `ScreenStack` with no modal screen to
-  pop hands Esc on to the one around it, so Esc in a modal `SheetScreen` pops
-  the sheet. An `ActionDispatcher` an app sets on an `Actions` under `XApp`
+  the nearest enabled one around it, through the dispatcher `Actions.invoke`
+  would use for that one. A `ScreenStack` with no modal screen to pop hands
+  Esc on to the one around it, so Esc in a modal `SheetScreen` pops the sheet.
+  An `ActionDispatcher` an app sets on an `Actions` under `XApp`
   invokes the actions under it in place of `XApp`'s, so it must pass each
   `invokeAction` and `invokeActionIfEnabled` call for a `DismissIntent` to the
   dispatcher `Actions.of` gives for a context above its `Actions`, with the
