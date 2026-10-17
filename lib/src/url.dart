@@ -122,9 +122,9 @@ bool _isLaunchable(String url) {
 /// Strips invisible / whitespace chars that NSDataDetector or
 /// `Patterns.WEB_URL` sometimes drag inside a URL — typically when the
 /// source text uses them as soft separators. Leaving them in produces a
-/// URL the OS refuses to open later. Bidi-override chars are NOT
-/// stripped here (they survive into [_isLaunchable] which rejects them
-/// outright; see comment there).
+/// URL the OS refuses to open later. The bidi controls [_isLaunchable]
+/// rejects are NOT stripped here, so they survive into it; see the comment
+/// there.
 String _sanitizeUrl(String url) {
   StringBuffer? out;
   for (int i = 0; i < url.length; i++) {
@@ -135,7 +135,8 @@ String _sanitizeUrl(String url) {
         c == 0x0D /* CR */ ||
         c == 0xA0 /* NBSP */ ||
         (c >= 0x200B && c <= 0x200D) /* ZWSP / ZWNJ / ZWJ */ ||
-        (c >= 0x2060 && c <= 0x206F) /* word joiner + invisible ops */ ||
+        (c >= 0x2060 && c <= 0x2065) /* word joiner + invisible ops */ ||
+        (c >= 0x206A && c <= 0x206F) /* deprecated format controls */ ||
         c == 0xFEFF /* BOM / ZWNBSP */;
     if (strip) {
       out ??= StringBuffer(url.substring(0, i));

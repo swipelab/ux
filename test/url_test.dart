@@ -73,7 +73,34 @@ void main() {
   }, skip: Platform.isWindows ? null : 'the Windows branch runs on Windows');
 
   group('XUrl.match', () {
-    tearDown(() => XUrl.debugDetect = null);
+    tearDown(() {
+      XUrl.debugDetect = null;
+      messenger.setMockMethodCallHandler(channel, null);
+    });
+
+    test('a bidi isolate stays in the URL of a link the native detector '
+        'finds, so XUrl.launch refuses it', () async {
+      answer((_) => true);
+      const url = 'http://evil.com/\u2067good.com\u2069';
+      XUrl.debugDetect = (_) => _wire(const [
+        UrlMatch(start: 4, end: 23, url: url, kind: UrlMatchKind.web),
+      ]);
+
+      final link = XUrl.match('see evil.com/\u2067good.com\u2069 x').single;
+      expect(link.url, url);
+      expect(await XUrl.launch(link.url), isFalse);
+    });
+
+    test('a bidi isolate stays in the URL of a link the any-scheme pass '
+        'finds, so XUrl.launch refuses it', () async {
+      answer((_) => true);
+      XUrl.debugDetect = (_) => Uint8List(0);
+
+      final link = XUrl.match('see tg://resolve?domain=\u2067evil/good\u2069 x')
+          .single;
+      expect(link.url, 'tg://resolve?domain=\u2067evil/good\u2069');
+      expect(await XUrl.launch(link.url), isFalse);
+    });
 
     test("a link's URL leaves out a zero-width space whether the native "
         'detector or the any-scheme pass links it', () {
