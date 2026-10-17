@@ -407,6 +407,32 @@ void main() {
     expect(router.stack, hasLength(1));
   });
 
+  testWidgets('a predictive back whose screen turns the back gesture off '
+      'through a rebuild drags the screen on, and its commit goes back '
+      'through handleBack', (tester) async {
+    final page = _Gated();
+    final router = await _boot(
+      tester,
+      platform: TargetPlatform.android,
+      page: page,
+    );
+
+    await _backGesture(tester, 'startBackGesture', 0);
+    await _backGesture(tester, 'updateBackGestureProgress', 0.25);
+    await tester.pump();
+    page.swipeBack = false;
+    router.pagesChanged();
+    await tester.pump();
+    await _backGesture(tester, 'updateBackGestureProgress', 0.5);
+    await tester.pump();
+    expect(_offset(tester), moreOrLessEquals(_width / 2, epsilon: 0.5));
+
+    await _backGesture(tester, 'commitBackGesture');
+    await tester.pumpAndSettle();
+    expect(page.backs, 1);
+    expect(router.stack, isEmpty);
+  });
+
   testWidgets('a predictive back leaves a screen without the back gesture in '
       'place, and its commit goes back through handleBack', (tester) async {
     final page = _Gated()

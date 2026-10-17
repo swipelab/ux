@@ -549,9 +549,10 @@ class _GestureCurve extends Animation<double>
 /// back by the gesture's progress. Once the gesture lets go the entry settles
 /// from there, popping when the gesture commits and otherwise returning to 1
 /// over 150 ms; a predictive back's commit asks [Screen.handleBack] first, and
-/// one it consumes returns the entry to 1 as well. A gesture the handler stops
-/// taking before it lets go is cancelled: the entry returns to 1 unless it is
-/// leaving.
+/// one it consumes returns the entry to 1 as well. A gesture is cancelled if
+/// the handler is disabled before it lets go, and an edge swipe also if its
+/// screen turns [Screen.canSwipeBack] false: the entry returns to 1 unless it
+/// is leaving.
 class ScreenBackHandler extends StatefulWidget {
   /// Binds the slot the gesture drags and the pop it commits to.
   const ScreenBackHandler({
@@ -603,11 +604,12 @@ class ScreenBackHandlerState extends State<ScreenBackHandler>
     super.dispose();
   }
 
-  /// Cancels a gesture the handler no longer takes. The edge swipe's strip
-  /// leaves the tree once the theme leaves iOS or the handler is disabled, so
-  /// its drag reports no end.
+  /// Cancels a predictive back once the handler is disabled, and an edge
+  /// swipe once the handler no longer takes it. The edge swipe's strip leaves
+  /// the tree once the theme leaves iOS or the handler is disabled, so its
+  /// drag reports no end.
   void _cancelRevoked() {
-    if (_gestureInProgress && !_takesBack) {
+    if (_gestureInProgress && !widget.enabled) {
       _gestureInProgress = false;
       _cancel();
     }
