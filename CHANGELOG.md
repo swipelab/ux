@@ -369,11 +369,15 @@
   over 150 ms.
 - **Back inside a `SheetScreen` goes to its nested page.** System back on a
   `SheetScreen` with a nested page asks that page's `handleBack`, and pops the
-  page only where `handleBack` declines and its `canPop` holds. A screen takes
-  no edge swipe or predictive back while a `ScreenStack` inside it shows a
-  screen above its home, so a predictive back on the sheet asks the nested
-  page's `handleBack` once, and an edge swipe there pops the nested page or
-  nothing, never the sheet.
+  page only where `handleBack` declines and its `canPop` holds.
+- **One back gesture is taken by one handler.** An edge swipe or a
+  predictive back is taken by the innermost handler in a shown screen, where
+  a screen shown beside the handler's counts as its own. A screen is shown
+  while, in every `ScreenStack` around it, it is the top one or one shown
+  beside it, and a screen takes no back gesture while a `ScreenStack` inside
+  it shows a screen above its home. So a predictive back on a sheet asks its
+  nested page's `handleBack` once, and one on a page pushed over the sheet
+  pops that page alone.
 - **A back gesture reads `canSwipeBack` as it starts.** The iOS edge swipe
   reads the screen's `canSwipeBack` as the touch goes down or the trackpad pan
   starts, as Android's predictive back reads it as the gesture starts, so a

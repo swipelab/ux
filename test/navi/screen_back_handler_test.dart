@@ -79,6 +79,27 @@ class _Holder with Screen<void> {
   Widget buildPresenter(BuildContext context) => child;
 }
 
+/// A shell showing the screen pushed over it beside itself.
+class _Shell with Screen<void>, ScreenShell {
+  Screen? detail;
+
+  @override
+  bool accept(Screen screen) {
+    detail = screen;
+    return true;
+  }
+
+  @override
+  Iterable<Screen> get pages => [?detail];
+
+  @override
+  bool isBeside(Screen screen) => true;
+
+  @override
+  Widget buildPresenter(BuildContext context) =>
+      ColoredBox(color: Colors.black);
+}
+
 /// Pumps a router on [platform] and pushes [page], a [_Page] unless given,
 /// settled unless [settle] is false.
 Future<XRouter> _boot(
@@ -632,6 +653,47 @@ void main() {
     await _backGesture(tester, 'commitBackGesture');
     await tester.pumpAndSettle();
     expect(page.backs, 1);
+    expect(router.stack, hasLength(1));
+  });
+
+  testWidgets('a predictive back on a shell whose beside screen\'s ScreenStack '
+      'shows a page asks the page\'s handleBack once, and keeps the shell '
+      'when it consumes the back', (tester) async {
+    final page = _Gated()..guards = true;
+    final router = await _boot(
+      tester,
+      platform: TargetPlatform.android,
+      page: _Shell(),
+    );
+    router.push(_Holder(ScreenStack(home: _Home(), stack: [page])));
+    await tester.pumpAndSettle();
+
+    await _backGesture(tester, 'startBackGesture', 0);
+    await _backGesture(tester, 'updateBackGestureProgress', 0.25);
+    await tester.pump();
+    await _backGesture(tester, 'commitBackGesture');
+    await tester.pumpAndSettle();
+    expect(page.backs, 1);
+    expect(router.stack, hasLength(1));
+  });
+
+  testWidgets('a predictive back on a page pushed over a sheet with a nested '
+      'page pops the top page alone', (tester) async {
+    final nested = _Gated();
+    final router = await _bootSheet(
+      tester,
+      nested,
+      platform: TargetPlatform.android,
+    );
+    router.push(_Holder(const SizedBox.expand()));
+    await tester.pumpAndSettle();
+
+    await _backGesture(tester, 'startBackGesture', 0);
+    await _backGesture(tester, 'updateBackGestureProgress', 0.25);
+    await tester.pump();
+    await _backGesture(tester, 'commitBackGesture');
+    await tester.pumpAndSettle();
+    expect(nested.popped, isFalse);
     expect(router.stack, hasLength(1));
   });
 }
