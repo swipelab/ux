@@ -34,6 +34,7 @@ class _Shell with Screen<void>, Emitter, ScreenShell {
   void remove(Screen screen) {
     details.removeWhere((_, hosted) => identical(hosted, screen));
     notifyListeners();
+    pagesChanged();
   }
 
   @override
@@ -296,7 +297,8 @@ void main() {
       expect(router.hosted, [shell]);
     });
 
-    testWidgets('popping a hidden screen completes its removal at once', (
+    testWidgets('popping a hidden screen completes its removal after the '
+        'frame of its pop, where its shell may re-render the router', (
       tester,
     ) async {
       final (shell, router) = await _boot(tester);
