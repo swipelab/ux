@@ -187,10 +187,10 @@ class ComposePage with Screen<List<ComposeResult>?>, Emitter {
        initialSourceRadius = BorderRadius.zero,
        transitionSourceFor = null;
 
-  /// Borrowed: reuses entries owned by the caller (the picker).
-  /// The caller is responsible for disposal — `dispose()` skips the
-  /// entry-loop so per-asset state (crop / draw / caption / rendered
-  /// preview) survives re-entry of compose during one picker session.
+  /// Borrowed: reuses entries the caller (the picker) holds and holds
+  /// each until `dispose()`, so an entry lives until both have left and
+  /// per-asset state (crop / draw / caption / rendered preview) survives
+  /// re-entry of compose during one picker session.
   ///
   /// [initialSourceRect] / [initialSnapshot] (optional) drive the
   /// gallery-style open hero-flight from the picker thumbnail into
@@ -211,7 +211,11 @@ class ComposePage with Screen<List<ComposeResult>?>, Emitter {
     this.maxImageExtent,
   }) : assets = [for (final e in entries) e.input],
        _borrowedEntries = entries,
-       ownsEntries = false;
+       ownsEntries = false {
+    for (final e in entries) {
+      e.retain();
+    }
+  }
 
   /// The media being composed.
   final List<XMedia> assets;
@@ -756,12 +760,13 @@ class ComposePage with Screen<List<ComposeResult>?>, Emitter {
         e.dispose();
       }
     } else {
-      // Borrowed entries survive the compose session (picker-owned
-      // edits) but their preview players must not — the looping video
-      // (and its audio) would keep running under the picker grid.
-      // Re-entering compose re-initializes the controller.
+      // An entry the picker still holds outlives this page, but its
+      // preview player must not — the looping video (and its audio)
+      // would keep running under the picker grid. Re-entering compose
+      // re-initializes the controller.
       for (final e in entries) {
         e.disposeVideo().unawaited();
+        e.release();
       }
     }
     initialSnapshot?.dispose();

@@ -85,6 +85,17 @@ class ComposeEntry with Emitter {
   /// The asset as picked / captured / pasted. Never mutated.
   final XMedia input;
 
+  /// The creator's hold and one per [retain] not yet released.
+  int _holds = 1;
+
+  /// Holds this entry alive until a matching [release].
+  void retain() => _holds++;
+
+  /// Drops a hold; the last one disposes this entry.
+  void release() {
+    if (--_holds == 0) dispose();
+  }
+
   /// Source image decoded from `input.file`. Cached for the entry's
   /// lifetime so editor layers can paint without re-decoding. Null for
   /// `VideoMedia` (and any error during decode).
