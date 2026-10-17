@@ -59,6 +59,21 @@ class _Dragged extends _Gated {
   );
 }
 
+/// A screen whose [handleBack] counts the backs it is asked and consumes
+/// them.
+class _Guard with Screen<void> {
+  int backs = 0;
+
+  @override
+  Widget buildPresenter(BuildContext context) => const SizedBox.expand();
+
+  @override
+  bool handleBack() {
+    backs++;
+    return true;
+  }
+}
+
 /// A sheet whose [body], an empty box unless given, fills it.
 class _Sheet with Screen<void>, SheetScreen<void> {
   _Sheet([this.body = const SizedBox.expand()]);
@@ -159,6 +174,12 @@ Future<XRouter> _bootSheet(
   await tester.pumpAndSettle();
   return router;
 }
+
+/// A [ScreenStack] over a [_Home] showing the screens [pages] holds.
+Widget _fed(ValueNotifier<List<Screen>> pages) => ValueListenableBuilder(
+  valueListenable: pages,
+  builder: (context, stack, _) => ScreenStack(home: _Home(), stack: stack),
+);
 
 double _offset(WidgetTester tester) =>
     tester.getTopLeft(find.byKey(_pageKey)).dx;
@@ -776,6 +797,125 @@ void main() {
     await tester.pumpAndSettle();
     expect(page.backs, 0);
     expect(router.stack, isEmpty);
+  });
+
+  testWidgets('an edge swipe on a page in a shell\'s beside screen right '
+      'after the screen pops, before it rebuilds, pops nothing', (
+    tester,
+  ) async {
+    final page = _Gated();
+    final router = await _boot(tester, page: _Shell());
+    final side = _Holder(ScreenStack(home: _Home(), stack: [page]));
+    router.push(side);
+    await tester.pumpAndSettle();
+
+    side.pop();
+    await tester.dragFrom(const Offset(10, 400), const Offset(299, 0));
+    await tester.pumpAndSettle();
+    expect(page.popped, isFalse);
+    expect(router.stack, hasLength(1));
+  });
+
+  testWidgets('a predictive back right after a page in a shell\'s beside '
+      'screen pops, before its stack rebuilds, goes to the shell and asks the '
+      'page nothing', (tester) async {
+    final page = _Gated();
+    final router = await _boot(
+      tester,
+      platform: TargetPlatform.android,
+      page: _Shell(),
+    );
+    router.push(_Holder(ScreenStack(home: _Home(), stack: [page])));
+    await tester.pumpAndSettle();
+
+    page.pop();
+    await _backGesture(tester, 'startBackGesture', 0);
+    await _backGesture(tester, 'commitBackGesture');
+    await tester.pumpAndSettle();
+    expect(page.backs, 0);
+    expect(router.stack, isEmpty);
+  });
+
+  testWidgets('a predictive back on a screen is cancelled as a ScreenStack '
+      'inside it starts showing a page: the screen springs back, and the '
+      'commit asks nothing and pops nothing', (tester) async {
+    final pages = ValueNotifier<List<Screen>>([]);
+    addTearDown(pages.dispose);
+    final page = _Guard();
+    final router = await _boot(
+      tester,
+      platform: TargetPlatform.android,
+      page: _Holder(KeyedSubtree(key: _pageKey, child: _fed(pages))),
+    );
+
+    await _backGesture(tester, 'startBackGesture', 0);
+    await _backGesture(tester, 'updateBackGestureProgress', 0.25);
+    await tester.pump();
+    pages.value = [page];
+    await tester.pumpAndSettle();
+    await _backGesture(tester, 'updateBackGestureProgress', 0.5);
+    await tester.pump();
+    expect(_offset(tester), 0);
+
+    await _backGesture(tester, 'commitBackGesture');
+    await tester.pumpAndSettle();
+    expect(page.backs, 0);
+    expect(router.stack, hasLength(1));
+  });
+
+  testWidgets('a predictive back and system back on a screen with '
+      'ScreenStacks side by side, each showing a page, go only to the page '
+      'pushed last', (tester) async {
+    final pages = ValueNotifier<List<Screen>>([]);
+    addTearDown(pages.dispose);
+    final left = _Gated();
+    final middle = _Guard();
+    final right = _Guard();
+    await _boot(
+      tester,
+      platform: TargetPlatform.android,
+      page: _Holder(
+        Row(
+          children: [
+            Expanded(
+              child: ScreenStack(home: _Home(), stack: [left]),
+            ),
+            Expanded(child: _fed(pages)),
+            Expanded(
+              child: ScreenStack(home: _Home(), stack: [right]),
+            ),
+          ],
+        ),
+      ),
+    );
+    pages.value = [middle];
+    await tester.pumpAndSettle();
+
+    await _backGesture(tester, 'startBackGesture', 0);
+    await _backGesture(tester, 'updateBackGestureProgress', 0.25);
+    await tester.pump();
+    expect(_offset(tester), 0);
+    await _backGesture(tester, 'commitBackGesture');
+    await tester.pumpAndSettle();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(middle.backs, 2);
+    expect(left.backs, 0);
+    expect(right.backs, 0);
+  });
+
+  testWidgets('a predictive back whose screen pops before it commits, in one '
+      'frame, asks the screen nothing', (tester) async {
+    final page = _Gated();
+    await _boot(tester, platform: TargetPlatform.android, page: page);
+
+    await _backGesture(tester, 'startBackGesture', 0);
+    await _backGesture(tester, 'updateBackGestureProgress', 0.25);
+    await tester.pump();
+    page.pop();
+    await _backGesture(tester, 'commitBackGesture');
+    await tester.pumpAndSettle();
+    expect(page.backs, 0);
   });
 
   testWidgets('a predictive back on a page pushed over a sheet with a nested '
