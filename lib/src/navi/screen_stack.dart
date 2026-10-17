@@ -332,7 +332,9 @@ class ScreenStackState extends State<ScreenStack>
     return _outerSlot == outer._topSlot && outer._onTop;
   }
 
-  bool get _homeCovered => _entries.any((e) => e._covers);
+  bool get _homeCovered =>
+      _entries.any((e) => e._covers) ||
+      _homeSlot._stacks.any((stack) => stack._homeCovered);
 
   Widget _place(BuildContext context, ScreenSlot entry, Widget slot) =>
       entry._place?.call(context, entry.page, slot) ?? slot;

@@ -59,10 +59,14 @@ class _Dragged extends _Gated {
   );
 }
 
-/// A sheet whose body fills it.
+/// A sheet whose [body], an empty box unless given, fills it.
 class _Sheet with Screen<void>, SheetScreen<void> {
+  _Sheet([this.body = const SizedBox.expand()]);
+
+  final Widget body;
+
   @override
-  Widget buildSheetBody(BuildContext context) => const SizedBox.expand();
+  Widget buildSheetBody(BuildContext context) => body;
 }
 
 /// Pumps a router on [platform] and pushes [page], a [_Page] unless given,
@@ -585,6 +589,19 @@ void main() {
     await tester.dragFrom(const Offset(10, 600), const Offset(299, 0));
     await tester.pumpAndSettle();
     expect(page.popped, isFalse);
+    expect(router.stack, hasLength(1));
+  });
+
+  testWidgets('an edge swipe on a sheet whose body\'s ScreenStack shows a '
+      'page that cannot pop pops nothing', (tester) async {
+    final page = _Gated()..pops = false;
+    final router = await _boot(
+      tester,
+      page: _Sheet(ScreenStack(home: _Home(), stack: [page])),
+    );
+
+    await tester.dragFrom(const Offset(10, 600), const Offset(299, 0));
+    await tester.pumpAndSettle();
     expect(router.stack, hasLength(1));
   });
 }
