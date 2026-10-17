@@ -282,8 +282,9 @@ bool IsPathDelimiter(UChar c) { return std::u16string_view(u"/?#&=").find(c) != 
 // across its glue: the web match is the part before the glue where the
 // detector matches that whole, and the search goes on from the glue. A phone
 // match that Patterns.WEB_URL matches whole is a dotted IPv4 address, no
-// phone; it is a web link where an unspaced letter follows it, since no word
-// boundary ends a Patterns.WEB_URL match there.
+// phone, unless it starts with a '0', a national trunk prefix; the address is
+// a web link where an unspaced letter follows it, since no word boundary ends a
+// Patterns.WEB_URL match there.
 void Find(const URegularExpression* detector, const UChar* text, int32_t len, uint32_t kind,
           std::vector<RawMatch>& out) {
   UErrorCode status = U_ZERO_ERROR;
@@ -311,7 +312,7 @@ void Find(const URegularExpression* detector, const UChar* text, int32_t len, ui
         end = WebEnd(detector, text, len, start, end, to);
       }
       uint32_t found = kind;
-      if (kind == kKindPhone && MatchesWhole(Compiled().web, text, len, start, end)) {
+      if (kind == kKindPhone && text[start] != u'0' && MatchesWhole(Compiled().web, text, len, start, end)) {
         if (end == len || !IsUnspaced(text[end])) continue;
         found = kKindWeb;
       }

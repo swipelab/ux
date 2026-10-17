@@ -335,9 +335,10 @@ bool is_path_delimiter(jchar c) {
 // before it and the pattern matches the link through it whole. No host runs
 // across its glue: the web match is the part before the glue where the pattern
 // matches that whole, and the search goes on from the glue. A phone match that
-// Patterns.WEB_URL matches whole is a dotted IPv4 address, no phone; it is a
-// web link where an unspaced letter follows it, since no word boundary ends a
-// Patterns.WEB_URL match there.
+// Patterns.WEB_URL matches whole is a dotted IPv4 address, no phone, unless it
+// starts with a '0', a national trunk prefix; the address is a web link where
+// an unspaced letter follows it, since no word boundary ends a Patterns.WEB_URL
+// match there.
 void run_pattern(JNIEnv* env, jstring text, const jchar* chars, jint len, jobject pattern,
                  uint32_t kind, std::vector<RawMatch>& out) {
   jobject matcher = env->CallObjectMethod(pattern, g_matcher_method, text);
@@ -375,7 +376,8 @@ void run_pattern(JNIEnv* env, jstring text, const jchar* chars, jint len, jobjec
         end = web_end(env, pattern, text, chars, start, end, to);
       }
       uint32_t found = kind;
-      if (kind == kKindPhone && matches_whole(env, g_web_url_pattern, text, start, end)) {
+      if (kind == kKindPhone && chars[start] != u'0' &&
+          matches_whole(env, g_web_url_pattern, text, start, end)) {
         if (end == len || !is_unspaced(chars[end])) continue;
         found = kKindWeb;
       }

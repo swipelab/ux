@@ -282,8 +282,10 @@ static NSUInteger ux_web_end(const uint16_t *chars, NSUInteger start, NSUInteger
 }
 
 // Whether the range r of the text is a dotted IPv4 address: ASCII digits and
-// '.' alone that the web regex matches whole.
+// '.' alone that the web regex matches whole, and that no '0', a national
+// trunk prefix, starts.
 static BOOL ux_is_ipv4(NSRegularExpression *webRe, NSString *text, const uint16_t *chars, NSRange r) {
+    if (chars[r.location] == '0') return NO;
     for (NSUInteger i = r.location; i < NSMaxRange(r); i++) {
         if (chars[i] != '.' && (chars[i] < '0' || chars[i] > '9')) return NO;
     }

@@ -483,24 +483,36 @@ void main() {
     ]);
   });
 
-  testWidgets('a zero-padded IPv4 address links, as no phone number', (
-    tester,
-  ) async {
+  testWidgets('a zero-padded IPv4 address is a phone number', (tester) async {
     expect(XUrl.match('ip 010.000.000.001 x'), const [
       UrlMatch(
         start: 3,
         end: 18,
-        url: 'http://010.000.000.001',
-        kind: UrlMatchKind.web,
+        url: 'tel:010000000001',
+        kind: UrlMatchKind.phone,
       ),
     ]);
   });
 
   testWidgets(
-    'a zero-padded IPv4 address that ASCII letters follow is no link and no '
+    'a number dotted like an IPv4 address that a 0 trunk prefix starts is a '
     'phone number',
     (tester) async {
-      expect(XUrl.match('ip 010.000.000.001abc x'), const <UrlMatch>[]);
+      expect(XUrl.match('call 044.123.45.67 now'), const [
+        UrlMatch(
+          start: 5,
+          end: 18,
+          url: 'tel:0441234567',
+          kind: UrlMatchKind.phone,
+        ),
+      ]);
+    },
+  );
+
+  testWidgets(
+    'an IPv4 address that ASCII letters follow is no link and no phone number',
+    (tester) async {
+      expect(XUrl.match('ip 192.168.1.1abc x'), const <UrlMatch>[]);
     },
   );
 

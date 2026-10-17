@@ -10,10 +10,12 @@
   stack's, run after the frame it leaves in.
 - **A dotted IPv4 address is no phone number.** `XUrl.match` links a bare
   IPv4 address as `http://` and the address on every platform, whatever its
-  digits, zero padding included: `ip 192.168.1.1 x` links `http://192.168.1.1`
-  and `ip 010.000.000.001 x` links `http://010.000.000.001`. On Android and
-  Windows, an IPv4 address that Chinese, Japanese, Korean, Thai, Lao, Khmer or
-  Myanmar letters follow links, as on iOS and macOS: `访问192.168.1.1然后` links
+  digits: `ip 192.168.1.1 x` links `http://192.168.1.1`. A number dotted like
+  an IPv4 address that a `0` starts, a national trunk prefix, is a phone
+  number: `call 044.123.45.67 now` links `tel:0441234567`, and
+  `ip 010.000.000.001 x` links `tel:010000000001`. On Android and Windows, an
+  IPv4 address that Chinese, Japanese, Korean, Thai, Lao, Khmer or Myanmar
+  letters follow links, as on iOS and macOS: `访问192.168.1.1然后` links
   `http://192.168.1.1`.
 - **A web link's URL on iOS and macOS is the text it covers.** On iOS and
   macOS, `XUrl.match` gives a web link `NSDataDetector` finds the text it
