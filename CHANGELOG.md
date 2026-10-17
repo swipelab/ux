@@ -1,4 +1,11 @@
 ### 0.18.0
+- **A video's preview player lives while any compose shows it.**
+  `ComposeEntry.retainVideo` holds an entry's preview player, loading it for
+  the first hold, and `ComposeEntry.releaseVideo` drops a hold, disposing the
+  player with the last. Each `ComposePage` holds the player of the video it
+  shows, so a compose reopened on a video while an earlier compose on it
+  leaves keeps its player after the earlier one is disposed. Breaking:
+  `ComposeEntry.disposeVideo` is replaced by `ComposeEntry.releaseVideo`.
 - **A picker's compose entries live until the last screen showing them
   leaves.** `ComposeEntry.retain` adds a hold on an entry and
   `ComposeEntry.release` drops one, disposing the entry with the last.
@@ -312,8 +319,8 @@
   while its video, crop poster, draw overlay or composite is still loading
   neither notifies nor changes its state, and releases a poster that arrives
   late. `ComposeEntry.captureImage` returns null once the entry is disposed.
-  `ComposeEntry.disposeVideo` drops the player and notifies before the native
-  player finishes tearing down.
+  The last `ComposeEntry.releaseVideo` drops the player and notifies before
+  the native player finishes tearing down.
 - **A compose entry captures the edits its preview is still rendering.**
   `ComposeEntry.composedImage` and `ComposeEntry.captureImage` wait for the
   render of the current edits, and a render an edit overtakes is discarded.

@@ -369,7 +369,7 @@ class ComposePage with Screen<List<ComposeResult>?>, Emitter {
   void onPush() {
     super.onPush();
     if (focusedEntry.input is VideoMedia) {
-      focusedEntry.ensureVideoInitialized();
+      focusedEntry.retainVideo();
     }
   }
 
@@ -453,10 +453,10 @@ class ComposePage with Screen<List<ComposeResult>?>, Emitter {
 
   void _onPageChanged(int i) {
     final prev = entries[currentIndex.value];
-    if (prev.input is VideoMedia) prev.disposeVideo();
+    if (prev.input is VideoMedia) prev.releaseVideo();
     currentIndex.value = i;
     final next = entries[i];
-    if (next.input is VideoMedia) next.ensureVideoInitialized();
+    if (next.input is VideoMedia) next.retainVideo();
     // Carry the measured fit rect across to the swiped-to entry so
     // its first paint fits without waiting for a layout change.
     next.setFitRect(prev.fitRect.value);
@@ -755,17 +755,15 @@ class ComposePage with Screen<List<ComposeResult>?>, Emitter {
   @override
   void dispose() {
     _completedReset?.cancel();
+    if (focusedEntry.input is VideoMedia) {
+      focusedEntry.releaseVideo().unawaited();
+    }
     if (ownsEntries) {
       for (final e in entries) {
         e.dispose();
       }
     } else {
-      // An entry the picker still holds outlives this page, but its
-      // preview player must not — the looping video (and its audio)
-      // would keep running under the picker grid. Re-entering compose
-      // re-initializes the controller.
       for (final e in entries) {
-        e.disposeVideo().unawaited();
         e.release();
       }
     }

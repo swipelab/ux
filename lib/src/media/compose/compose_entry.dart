@@ -299,9 +299,12 @@ class ComposeEntry with Emitter {
   final ValueNotifier<bool> isZoomed = ValueNotifier<bool>(false);
 
   /// Player of a video entry's preview; absent for other media, before
-  /// [ensureVideoInitialized] and after [disposeVideo].
+  /// [ensureVideoInitialized] and after the last [releaseVideo].
   XVideoPlayerController? videoController;
   bool _videoInitStarted = false;
+
+  /// One per [retainVideo] not yet released.
+  int _videoHolds = 0;
 
   /// Eagerly decode `input.file` and cache it as [source]. Idempotent.
   /// Returns `null` for non-image media. Required by `ComposePage` so
@@ -458,12 +461,18 @@ class ComposeEntry with Emitter {
     }
   }
 
-  /// Fully tear down the video controller. The page calls this on
-  /// swipe-away so memory stays bounded — re-paging-to triggers a
-  /// fresh `ensureVideoInitialized` and the controller is reborn.
-  /// Matches telegram-iOS's `viewDidAppear` / `viewDidDisappear`
-  /// gallery item lifecycle.
-  Future<void> disposeVideo() async {
+  /// Holds [videoController] until a matching [releaseVideo], loading it
+  /// for the first hold.
+  Future<void> retainVideo() {
+    _videoHolds++;
+    return ensureVideoInitialized();
+  }
+
+  /// Drops a hold on [videoController]; the last one disposes it, so the
+  /// looping video and its audio stop once no screen shows the entry, and
+  /// the next [retainVideo] loads a fresh player.
+  Future<void> releaseVideo() async {
+    if (--_videoHolds > 0) return;
     final ctrl = videoController;
     if (ctrl == null) return;
     videoController = null;
