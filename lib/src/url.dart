@@ -99,12 +99,13 @@ bool _isLaunchable(String url) {
   if (colon <= 0) return false;
   final scheme = url.substring(0, colon).toLowerCase();
   if (!_kLaunchSchemes.contains(scheme)) return false;
-  // Bidi controls + directional marks let a sender visually reverse the
+  // Unicode's Bidi_Control characters let a sender visually reverse the
   // displayed URL while the byte order — what the OS opens — points
   // elsewhere. Reject rather than guessing intent.
   for (int i = 0; i < url.length; i++) {
     final c = url.codeUnitAt(i);
-    if (c == 0x200E ||
+    if (c == 0x061C /* ALM */ ||
+        c == 0x200E ||
         c == 0x200F /* LRM / RLM */ ||
         (c >= 0x202A && c <= 0x202E) ||
         (c >= 0x2066 && c <= 0x2069)) {
