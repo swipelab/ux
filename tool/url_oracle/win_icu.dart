@@ -111,59 +111,41 @@ class WinIcu {
   /// links.
   Future<List<(String, List<Link>)>> corpus() async {
     await _write();
-    final source = File('${_dir.path}/windows/test/url_detect_test.cpp')
-        .readAsStringSync();
-    final step = RegExp(
-      r'const std::u16string kStepText = u"((?:[^"\\]|\\.)*)";',
-    ).firstMatch(source)![1]!;
-    final body = source.substring(
-      source.indexOf('corpus = {'),
-      source.indexOf('return corpus;'),
+    return windowsCorpus(
+      File('${_dir.path}/windows/test/url_detect_test.cpp').readAsStringSync(),
     );
-    final cases = RegExp(
-      r'\{"(?:[^"\\]|\\.)*",\s*(kStepText|u"((?:[^"\\]|\\.)*)"),\s*\{(.*?)\}\},?\n',
-      dotAll: true,
-    );
-    final links = RegExp(
-      r'\{(\d+),\s*(\d+),\s*k(Web|Email|Phone),\s*(?:u8)?"((?:[^"\\]|\\.)*)"\}',
-    );
-    return [
-      for (final c in cases.allMatches(body))
-        (
-          _unescape(c[1] == 'kStepText' ? step : c[2]!),
-          [
-            for (final l in links.allMatches(c[3]!))
-              Link(
-                int.parse(l[1]!),
-                int.parse(l[2]!),
-                l[3]!.toLowerCase(),
-                _unescape(l[4]!),
-              ),
-          ],
-        ),
-    ];
   }
 }
 
-/// [literal]'s value as C++ reads its `\u`, `\U` and character escapes.
-String _unescape(String literal) {
-  final out = StringBuffer();
-  for (var i = 0; i < literal.length; i++) {
-    final c = literal[i];
-    if (c != r'\') {
-      out.write(c);
-      continue;
-    }
-    final kind = literal[++i];
-    if (kind == 'u' || kind == 'U') {
-      final digits = kind == 'u' ? 4 : 8;
-      out.writeCharCode(
-        int.parse(literal.substring(i + 1, i + 1 + digits), radix: 16),
-      );
-      i += digits;
-    } else {
-      out.write(const {'n': '\n', 't': '\t'}[kind] ?? kind);
-    }
-  }
-  return out.toString();
+/// The cases of url_detect_test.cpp's [source]: each case's text and
+/// recorded links.
+List<(String, List<Link>)> windowsCorpus(String source) {
+  final step = RegExp(r'const std::u16string kStepText = u"((?:[^"\\]|\\.)*)";')
+      .firstMatch(source)![1]!;
+  final body = source.substring(
+    source.indexOf('corpus = {'),
+    source.indexOf('return corpus;'),
+  );
+  final cases = RegExp(
+    r'\{"(?:[^"\\]|\\.)*",\s*(kStepText|u"((?:[^"\\]|\\.)*)"),\s*\{(.*?)\}\},?\n',
+    dotAll: true,
+  );
+  final links = RegExp(
+    r'\{(\d+),\s*(\d+),\s*k(Web|Email|Phone),\s*(?:u8)?"((?:[^"\\]|\\.)*)"\}',
+  );
+  return [
+    for (final c in cases.allMatches(body))
+      (
+        unescapeCpp(c[1] == 'kStepText' ? step : c[2]!),
+        [
+          for (final l in links.allMatches(c[3]!))
+            Link(
+              int.parse(l[1]!),
+              int.parse(l[2]!),
+              l[3]!.toLowerCase(),
+              unescapeCpp(l[4]!),
+            ),
+        ],
+      ),
+  ];
 }

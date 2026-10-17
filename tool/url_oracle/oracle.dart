@@ -9,7 +9,12 @@
 // It writes only under --work, a directory outside the checkout.
 import 'dart:io';
 
+import 'corpus.dart';
+import 'diff.dart';
+import 'classes.dart';
 import 'harness.dart';
+import 'intree.dart';
+import 'selfcheck.dart';
 import 'win_icu.dart';
 import 'wire.dart';
 
@@ -28,6 +33,7 @@ Future<void> main(List<String> args) async {
   final ok = switch (args.first) {
     'catalog' => await _catalog(harness, options),
     'win' => await _win(harness),
+    'diff' => await _diff(harness, options),
     _ => _usage(),
   };
   exit(ok ? 0 : 1);
@@ -47,6 +53,147 @@ Future<bool> _catalog(Harness harness, _Options options) async {
     stdout.writeln('FAILED $failure');
   }
   return run.failed == 0 && run.passed > 0;
+}
+
+Future<bool> _diff(Harness harness, _Options options) async {
+  final host = harness.host;
+  final seed = int.parse(options.values['--seed'] ?? '3451');
+  final catalog = await harness.catalogTexts();
+  final tlds = readTlds(await host.show(harness.commit, 'src/tld.h'));
+  final inputs = CorpusInputs(
+    catalog: catalog,
+    inTree: await inTreeTexts(host, harness.commit),
+    asciiTlds: tlds.ascii,
+    idnTlds: tlds.idn,
+    categories: readCategories(
+      File(
+        '${host.uxRoot}/tool/url_data/unicode-17.0.0/DerivedGeneralCategory.txt',
+      ).readAsStringSync(),
+    ),
+  );
+  final corpus = generateCorpus(seed, inputs);
+  final deterministic =
+      encodeCorpus(corpus) == encodeCorpus(generateCorpus(seed, inputs));
+  final head = header(
+    host,
+    commit: harness.commit,
+    locale: options.locale,
+    seed: seed,
+    size: corpus.length,
+  );
+  stdout.writeln(head);
+  final texts = [for (final c in corpus) c.text];
+  final probes = await harness.read(texts, locale: options.locale);
+  final matched = await harness.replay(texts, probes);
+  final darwin = [
+    for (var i = 0; i < corpus.length; i++)
+      DarwinReading(corpus[i], matched[i], probes[i]),
+  ];
+  final json = File('${harness.commitDir.path}/darwin.json')
+    ..writeAsStringSync(encodeDarwin({'header': head}, darwin));
+  stdout
+    ..writeln('darwin.json: ${json.path}')
+    ..writeAll(counts(darwin), '\n')
+    ..writeln();
+
+  final byText = {for (var i = 0; i < texts.length; i++) texts[i]: probes[i]};
+  final catalogRun = await harness.checkCatalog(catalog, [
+    for (final t in catalog) byText[t]!,
+  ]);
+  final quoted = await harness.read([
+    for (final (text, _) in rawQuotes) text,
+  ], locale: options.locale);
+  final raw = rawMismatches({
+    for (var i = 0; i < rawQuotes.length; i++) rawQuotes[i].$1: quoted[i].raw,
+  });
+  stdout
+    ..writeln(
+      'self-check: corpus ${deterministic ? 'byte-identical' : 'differs'} '
+      'across two runs of seed $seed; ${corpus.length} texts',
+    )
+    ..writeln(
+      'self-check: catalog ${catalogRun.passed} passed, '
+      '${catalogRun.failed} failed',
+    )
+    ..writeAll([for (final f in catalogRun.failures) 'FAILED $f'], '\n')
+    ..writeln(
+      'self-check: raw NSDataDetector quotes ${rawQuotes.length - raw.length} '
+      'of ${rawQuotes.length} reproduced',
+    )
+    ..writeAll([for (final m in raw) 'RAW $m'], '\n')
+    ..writeln();
+
+  final slice = [
+    for (final r in darwin)
+      if (r.corpus.family == 'phone' ||
+          r.corpus.family == 'email' ||
+          r.links.any((l) => l.link.kind != 'web') ||
+          r.reading.raw.any((raw) => raw.phone))
+        r,
+  ];
+  final sliceTexts = [for (final r in slice) r.corpus.text];
+  final byLocale = {
+    for (final locale in const ['en_US', 'en_GB', 'de_DE', 'ja_JP'])
+      if (locale != options.locale)
+        locale: await harness.read(sliceTexts, locale: locale),
+  };
+  final locales = localeDifferences(slice, byLocale);
+  stdout
+    ..writeln(
+      'locale check: ${slice.length} phone and email texts under '
+      '${byLocale.keys.join(', ')}: ${locales.length} locale-dependent',
+    )
+    ..writeAll([for (final l in locales) 'LOCALE $l'], '\n')
+    ..writeln();
+  final ok =
+      deterministic &&
+      corpus.length >= 150000 &&
+      catalogRun.failed == 0 &&
+      catalogRun.passed > 0 &&
+      raw.isEmpty;
+  if (options.flags.contains('--oracle-only')) return ok;
+
+  final kinds = {
+    for (final k in (options.values['--kinds'] ?? '').split(','))
+      if (k.isNotEmpty)
+        LinkClass.values.firstWhere(
+          (c) => c.label == k,
+          orElse: () => _usage(),
+        ),
+  };
+  final compared = [
+    for (final r in darwin)
+      if (kinds.isEmpty || r.holdsOnly(kinds)) r,
+  ];
+  final dart = await dartReading(host.uxRoot, harness.commitDir, [
+    for (final r in compared) r.corpus.text,
+  ]);
+  final found = disagreements(compared, dart);
+  final byClass = <String, int>{};
+  final unclassified = <Disagreement>[];
+  for (final d in found) {
+    final c = classes.where((c) => c.holds(d)).firstOrNull;
+    if (c == null) {
+      unclassified.add(d);
+    } else {
+      byClass[c.name] = (byClass[c.name] ?? 0) + 1;
+    }
+  }
+  final only = kinds.isEmpty
+      ? ''
+      : ' holding only ${options.values['--kinds']}';
+  stdout
+    ..writeln(
+      'diff: ${compared.length} texts$only, ${found.length} disagreeing '
+      'links, ${unclassified.length} unclassified',
+    )
+    ..writeAll([
+      for (final c in classes) '  ${c.name}: ${byClass[c.name] ?? 0}',
+    ], '\n')
+    ..writeln()
+    ..writeAll([for (final d in unclassified) 'UNCLASSIFIED $d'], '\n')
+    ..writeln();
+  return ok && unclassified.isEmpty;
 }
 
 Future<bool> _win(Harness harness) async {

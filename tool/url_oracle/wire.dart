@@ -170,3 +170,26 @@ String printable(String text) {
   }
   return out.toString();
 }
+
+/// [literal]'s value as C++ reads its `\u`, `\U` and character escapes.
+String unescapeCpp(String literal) {
+  final out = StringBuffer();
+  for (var i = 0; i < literal.length; i++) {
+    final c = literal[i];
+    if (c != r'\') {
+      out.write(c);
+      continue;
+    }
+    final kind = literal[++i];
+    if (kind == 'u' || kind == 'U') {
+      final digits = kind == 'u' ? 4 : 8;
+      out.writeCharCode(
+        int.parse(literal.substring(i + 1, i + 1 + digits), radix: 16),
+      );
+      i += digits;
+    } else {
+      out.write(const {'n': '\n', 't': '\t'}[kind] ?? kind);
+    }
+  }
+  return out.toString();
+}
