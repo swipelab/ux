@@ -786,14 +786,13 @@ void main() {
       await tester.pumpAndSettle();
       final compose = host.pages.value.last as ComposePage;
       final entry = compose.focusedEntry;
-      await tester.runAsync(entry.ensureSourceForTest);
-      await tester.pump();
       compose.pop();
       picker.pop();
       await tester.pump();
       expect(picker.disposed, isTrue);
       expect(compose.disposed, isFalse);
       expect(entry.disposed, isFalse);
+      await tester.runAsync(entry.ensureSourceForTest);
       await tester.pumpAndSettle();
       await composing;
       expect(tester.takeException(), isNull);
