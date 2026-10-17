@@ -1,4 +1,5 @@
-// The darwin oracle's probe, linked with a commit's url_detect.mm.
+// The oracle's probe, linked with a commit's native detector: url_detect.mm,
+// or windows/url_detect.cpp on ICU for win_icu.
 //
 //   probe texts <in> <out> [-AppleLocale <locale>]
 //     <in> holds one text per line, as base64 of its UTF-16LE code units. Each

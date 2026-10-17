@@ -10,6 +10,8 @@
 import 'dart:io';
 
 import 'harness.dart';
+import 'win_icu.dart';
+import 'wire.dart';
 
 Future<void> main(List<String> args) async {
   if (args.isEmpty) _usage();
@@ -25,6 +27,7 @@ Future<void> main(List<String> args) async {
   final harness = Harness(host, commit, options.work);
   final ok = switch (args.first) {
     'catalog' => await _catalog(harness, options),
+    'win' => await _win(harness),
     _ => _usage(),
   };
   exit(ok ? 0 : 1);
@@ -45,6 +48,44 @@ Future<bool> _catalog(Harness harness, _Options options) async {
   }
   return run.failed == 0 && run.passed > 0;
 }
+
+Future<bool> _win(Harness harness) async {
+  final win = WinIcu(harness);
+  stdout
+    ..writeln(header(harness.host, commit: harness.commit, locale: 'en_US'))
+    ..writeln('windows/url_detect.cpp on ICU ${win.icuVersion}');
+  final suite = await run(await win.suite(), ['url_detect'], check: false);
+  stdout.write(suite.stdout);
+  final corpus = await win.corpus();
+  final texts = [for (final (text, _) in corpus) text];
+  final readings = await win.read(texts);
+  final matched = await harness.replay(texts, readings);
+  var native = 0;
+  final replayed = <String>[];
+  for (var i = 0; i < corpus.length; i++) {
+    final recorded = corpus[i].$2;
+    if (_same(readings[i].native, recorded)) native++;
+    if (!_same(matched[i], recorded)) {
+      replayed.add(
+        '  ${printable(texts[i])}: recorded $recorded, XUrl.match ${matched[i]}',
+      );
+    }
+  }
+  stdout
+    ..writeln(
+      'corpus: ${corpus.length} cases, $native read natively as recorded',
+    )
+    ..writeln(
+      'XUrl.match over them: ${corpus.length - replayed.length} as recorded',
+    )
+    ..writeAll(replayed, '\n')
+    ..writeln();
+  return suite.exitCode == 0 && native == corpus.length;
+}
+
+bool _same(List<Link> a, List<Link> b) =>
+    a.length == b.length &&
+    [for (var i = 0; i < a.length; i++) a[i] == b[i]].every((same) => same);
 
 class _Options {
   _Options(this.values, this.flags);

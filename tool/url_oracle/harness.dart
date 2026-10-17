@@ -147,11 +147,12 @@ class Harness {
 
   String get _short => commit.substring(0, 8);
 
-  Directory get _commitDir => Directory('${work.path}/$_short');
+  /// The directory of this commit's builds, archive and readings.
+  Directory get commitDir => Directory('${work.path}/$_short');
 
   /// The probe built from [commit]'s url_detect.mm and src/tld.h.
   Future<String> probe() async {
-    final dir = _commitDir;
+    final dir = commitDir;
     final probe = File('${dir.path}/probe');
     if (probe.existsSync()) return probe.path;
     const mm = 'darwin/ux/Sources/ux_url_detect/url_detect.mm';
@@ -176,12 +177,12 @@ class Harness {
 
   /// [commit]'s tree from `git archive`, its packages resolved.
   Future<Directory> tree() async {
-    final tree = Directory('${_commitDir.path}/tree');
+    final tree = Directory('${commitDir.path}/tree');
     final ready = File('${tree.path}/.oracle_ready');
     if (ready.existsSync()) return tree;
     if (tree.existsSync()) tree.deleteSync(recursive: true);
     tree.createSync(recursive: true);
-    final archive = '${_commitDir.path}/tree.tar';
+    final archive = '${commitDir.path}/tree.tar';
     await run('git', [
       'archive',
       '--output',
@@ -195,17 +196,19 @@ class Harness {
     return tree;
   }
 
-  /// The probe's readings of [texts] under [locale], one per text.
+  /// The readings of [texts] under [locale], one per text, by [probe] or
+  /// else the darwin probe.
   Future<List<ProbeReading>> read(
     List<String> texts, {
     required String locale,
+    String? probe,
   }) async {
-    final dir = Directory('${_commitDir.path}/probe-$locale')
+    final dir = Directory('${commitDir.path}/probe-$locale')
       ..createSync(recursive: true);
     final input = File('${dir.path}/texts')
       ..writeAsStringSync(_lines(texts.map(toUtf16Base64)));
     final output = File('${dir.path}/probe');
-    await run(await probe(), [
+    await run(probe ?? await this.probe(), [
       'texts',
       input.path,
       output.path,
@@ -331,7 +334,7 @@ class Harness {
   }
 
   Future<Directory> _scratch(String name) async {
-    final dir = Directory('${_commitDir.path}/$name');
+    final dir = Directory('${commitDir.path}/$name');
     if (dir.existsSync()) dir.deleteSync(recursive: true);
     return dir..createSync(recursive: true);
   }
@@ -341,7 +344,7 @@ class Harness {
     List<String> args,
     Map<String, String> defines,
   ) async {
-    final report = File('${_commitDir.path}/report.json');
+    final report = File('${commitDir.path}/report.json');
     final ran = await run(
       'flutter',
       [
