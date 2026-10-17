@@ -586,18 +586,17 @@ class _GestureCurve extends Animation<double>
 /// [AnimationController] by each back gesture that starts where its screen's
 /// [Screen.canSwipeBack] holds: the iOS edge swipe by the finger's travel
 /// since the touch went down, over the entry's width, and Android's predictive
-/// back by the gesture's progress. One back gesture is taken by one handler,
-/// the innermost one in a shown screen, where a screen shown beside the
-/// handler's counts as its own: a screen is shown while, in every
-/// [ScreenStack] around it, it is the top one or one shown beside it, and a
-/// handler takes no back gesture while a [ScreenStack] inside its screen
-/// shows a screen above its home. Once the gesture lets go the entry settles
-/// from there, popping when the gesture commits and otherwise returning to 1
-/// over 150 ms; a predictive back's commit asks [Screen.handleBack] first, and
-/// one it consumes returns the entry to 1 as well. A gesture is cancelled if
-/// the handler is disabled before it lets go, and an edge swipe also if its
-/// screen turns [Screen.canSwipeBack] false: the entry returns to 1 unless it
-/// is leaving.
+/// back by the gesture's progress. A handler takes a back gesture only in a
+/// shown screen, one that in every [ScreenStack] around it is the top one or
+/// one shown beside it, and takes none while a [ScreenStack] inside its
+/// screen, or inside a screen shown beside it, shows a screen above its home,
+/// so no handler takes a back gesture along with a handler inside its screen.
+/// Once the gesture lets go the entry settles from there, popping when the
+/// gesture commits and otherwise returning to 1 over 150 ms; a predictive
+/// back's commit asks [Screen.handleBack] first, and one it consumes returns
+/// the entry to 1 as well. A gesture is cancelled if the handler is disabled
+/// before it lets go, and an edge swipe also if its screen turns
+/// [Screen.canSwipeBack] false: the entry returns to 1 unless it is leaving.
 class ScreenBackHandler extends StatefulWidget {
   /// Binds the slot the gesture drags and the pop it commits to.
   const ScreenBackHandler({
