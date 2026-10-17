@@ -11,8 +11,8 @@
 //
 // Backed by NSDataDetector (.link | .phoneNumber) and a second pass for the
 // bare domains it misses, such as a host on a TLD it does not know, and IPv4
-// addresses with a path. A web match with no scheme links only where its host
-// is an IPv4 address or ends in a TLD IsTld holds for.
+// addresses. A web match with no scheme links only where its host is an IPv4
+// address or ends in a TLD IsTld holds for.
 
 #import <Foundation/Foundation.h>
 #import <stdint.h>
@@ -55,13 +55,13 @@ static NSRegularExpression *ux_url_bare_domain_regex(void) {
         // ux_is_unspaced's letters.
         NSString *unspaced = @"[\\u0E00-\\u0EFF\\u1000-\\u109F\\u1100-\\u11FF\\u1780-\\u17FF\\u2E80-\\u9FFF"
                              @"\\uA960-\\uA97F\\uAC00-\\uD7FF\\uF900-\\uFAFF\\uFF66-\\uFFDC\\U00020000-\\U0003FFFF]";
-        // Patterns.WEB_URL's host name with ASCII labels and its port, then a
-        // path, or a word boundary or an unspaced letter where no '@' and an
-        // email's domain follow; or its IPv4 address and port, then a path. A
-        // host starts at a word boundary, after a '_' or after an unspaced
-        // letter, but neither after a scheme's "://" nor inside a label or a
-        // host the pass does not match from its start: after a letter, mark or
-        // digit outside the unspaced scripts and a run of '_' and '-' or a '.'.
+        // Patterns.WEB_URL's host name with ASCII labels or its IPv4 address,
+        // and its port, then a path, or a word boundary or an unspaced letter
+        // where no '@' and an email's domain follow. A host starts at a word
+        // boundary, after a '_' or after an unspaced letter, but neither after
+        // a scheme's "://" nor inside a label or a host the pass does not match
+        // from its start: after a letter, mark or digit outside the unspaced
+        // scripts and a run of '_' and '-' or a '.'.
         // The path ends before whitespace, ux_is_cjk_punctuation's CJK
         // punctuation and the ASCII marks ux_web_end ends a path before, so a
         // bare domain glued after one links on its own.
@@ -71,12 +71,11 @@ static NSRegularExpression *ux_url_bare_domain_regex(void) {
         NSString *pattern = [NSString stringWithFormat:
             @"(?:\\b|(?<=[_%1$@]))(?<![[\\p{L}\\p{M}\\p{Nd}]--%1$@](?:[_-]{1,62}|\\.))(?<!://)"
             @"(?:(?:[a-z0-9](?:[a-z0-9_-]{0,61}[a-z0-9])?\\.)+(?:xn--[a-z0-9-]{0,58}[a-z0-9]|[a-z]{2,63})"
-            @"(?::\\d{1,5})?(?:%2$@|(?:\\b|(?=%1$@))(?!@[a-z0-9][a-z0-9-]{0,64}\\.[a-z0-9]))"
             @"|(?:25[0-5]|2[0-4][0-9]|[0-1][0-9]{2}|[1-9][0-9]|[1-9])"
             @"\\.(?:25[0-5]|2[0-4][0-9]|[0-1][0-9]{2}|[1-9][0-9]|[1-9]|0)"
             @"\\.(?:25[0-5]|2[0-4][0-9]|[0-1][0-9]{2}|[1-9][0-9]|[1-9]|0)"
-            @"\\.(?:25[0-5]|2[0-4][0-9]|[0-1][0-9]{2}|[1-9][0-9]|[0-9])"
-            @"(?::\\d{1,5})?%2$@)",
+            @"\\.(?:25[0-5]|2[0-4][0-9]|[0-1][0-9]{2}|[1-9][0-9]|[0-9]))"
+            @"(?::\\d{1,5})?(?:%2$@|(?:\\b|(?=%1$@))(?!@[a-z0-9][a-z0-9-]{0,64}\\.[a-z0-9]))",
             unspaced, path];
         NSError *err = nil;
         regex = [NSRegularExpression
@@ -158,28 +157,52 @@ static BOOL ux_is_unspaced(uint16_t c) {
            (c >= 0xF900 && c <= 0xFAFF) || (c >= 0xFF66 && c <= 0xFFDC);
 }
 
+// Whether the character at i of the text of length len is a letter outside
+// the unspaced scripts.
+static BOOL ux_is_spaced_letter(const uint16_t *chars, NSUInteger len, NSUInteger i) {
+    if (ux_is_unspaced(chars[i])) return NO;
+    UTF32Char c = chars[i];
+    if (CFStringIsSurrogateHighCharacter(chars[i]) && i + 1 < len && CFStringIsSurrogateLowCharacter(chars[i + 1])) {
+        c = CFStringGetLongCharacterForSurrogatePair(chars[i], chars[i + 1]);
+    }
+    return [NSCharacterSet.letterCharacterSet longCharacterIsMember:c];
+}
+
 // Whether the web match [start, end) is a host alone that a '.' glues a word
 // to: a letter outside the unspaced scripts follows the '.'.
 static BOOL ux_glues_word(const uint16_t *chars, NSUInteger len, NSUInteger start, NSUInteger end) {
-    if (end + 1 >= len || chars[end] != '.' || ux_is_unspaced(chars[end + 1])) return NO;
+    if (end + 1 >= len || chars[end] != '.') return NO;
     for (NSUInteger i = start; i < end; i++) {
         if (chars[i] == ':' || chars[i] == '/' || chars[i] == '?' || chars[i] == '#') return NO;
     }
-    UTF32Char c = chars[end + 1];
-    if (CFStringIsSurrogateHighCharacter(chars[end + 1]) && end + 2 < len &&
-        CFStringIsSurrogateLowCharacter(chars[end + 2])) {
-        c = CFStringGetLongCharacterForSurrogatePair(chars[end + 1], chars[end + 2]);
+    return ux_is_spaced_letter(chars, len, end + 1);
+}
+
+// The end of the host of the web match [start, end), which has no scheme: its
+// first ':', '/', '?' or '#'.
+static NSUInteger ux_host_end(const uint16_t *chars, NSUInteger start, NSUInteger end) {
+    NSUInteger i = start;
+    while (i < end && chars[i] != ':' && chars[i] != '/' && chars[i] != '?' && chars[i] != '#') i++;
+    return i;
+}
+
+// The end of the web match [start, end), which has no scheme, before the port
+// that ends it where a letter outside the unspaced scripts follows, since no
+// word boundary ends Patterns.WEB_URL's port there.
+static NSUInteger ux_port_end(const uint16_t *chars, NSUInteger len, NSUInteger start, NSUInteger end) {
+    const NSUInteger host_end = ux_host_end(chars, start, end);
+    if (host_end == end || chars[host_end] != ':' || end == len || !ux_is_spaced_letter(chars, len, end)) return end;
+    for (NSUInteger i = host_end + 1; i < end; i++) {
+        if (chars[i] < '0' || chars[i] > '9') return end;
     }
-    return [NSCharacterSet.letterCharacterSet longCharacterIsMember:c];
+    return host_end;
 }
 
 // Whether the web match [start, end), which has no scheme, has the TLD it
 // needs: an IPv4 address needs none, and a host's last label is one where
 // IsTld holds.
 static BOOL ux_has_tld(const uint16_t *chars, NSUInteger start, NSUInteger end) {
-    NSUInteger host_end = start;
-    while (host_end < end && chars[host_end] != ':' && chars[host_end] != '/' && chars[host_end] != '?' &&
-           chars[host_end] != '#') host_end++;
+    const NSUInteger host_end = ux_host_end(chars, start, end);
     NSUInteger label = host_end;
     while (label > start && chars[label - 1] != '.') label--;
     return (chars[label] >= '0' && chars[label] <= '9') || IsTld(std::u16string(chars + label, chars + host_end));
@@ -308,13 +331,17 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
                         NSString *kept = [text substringWithRange:NSMakeRange(r.location, end - r.location)];
                         NSString *prefix = [scheme stringByAppendingString:@":"];
                         const BOOL written = [kept.lowercaseString hasPrefix:prefix];
-                        if (!written && !ux_has_tld(utf16, r.location, end)) return;
-                        // NSDataDetector's URL covers the uncut text, escaped,
-                        // so a cut link's URL is the text it keeps, after the
-                        // scheme NSDataDetector adds where the text has none.
-                        if (end < NSMaxRange(r)) {
-                            url = written ? kept : [NSString stringWithFormat:@"%@//%@", prefix, kept];
+                        if (!written) {
+                            end = ux_port_end(utf16, text.length, r.location, end);
+                            if (!ux_has_tld(utf16, r.location, end)) return;
+                            kept = [kept substringToIndex:end - r.location];
                         }
+                        // NSDataDetector's URL escapes the text's '%' escapes
+                        // again, lowercases its host and punycodes an IDN
+                        // host, so a web link's URL is the text it keeps,
+                        // after the scheme NSDataDetector adds where the text
+                        // has none.
+                        url = written ? kept : [NSString stringWithFormat:@"%@//%@", prefix, kept];
                     }
                 } else {
                     return;

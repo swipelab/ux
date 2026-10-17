@@ -1,4 +1,15 @@
 ### 0.18.0
+- **A web link's URL on iOS and macOS is the text it covers.** On iOS and
+  macOS, `XUrl.match` gives a web link `NSDataDetector` finds the text it
+  covers for its URL, after `http://` where it writes no scheme, as on Android
+  and Windows, so its `%` escapes, its host's case and an IDN host's letters
+  stay as written: `see https://WWW.例子.com/路径%20x y` links
+  `https://WWW.例子.com/路径%20x`.
+- **A bare IPv4 address and a port link on iOS and macOS as on Android and
+  Windows.** On iOS and macOS, `ip 10.0.0.1 x` links `http://10.0.0.1`. A
+  bare domain's port that a letter outside Chinese, Japanese, Korean, Thai,
+  Lao, Khmer or Myanmar follows stays out of its link:
+  `访问example.com:8080abc然后` links `http://example.com`.
 - **A `ScreenHero` flies.** A `ScreenHero` registers with the `ScreenStack`
   around it. When a screen is pushed over another or popped off it, a hero on
   one that shares its tag with a hero on the other flies from its place to the

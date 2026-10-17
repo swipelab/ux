@@ -206,6 +206,21 @@ void main() {
     },
   );
 
+  testWidgets(
+    "a web link's URL is the text it covers, its host's case and letters and "
+    'its escapes as written',
+    (tester) async {
+      expect(XUrl.match('see https://WWW.例子.com/路径%20x y'), const [
+        UrlMatch(
+          start: 4,
+          end: 29,
+          url: 'https://WWW.例子.com/路径%20x',
+          kind: UrlMatchKind.web,
+        ),
+      ]);
+    },
+  );
+
   testWidgets('an IP literal host keeps its square brackets in the web link', (
     tester,
   ) async {
@@ -404,6 +419,17 @@ void main() {
         start: 4,
         end: 14,
         url: 'http://10.0.0.1/x',
+        kind: UrlMatchKind.web,
+      ),
+    ]);
+  });
+
+  testWidgets('an IPv4 address with no path links', (tester) async {
+    expect(XUrl.match('ip 10.0.0.1 x'), const [
+      UrlMatch(
+        start: 3,
+        end: 11,
+        url: 'http://10.0.0.1',
         kind: UrlMatchKind.web,
       ),
     ]);
@@ -727,6 +753,19 @@ void main() {
         start: 2,
         end: 18,
         url: 'http://example.com:8080',
+        kind: UrlMatchKind.web,
+      ),
+    ]);
+  });
+
+  testWidgets('a port ASCII letters follow stays out of the bare domain link', (
+    tester,
+  ) async {
+    expect(XUrl.match('访问example.com:8080abc然后'), const [
+      UrlMatch(
+        start: 2,
+        end: 13,
+        url: 'http://example.com',
         kind: UrlMatchKind.web,
       ),
     ]);
