@@ -167,9 +167,10 @@ typedef ComposeSubmitCallback = Future<ChatSendResult> Function(
 /// Telegram parity: per-entry state lives on each `ComposeEntry`
 /// (composer controller, viewer transform, video controller,
 /// persistent editor layers); chrome is shared and rebinds to the
-/// focused entry on page change. Rasterisation is lazy — edits stay
-/// as vector state on the layers until `handleSubmit` walks each
-/// entry's `resolveOutputMedia`.
+/// focused entry on page change. Edits stay as vector state on the
+/// layers; `handleSubmit` puts each entry's `composedImage()` (the
+/// composite of its current edits, null without image edits) in its
+/// `ComposeResult`, and a video's edits ride `ComposeResult.videoEdit`.
 class ComposePage with Screen<List<ComposeResult>?>, Emitter {
   /// Standalone: creates one fresh [ComposeEntry] per input media,
   /// disposes all entries on pop. Used by camera / file-pick flows
