@@ -9,6 +9,7 @@ void main() {
   test("a scheme link starts at the first letter of the scheme characters before its '://'", () {
     expectLinks('_banlu://chat/42 x', [web(1, 16, 'banlu://chat/42')]);
     expectLinks('see 1a://x', [web(5, 10, 'a://x')]);
+    expectLinks('foo _bl://x?code=1)', [web(5, 18, 'bl://x?code=1')]);
   });
 
   test(
@@ -145,6 +146,10 @@ void main() {
       [web(4, 17, 'https://a.com')],
       apple: [web(4, 22, 'https://a.com(a(b)')],
     );
+  });
+
+  test("a CJK full stop ends a scheme link's host", () {
+    expectLinks('_http://例子。com x', [web(1, 10, 'http://例子')]);
   });
 
   test("a scheme link's host takes a percent escape", () {

@@ -19,6 +19,10 @@ void main() {
     expectLinks('see https://example.com/a,b,c,', [
       web(4, 29, 'https://example.com/a,b,c'),
     ]);
+    expectLinks('Open banlu.app/t/8821, then reply', [
+      web(5, 21, 'http://banlu.app/t/8821'),
+    ]);
+    expectLinks('http://banlu.app/a.', [web(0, 18, 'http://banlu.app/a')]);
   });
 
   test("a link ends before a trailing '('", () {
@@ -78,6 +82,9 @@ void main() {
       web(4, 26, 'https://example.com/a#'),
     ]);
     expectLinks('see example.com/a- x', [web(4, 18, 'http://example.com/a-')]);
+    expectLinks('see https://example.com/ x', [
+      web(4, 24, 'https://example.com/'),
+    ]);
   });
 
   test("a ')' a link opens stays in it", () {

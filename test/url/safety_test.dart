@@ -28,6 +28,9 @@ void main() {
     expectLinks('https://例え.jp/パ\u061Cス)', [
       web(0, 17, 'https://例え.jp/パ\u061Cス'),
     ]);
+    expectLinks('see https://example.com/a\u061Cb x', [
+      web(4, 27, 'https://example.com/a\u061Cb'),
+    ]);
   });
 
   test('an email whose text holds a bidi control takes its scheme and its text for its URL', () {

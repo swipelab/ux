@@ -76,6 +76,7 @@ void main() {
       web(4, 20, 'TEL:+15551234567'),
     ], apple: const []);
     expectLinks('see tel:+15551234567 now', [web(4, 20, 'tel:+15551234567')]);
+    expectLinks('call tel:555 now', [web(5, 12, 'tel:555')]);
   });
 
   test(
@@ -109,6 +110,7 @@ void main() {
     expectLinks('see mailto:ops@example.com?subject=hi now', [
       email(4, 37, 'mailto:ops@example.com?subject=hi'),
     ]);
+    expectLinks('see mailto:abc now', const []);
   });
 
   test('mailto:// links as an email', () {
@@ -148,6 +150,7 @@ void main() {
   test('a webcal:// URI whose host NSDataDetector reads links', () {
     expectLinks('webcal://a.١٢', [web(0, 13, 'webcal://a.١٢')]);
     expectLinks('webcal://+15551234567', [web(0, 21, 'webcal://+15551234567')]);
+    expectLinks('webcal://256.1.1.1', [web(0, 18, 'webcal://256.1.1.1')]);
     expectLinks('sms://10.0.0.1.١٢', [web(0, 17, 'sms://10.0.0.1.١٢')]);
   });
 }

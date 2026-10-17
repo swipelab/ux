@@ -185,6 +185,9 @@ void main() {
       expectLinks('foo _http://example.com:8080abc x', [
         web(5, 23, 'http://example.com'),
       ]);
+      expectLinks('see http://example.com:8080abc x', [
+        web(4, 22, 'http://example.com'),
+      ]);
     },
   );
 

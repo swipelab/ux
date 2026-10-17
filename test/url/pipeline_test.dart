@@ -105,6 +105,14 @@ void main() {
           web(27, 42, 'http://evil.com'),
         ],
       );
+      expectLinks(
+        'https://example.com/a（1）/x?u=bl://chat/1',
+        [web(0, 21, 'https://example.com/a')],
+        apple: [
+          web(0, 21, 'https://example.com/a'),
+          web(29, 40, 'bl://chat/1'),
+        ],
+      );
     },
   );
 }
