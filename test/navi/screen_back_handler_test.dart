@@ -239,6 +239,43 @@ void main() {
     expect(router.stack, hasLength(1));
   });
 
+  testWidgets('an edge swipe its screen turns off with no rebuild springs the '
+      'screen back as the finger moves on, and its release pops nothing', (
+    tester,
+  ) async {
+    final page = _Gated();
+    final router = await _boot(tester, page: page);
+
+    final drag = await _edgeDrag(tester, _width / 4, steps: 24);
+    page.swipeBack = false;
+    await drag.moveBy(const Offset(_width / 2, 0));
+    await drag.up();
+    await _expectSettle(
+      tester,
+      _width / 4,
+      0,
+      const Duration(milliseconds: 150),
+    );
+    expect(router.stack, hasLength(1));
+  });
+
+  testWidgets('an edge swipe its screen turns off with no rebuild as the '
+      'finger lifts springs the screen back and pops nothing', (tester) async {
+    final page = _Gated();
+    final router = await _boot(tester, page: page);
+
+    final drag = await _edgeDrag(tester, _width * 0.6, steps: 40);
+    page.swipeBack = false;
+    await drag.up();
+    await _expectSettle(
+      tester,
+      _width * 0.6,
+      0,
+      const Duration(milliseconds: 150),
+    );
+    expect(router.stack, hasLength(1));
+  });
+
   testWidgets('an edge drag on a screen that turns the back gesture off with '
       'no rebuild goes to the screen and pops nothing', (tester) async {
     final page = _Dragged();
