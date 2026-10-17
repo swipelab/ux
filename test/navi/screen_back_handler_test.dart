@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ux/ux.dart';
@@ -42,6 +43,17 @@ class _Gated extends _Page {
     backs++;
     return guards;
   }
+}
+
+/// A [_Gated] whose content counts the horizontal drags it takes.
+class _Dragged extends _Gated {
+  int drags = 0;
+
+  @override
+  Widget buildPresenter(BuildContext context) => GestureDetector(
+    onHorizontalDragStart: (_) => drags++,
+    child: super.buildPresenter(context),
+  );
 }
 
 /// Pumps a router on [platform] and pushes [page], a [_Page] unless given,
@@ -207,9 +219,8 @@ void main() {
   });
 
   testWidgets('an edge swipe its screen turns off springs the screen back on '
-      'the transition\'s curve over 150 ms, and its release pops nothing', (
-    tester,
-  ) async {
+      'the transition\'s curve over 150 ms, and the rest of its drag moves '
+      'nothing and pops nothing', (tester) async {
     final page = _Gated();
     final router = await _boot(tester, page: page);
 
@@ -217,6 +228,7 @@ void main() {
     page.swipeBack = false;
     router.pagesChanged();
     await tester.pump();
+    await drag.moveBy(const Offset(_width / 2, 0));
     await drag.up();
     await _expectSettle(
       tester,
@@ -225,6 +237,38 @@ void main() {
       const Duration(milliseconds: 150),
     );
     expect(router.stack, hasLength(1));
+  });
+
+  testWidgets('an edge drag on a screen that turns the back gesture off with '
+      'no rebuild goes to the screen and pops nothing', (tester) async {
+    final page = _Dragged();
+    final router = await _boot(tester, page: page);
+
+    page.swipeBack = false;
+    await tester.dragFrom(const Offset(1, 400), const Offset(299, 0));
+    await tester.pumpAndSettle();
+    expect(router.stack, hasLength(1));
+    expect(_offset(tester), 0);
+    expect(page.drags, 1);
+  });
+
+  testWidgets('an edge swipe on a screen that turns the back gesture on with '
+      'no rebuild pops the screen', (tester) async {
+    final page = _Gated()..swipeBack = false;
+    final router = await _boot(tester, page: page);
+
+    page.swipeBack = true;
+    await tester.dragFrom(const Offset(1, 400), const Offset(299, 0));
+    await tester.pumpAndSettle();
+    expect(router.stack, isEmpty);
+  });
+
+  testWidgets('the edge swipe adds no semantics', (tester) async {
+    final semantics = tester.ensureSemantics();
+    await _boot(tester);
+
+    expect(find.semantics.byAction(SemanticsAction.scrollLeft), findsNothing);
+    semantics.dispose();
   });
 
   testWidgets('an edge swipe whose theme leaves iOS springs the screen back, '
