@@ -18,8 +18,8 @@ import 'package:vector_math/vector_math_64.dart' as vmath;
 /// state, on cancel it restores from the snapshot, on apply it commits
 /// (current state IS committed). Pops with `true` on apply / `false` on
 /// cancel. The host re-renders its preview from the committed layer
-/// state — rasterisation is deferred to the send-time `resolveOutputMedia`
-/// (telegram-iOS's `imageSignalForItem:withUpdates:` model).
+/// state: an image's preview is the composite `ComposeEntry.composedImage`
+/// gives the submit, and a video's crop rides `ComposeResult.videoEdit`.
 ///
 /// See [DrawScreen] for the rationale behind the instant
 /// `ScreenTransitions.none` transition and shared-image model.
