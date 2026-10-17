@@ -309,12 +309,12 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
                         NSString *prefix = [scheme stringByAppendingString:@":"];
                         const BOOL written = [kept.lowercaseString hasPrefix:prefix];
                         if (!written && !ux_has_tld(utf16, r.location, end)) return;
-                        // NSDataDetector's URL covers the uncut text, escaped,
-                        // so a cut link's URL is the text it keeps, after the
-                        // scheme NSDataDetector adds where the text has none.
-                        if (end < NSMaxRange(r)) {
-                            url = written ? kept : [NSString stringWithFormat:@"%@//%@", prefix, kept];
-                        }
+                        // NSDataDetector's URL escapes the text's '%' escapes
+                        // again, lowercases its host and punycodes an IDN
+                        // host, so a web link's URL is the text it keeps,
+                        // after the scheme NSDataDetector adds where the text
+                        // has none.
+                        url = written ? kept : [NSString stringWithFormat:@"%@//%@", prefix, kept];
                     }
                 } else {
                     return;

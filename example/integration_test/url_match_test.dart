@@ -206,6 +206,21 @@ void main() {
     },
   );
 
+  testWidgets(
+    "a web link's URL is the text it covers, its host's case and letters and "
+    'its escapes as written',
+    (tester) async {
+      expect(XUrl.match('see https://WWW.例子.com/路径%20x y'), const [
+        UrlMatch(
+          start: 4,
+          end: 29,
+          url: 'https://WWW.例子.com/路径%20x',
+          kind: UrlMatchKind.web,
+        ),
+      ]);
+    },
+  );
+
   testWidgets('an IP literal host keeps its square brackets in the web link', (
     tester,
   ) async {
