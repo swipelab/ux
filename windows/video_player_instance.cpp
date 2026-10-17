@@ -2,11 +2,13 @@
 
 #include <mfapi.h>
 #include <mfmediaengine.h>
+#include <mfreadwrite.h>
 #include <wrl/implements.h>
 
 #include <cmath>
 #include <utility>
 
+#include "media_foundation.h"
 #include "text.h"
 
 namespace ux {
@@ -20,6 +22,12 @@ using Microsoft::WRL::ComPtr;
 
 constexpr LONGLONG kFramePeriod100ns = 80000;
 constexpr ULONGLONG kPositionPeriodMs = 100;
+// Media Foundation's H.264 decoder outputs no frame of a video at most this
+// wide or this tall. Through a DXGI device manager it deadlocks the media
+// engine on some such videos, and every engine call that waits on the engine's
+// session, Shutdown among them, then never returns.
+constexpr UINT32 kH264UndecodedWidth = 32;
+constexpr UINT32 kH264UndecodedHeight = 16;
 
 class EngineNotify
     : public Microsoft::WRL::RuntimeClass<Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::ClassicCom>,
@@ -61,6 +69,26 @@ std::string EngineError(DWORD_PTR code, HRESULT hr) {
 }
 
 int64_t Milliseconds(double seconds) { return std::llround(seconds * 1000); }
+
+// Why the engine must not load the media at [url]: its first video track is
+// H.264 too small for the decoder. None for any other media, and for media the
+// source reader cannot open, whose failure the engine reports.
+std::optional<std::string> Refusal(const std::wstring& url) {
+  MediaWork media;
+  ComPtr<IMFSourceReader> reader;
+  ComPtr<IMFMediaType> type;
+  GUID subtype = GUID_NULL;
+  UINT32 width = 0;
+  UINT32 height = 0;
+  if (FAILED(media.status()) || FAILED(MFCreateSourceReaderFromURL(url.c_str(), nullptr, &reader)) ||
+      FAILED(reader->GetNativeMediaType(static_cast<DWORD>(MF_SOURCE_READER_FIRST_VIDEO_STREAM), 0, &type)) ||
+      FAILED(type->GetGUID(MF_MT_SUBTYPE, &subtype)) || subtype != MFVideoFormat_H264 ||
+      FAILED(MFGetAttributeSize(type.Get(), MF_MT_FRAME_SIZE, &width, &height)) ||
+      (width > kH264UndecodedWidth && height > kH264UndecodedHeight)) {
+    return std::nullopt;
+  }
+  return "Windows' H.264 decoder outputs no frame at " + std::to_string(width) + "x" + std::to_string(height);
+}
 
 }  // namespace
 
@@ -116,13 +144,26 @@ HRESULT VideoPlayerInstance::Start() {
 }
 
 void VideoPlayerInstance::Open(const std::wstring& url, std::function<void()> frame_available) {
+  std::thread([post = post_, weak = weak_from_this(), url, frame_available = std::move(frame_available)]() {
+    std::optional<std::string> refusal = Refusal(url);
+    post([weak, url, frame_available, refusal]() {
+      auto self = weak.lock();
+      if (!self || self->disposed_) return;
+      if (refusal) {
+        self->Fail(*refusal);
+      } else {
+        self->Load(url, frame_available);
+      }
+    });
+  }).detach();
+}
+
+void VideoPlayerInstance::Load(const std::wstring& url, std::function<void()> frame_available) {
   BSTR source = SysAllocString(url.c_str());
   const HRESULT hr = engine_->SetSource(source);
   SysFreeString(source);
   if (FAILED(hr)) {
-    post_([weak = weak_from_this(), message = "cannot open the video (" + Hex(hr) + ")"]() {
-      if (auto self = weak.lock(); self && !self->disposed_) self->Fail(message);
-    });
+    Fail("cannot open the video (" + Hex(hr) + ")");
     return;
   }
   pump_ = std::thread(Pump, engine_, device_->context(), surface_, std::move(frame_available),

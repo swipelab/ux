@@ -147,6 +147,30 @@ void main() {
   );
 
   testWidgets(
+    'an H.264 video too small for the decoder fails initialize with '
+    'decode_failed',
+    (tester) async {
+      for (final name in ['h264_32x32.mp4', 'h264_16x64.mp4']) {
+        final controller = XVideoPlayerController.file(await _assetFile(name));
+        addTearDown(controller.dispose);
+        await expectLater(
+          controller.initialize().timeout(const Duration(seconds: 5)),
+          throwsA(
+            isA<XVideoPlayerException>().having(
+              (e) => e.code,
+              'code',
+              'decode_failed',
+            ),
+          ),
+        );
+      }
+    },
+    // Media Foundation's H.264 decoder outputs no frame of a video stored at
+    // most 32 pixels wide or 16 tall.
+    skip: !Platform.isWindows,
+  );
+
+  testWidgets(
     'a speed set while paused holds once playback starts, and after a pause',
     (tester) async {
       final controller = XVideoPlayerController.file(

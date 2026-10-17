@@ -67,6 +67,8 @@ class VideoPlayerInstance : public std::enable_shared_from_this<VideoPlayerInsta
 
   // Loads the media at [url], a path or an http(s) URL, and transfers its
   // frames, calling [frame_available] on the pump thread after each one. It
+  // first reads the media's format on a thread of its own, and fails without
+  // loading an H.264 video smaller than Media Foundation's decoder outputs. It
   // emits nothing before it returns, a failure to open included.
   void Open(const std::wstring& url, std::function<void()> frame_available);
 
@@ -87,6 +89,7 @@ class VideoPlayerInstance : public std::enable_shared_from_this<VideoPlayerInsta
   VideoPlayerInstance(std::shared_ptr<VideoDevice> device, PlatformThread::Poster post, Emit emit);
 
   HRESULT Start();
+  void Load(const std::wstring& url, std::function<void()> frame_available);
   void OnEvent(DWORD event, DWORD_PTR param1, DWORD param2);
   void Fail(std::string message);
   void CompletePrepare();
