@@ -28,7 +28,7 @@ class CameraCellSource {
     );
   }
 
-  /// Only the borrowing page paints the preview until it is removed.
+  /// Only the borrowing page paints the preview until [uncover].
   void cover() {
     _setCovered(true);
   }
@@ -41,7 +41,7 @@ class CameraCellSource {
     box?.markNeedsSemanticsUpdate();
   }
 
-  /// Returns painting to the cell after the page's exit animation.
+  /// Returns painting to the cell once the page stops flying its preview.
   void uncover() {
     _setCovered(false);
   }

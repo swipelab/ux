@@ -1,4 +1,8 @@
 ### 0.18.0
+- **A camera page showing an error leaves the picker's camera cell in view.**
+  A `CameraPage` covers its picker's camera cell only while it flies the
+  cell's preview, so the cell shows under a camera page with an error, as
+  after a failed capture, through its exit and on the frame it leaves.
 - **A video's preview player lives while any compose shows it.**
   `ComposeEntry.retainVideo` holds an entry's preview player, loading it for
   the first hold, and `ComposeEntry.releaseVideo` drops a hold, disposing the

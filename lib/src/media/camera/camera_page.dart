@@ -97,8 +97,6 @@ class CameraPage with Screen<XMedia?>, Emitter {
     if (source == null) {
       return ScreenTransitions.responsive(context, animation, child);
     }
-    // Navigator measures an incoming route offstage before its first visible frame.
-    if (ModalRoute.of(context)?.offstage != true) cellSource!.cover();
     final flight = _flightAnimation ??= CurvedAnimation(
       parent: animation,
       curve: Curves.easeOutCubic,
@@ -109,6 +107,8 @@ class CameraPage with Screen<XMedia?>, Emitter {
       listenable: this,
       builder: (context, _) {
         if (error != null) return Opacity(opacity: t, child: child);
+        // Navigator measures an incoming route offstage before its first visible frame.
+        if (ModalRoute.of(context)?.offstage != true) cellSource!.cover();
         return CameraFlight(
           source: cellSource?.rect ?? source,
           target: _previewSlot,
@@ -405,12 +405,6 @@ class CameraPage with Screen<XMedia?>, Emitter {
   CameraButtonState get cameraButtonState => photo
       ? CameraButtonState.photo
       : (recording ? CameraButtonState.recording : CameraButtonState.video);
-
-  @override
-  void onRemoved() {
-    cellSource?.uncover();
-    super.onRemoved();
-  }
 
   @override
   void dispose() {
