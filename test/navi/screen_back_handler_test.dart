@@ -100,6 +100,29 @@ class _Shell with Screen<void>, ScreenShell {
       ColoredBox(color: Colors.black);
 }
 
+/// A shell showing the [tab]th of [tabs] and hiding the others.
+class _Tabs with Screen<void>, ScreenShell {
+  _Tabs(this.tabs);
+
+  final List<Screen> tabs;
+  int tab = 0;
+
+  void select(int index) {
+    tab = index;
+    pagesChanged();
+  }
+
+  @override
+  Iterable<Screen> get pages => [tabs[tab]];
+
+  @override
+  Iterable<Screen> get hosted => tabs;
+
+  @override
+  Widget buildPresenter(BuildContext context) =>
+      ColoredBox(color: Colors.black);
+}
+
 /// Pumps a router on [platform] and pushes [page], a [_Page] unless given,
 /// settled unless [settle] is false.
 Future<XRouter> _boot(
@@ -559,6 +582,25 @@ void main() {
     expect(router.stack, isEmpty);
   });
 
+  testWidgets('a screen popped during a predictive back leaves from where the '
+      'gesture left it, though the gesture goes on', (tester) async {
+    final router = await _boot(tester, platform: TargetPlatform.android);
+
+    await _backGesture(tester, 'startBackGesture', 0);
+    await _backGesture(tester, 'updateBackGestureProgress', 0.25);
+    router.stack.single.pop();
+    await tester.pump();
+    await _backGesture(tester, 'updateBackGestureProgress', 0.3);
+    await _backGesture(tester, 'cancelBackGesture');
+    await _expectSettle(
+      tester,
+      _width / 4,
+      _width,
+      const Duration(milliseconds: 300) * 0.75,
+    );
+    expect(find.byKey(_pageKey), findsNothing);
+  });
+
   testWidgets('a pushed screen slides in on its transition\'s curve', (
     tester,
   ) async {
@@ -695,5 +737,29 @@ void main() {
     await tester.pumpAndSettle();
     expect(nested.popped, isFalse);
     expect(router.stack, hasLength(1));
+  });
+
+  testWidgets('a predictive back on a nested page is cancelled as its tab '
+      'hides: its commit once the tab shows again asks nothing and pops '
+      'nothing, and the page rests in place', (tester) async {
+    final page = _Gated();
+    final tabs = _Tabs([
+      _Holder(ScreenStack(home: _Home(), stack: [page])),
+      _Holder(const SizedBox.expand()),
+    ]);
+    await _boot(tester, platform: TargetPlatform.android, page: tabs);
+
+    await _backGesture(tester, 'startBackGesture', 0);
+    await _backGesture(tester, 'updateBackGestureProgress', 0.25);
+    await tester.pump();
+    tabs.select(1);
+    await tester.pump();
+    tabs.select(0);
+    await tester.pump();
+    await _backGesture(tester, 'commitBackGesture');
+    await tester.pumpAndSettle();
+    expect(page.backs, 0);
+    expect(page.popped, isFalse);
+    expect(_offset(tester), 0);
   });
 }

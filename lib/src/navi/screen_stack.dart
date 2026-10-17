@@ -362,6 +362,10 @@ class ScreenStackState extends State<ScreenStack>
   @override
   Widget build(BuildContext context) {
     final top = _entries.lastWhereOrNull((e) => e._covers);
+    final shown = _shown ? _withBeside(_topSlot) : const <ScreenSlot>[];
+    for (final slot in [_homeSlot, ..._entries]) {
+      slot._shown = shown.contains(slot);
+    }
     return Actions(
       actions: {
         DismissIntent: CallbackAction<DismissIntent>(
@@ -470,6 +474,9 @@ class ScreenSlot {
   /// unpainted, out of hit testing and focus, its tickers muted.
   bool hidden = false;
 
+  /// Whether the screen was shown as its stack last built.
+  bool _shown = false;
+
   /// The slot this one sits beside instead of covering, whose Tab traversal
   /// it shares; null when this one covers the slots under it.
   ScreenSlot? get beside => _beside;
@@ -502,6 +509,7 @@ class ScreenSlot {
         enabled: !hidden,
         child: _SlotScope(
           slot: this,
+          shown: _shown,
           child: AnimatedBuilder(
             animation: controller,
             child: KeyedSubtree(
@@ -523,14 +531,21 @@ class ScreenSlot {
   }
 }
 
-/// The slot whose transition builds below it.
+/// The slot whose transition builds below it, and whether its screen is
+/// shown, so a [ScreenStack] inside the screen rebuilds as that changes.
 class _SlotScope extends InheritedWidget {
-  const _SlotScope({required this.slot, required super.child});
+  const _SlotScope({
+    required this.slot,
+    required this.shown,
+    required super.child,
+  });
 
   final ScreenSlot slot;
+  final bool shown;
 
   @override
-  bool updateShouldNotify(_SlotScope oldWidget) => slot != oldWidget.slot;
+  bool updateShouldNotify(_SlotScope oldWidget) =>
+      slot != oldWidget.slot || shown != oldWidget.shown;
 }
 
 /// A back gesture driving a slot's transition.
@@ -595,8 +610,9 @@ class _GestureCurve extends Animation<double>
 /// gesture commits and otherwise returning to 1 over 150 ms; a predictive
 /// back's commit asks [Screen.handleBack] first, and one it consumes returns
 /// the entry to 1 as well. A gesture is cancelled if the handler is disabled
-/// before it lets go, and an edge swipe also if its screen turns
-/// [Screen.canSwipeBack] false: the entry returns to 1 unless it is leaving.
+/// or its screen stops being shown before it lets go, and an edge swipe also
+/// if its screen turns [Screen.canSwipeBack] false: the entry returns to 1
+/// unless it is leaving.
 class ScreenBackHandler extends StatefulWidget {
   /// Binds the slot the gesture drags and the pop it commits to.
   const ScreenBackHandler({
@@ -648,12 +664,13 @@ class ScreenBackHandlerState extends State<ScreenBackHandler>
     super.dispose();
   }
 
-  /// Cancels a predictive back once the handler is disabled, and an edge
-  /// swipe once the handler no longer takes it. The edge swipe's strip leaves
-  /// the tree once the theme leaves iOS or the handler is disabled, so its
-  /// drag reports no end.
+  /// Cancels a predictive back once the handler is disabled or its screen is
+  /// no longer shown, and an edge swipe once the handler no longer takes it.
+  /// The edge swipe's strip leaves the tree once the theme leaves iOS or the
+  /// handler is disabled, so its drag reports no end.
   void _cancelRevoked() {
-    if (_gestureInProgress && !widget.enabled) {
+    if (_gestureInProgress &&
+        !(widget.enabled && ScreenStack.of(context)._shown)) {
       _gestureInProgress = false;
       _cancel();
     }
