@@ -247,6 +247,42 @@ void main() {
     ]);
   });
 
+  testWidgets('a userinfo that reads as a host and port stays in a web link '
+      'after an underscore', (tester) async {
+    expect(XUrl.match('_http://example.com:8080@evil.com/x_'), const [
+      UrlMatch(
+        start: 1,
+        end: 36,
+        url: 'http://example.com:8080@evil.com/x_',
+        kind: UrlMatchKind.web,
+      ),
+    ]);
+  });
+
+  testWidgets('a non-ASCII host after a userinfo stays in a web link after an '
+      'underscore', (tester) async {
+    expect(XUrl.match('_http://example.com:8080@例子.com/x y'), const [
+      UrlMatch(
+        start: 1,
+        end: 33,
+        url: 'http://example.com:8080@例子.com/x',
+        kind: UrlMatchKind.web,
+      ),
+    ]);
+  });
+
+  testWidgets('a port ASCII letters follow stays out of a web link after an '
+      'underscore', (tester) async {
+    expect(XUrl.match('foo _http://example.com:8080abc x'), const [
+      UrlMatch(
+        start: 5,
+        end: 23,
+        url: 'http://example.com',
+        kind: UrlMatchKind.web,
+      ),
+    ]);
+  });
+
   testWidgets(
     'a slash ending the path stays in the web link where text follows',
     (tester) async {
@@ -766,6 +802,42 @@ void main() {
         start: 2,
         end: 13,
         url: 'http://example.com',
+        kind: UrlMatchKind.web,
+      ),
+    ]);
+  });
+
+  testWidgets('a port that runs into a non-ASCII digit before CJK letters '
+      'stays out of the bare domain link', (tester) async {
+    expect(XUrl.match('访问example.com:8080٣然后'), const [
+      UrlMatch(
+        start: 2,
+        end: 13,
+        url: 'http://example.com',
+        kind: UrlMatchKind.web,
+      ),
+    ]);
+  });
+
+  testWidgets('a port of fullwidth digits before CJK letters stays out of the '
+      'bare domain link', (tester) async {
+    expect(XUrl.match('访问example.com:８０然后'), const [
+      UrlMatch(
+        start: 2,
+        end: 13,
+        url: 'http://example.com',
+        kind: UrlMatchKind.web,
+      ),
+    ]);
+  });
+
+  testWidgets('a port of non-ASCII digits ending the text stays in the bare '
+      'domain link', (tester) async {
+    expect(XUrl.match('see example.com:٣'), const [
+      UrlMatch(
+        start: 4,
+        end: 17,
+        url: 'http://example.com:٣',
         kind: UrlMatchKind.web,
       ),
     ]);
