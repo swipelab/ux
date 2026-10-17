@@ -23,7 +23,7 @@ class XUrl {
     if (!_hasSigil(text)) return const [];
     final detect = debugDetect ?? _detect;
     if (detect == null) return const [];
-    final native = _tightenPhoneMatches(_decode(detect(text)), text);
+    final native = _tightenPhoneMatches(_decode(detect(text), text), text);
     return _mergeCustomSchemeMatches(native, text);
   }
 
@@ -99,19 +99,7 @@ bool _isLaunchable(String url) {
   if (colon <= 0) return false;
   final scheme = url.substring(0, colon).toLowerCase();
   if (!_kLaunchSchemes.contains(scheme)) return false;
-  // Unicode's Bidi_Control characters let a sender visually reverse the
-  // displayed URL while the byte order — what the OS opens — points
-  // elsewhere. Reject rather than guessing intent.
-  for (int i = 0; i < url.length; i++) {
-    final c = url.codeUnitAt(i);
-    if (c == 0x061C /* ALM */ ||
-        c == 0x200E ||
-        c == 0x200F /* LRM / RLM */ ||
-        (c >= 0x202A && c <= 0x202E) ||
-        (c >= 0x2066 && c <= 0x2069)) {
-      return false;
-    }
-  }
+  if (url.codeUnits.any(_isBidiControl)) return false;
   // tel: USSD / MMI codes (*06# style) can leak the IMEI on Android.
   if (scheme == 'tel') {
     final body = url.substring(colon + 1);
@@ -120,12 +108,35 @@ bool _isLaunchable(String url) {
   return true;
 }
 
+/// Whether [c] is one of Unicode's Bidi_Control characters, which let a
+/// sender visually reverse a displayed URL while the byte order — what the
+/// OS opens — points elsewhere.
+bool _isBidiControl(int c) =>
+    c == 0x061C /* ALM */ ||
+    c == 0x200E ||
+    c == 0x200F /* LRM / RLM */ ||
+    (c >= 0x202A && c <= 0x202E) ||
+    (c >= 0x2066 && c <= 0x2069);
+
+/// [url], the native detector's URL for the link of [text] from [start] to
+/// [end], or, where the link's text holds a bidi control that [url] leaves
+/// out, as NSDataDetector's email and phone URLs do, [url]'s scheme and then
+/// the text after any scheme the text starts with, so [_isLaunchable]
+/// refuses it as it does a web link, whose URL keeps its text.
+String _keepBidiControls(String url, String text, int start, int end) {
+  if (url.codeUnits.any(_isBidiControl)) return url;
+  final linked = text.substring(start, end);
+  if (!linked.codeUnits.any(_isBidiControl)) return url;
+  final scheme = url.substring(0, url.indexOf(':') + 1).toLowerCase();
+  return linked.toLowerCase().startsWith(scheme) ? linked : '$scheme$linked';
+}
+
 /// Strips invisible / whitespace chars that NSDataDetector or
 /// `Patterns.WEB_URL` sometimes drag inside a URL — typically when the
 /// source text uses them as soft separators. Leaving them in produces a
-/// URL the OS refuses to open later. The bidi controls [_isLaunchable]
-/// rejects are NOT stripped here, so they survive into it; see the comment
-/// there.
+/// URL the OS refuses to open later. The bidi controls ([_isBidiControl])
+/// are NOT stripped here, so they survive into [_isLaunchable], which
+/// rejects them.
 String _sanitizeUrl(String url) {
   StringBuffer? out;
   for (int i = 0; i < url.length; i++) {
@@ -360,18 +371,18 @@ bool _phoneLeadingCharOk(String text, int start, int end) {
 /// not exhaustive. This pass surfaces every RFC-3986 scheme so the
 /// renderer can style and the tap router can decide; [_dedupeMatches]
 /// collapses anything overlapping with what native already found. A match
-/// ends before whitespace, CJK punctuation (U+3000's block's punctuation and
-/// the vertical, compatibility, small, fullwidth and halfwidth forms of
-/// punctuation) and the ASCII marks `Patterns.WEB_URL`'s path does not take:
-/// `"`, `<`, `>`, `[`, `\`, `]`, `^`, `` ` ``, `{`, `|`, `}` and a `%` that two
-/// hex digits do not follow. A bracketed IP literal host, after any userinfo,
-/// keeps its brackets.
+/// ends before whitespace, a C0 or C1 control, CJK punctuation (U+3000's
+/// block's punctuation and the vertical, compatibility, small, fullwidth and
+/// halfwidth forms of punctuation) and the ASCII marks `Patterns.WEB_URL`'s
+/// path does not take: `"`, `<`, `>`, `[`, `\`, `]`, `^`, `` ` ``, `{`, `|`,
+/// `}` and a `%` that two hex digits do not follow. A bracketed IP literal
+/// host, after any userinfo, keeps its brackets.
 final RegExp _kAnySchemeRegex = RegExp(
   r'\b[a-zA-Z][a-zA-Z0-9+.\-]*://'
   r"(?:(?:(?:[\w\-.~!$&'()*+,;=:]|%[0-9a-fA-F]{2})*@)?\[[0-9a-fA-F:.]+\])?"
-  r'(?:[^\s"%<>\[\\\]^`{|}\u3001-\u3003\u3008-\u3011\u3014-\u301F'
-  r'\uFE10-\uFE19\uFE30-\uFE6B\uFF01-\uFF0F\uFF1A-\uFF20\uFF3B-\uFF40'
-  r'\uFF5B-\uFF65]|%[0-9a-fA-F]{2})+',
+  r'(?:[^\s\x00-\x1F\x7F-\x9F"%<>\[\\\]^`{|}'
+  r'\u3001-\u3003\u3008-\u3011\u3014-\u301F\uFE10-\uFE19\uFE30-\uFE6B'
+  r'\uFF01-\uFF0F\uFF1A-\uFF20\uFF3B-\uFF40\uFF5B-\uFF65]|%[0-9a-fA-F]{2})+',
 );
 
 List<UrlMatch> _mergeCustomSchemeMatches(List<UrlMatch> native, String text) {
@@ -438,7 +449,7 @@ List<UrlMatch> _dedupeMatches(List<UrlMatch> matches) {
   return out;
 }
 
-List<UrlMatch> _decode(Uint8List buf) {
+List<UrlMatch> _decode(Uint8List buf, String text) {
   if (buf.length < 4) return const [];
   final view = ByteData.sublistView(buf);
   final count = view.getUint32(0, Endian.little);
@@ -457,7 +468,12 @@ List<UrlMatch> _decode(Uint8List buf) {
     p += 16;
     if (p + urlLen > buf.length) break;
     final url = _sanitizeUrl(
-      utf8.decode(Uint8List.sublistView(buf, p, p + urlLen)),
+      _keepBidiControls(
+        utf8.decode(Uint8List.sublistView(buf, p, p + urlLen)),
+        text,
+        start,
+        end,
+      ),
     );
     p += urlLen;
     out.add(

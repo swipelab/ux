@@ -115,6 +115,61 @@ void main() {
       expect(await XUrl.launch(link.url), isFalse);
     });
 
+    test('a native link whose text, written with a scheme, holds a bidi '
+        'control its URL leaves out takes that text for its URL, so '
+        'XUrl.launch refuses it', () async {
+      answer((_) => true);
+      const darwin = UrlMatch(
+        start: 4,
+        end: 27,
+        url: 'mailto:%D8%9Cops@example.com',
+        kind: UrlMatchKind.email,
+      );
+      XUrl.debugDetect = (_) => _wire(const [darwin]);
+
+      final link = XUrl.match('see mailto:\u061Cops@example.com.').single;
+      expect(link.url, 'mailto:\u061Cops@example.com');
+      expect(await XUrl.launch(link.url), isFalse);
+    });
+
+    test('a native link whose text holds a bidi control its URL leaves out '
+        "takes the URL's scheme and then that text for its URL, so "
+        'XUrl.launch refuses it', () async {
+      answer((_) => true);
+      const darwin = UrlMatch(
+        start: 5,
+        end: 21,
+        url: 'tel:+15551234567',
+        kind: UrlMatchKind.phone,
+      );
+      XUrl.debugDetect = (_) => _wire(const [darwin]);
+
+      final link = XUrl.match('call +1 \u200F555 123 4567 x').single;
+      expect(link.url, 'tel:+1 \u200F555 123 4567');
+      expect(await XUrl.launch(link.url), isFalse);
+    });
+
+    test('a link the any-scheme pass finds ends before a C0 or C1 control, '
+        'as one the native detector finds does', () {
+      const native = [
+        UrlMatch(
+          start: 4,
+          end: 19,
+          url: 'https://a.com/x',
+          kind: UrlMatchKind.web,
+        ),
+        UrlMatch(
+          start: 20,
+          end: 29,
+          url: 'http://163.com/1',
+          kind: UrlMatchKind.web,
+        ),
+      ];
+      XUrl.debugDetect = (_) => _wire(native);
+
+      expect(XUrl.match('see https://a.com/x\u001F163.com/1 x'), native);
+    });
+
     test("a link's URL leaves out a zero-width space whether the native "
         'detector or the any-scheme pass links it', () {
       const text = '"ftp://a.io/a#\u200B +15551234567';
