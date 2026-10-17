@@ -33,6 +33,10 @@ final Map<String, Uint8List> _buffers = {
         .buffer,
 };
 
+/// The oracle commit's XUrl.match of [text], as the native detector reads it
+/// in this process.
+List<UrlMatch> linksOf(String text) => XUrl.match(text);
+
 /// Expects the darwin reading of [text] to be [apple], or [expected] where
 /// the catalog gives no [apple].
 void expectLinks(

@@ -5,3 +5,4 @@ tags:
     on_platform:
       "!mac-os":
         skip: the goldens are rendered on macOS
+  performance:
