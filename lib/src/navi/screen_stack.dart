@@ -20,6 +20,9 @@ import 'package:ux/src/navi/screen.dart';
 ///   key tears it down. Home never animates in/out, never pops.
 /// - [stack] — `==`-based diff. Equal Screens reorder, distinct
 ///   Screens get new slots with enter transitions and pop animations.
+///   A screen leaving [stack] takes no pointer through its pop animation,
+///   and one with none to run, as with a zero [Screen.transitionDuration],
+///   leaves in the build that drops it, which calls its [Screen.onRemoved].
 class ScreenStack extends StatefulWidget {
   /// Binds the screen in the home slot and the screens stacked above it.
   const ScreenStack({
@@ -289,20 +292,25 @@ class ScreenStackState extends State<ScreenStack>
     if (entry._backGesture case final gesture?) {
       entry._backGesture = _Settling(gesture, entry.controller.value, 0);
     }
-    final exit = entry.hidden
-        ? Future<void>.value()
-        : entry.controller.reverse();
-    exit.then((_) {
-      if (!mounted) return;
-      _entries.remove(entry);
-      entry.controller.dispose();
-      entry.focusScope.dispose();
-      if (_focusedSlot == entry) _focusedSlot = null;
-      entry.page.onRemoved();
-      widget.onRemoved?.call(entry.page);
-      _scheduleTopFocusHandoff();
-      setState(() {});
-    });
+    final exit = entry.hidden ? null : entry.controller.reverse();
+    if (exit == null || entry.controller.isDismissed) {
+      _drop(entry);
+    } else {
+      exit.then((_) {
+        if (mounted) _drop(entry);
+      });
+    }
+  }
+
+  void _drop(ScreenSlot entry) {
+    _entries.remove(entry);
+    entry.controller.dispose();
+    entry.focusScope.dispose();
+    if (_focusedSlot == entry) _focusedSlot = null;
+    entry.page.onRemoved();
+    widget.onRemoved?.call(entry.page);
+    _scheduleTopFocusHandoff();
+    setState(() {});
   }
 
   @override
@@ -460,7 +468,7 @@ class ScreenSlot {
   /// keyboard token is never consumed, so no keyboard appears.
   final focusScope = FocusScopeNode();
 
-  /// Whether this slot is playing its exit animation.
+  /// Whether this slot is playing its exit animation, taking no pointer.
   bool removing = false;
 
   /// The back gesture driving [controller], while one does.
@@ -507,23 +515,26 @@ class ScreenSlot {
       offstage: hidden,
       child: TickerMode(
         enabled: !hidden,
-        child: _SlotScope(
-          slot: this,
-          shown: _shown,
-          child: AnimatedBuilder(
-            animation: controller,
-            child: KeyedSubtree(
-              key: contentKey,
-              child: FocusScope(
-                node: focusScope,
-                parentNode: beside?.focusScope,
-                canRequestFocus: focusable,
-                descendantsAreFocusable: focusable,
-                child: child,
+        child: IgnorePointer(
+          ignoring: removing,
+          child: _SlotScope(
+            slot: this,
+            shown: _shown,
+            child: AnimatedBuilder(
+              animation: controller,
+              child: KeyedSubtree(
+                key: contentKey,
+                child: FocusScope(
+                  node: focusScope,
+                  parentNode: beside?.focusScope,
+                  canRequestFocus: focusable,
+                  descendantsAreFocusable: focusable,
+                  child: child,
+                ),
               ),
+              builder: (context, child) =>
+                  page.buildTransition(context, controller, child!),
             ),
-            builder: (context, child) =>
-                page.buildTransition(context, controller, child!),
           ),
         ),
       ),
