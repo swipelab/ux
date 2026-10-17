@@ -56,30 +56,42 @@ static NSRegularExpression *ux_url_web_regex(void) {
         // ux_is_unspaced's letters.
         NSString *unspaced = @"[\\u0E00-\\u0EFF\\u1000-\\u109F\\u1100-\\u11FF\\u1780-\\u17FF\\u2E80-\\u9FFF"
                              @"\\uA960-\\uA97F\\uAC00-\\uD7FF\\uF900-\\uFAFF\\uFF66-\\uFFDC\\U00020000-\\U0003FFFF]";
-        // Patterns.WEB_URL's protocol, its host name with ASCII labels or its
-        // IPv4 address, and its port, then a path, or a word boundary or an
-        // unspaced letter where no '@' and an email's domain follow. A port
-        // that an unspaced letter follows has ASCII digits. A match starts at
-        // a word boundary, after a '_' or after an unspaced letter, but neither
-        // after a scheme's "://" nor inside a label or a host the pass does not
+        // ux_is_cjk_punctuation's punctuation.
+        NSString *cjk = @"\\u3001-\\u3003\\u3008-\\u3011\\u3014-\\u301F\\uFE10-\\uFE19\\uFE30-\\uFE6B"
+                        @"\\uFF01-\\uFF0F\\uFF1A-\\uFF20\\uFF3B-\\uFF40\\uFF5B-\\uFF65";
+        // ux_is_ucs_char's characters outside the CJK punctuation.
+        NSString *ucs = [NSString stringWithFormat:
+            @"[[\\u00A1-\\uD7FF\\uF900-\\uFFEF\\U00010000-\\U000EFFFD]--[\\p{Noncharacter_Code_Point}"
+            @"\\u2000-\\u200A\\u2028\\u2029\\u202F\\u3000\\U000E0000-\\U000E0FFF%@]]",
+            cjk];
+        NSString *ipv4 = @"(?:25[0-5]|2[0-4][0-9]|[0-1][0-9]{2}|[1-9][0-9]|[1-9])"
+                         @"\\.(?:25[0-5]|2[0-4][0-9]|[0-1][0-9]{2}|[1-9][0-9]|[1-9]|0)"
+                         @"\\.(?:25[0-5]|2[0-4][0-9]|[0-1][0-9]{2}|[1-9][0-9]|[1-9]|0)"
+                         @"\\.(?:25[0-5]|2[0-4][0-9]|[0-1][0-9]{2}|[1-9][0-9]|[0-9])";
+        // The path ends before whitespace, the CJK punctuation and the ASCII
+        // marks ux_web_end ends a path before, so a bare domain glued after
+        // one links on its own.
+        NSString *path = [NSString stringWithFormat:@"[/?](?:[^\\s\"%%<>\\[\\\\\\]^`{|}%@]|%%[0-9a-f]{2})*", cjk];
+        // Patterns.WEB_URL's protocol, user info, host name or IPv4 address
+        // and port, then a path or a word boundary, or a port of ASCII digits
+        // that an unspaced letter follows. With no protocol, its host name with
+        // ASCII labels or its IPv4 address and its port, then a path, or a
+        // word boundary or an unspaced letter where no '@' and an email's
+        // domain follow; a port that an unspaced letter follows has ASCII
+        // digits. A host name has no CJK punctuation. A match starts at a word
+        // boundary, after a '_' or after an unspaced letter, but neither after
+        // a scheme's "://" nor inside a label or a host the pass does not
         // match from its start: after a letter, mark or digit outside the
         // unspaced scripts and a run of '_' and '-' or a '.'.
-        // The path ends before whitespace, ux_is_cjk_punctuation's CJK
-        // punctuation and the ASCII marks ux_web_end ends a path before, so a
-        // bare domain glued after one links on its own.
-        NSString *path = @"[/?](?:[^\\s\"%<>\\[\\\\\\]^`{|}"
-                         @"\\u3001-\\u3003\\u3008-\\u3011\\u3014-\\u301F\\uFE10-\\uFE19\\uFE30-\\uFE6B"
-                         @"\\uFF01-\\uFF0F\\uFF1A-\\uFF20\\uFF3B-\\uFF40\\uFF5B-\\uFF65]|%[0-9a-f]{2})*";
         NSString *pattern = [NSString stringWithFormat:
             @"(?:\\b|(?<=[_%1$@]))(?<![[\\p{L}\\p{M}\\p{Nd}]--%1$@](?:[_-]{1,62}|\\.))(?<!://)"
-            @"((?:https?|rtsp|ftp)://)?"
-            @"(?:(?:[a-z0-9](?:[a-z0-9_-]{0,61}[a-z0-9])?\\.)+(?:xn--[a-z0-9-]{0,58}[a-z0-9]|[a-z]{2,63})"
-            @"|(?:25[0-5]|2[0-4][0-9]|[0-1][0-9]{2}|[1-9][0-9]|[1-9])"
-            @"\\.(?:25[0-5]|2[0-4][0-9]|[0-1][0-9]{2}|[1-9][0-9]|[1-9]|0)"
-            @"\\.(?:25[0-5]|2[0-4][0-9]|[0-1][0-9]{2}|[1-9][0-9]|[1-9]|0)"
-            @"\\.(?:25[0-5]|2[0-4][0-9]|[0-1][0-9]{2}|[1-9][0-9]|[0-9]))"
-            @"(?::[0-9]{1,5}|:\\d{1,5}\\b)?(?:%2$@|(?:\\b|(?=%1$@))(?!@[a-z0-9][a-z0-9-]{0,64}\\.[a-z0-9]))",
-            unspaced, path];
+            @"(?:((?:https?|rtsp|ftp)://(?:(?:[a-z0-9$_.+!*'(),;?&=-]|%%[0-9a-f]{2}){1,64}"
+            @"(?::(?:[a-z0-9$_.+!*'(),;?&=-]|%%[0-9a-f]{2}){1,25})?@)?)"
+            @"(?:(?:[a-z0-9%3$@](?:[a-z0-9_\\-%3$@]{0,61}[a-z0-9%3$@])?\\.)+(?:xn--[\\w-]{0,58}\\w|[a-z%3$@]{2,63})"
+            @"|%4$@)(?::[0-9]{1,5}(?=%1$@)|(?::\\d{1,5})?(?:%2$@|\\b))"
+            @"|(?:(?:[a-z0-9](?:[a-z0-9_-]{0,61}[a-z0-9])?\\.)+(?:xn--[a-z0-9-]{0,58}[a-z0-9]|[a-z]{2,63})|%4$@)"
+            @"(?::[0-9]{1,5}|:\\d{1,5}\\b)?(?:%2$@|(?:\\b|(?=%1$@))(?!@[a-z0-9][a-z0-9-]{0,64}\\.[a-z0-9])))",
+            unspaced, path, ucs, ipv4];
         NSError *err = nil;
         regex = [NSRegularExpression
             regularExpressionWithPattern:pattern
@@ -160,15 +172,19 @@ static BOOL ux_is_unspaced(uint16_t c) {
            (c >= 0xF900 && c <= 0xFAFF) || (c >= 0xFF66 && c <= 0xFFDC);
 }
 
-// Whether the character at i of the text of length len is a letter outside
-// the unspaced scripts.
-static BOOL ux_is_spaced_letter(const uint16_t *chars, NSUInteger len, NSUInteger i) {
-    if (ux_is_unspaced(chars[i])) return NO;
+// Whether the character at i of the text of length len is a letter.
+static BOOL ux_is_letter(const uint16_t *chars, NSUInteger len, NSUInteger i) {
     UTF32Char c = chars[i];
     if (CFStringIsSurrogateHighCharacter(chars[i]) && i + 1 < len && CFStringIsSurrogateLowCharacter(chars[i + 1])) {
         c = CFStringGetLongCharacterForSurrogatePair(chars[i], chars[i + 1]);
     }
     return [NSCharacterSet.letterCharacterSet longCharacterIsMember:c];
+}
+
+// Whether the character at i of the text of length len is a letter outside
+// the unspaced scripts.
+static BOOL ux_is_spaced_letter(const uint16_t *chars, NSUInteger len, NSUInteger i) {
+    return !ux_is_unspaced(chars[i]) && ux_is_letter(chars, len, i);
 }
 
 // Whether the web match [start, end) is a host alone that a '.' glues a word
@@ -190,15 +206,18 @@ static NSUInteger ux_host_end(const uint16_t *chars, NSUInteger start, NSUIntege
 }
 
 // The end of the web match [start, end), which has no scheme, before the port
-// that ends it where a letter outside the unspaced scripts follows, since no
-// word boundary ends Patterns.WEB_URL's port there.
+// that ends it where a letter follows, since no word boundary ends
+// Patterns.WEB_URL's port there. A port that an unspaced letter follows stays
+// where it has ASCII digits.
 static NSUInteger ux_port_end(const uint16_t *chars, NSUInteger len, NSUInteger start, NSUInteger end) {
     const NSUInteger host_end = ux_host_end(chars, start, end);
-    if (host_end == end || chars[host_end] != ':' || end == len || !ux_is_spaced_letter(chars, len, end)) return end;
+    if (host_end == end || chars[host_end] != ':' || end == len || !ux_is_letter(chars, len, end)) return end;
+    BOOL ascii = YES;
     for (NSUInteger i = host_end + 1; i < end; i++) {
-        if (chars[i] < '0' || chars[i] > '9') return end;
+        if (![NSCharacterSet.decimalDigitCharacterSet characterIsMember:chars[i]]) return end;
+        ascii = ascii && chars[i] >= '0' && chars[i] <= '9';
     }
-    return host_end;
+    return ascii && ux_is_unspaced(chars[end]) ? end : host_end;
 }
 
 // Whether the web match [start, end), which has no scheme, has the TLD it

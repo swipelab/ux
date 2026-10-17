@@ -5,12 +5,14 @@
   and Windows, so its `%` escapes, its host's case and an IDN host's letters
   stay as written: `see https://WWW.例子.com/路径%20x y` links
   `https://WWW.例子.com/路径%20x`.
-- **A bare IPv4 address and a port link on iOS and macOS as on Android and
-  Windows.** On iOS and macOS, `ip 10.0.0.1 x` links `http://10.0.0.1`. A
-  bare domain's port that a letter outside Chinese, Japanese, Korean, Thai,
-  Lao, Khmer or Myanmar follows stays out of its link:
+- **A bare IPv4 address, a port and a URL `NSDataDetector` misses link on iOS
+  and macOS as on Android and Windows.** On iOS and macOS, `ip 10.0.0.1 x`
+  links `http://10.0.0.1`. A bare domain's port that a letter outside Chinese,
+  Japanese, Korean, Thai, Lao, Khmer or Myanmar follows stays out of its link:
   `访问example.com:8080abc然后` links `http://example.com`. A port those letters
   follow has ASCII digits: `访问example.com:8080٣然后` links
+  `http://example.com`. A URL with a scheme that `NSDataDetector` misses links
+  as `Patterns.WEB_URL` matches it: `foo _http://example.com:8080abc x` links
   `http://example.com`.
 - **A `ScreenHero` flies.** A `ScreenHero` registers with the `ScreenStack`
   around it. When a screen is pushed over another or popped off it, a hero on
