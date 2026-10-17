@@ -1,4 +1,13 @@
 ### 0.18.0
+- **A leaving screen takes no taps.** A screen leaving a `ScreenStack` takes
+  no pointer through its pop animation, so a tap on a dismissed screen's
+  button reaches the screen under it. A screen takes taps as it enters and
+  while a back gesture drives it or springs it back.
+- **A screen with no pop animation leaves at once.** A screen leaving a
+  `ScreenStack` with no pop animation to run, as with a zero
+  `transitionDuration`, leaves in the build that drops it, so it builds and
+  paints no frame after its pop. A leaving screen's `onRemoved`, and the
+  stack's, run after the frame it leaves in.
 - **A dotted IPv4 address is no phone number.** `XUrl.match` links a bare
   IPv4 address as `http://` and the address on every platform, whatever its
   digits, zero padding included: `ip 192.168.1.1 x` links `http://192.168.1.1`

@@ -20,6 +20,10 @@ import 'package:ux/src/navi/screen.dart';
 ///   key tears it down. Home never animates in/out, never pops.
 /// - [stack] — `==`-based diff. Equal Screens reorder, distinct
 ///   Screens get new slots with enter transitions and pop animations.
+///   A screen leaving [stack] takes no pointer through its pop animation,
+///   and one with none to run, as with a zero [Screen.transitionDuration],
+///   leaves in the build that drops it. A leaving screen's
+///   [Screen.onRemoved] and [onRemoved] run after the frame it leaves in.
 class ScreenStack extends StatefulWidget {
   /// Binds the screen in the home slot and the screens stacked above it.
   const ScreenStack({
@@ -76,6 +80,9 @@ class ScreenStackState extends State<ScreenStack>
     with TickerProviderStateMixin {
   late ScreenSlot _homeSlot;
   final List<ScreenSlot> _entries = [];
+
+  /// Entries gone from [_entries] that await their release after the frame.
+  final Set<ScreenSlot> _dropped = {};
 
   /// Matches heroes across the screens in this stack and flies them.
   final ScreenHeroController heroController = ScreenHeroController();
@@ -289,20 +296,32 @@ class ScreenStackState extends State<ScreenStack>
     if (entry._backGesture case final gesture?) {
       entry._backGesture = _Settling(gesture, entry.controller.value, 0);
     }
-    final exit = entry.hidden
-        ? Future<void>.value()
-        : entry.controller.reverse();
-    exit.then((_) {
+    final exit = entry.hidden ? null : entry.controller.reverse();
+    if (exit == null || entry.controller.isDismissed) {
+      _drop(entry);
+    } else {
+      exit.then((_) {
+        if (mounted) _drop(entry);
+      });
+    }
+  }
+
+  /// Unlists [entry] and releases it after the frame, outside the build that
+  /// may drop it, where its removal callbacks can notify any listener.
+  void _drop(ScreenSlot entry) {
+    _entries.remove(entry);
+    _dropped.add(entry);
+    if (_focusedSlot == entry) _focusedSlot = null;
+    _scheduleTopFocusHandoff();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _entries.remove(entry);
+      _dropped.remove(entry);
       entry.controller.dispose();
       entry.focusScope.dispose();
-      if (_focusedSlot == entry) _focusedSlot = null;
       entry.page.onRemoved();
       widget.onRemoved?.call(entry.page);
-      _scheduleTopFocusHandoff();
-      setState(() {});
     });
+    setState(() {});
   }
 
   @override
@@ -311,7 +330,7 @@ class ScreenStackState extends State<ScreenStack>
     heroController.dispose();
     _homeSlot.controller.dispose();
     _homeSlot.focusScope.dispose();
-    for (final entry in _entries) {
+    for (final entry in [..._entries, ..._dropped]) {
       entry.controller.dispose();
       entry.focusScope.dispose();
     }
@@ -460,7 +479,7 @@ class ScreenSlot {
   /// keyboard token is never consumed, so no keyboard appears.
   final focusScope = FocusScopeNode();
 
-  /// Whether this slot is playing its exit animation.
+  /// Whether this slot is playing its exit animation, taking no pointer.
   bool removing = false;
 
   /// The back gesture driving [controller], while one does.
@@ -507,23 +526,26 @@ class ScreenSlot {
       offstage: hidden,
       child: TickerMode(
         enabled: !hidden,
-        child: _SlotScope(
-          slot: this,
-          shown: _shown,
-          child: AnimatedBuilder(
-            animation: controller,
-            child: KeyedSubtree(
-              key: contentKey,
-              child: FocusScope(
-                node: focusScope,
-                parentNode: beside?.focusScope,
-                canRequestFocus: focusable,
-                descendantsAreFocusable: focusable,
-                child: child,
+        child: IgnorePointer(
+          ignoring: removing,
+          child: _SlotScope(
+            slot: this,
+            shown: _shown,
+            child: AnimatedBuilder(
+              animation: controller,
+              child: KeyedSubtree(
+                key: contentKey,
+                child: FocusScope(
+                  node: focusScope,
+                  parentNode: beside?.focusScope,
+                  canRequestFocus: focusable,
+                  descendantsAreFocusable: focusable,
+                  child: child,
+                ),
               ),
+              builder: (context, child) =>
+                  page.buildTransition(context, controller, child!),
             ),
-            builder: (context, child) =>
-                page.buildTransition(context, controller, child!),
           ),
         ),
       ),
