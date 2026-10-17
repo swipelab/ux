@@ -74,6 +74,36 @@ class _Guard with Screen<void> {
   }
 }
 
+/// A screen that cannot pop and claims back while [claims], emitting as that
+/// changes, and whose [handleBack] counts the backs it is asked and takes
+/// them while it claims.
+class _Claiming with Screen<void>, Emitter {
+  _Claiming({this.claims = false});
+
+  bool claims;
+  int backs = 0;
+
+  void claim(bool on) {
+    claims = on;
+    notifyListeners();
+  }
+
+  @override
+  Widget buildPresenter(BuildContext context) => const SizedBox.expand();
+
+  @override
+  bool get canPop => false;
+
+  @override
+  bool get claimsBack => claims;
+
+  @override
+  bool handleBack() {
+    backs++;
+    return claims;
+  }
+}
+
 /// A sheet whose [body], an empty box unless given, fills it.
 class _Sheet with Screen<void>, SheetScreen<void> {
   _Sheet([this.body = const SizedBox.expand()]);
@@ -273,6 +303,13 @@ List<Object?> _handlesBack(WidgetTester tester) {
     ),
   );
   return calls;
+}
+
+/// System back as Android 13 and later delivers it: to the app where the app
+/// last told the OS that it handles back, and otherwise to the OS.
+Future<void> _systemBack(WidgetTester tester, List<Object?> handlesBack) async {
+  if (handlesBack.last == true) await tester.binding.handlePopRoute();
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -987,6 +1024,32 @@ void main() {
     shown.value = false;
     await tester.pumpAndSettle();
     expect(handlesBack.lastOrNull, isFalse);
+  });
+
+  testWidgets('the framework takes back while the router\'s home claims it, '
+      'and leaves it to the OS once the claim ends', (tester) async {
+    final handlesBack = _handlesBack(tester);
+    final home = _Claiming();
+    await tester.pumpWidget(XApp(router: XRouter(home: home)));
+
+    home.claim(true);
+    await tester.pump();
+    expect(handlesBack.lastOrNull, isTrue);
+
+    home.claim(false);
+    await tester.pump();
+    expect(handlesBack.lastOrNull, isFalse);
+  });
+
+  testWidgets('system back on a page that claims back but cannot pop reaches '
+      'its handleBack, and the page stays', (tester) async {
+    final handlesBack = _handlesBack(tester);
+    final page = _Claiming(claims: true);
+    await _boot(tester, platform: TargetPlatform.android, page: page);
+
+    await _systemBack(tester, handlesBack);
+    expect(page.backs, 1);
+    expect(page.popped, isFalse);
   });
 
   testWidgets('a predictive back whose screen pops before it commits, in one '

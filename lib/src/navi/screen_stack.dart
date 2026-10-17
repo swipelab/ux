@@ -427,14 +427,16 @@ class ScreenStackState extends State<ScreenStack>
     return slot == _homeSlot ? null : slot.page;
   }
 
-  /// Whether back has a screen to go to: [backTop] where its [Screen.canPop]
-  /// holds, or, where back goes to home, an unpopped screen shown beside
-  /// home. After each frame in which it changes, by a change in this stack or
-  /// in one inside it, the outermost stack tells the [NavigationNotification]
-  /// listeners around it.
+  /// Whether back stays in the app: [backTop] can pop ([Screen.canPop]) or
+  /// claims back ([Screen.claimsBack]), or, where back goes to home, home
+  /// claims back or an unpopped screen shows beside it. After each frame in
+  /// which it changes, by a change in this stack or in one inside it, or in a
+  /// screen of theirs that emits, the outermost stack tells the
+  /// [NavigationNotification] listeners around it.
   bool get canPop {
-    if (backTop case final page?) return page.canPop;
-    return _withBeside(_homeSlot).any((e) => e != _homeSlot && !e.page.popped);
+    if (backTop case final page?) return page.canPop || page.claimsBack;
+    return widget.home.claimsBack ||
+        _withBeside(_homeSlot).any((e) => e != _homeSlot && !e.page.popped);
   }
 
   /// The outermost stack around this one, or this one at the top level.
@@ -585,12 +587,17 @@ class ScreenSlot {
   bool get _covers => !removing && !hidden && beside == null;
 
   /// Builds the screen under its transition, rebuilding it whenever the
-  /// screen itself emits.
+  /// screen itself emits, and has the outermost [ScreenStack] around it,
+  /// where there is one, review its [ScreenStackState.canPop] after that
+  /// frame.
   Widget build(BuildContext context) {
     final child = page is Listenable
         ? ListenableBuilder(
             listenable: page as Listenable,
-            builder: (context, _) => page.buildPresenter(context),
+            builder: (context, _) {
+              ScreenStack.maybeOf(context)?._root._reviewCanPop();
+              return page.buildPresenter(context);
+            },
           )
         : page.buildPresenter(context);
     final focusable = !hidden && !(removing && beside != null);

@@ -1,4 +1,12 @@
 ### 0.18.0
+- **A screen can claim back that pops nothing.** `Screen.claimsBack` says
+  that the screen's `handleBack` takes back now, as a home's does while it
+  closes a search. While back goes to a screen that claims it, the one
+  `ScreenStackState.backTop` names or else home, `XRouter.canPop` and
+  `ScreenStackState.canPop` hold, so on Android 13 and later system back and
+  a predictive back reach its `handleBack` rather than the OS. A screen whose
+  claim changes emits, where it is a `Listenable`, or calls
+  `XRouter.pagesChanged`.
 - **A link hiding a bidi isolate does not launch.** `XUrl.match` keeps the
   bidi isolates U+2066–U+2069 in a link's URL, as it keeps the other bidi
   controls, so `XUrl.launch` refuses the link whichever pass finds it: in
