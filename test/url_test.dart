@@ -279,6 +279,109 @@ void main() {
         expected: const [bl],
       );
     });
+
+    test("a ')' after a link's host ends it", () {
+      const docs = UrlMatch(
+        start: 1,
+        end: 25,
+        url: 'https://docs.flutter.dev',
+        kind: UrlMatchKind.web,
+      );
+      _expectMatch(
+        '(https://docs.flutter.dev)?',
+        darwin: const [docs],
+        windows: const [docs],
+        expected: const [docs],
+      );
+    });
+
+    test("a ':' after a link's port ends it", () {
+      const server = UrlMatch(
+        start: 0,
+        end: 20,
+        url: 'http://10.0.0.5:8080',
+        kind: UrlMatchKind.web,
+      );
+      _expectMatch(
+        'http://10.0.0.5:8080: down',
+        darwin: const [server],
+        windows: const [server],
+        expected: const [server],
+      );
+    });
+
+    test('a port that ASCII letters follow stays out of a link', () {
+      const host = UrlMatch(
+        start: 4,
+        end: 22,
+        url: 'http://example.com',
+        kind: UrlMatchKind.web,
+      );
+      _expectMatch(
+        'foo http://example.com:8080abc x',
+        darwin: const [host],
+        windows: const [host],
+        expected: const [host],
+      );
+    });
+
+    test("a ':' with no port ends a link at its host", () {
+      // darwin's native link for this text keeps the ':'.
+      const windows = [
+        UrlMatch(
+          start: 10,
+          end: 29,
+          url: 'https://example.com',
+          kind: UrlMatchKind.web,
+        ),
+      ];
+      XUrl.debugDetect = (_) => _wire(windows);
+
+      expect(XUrl.match('Status at https://example.com: green'), windows);
+    });
+
+    test("a scheme and its '://' alone are no link", () {
+      XUrl.debugDetect = (_) => Uint8List(0);
+
+      expect(XUrl.match('see https:// y'), const <UrlMatch>[]);
+    });
+
+    test("a ':' ending a scheme link's path stays in it", () {
+      const banlu = UrlMatch(
+        start: 4,
+        end: 20,
+        url: 'banlu://chat/42:',
+        kind: UrlMatchKind.web,
+      );
+      _expectMatch(
+        'see banlu://chat/42: y',
+        darwin: const [banlu],
+        windows: const [],
+        expected: const [banlu],
+      );
+    });
+
+    test('a host keeps parentheses it opens and closes, two deep', () {
+      const https = UrlMatch(
+        start: 4,
+        end: 24,
+        url: 'https://a.com(a(b)c)',
+        kind: UrlMatchKind.web,
+      );
+      _expectMatch(
+        'see https://a.com(a(b)c) y',
+        darwin: const [https],
+        windows: const [
+          UrlMatch(
+            start: 4,
+            end: 17,
+            url: 'https://a.com',
+            kind: UrlMatchKind.web,
+          ),
+        ],
+        expected: const [https],
+      );
+    });
   });
 }
 

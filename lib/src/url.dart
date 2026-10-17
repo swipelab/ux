@@ -382,16 +382,37 @@ bool _phoneLeadingCharOk(String text, int start, int end) {
 /// punctuation (U+3000's block's punctuation and the vertical, compatibility,
 /// small, fullwidth and halfwidth forms of punctuation) and the ASCII marks
 /// `Patterns.WEB_URL`'s path does not take: `"`, `<`, `>`, `[`, `\`, `]`, `^`,
-/// `` ` ``, `{`, `|`, `}` and a `%` that two hex digits do not follow. A
-/// bracketed IP literal host, after any userinfo, keeps its brackets.
+/// `` ` ``, `{`, `|`, `}` and a `%` that two hex digits do not follow. Its
+/// authority is any userinfo, through its last `@` before a `/`, `?` or `#`,
+/// then a bracketed IP literal or a host, then any port of ASCII digits that no
+/// ASCII letter, digit or `_` follows. A host takes what a match takes but `/`,
+/// `?`, `#`, `:` and `@`, and takes parentheses only in pairs it opens and
+/// closes, nested at most two deep; to that depth it reads as NSDataDetector's
+/// host does. The match ends with its authority unless a `/`, `?` or `#`
+/// follows it, or a `:` and then one of them, as the native detectors end a web
+/// link: `(https://docs.flutter.dev)?` links `https://docs.flutter.dev`.
 final RegExp _kAnySchemeRegex = RegExp(
   // Matching from where the scheme characters begin scans each run once.
   r'(?<![a-zA-Z0-9+.\-])([0-9+.\-]*)[a-zA-Z][a-zA-Z0-9+.\-]*://'
-  r"(?:(?:(?:[\w\-.~!$&'()*+,;=:]|%[0-9a-fA-F]{2})*@)?\[[0-9a-fA-F:.]+\])?"
-  r'(?:[^\s\x00-\x1F\x7F-\x9F"%<>\[\\\]^`{|}'
-  r'\u3001-\u3003\u3008-\u3011\u3014-\u301F\uFE10-\uFE19\uFE30-\uFE6B'
-  r'\uFF01-\uFF0F\uFF1A-\uFF20\uFF3B-\uFF40\uFF5B-\uFF65]|%[0-9a-fA-F]{2})+',
+  '(?:(?:[^$_kUrlEnd/?#]|%[0-9a-fA-F]{2})*@)?'
+  '(?:\\[[0-9a-fA-F:.]+\\]'
+  '|(?:$_kHostChar|\\((?:$_kHostChar|\\($_kHostChar*\\))*\\))*)'
+  r'(?::[0-9]+\b|:(?=[/?#]))?'
+  '(?:[/?#]$_kUrlChar*)?',
 );
+
+/// A character of a [_kAnySchemeRegex] match, or a `%` escape.
+const String _kUrlChar = '(?:[^$_kUrlEnd]|%[0-9a-fA-F]{2})';
+
+/// A character of a [_kAnySchemeRegex] match's host, or a `%` escape.
+const String _kHostChar = '(?:[^$_kUrlEnd/?#:@()]|%[0-9a-fA-F]{2})';
+
+/// What a [_kAnySchemeRegex] match ends before, as the body of a character
+/// class; [_kUrlChar] takes a `%` escape.
+const String _kUrlEnd =
+    r'\s\x00-\x1F\x7F-\x9F"%<>\[\\\]^`{|}'
+    r'\u3001-\u3003\u3008-\u3011\u3014-\u301F\uFE10-\uFE19\uFE30-\uFE6B'
+    r'\uFF01-\uFF0F\uFF1A-\uFF20\uFF3B-\uFF40\uFF5B-\uFF65';
 
 List<UrlMatch> _mergeCustomSchemeMatches(List<UrlMatch> native, String text) {
   if (!text.contains('://')) return native;
@@ -399,7 +420,7 @@ List<UrlMatch> _mergeCustomSchemeMatches(List<UrlMatch> native, String text) {
   for (final m in _kAnySchemeRegex.allMatches(text)) {
     final start = m.start + m[1]!.length;
     final end = _trimUrlTrailingPunctuation(text, start, m.end);
-    if (end - start < 4 /* "x://" minimum */ ) continue;
+    if (end == text.indexOf('://', start) + 3) continue;
     extra.add(
       UrlMatch(
         start: start,
