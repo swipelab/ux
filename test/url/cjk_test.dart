@@ -116,6 +116,9 @@ void main() {
     expectLinks('https://example.com/路径（1）/page.html', [
       web(0, 22, 'https://example.com/路径'),
     ]);
+    expectLinks('https://example.com/a（1）/page.html', [
+      web(0, 21, 'https://example.com/a'),
+    ]);
     expectLinks('https://example.com/a（1）/page.com', [
       web(0, 21, 'https://example.com/a'),
     ]);

@@ -137,6 +137,7 @@ void main() {
 
   test("a Hebrew, Arabic, Han, kana or Thai label links where the host's first label is www", () {
     expectLinks('see www.例子.com x', [web(4, 14, 'http://www.例子.com')]);
+    expectLinks('看 www.例子.com 吧', [web(2, 12, 'http://www.例子.com')]);
     expectLinks('see WWW.例子.com x', [web(4, 14, 'http://WWW.例子.com')]);
     expectLinks('see www.example.例子.com x', [
       web(4, 22, 'http://www.example.例子.com'),

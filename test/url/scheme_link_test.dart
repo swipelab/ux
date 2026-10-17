@@ -19,14 +19,17 @@ void main() {
     },
   );
 
-  test(
-    'a scheme link glued after a letter takes its userinfo with its host',
-    () {
-      expectLinks('x_http://example.com:8080@evil.com/x_', [
-        web(2, 37, 'http://example.com:8080@evil.com/x_'),
-      ]);
-    },
-  );
+  test("a scheme link glued after a letter or '_' takes its userinfo with its host", () {
+    expectLinks('x_http://example.com:8080@evil.com/x_', [
+      web(2, 37, 'http://example.com:8080@evil.com/x_'),
+    ]);
+    expectLinks('_http://example.com:8080@evil.com/x_', [
+      web(1, 36, 'http://example.com:8080@evil.com/x_'),
+    ]);
+    expectLinks('_http://example.com:8080@例子.com/x y', [
+      web(1, 33, 'http://example.com:8080@例子.com/x'),
+    ]);
+  });
 
   test("a link with any scheme before '://' links", () {
     expectLinks('see h://x now', [web(4, 9, 'h://x')]);
@@ -88,6 +91,9 @@ void main() {
       ]);
       expectLinks('see https://WWW.例子.com/路径%20x y', [
         web(4, 29, 'https://WWW.例子.com/路径%20x'),
+      ]);
+      expectLinks('see https://example.com/a%20b] x', [
+        web(4, 29, 'https://example.com/a%20b'),
       ]);
       expectLinks('visit https://bücher.example/straße today', [
         web(6, 35, 'https://bücher.example/straße'),
