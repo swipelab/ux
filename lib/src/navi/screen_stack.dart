@@ -688,6 +688,7 @@ class ScreenBackHandlerState extends State<ScreenBackHandler>
   }
 
   void _onHorizontalDragUpdate(DragUpdateDetails d) {
+    _cancelRevoked();
     if (!_swiping) return;
     final travel = d.localPosition.dx - _swipeStart;
     widget.entry.controller.value =
@@ -695,6 +696,7 @@ class ScreenBackHandlerState extends State<ScreenBackHandler>
   }
 
   void _onHorizontalDragEnd(DragEndDetails d) {
+    _cancelRevoked();
     if (!_swiping) return;
     _swiping = false;
     if (widget.entry.controller.value < 0.5 ||

@@ -40,7 +40,8 @@ mixin Screen<T> {
   bool get isModal => false;
 
   /// Whether the back gesture (the iOS edge swipe, Android's predictive back)
-  /// drags this page, read as each one starts. Set to `false` for bottom
+  /// drags this page, read as each one starts and as an edge swipe moves and
+  /// lifts: an edge swipe it turns off springs back. Set to `false` for bottom
   /// sheets and overlays that dismiss differently; Android's back gesture then
   /// goes back as system back does.
   bool get canSwipeBack => true;
