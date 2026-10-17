@@ -329,6 +329,28 @@ void main() {
       }
     }, tags: 'golden');
 
+    testWidgets('$name closing a capture error paints the cell on the frame '
+        'the camera leaves', (tester) async {
+      await mount(tester, navigator);
+      try {
+        await tester.tap(find.byType(CameraThumb));
+        await tester.pumpAndSettle();
+        camera.takePictureError = const XCameraException('capture_failed');
+        await tester.tap(find.byType(CameraButton));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Close'));
+        while (find.text('Close').evaluate().isNotEmpty) {
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        await expectLater(
+          find.byKey(host.boundary),
+          matchesGoldenFile('goldens/camera_${name}_error_close_removed.png'),
+        );
+      } finally {
+        await close(tester);
+      }
+    }, tags: 'golden');
+
     testWidgets('$name camera flies on open and close with one texture', (
       tester,
     ) async {
