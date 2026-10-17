@@ -385,17 +385,18 @@ bool _phoneLeadingCharOk(String text, int start, int end) {
 /// `` ` ``, `{`, `|`, `}` and a `%` that two hex digits do not follow. Its
 /// authority is any userinfo, through its last `@` before a `/`, `?` or `#`,
 /// then a bracketed IP literal or a host, then any port of ASCII digits that no
-/// letter, digit or `_` follows. A host takes what a match takes but `/`, `?`,
-/// `#`, `:`, `@` and a parenthesis it does not open and close, as
-/// NSDataDetector's does. The match ends with its authority unless a `/`, `?`
-/// or `#` follows it, or a `:` and then one of them, as the native detectors
-/// end a web link: `(https://docs.flutter.dev)?` links
-/// `https://docs.flutter.dev`.
+/// ASCII letter, digit or `_` follows. A host takes what a match takes but `/`,
+/// `?`, `#`, `:` and `@`, and takes parentheses only in pairs it opens and
+/// closes, nested at most two deep; to that depth it reads as NSDataDetector's
+/// host does. The match ends with its authority unless a `/`, `?` or `#`
+/// follows it, or a `:` and then one of them, as the native detectors end a web
+/// link: `(https://docs.flutter.dev)?` links `https://docs.flutter.dev`.
 final RegExp _kAnySchemeRegex = RegExp(
   // Matching from where the scheme characters begin scans each run once.
   r'(?<![a-zA-Z0-9+.\-])([0-9+.\-]*)[a-zA-Z][a-zA-Z0-9+.\-]*://'
   '(?:(?:[^$_kUrlEnd/?#]|%[0-9a-fA-F]{2})*@)?'
-  '(?:\\[[0-9a-fA-F:.]+\\]|(?:$_kHostChar|\\($_kHostChar*\\))*)'
+  '(?:\\[[0-9a-fA-F:.]+\\]'
+  '|(?:$_kHostChar|\\((?:$_kHostChar|\\($_kHostChar*\\))*\\))*)'
   r'(?::[0-9]+\b|:(?=[/?#]))?'
   '(?:[/?#]$_kUrlChar*)?',
 );

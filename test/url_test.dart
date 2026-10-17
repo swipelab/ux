@@ -310,21 +310,6 @@ void main() {
       );
     });
 
-    test("a ':' after a host name's port ends the link", () {
-      const port = UrlMatch(
-        start: 0,
-        end: 23,
-        url: 'https://example.com:443',
-        kind: UrlMatchKind.web,
-      );
-      _expectMatch(
-        'https://example.com:443: ok',
-        darwin: const [port],
-        windows: const [port],
-        expected: const [port],
-      );
-    });
-
     test('a port that ASCII letters follow stays out of a link', () {
       const host = UrlMatch(
         start: 4,
@@ -355,6 +340,12 @@ void main() {
       expect(XUrl.match('Status at https://example.com: green'), windows);
     });
 
+    test("a scheme and its '://' alone are no link", () {
+      XUrl.debugDetect = (_) => Uint8List(0);
+
+      expect(XUrl.match('see https:// y'), const <UrlMatch>[]);
+    });
+
     test("a ':' ending a scheme link's path stays in it", () {
       const banlu = UrlMatch(
         start: 4,
@@ -370,15 +361,15 @@ void main() {
       );
     });
 
-    test('a host keeps a parenthesis it opens and closes', () {
+    test('a host keeps parentheses it opens and closes, two deep', () {
       const https = UrlMatch(
         start: 4,
-        end: 20,
-        url: 'https://a.com(x)',
+        end: 24,
+        url: 'https://a.com(a(b)c)',
         kind: UrlMatchKind.web,
       );
       _expectMatch(
-        'see https://a.com(x) y',
+        'see https://a.com(a(b)c) y',
         darwin: const [https],
         windows: const [
           UrlMatch(

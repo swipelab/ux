@@ -19,7 +19,10 @@
   `http://10.0.0.5:8080` and `foo _http://example.com:8080abc x` links
   `http://example.com`, as `foo http://example.com:8080abc x` does. On Android
   and Windows, a `:` with no port stays out of it too:
-  `Status at https://example.com: green` links `https://example.com`.
+  `Status at https://example.com: green` links `https://example.com`. Its host
+  keeps parentheses in pairs it opens and closes, nested at most two deep, so
+  `see https://a.com(a(b)c) y` links `https://a.com(a(b)c)` on every platform;
+  on Android and Windows a pair nested deeper ends the host.
 - **A link whose text hides a bidi control does not launch on iOS and
   macOS.** Where the native detector's URL leaves out a bidi control the
   link's text holds, as NSDataDetector's email and phone URLs do,
