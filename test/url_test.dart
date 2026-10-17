@@ -265,6 +265,28 @@ void main() {
       );
     });
 
+    test("a '.' before a '?' ending a link stays in it", () {
+      const https = UrlMatch(
+        start: 4,
+        end: 27,
+        url: 'https://example.com#a.?',
+        kind: UrlMatchKind.web,
+      );
+      _expectMatch(
+        'see https://example.com#a.? y',
+        darwin: const [https],
+        windows: const [
+          UrlMatch(
+            start: 4,
+            end: 23,
+            url: 'https://example.com',
+            kind: UrlMatchKind.web,
+          ),
+        ],
+        expected: const [https],
+      );
+    });
+
     test("a ')' a scheme link opens stays in it", () {
       const bl = UrlMatch(
         start: 5,
