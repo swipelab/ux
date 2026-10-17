@@ -656,8 +656,8 @@ KeyEventResult _dismissPastDisabled(FocusNode node, KeyEvent event) {
 
 /// The action bound to [DismissIntent] nearest [context], or, where [above] is
 /// given, nearest around it, that is enabled for a [_DismissPastDisabledIntent]
-/// in [context], with the dispatcher of the [Actions] that binds it; null
-/// where no such action is.
+/// in [context], with the dispatcher [Actions.of] gives for a context just
+/// inside the [Actions] that binds it; null where no such action is.
 (Action<Intent>, ActionDispatcher)? _nearestEnabled(
   BuildContext context, {
   BuildContext? above,
@@ -671,7 +671,7 @@ KeyEventResult _dismissPastDisabled(FocusNode node, KeyEvent event) {
         !_isEnabled(action, _DismissPastDisabledIntent(action), context)) {
       return true;
     }
-    found = (action, widget.dispatcher ?? const ActionDispatcher());
+    found = (action, widget.dispatcher ?? Actions.of(element));
     return false;
   });
   return found;
