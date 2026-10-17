@@ -76,9 +76,18 @@ mixin Screen<T> {
   /// page whose `canPop` changes calls [XRouter.pagesChanged].
   bool get canPop => true;
 
+  /// Whether [handleBack] takes back now, as a home's does while it closes a
+  /// search. While back goes to a screen that claims it, [XRouter.canPop]
+  /// holds, so the framework, not the OS, takes back though nothing pops. The
+  /// system-back state reads it as the router renders and after the screen
+  /// emits, so a screen whose claim changes emits, where it is a
+  /// [Listenable], or calls [XRouter.pagesChanged].
+  bool get claimsBack => false;
+
   /// Custom back handling, asked by system back and by a predictive back as
   /// it commits. Return `true` to consume the back: the page stays, and a
-  /// predictive back springs it back.
+  /// predictive back springs it back. On Android 13 and later the OS takes
+  /// back that would pop nothing, unless [claimsBack] holds.
   bool handleBack() => false;
 
   /// Called after the page is pushed onto the router.
