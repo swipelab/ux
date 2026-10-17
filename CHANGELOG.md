@@ -4,14 +4,22 @@
   of the scheme characters before its `://`, as `Patterns.WEB_URL` starts an
   http link, so a `_` or a digit before a scheme does not keep it from
   linking: `_banlu://chat/42 x` links `banlu://chat/42` on Android and
-  Windows, as on iOS and macOS, and `foo _http://example.com:8080abc x` links
-  `http://example.com:8080abc`, as `foo http://example.com:8080abc x` does.
-  It ends a link as the native detectors end a web link, before a trailing
-  `.`, `,`, `;`, `!`, `'` or `(` and a trailing `)` the link does not open, so
-  `tg://resolve?domain=abc?` keeps its `?` and `(see bl://x/a_(b)).` links
-  `bl://x/a_(b)` on every platform. The pass reads each run of scheme
-  characters once, so its time stays linear in the text, a long word of
-  letters joined by `-`, `.` or `+` included.
+  Windows, as on iOS and macOS. It ends a link as the native detectors end a
+  web link, before a trailing `.`, `,`, `;`, `!`, `'` or `(` and a trailing
+  `)` the link does not open, so `tg://resolve?domain=abc?` keeps its `?` and
+  `(see bl://x/a_(b)).` links `bl://x/a_(b)` on every platform. The pass reads
+  each run of scheme characters once, so its time stays linear in the text, a
+  long word of letters joined by `-`, `.` or `+` included.
+- **A link with a scheme ends where its host or port does.** Unless a `/`, `?`
+  or `#` follows its host or port, `XUrl.match`'s any-scheme pass ends a link
+  there, as the native detectors end a web link, so a `)` the host does not
+  open, a `:` after the port and a port that ASCII letters follow stay out of
+  it on every platform: `(https://docs.flutter.dev)?` links
+  `https://docs.flutter.dev`, `Server http://10.0.0.5:8080: down` links
+  `http://10.0.0.5:8080` and `foo _http://example.com:8080abc x` links
+  `http://example.com`, as `foo http://example.com:8080abc x` does. On Android
+  and Windows, a `:` with no port stays out of it too:
+  `Status at https://example.com: green` links `https://example.com`.
 - **A link whose text hides a bidi control does not launch on iOS and
   macOS.** Where the native detector's URL leaves out a bidi control the
   link's text holds, as NSDataDetector's email and phone URLs do,
