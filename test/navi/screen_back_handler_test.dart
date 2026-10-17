@@ -15,12 +15,15 @@ class _Home with Screen<void> {
       ColoredBox(color: Colors.black);
 }
 
-/// A screen on the default transition, a slide on [Curves.easeOut] over
-/// 300 ms.
+/// A screen filling its slot on the default transition, a slide on
+/// [Curves.easeOut] over 300 ms.
 class _Page with Screen<void> {
   @override
-  Widget buildPresenter(BuildContext context) =>
-      ColoredBox(key: _pageKey, color: Colors.white);
+  Widget buildPresenter(BuildContext context) => ColoredBox(
+    key: _pageKey,
+    color: Colors.white,
+    child: const SizedBox.expand(),
+  );
 }
 
 /// A [_Page] whose back gesture and pop its fields turn off, and whose
@@ -56,13 +59,19 @@ class _Dragged extends _Gated {
   );
 }
 
+/// A sheet whose body fills it.
+class _Sheet with Screen<void>, SheetScreen<void> {
+  @override
+  Widget buildSheetBody(BuildContext context) => const SizedBox.expand();
+}
+
 /// Pumps a router on [platform] and pushes [page], a [_Page] unless given,
 /// settled unless [settle] is false.
 Future<XRouter> _boot(
   WidgetTester tester, {
   TargetPlatform platform = TargetPlatform.iOS,
   bool settle = true,
-  _Page? page,
+  Screen<void>? page,
 }) async {
   tester.view.physicalSize = const Size(_width, 800);
   tester.view.devicePixelRatio = 1;
@@ -76,6 +85,20 @@ Future<XRouter> _boot(
   );
   router.push(page ?? _Page());
   if (settle) await tester.pumpAndSettle();
+  return router;
+}
+
+/// Pumps a router on [platform], pushes a [_Sheet] and pushes [page] into
+/// it, settled.
+Future<XRouter> _bootSheet(
+  WidgetTester tester,
+  Screen<void> page, {
+  TargetPlatform platform = TargetPlatform.iOS,
+}) async {
+  final sheet = _Sheet();
+  final router = await _boot(tester, platform: platform, page: sheet);
+  sheet.nestedHost.push(page);
+  await tester.pumpAndSettle();
   return router;
 }
 
@@ -511,5 +534,57 @@ void main() {
       _offset(tester),
       moreOrLessEquals(_width * (1 - Curves.easeOut.transform(0.25))),
     );
+  });
+
+  testWidgets('system back on a sheet asks its nested page\'s handleBack, and '
+      'keeps the page when it consumes the back', (tester) async {
+    final page = _Gated()..guards = true;
+    await _bootSheet(tester, page);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(page.backs, 1);
+    expect(page.popped, isFalse);
+  });
+
+  testWidgets('system back on a sheet keeps a nested page that cannot pop', (
+    tester,
+  ) async {
+    final page = _Gated()..pops = false;
+    await _bootSheet(tester, page);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(page.popped, isFalse);
+  });
+
+  testWidgets('a predictive back on a sheet with a nested page drags the '
+      'nested page alone, and its commit asks the page\'s handleBack once and '
+      'keeps the page when it consumes the back', (tester) async {
+    final page = _Gated()..guards = true;
+    await _bootSheet(tester, page, platform: TargetPlatform.android);
+    final left = _offset(tester);
+    final width = tester.getSize(find.byKey(_pageKey)).width;
+
+    await _backGesture(tester, 'startBackGesture', 0);
+    await _backGesture(tester, 'updateBackGestureProgress', 0.25);
+    await tester.pump();
+    expect(_offset(tester), moreOrLessEquals(left + width / 4, epsilon: 0.5));
+
+    await _backGesture(tester, 'commitBackGesture');
+    await tester.pumpAndSettle();
+    expect(page.backs, 1);
+    expect(page.popped, isFalse);
+  });
+
+  testWidgets('an edge swipe on a sheet whose nested page cannot pop pops '
+      'nothing', (tester) async {
+    final page = _Gated()..pops = false;
+    final router = await _bootSheet(tester, page);
+
+    await tester.dragFrom(const Offset(10, 600), const Offset(299, 0));
+    await tester.pumpAndSettle();
+    expect(page.popped, isFalse);
+    expect(router.stack, hasLength(1));
   });
 }
