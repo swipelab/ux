@@ -445,10 +445,9 @@ mixin ScreenShell {
   /// A beside screen moves no focus as it comes and goes, except that focus
   /// inside one that leaves goes to this shell. Tab and Shift+Tab cross
   /// between this shell's controls and the screen's. The screen takes no
-  /// edge-swipe or predictive-back drag, and system back reaches this
-  /// shell's [Screen.handleBack], unless a [ScreenStack] inside the screen
-  /// shows a screen above its home: back then goes to the screen inside it
-  /// that [ScreenStackState.nestedTop] names.
+  /// edge-swipe or predictive-back drag, and back reaches this shell's
+  /// [Screen.handleBack] unless [ScreenStackState.nestedTop] names a screen,
+  /// as one a [ScreenStack] inside the screen shows above its home.
   bool isBeside(Screen screen) => false;
 }
 
