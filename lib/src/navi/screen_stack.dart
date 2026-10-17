@@ -22,7 +22,8 @@ import 'package:ux/src/navi/screen.dart';
 ///   Screens get new slots with enter transitions and pop animations.
 ///   A screen leaving [stack] takes no pointer through its pop animation,
 ///   and one with none to run, as with a zero [Screen.transitionDuration],
-///   leaves in the build that drops it, which calls its [Screen.onRemoved].
+///   leaves in the build that drops it. A leaving screen's
+///   [Screen.onRemoved] and [onRemoved] run after the frame it leaves in.
 class ScreenStack extends StatefulWidget {
   /// Binds the screen in the home slot and the screens stacked above it.
   const ScreenStack({
@@ -79,6 +80,9 @@ class ScreenStackState extends State<ScreenStack>
     with TickerProviderStateMixin {
   late ScreenSlot _homeSlot;
   final List<ScreenSlot> _entries = [];
+
+  /// Entries gone from [_entries] that await their release after the frame.
+  final Set<ScreenSlot> _dropped = {};
 
   /// Matches heroes across the screens in this stack and flies them.
   final ScreenHeroController heroController = ScreenHeroController();
@@ -302,14 +306,21 @@ class ScreenStackState extends State<ScreenStack>
     }
   }
 
+  /// Unlists [entry] and releases it after the frame, outside the build that
+  /// may drop it, where its removal callbacks can notify any listener.
   void _drop(ScreenSlot entry) {
     _entries.remove(entry);
-    entry.controller.dispose();
-    entry.focusScope.dispose();
+    _dropped.add(entry);
     if (_focusedSlot == entry) _focusedSlot = null;
-    entry.page.onRemoved();
-    widget.onRemoved?.call(entry.page);
     _scheduleTopFocusHandoff();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _dropped.remove(entry);
+      entry.controller.dispose();
+      entry.focusScope.dispose();
+      entry.page.onRemoved();
+      widget.onRemoved?.call(entry.page);
+    });
     setState(() {});
   }
 
@@ -319,7 +330,7 @@ class ScreenStackState extends State<ScreenStack>
     heroController.dispose();
     _homeSlot.controller.dispose();
     _homeSlot.focusScope.dispose();
-    for (final entry in _entries) {
+    for (final entry in [..._entries, ..._dropped]) {
       entry.controller.dispose();
       entry.focusScope.dispose();
     }

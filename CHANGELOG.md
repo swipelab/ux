@@ -5,8 +5,9 @@
   while a back gesture drives it or springs it back.
 - **A screen with no pop animation leaves at once.** A screen leaving a
   `ScreenStack` with no pop animation to run, as with a zero
-  `transitionDuration`, leaves in the build that drops it, and its `onRemoved`
-  runs there, so it builds and paints no frame after its pop.
+  `transitionDuration`, leaves in the build that drops it, so it builds and
+  paints no frame after its pop. A leaving screen's `onRemoved`, and the
+  stack's, run after the frame it leaves in.
 - **A web link's URL on iOS and macOS is the text it covers.** On iOS and
   macOS, `XUrl.match` gives a web link `NSDataDetector` finds the text it
   covers for its URL, after `http://` where it writes no scheme, as on Android
