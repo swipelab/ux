@@ -160,28 +160,52 @@ static BOOL ux_is_unspaced(uint16_t c) {
            (c >= 0xF900 && c <= 0xFAFF) || (c >= 0xFF66 && c <= 0xFFDC);
 }
 
+// Whether the character at i of the text of length len is a letter outside
+// the unspaced scripts.
+static BOOL ux_is_spaced_letter(const uint16_t *chars, NSUInteger len, NSUInteger i) {
+    if (ux_is_unspaced(chars[i])) return NO;
+    UTF32Char c = chars[i];
+    if (CFStringIsSurrogateHighCharacter(chars[i]) && i + 1 < len && CFStringIsSurrogateLowCharacter(chars[i + 1])) {
+        c = CFStringGetLongCharacterForSurrogatePair(chars[i], chars[i + 1]);
+    }
+    return [NSCharacterSet.letterCharacterSet longCharacterIsMember:c];
+}
+
 // Whether the web match [start, end) is a host alone that a '.' glues a word
 // to: a letter outside the unspaced scripts follows the '.'.
 static BOOL ux_glues_word(const uint16_t *chars, NSUInteger len, NSUInteger start, NSUInteger end) {
-    if (end + 1 >= len || chars[end] != '.' || ux_is_unspaced(chars[end + 1])) return NO;
+    if (end + 1 >= len || chars[end] != '.') return NO;
     for (NSUInteger i = start; i < end; i++) {
         if (chars[i] == ':' || chars[i] == '/' || chars[i] == '?' || chars[i] == '#') return NO;
     }
-    UTF32Char c = chars[end + 1];
-    if (CFStringIsSurrogateHighCharacter(chars[end + 1]) && end + 2 < len &&
-        CFStringIsSurrogateLowCharacter(chars[end + 2])) {
-        c = CFStringGetLongCharacterForSurrogatePair(chars[end + 1], chars[end + 2]);
+    return ux_is_spaced_letter(chars, len, end + 1);
+}
+
+// The end of the host of the web match [start, end), which has no scheme: its
+// first ':', '/', '?' or '#'.
+static NSUInteger ux_host_end(const uint16_t *chars, NSUInteger start, NSUInteger end) {
+    NSUInteger i = start;
+    while (i < end && chars[i] != ':' && chars[i] != '/' && chars[i] != '?' && chars[i] != '#') i++;
+    return i;
+}
+
+// The end of the web match [start, end), which has no scheme, before the port
+// that ends it where a letter outside the unspaced scripts follows, since no
+// word boundary ends Patterns.WEB_URL's port there.
+static NSUInteger ux_port_end(const uint16_t *chars, NSUInteger len, NSUInteger start, NSUInteger end) {
+    const NSUInteger host_end = ux_host_end(chars, start, end);
+    if (host_end == end || chars[host_end] != ':' || end == len || !ux_is_spaced_letter(chars, len, end)) return end;
+    for (NSUInteger i = host_end + 1; i < end; i++) {
+        if (chars[i] < '0' || chars[i] > '9') return end;
     }
-    return [NSCharacterSet.letterCharacterSet longCharacterIsMember:c];
+    return host_end;
 }
 
 // Whether the web match [start, end), which has no scheme, has the TLD it
 // needs: an IPv4 address needs none, and a host's last label is one where
 // IsTld holds.
 static BOOL ux_has_tld(const uint16_t *chars, NSUInteger start, NSUInteger end) {
-    NSUInteger host_end = start;
-    while (host_end < end && chars[host_end] != ':' && chars[host_end] != '/' && chars[host_end] != '?' &&
-           chars[host_end] != '#') host_end++;
+    const NSUInteger host_end = ux_host_end(chars, start, end);
     NSUInteger label = host_end;
     while (label > start && chars[label - 1] != '.') label--;
     return (chars[label] >= '0' && chars[label] <= '9') || IsTld(std::u16string(chars + label, chars + host_end));
@@ -325,7 +349,11 @@ uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size) {
                         NSString *kept = [text substringWithRange:NSMakeRange(r.location, end - r.location)];
                         NSString *prefix = [scheme stringByAppendingString:@":"];
                         const BOOL written = [kept.lowercaseString hasPrefix:prefix];
-                        if (!written && !ux_has_tld(utf16, r.location, end)) return;
+                        if (!written) {
+                            end = ux_port_end(utf16, text.length, r.location, end);
+                            if (!ux_has_tld(utf16, r.location, end)) return;
+                            kept = [kept substringToIndex:end - r.location];
+                        }
                         // NSDataDetector's URL escapes the text's '%' escapes
                         // again, lowercases its host and punycodes an IDN
                         // host, so a web link's URL is the text it keeps,
