@@ -5,6 +5,10 @@
   and Windows, so its `%` escapes, its host's case and an IDN host's letters
   stay as written: `see https://WWW.例子.com/路径%20x y` links
   `https://WWW.例子.com/路径%20x`.
+- **A bare IPv4 address links on iOS and macOS as on Android and Windows.** On
+  iOS and macOS, `ip 10.0.0.1 x` links `http://10.0.0.1`, and a bare IPv4
+  address of seven digits or more is a phone number, as on Android and
+  Windows, so `ip 192.168.1.1 x` links nothing.
 - **A `ScreenHero` flies.** A `ScreenHero` registers with the `ScreenStack`
   around it. When a screen is pushed over another or popped off it, a hero on
   one that shares its tag with a hero on the other flies from its place to the
