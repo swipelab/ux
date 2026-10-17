@@ -263,6 +263,21 @@ void main() {
     expect(router.stack, isEmpty);
   });
 
+  testWidgets('a trackpad pan from the edge of a screen without the back '
+      'gesture pops nothing', (tester) async {
+    final router = await _boot(tester, page: _Gated()..swipeBack = false);
+
+    final pan = await tester.createGesture(kind: PointerDeviceKind.trackpad);
+    await pan.panZoomStart(const Offset(10, 400));
+    for (var i = 1; i <= 10; i++) {
+      await pan.panZoomUpdate(const Offset(10, 400), pan: Offset(30.0 * i, 0));
+      await tester.pump(_frame);
+    }
+    await pan.panZoomEnd();
+    await tester.pumpAndSettle();
+    expect(router.stack, hasLength(1));
+  });
+
   testWidgets('the edge swipe adds no semantics', (tester) async {
     final semantics = tester.ensureSemantics();
     await _boot(tester);

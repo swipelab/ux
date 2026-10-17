@@ -350,10 +350,10 @@
   before it pops, and one that `handleBack` consumes springs the screen back
   over 150 ms.
 - **A back gesture reads `canSwipeBack` as it starts.** The iOS edge swipe
-  reads the screen's `canSwipeBack` as the touch goes down, as Android's
-  predictive back reads it as the gesture starts, so a screen whose
-  `canSwipeBack` changes needs no router rebuild. The edge swipe adds no
-  semantics node.
+  reads the screen's `canSwipeBack` as the touch goes down or the trackpad pan
+  starts, as Android's predictive back reads it as the gesture starts, so a
+  screen whose `canSwipeBack` changes needs no router rebuild. The edge swipe
+  adds no semantics node.
 - **An `XApp` over another `XRouter` shows that router's screens.** An `XApp`
   rebuilt with another `router` shows that router's screens, which take no
   State from the old router's, and the old router's screens leave the tree.

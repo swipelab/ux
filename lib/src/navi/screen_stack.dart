@@ -1,5 +1,8 @@
 import 'package:flutter/gestures.dart'
-    show DragStartBehavior, HorizontalDragGestureRecognizer;
+    show
+        DragStartBehavior,
+        HorizontalDragGestureRecognizer,
+        PointerPanZoomStartEvent;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show PredictiveBackEvent;
 
@@ -752,8 +755,8 @@ class ScreenBackHandlerState extends State<ScreenBackHandler>
   }
 }
 
-/// The edge swipe's drag. It takes a pointer only where its handler takes
-/// the back gesture as the pointer goes down, and leaves any other to the
+/// The edge swipe's drag. It takes a pointer or trackpad pan only where its
+/// handler takes the back gesture as it starts, and leaves any other to the
 /// page.
 class _EdgeSwipeRecognizer extends HorizontalDragGestureRecognizer {
   _EdgeSwipeRecognizer(this.handler) : super(debugOwner: handler);
@@ -763,4 +766,8 @@ class _EdgeSwipeRecognizer extends HorizontalDragGestureRecognizer {
   @override
   bool isPointerAllowed(PointerEvent event) =>
       handler._takesBack && super.isPointerAllowed(event);
+
+  @override
+  bool isPointerPanZoomAllowed(PointerPanZoomStartEvent event) =>
+      handler._takesBack && super.isPointerPanZoomAllowed(event);
 }
