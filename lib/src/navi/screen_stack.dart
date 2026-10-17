@@ -370,21 +370,26 @@ class ScreenStackState extends State<ScreenStack>
   /// covered; null where none is.
   ScreenStackState? _coverInside(ScreenSlot slot) =>
       _withBeside(slot)
+          .where((shown) => !shown.page.popped)
           .expand((shown) => shown._stacks)
           .where((stack) => stack._homeCovered)
           .firstOrNull;
 
   bool _holdsCover(ScreenSlot slot) => _coverInside(slot) != null;
 
-  bool get _homeCovered =>
-      _entries.any((e) => e._covers) || _holdsCover(_homeSlot);
+  /// The top covering slot whose screen is unpopped, else home.
+  ScreenSlot get _backSlot =>
+      _entries.lastWhereOrNull((e) => e._covers && !e.page.popped) ?? _homeSlot;
+
+  bool get _homeCovered => _backSlot != _homeSlot || _holdsCover(_homeSlot);
 
   /// The top screen of the innermost [ScreenStack] that shows a screen above
   /// its home inside a shown screen, the top one or one beside it, of this
-  /// stack and of each stack in between; null where none is. No
-  /// [ScreenBackHandler] around it takes a back gesture.
-  Screen? get nestedTop => switch (_coverInside(_topSlot)) {
-    final stack? => stack.nestedTop ?? stack._topSlot.page,
+  /// stack and of each stack in between; null where none is. A screen popped
+  /// before its stack rebuilds counts as gone. No [ScreenBackHandler] around
+  /// it takes a back gesture.
+  Screen? get nestedTop => switch (_coverInside(_backSlot)) {
+    final stack? => stack.nestedTop ?? stack._backSlot.page,
     null => null,
   };
 

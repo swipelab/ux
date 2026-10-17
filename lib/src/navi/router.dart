@@ -330,7 +330,7 @@ class XRouter extends BackButtonDispatcher
 }
 
 /// Routes system back, and Esc no [ScreenStack] takes, to the router's
-/// [ScreenStackState.nestedTop] where it is unpopped, asking its
+/// [ScreenStackState.nestedTop] where there is one, asking its
 /// [Screen.handleBack], then popping it where its [Screen.canPop] holds, and
 /// otherwise to the topmost unpopped screen.
 class XRouterBack extends RootBackButtonDispatcher {
@@ -342,8 +342,7 @@ class XRouterBack extends RootBackButtonDispatcher {
 
   @override
   Future<bool> didPopRoute() async {
-    if (router._screens.currentState?.nestedTop case final page?
-        when !page.popped) {
+    if (router._screens.currentState?.nestedTop case final page?) {
       if (!page.handleBack() && page.canPop) page.pop();
       return true;
     }

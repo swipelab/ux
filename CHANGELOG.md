@@ -401,14 +401,15 @@
   shows a screen above its home. So a predictive back on a sheet asks its
   nested page's `handleBack` once, and one on a page pushed over the sheet
   pops that page alone.
-- **System back goes to a page inside a screen first.** System back and Esc
-  go to the top screen of the innermost `ScreenStack` that shows a screen
-  above its home inside the shown screens, which `ScreenStackState.nestedTop`
-  names: `XRouter.backDispatcher` asks its `handleBack`, then pops it where
-  its `canPop` holds. Where there is none, the top pushed screen's
-  `handleBack` takes back, or the screen pops where its `canPop` holds and
-  stays where it does not. So system back in a wide `ScreenShell` asks a page
-  in its beside screen's `ScreenStack` before the shell.
+- **System back goes to a page inside a screen first.** System back, and Esc
+  no `ScreenStack` takes, go to the top screen of the innermost `ScreenStack`
+  that shows a screen above its home inside the shown screens, which
+  `ScreenStackState.nestedTop` names: `XRouter.backDispatcher` asks its
+  `handleBack`, then pops it where its `canPop` holds. Where there is none,
+  the top pushed screen's `handleBack` takes back, or the screen pops where
+  its `canPop` holds and stays where it does not. So system back in a wide
+  `ScreenShell` asks a page in its beside screen's `ScreenStack` before the
+  shell.
 - **A back gesture reads `canSwipeBack` as it starts.** The iOS edge swipe
   reads the screen's `canSwipeBack` as the touch goes down or the trackpad pan
   starts, as Android's predictive back reads it as the gesture starts, so a
