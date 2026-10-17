@@ -779,6 +779,30 @@ void main() {
   );
 
   pickerTest(
+    'a compose popped with its picker paints its entries through its exit',
+    (tester) async {
+      final picker = await mount(tester);
+      final composing = picker.handleAssetTap(_asset('0'));
+      await tester.pumpAndSettle();
+      final compose = host.pages.value.last as ComposePage;
+      final entry = compose.focusedEntry;
+      compose.pop();
+      picker.pop();
+      await tester.pump();
+      expect(picker.disposed, isTrue);
+      expect(compose.disposed, isFalse);
+      expect(entry.disposed, isFalse);
+      await tester.runAsync(entry.ensureSourceForTest);
+      await tester.pumpAndSettle();
+      await composing;
+      expect(tester.takeException(), isNull);
+      expect(host.pages.value, isEmpty);
+      expect(compose.disposed, isTrue);
+      expect(entry.disposed, isTrue);
+    },
+  );
+
+  pickerTest(
     'capture opens the editor, submits once and animates the picker result dismissal',
     (tester) async {
       camera.picturePath = File('test/media/fixtures/capture.png')

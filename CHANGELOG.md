@@ -1,4 +1,10 @@
 ### 0.18.0
+- **A picker's compose entries live until the last screen showing them
+  leaves.** `ComposeEntry.retain` adds a hold on an entry and
+  `ComposeEntry.release` drops one, disposing the entry with the last.
+  `MediaPickerPage` and each `ComposePage.borrowed` hold the entries they
+  share, so a compose page popped with its picker in one event, as on
+  sign-out, paints its entries through its exit.
 - **A leaving screen takes no taps.** A screen leaving a `ScreenStack` takes
   no pointer through its pop animation, so a tap on a dismissed screen's
   button reaches the screen under it. A screen takes taps as it enters and

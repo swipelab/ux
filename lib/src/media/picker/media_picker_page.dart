@@ -160,7 +160,7 @@ class MediaPickerPage
         sourceId: asset.id,
         contentSize: Size(asset.width.toDouble(), asset.height.toDouble()),
       );
-      entry.subscribe(notifyListeners);
+      entry.subscribe(notifyListeners).disposeBy(this);
       return entry;
     });
   }
@@ -353,7 +353,7 @@ class MediaPickerPage
     unawaited(_reconcileCamera());
     _thumbnails.clear();
     for (final e in _entriesById.values) {
-      e.dispose();
+      e.release();
     }
     _entriesById.clear();
     _sourceRegistry.clear();
