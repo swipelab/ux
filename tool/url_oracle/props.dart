@@ -261,7 +261,7 @@ Future<NsddTlds> nsddTlds(Harness harness) async {
 /// The positions [conversions] reads a character in, by the kind of link
 /// that holds it there; `$` stands for the character.
 const conversionShapes = {
-  'web': [
+  'web link': [
     'see https://exam\$ple.com x',
     'see https://example.com/a\$b x',
     'see example.com/a\$b x',
