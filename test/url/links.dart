@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ux/src/url/detect.dart';
 import 'package:ux/url.dart';
 
 /// A web link over [start, end) opening [url].
@@ -14,7 +15,7 @@ UrlMatch phone(int start, int end, String url) =>
     UrlMatch(start: start, end: end, url: url, kind: UrlMatchKind.phone);
 
 /// The detector's links of [text].
-List<UrlMatch> linksOf(String text) => XUrl.match(text);
+List<UrlMatch> linksOf(String text) => detectLinks(text);
 
 /// Expects the links of [text] to be [expected]. [apple] is the darwin
 /// reading where [expected] departs from it, which oracle mode checks.

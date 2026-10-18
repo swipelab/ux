@@ -1,6 +1,3 @@
-@Skip('the Dart detector does not read the safety rules yet')
-library;
-
 import 'package:flutter_test/flutter_test.dart';
 
 import 'links.dart';
@@ -43,7 +40,7 @@ void main() {
     expectLinks('see ops@examp\u061Cle.com,', [
       email(4, 20, 'mailto:ops@examp\u061Cle.com'),
     ]);
-  });
+  }, skip: "step 4 models NSDataDetector's addresses");
 
   test('a phone whose text holds a bidi control takes tel: and its text for its URL', () {
     expectLinks('call +1 \u200F555 123 4567 x', [
@@ -52,7 +49,7 @@ void main() {
     expectLinks('see +1\u200F5551234567。', [
       phone(4, 17, 'tel:+1\u200F5551234567'),
     ]);
-  });
+  }, skip: "step 5 models NSDataDetector's phones");
 
   test('a bidi control outside a link leaves its URL as the link reads', () {
     expectLinks('see \u202Ehttps://evil.com/?moc.knab//:sptth x', [
@@ -61,7 +58,7 @@ void main() {
     expectLinks('call \u200F +1 555 123 4567 x', [
       phone(7, 22, 'tel:+15551234567'),
     ]);
-  });
+  }, skip: "step 5 models NSDataDetector's phones");
 
   test('a C0 or C1 control or DEL ends a link', () {
     expectLinks('see https://a.com/x\u001F163.com/1 x', [
@@ -75,7 +72,7 @@ void main() {
     expectLinks('see https://a.com/x\u007Fy x', [
       web(4, 19, 'https://a.com/x'),
     ]);
-  });
+  }, skip: "step 3 models NSDataDetector's own bare hosts");
 
   test('a C0 or C1 control inside a host splits it into two links', () {
     expectLinks('https://exam\u009Fple.com/a?b=1', [

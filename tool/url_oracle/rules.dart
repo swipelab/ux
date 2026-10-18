@@ -36,7 +36,16 @@ const ledger = <(String, String)>[
   ('question 6', 'question 6: a non-ASCII label beyond b5'),
   ('Unicode', 'Unicode: a code point the tables and macOS 26.4 disagree on'),
   ('new TLDs', "new TLDs: a TLD newer than the oracle's list"),
+  ('p1', 'p1: the input bound'),
+  ('p2', 'p2: the remainder read'),
+  ('p3', 'p3: stand-ins per segment'),
 ];
+
+/// The edits of class p, each a departure in how another edit reads.
+const performanceEdits = {'p1', 'p2', 'p3'};
+
+/// The units a text reads up to, by p1.
+const inputBound = 4096;
 
 /// Every edit of [ledger].
 final allEdits = {for (final (e, _) in ledger) e};
@@ -315,6 +324,11 @@ class _Run {
   }
 
   List<Link> predict(String text) {
+    if (on('p1') && text.length > inputBound) {
+      final r = reading(text);
+      if (r == null) return const [];
+      text = text.substring(0, boundOf(text, r.raw));
+    }
     if (text.isEmpty || !hasSigil(text)) return const [];
     final state = edited(text);
     if (state == null) return const [];
@@ -337,15 +351,18 @@ class _Run {
     return finish(text, st3.kept, any);
   }
 
-  /// The edited stage-2 candidates and stage-7 any-scheme links of [text].
-  ({List<_Cand> cands, List<Link> any})? edited(String text) {
+  /// The edited stage-2 candidates and stage-7 any-scheme links of [text],
+  /// which p2 reads as a remainder at [level] 1 and as a remainder's
+  /// remainder at 2.
+  ({List<_Cand> cands, List<Link> any})? edited(String text, {int level = 0}) {
     final original = reading(text);
     if (original == null) return null;
     final base = standInBase(text, original);
     if (base == null) return null;
     final r = base.reading;
+    final segments = Segments(text, original.raw);
     var cands = base.cands;
-    final tel = on('b13') ? telLinks(text) : const <_Cand>[];
+    final tel = on('b13') ? telLinks(text, segments) : const <_Cand>[];
     cands = [
       for (final x in cands)
         if (!(tel ?? const []).any(
@@ -355,7 +372,7 @@ class _Run {
               holds('b13:phones', x.link.kind == 'phone'),
         ))
           x,
-      ...?added(text, r),
+      ...?added(text, r, segments),
       ...?tel,
     ];
     cands = [for (final x in cands) (link: rewrite(text, r, x), nsdd: x.nsdd)];
@@ -365,9 +382,19 @@ class _Run {
     ];
     final regions = <_Region>[];
     final cutOffs = <_CutOff>[];
+    final addresses = on('p3') ? cutAddresses(text, cands, segments) : null;
+    if (on('p3') && addresses == null) return null;
     cands = [
       for (final x in cands)
-        if (cut(text, x.link, regions, cutOffs, stage7: false) case final link?)
+        if (cut(
+              text,
+              x.link,
+              regions,
+              cutOffs,
+              stage7: false,
+              addresses: addresses,
+            )
+            case final link?)
           (link: link, nsdd: x.nsdd),
     ];
     var any = anySchemeLinks(text);
@@ -378,7 +405,7 @@ class _Run {
       ];
     }
     any = [for (final l in any) ?cut(text, l, regions, cutOffs, stage7: true)];
-    return remainders(text, cands, any, regions, cutOffs);
+    return remainders(text, cands, any, regions, cutOffs, level);
   }
 
   /// [cands] and [any] with each region's text read as after a link's end,
@@ -390,32 +417,64 @@ class _Run {
     List<Link> any,
     List<_Region> regions,
     List<_CutOff> cutOffs,
+    int level,
   ) {
     final read = <_Region>[];
-    for (final region in regions) {
-      if (region.from <= region.start) continue;
+    final p2 = on('p2');
+    final order = p2
+        ? ([...regions]..sort((a, b) {
+            final byStart = a.from.compareTo(b.from);
+            return byStart != 0
+                ? byStart
+                : (b.to - b.from).compareTo(a.to - a.from);
+          }))
+        : regions;
+    for (final region in order) {
+      if (region.from <= region.start || p2 && level >= 2) continue;
       if (read.any((r) => r.from <= region.from && region.from < r.to)) {
         continue;
       }
       read.add(region);
       if (!kept('cut:remainder')) continue;
-      final blanked =
-          '${text.substring(0, region.start)}'
-          '${' ' * (region.from - region.start)}'
-          '${text.substring(region.from)}';
-      final sub = edited(blanked);
-      if (sub == null) return null;
       bool inside(int start) => region.from <= start && start < region.to;
+      final List<_Cand> subCands;
+      final List<Link> subAny;
+      if (p2) {
+        final sub = edited(
+          ' ${text.substring(region.from, region.to)}',
+          level: level + 1,
+        );
+        if (sub == null) return null;
+        Link shifted(Link l) => Link(
+          l.start - 1 + region.from,
+          l.end - 1 + region.from,
+          l.kind,
+          l.url,
+        );
+        subCands = [
+          for (final x in sub.cands) (link: shifted(x.link), nsdd: x.nsdd),
+        ];
+        subAny = [for (final l in sub.any) shifted(l)];
+      } else {
+        final blanked =
+            '${text.substring(0, region.start)}'
+            '${' ' * (region.from - region.start)}'
+            '${text.substring(region.from)}';
+        final sub = edited(blanked);
+        if (sub == null) return null;
+        subCands = sub.cands;
+        subAny = sub.any;
+      }
       cands = [
         for (final x in cands)
           if (!inside(x.link.start)) x,
-        for (final x in sub.cands)
+        for (final x in subCands)
           if (inside(x.link.start)) x,
       ];
       any = [
         for (final l in any)
           if (!inside(l.start)) l,
-        for (final l in sub.any)
+        for (final l in subAny)
           if (inside(l.start)) l,
       ];
     }
@@ -545,11 +604,11 @@ class _Run {
     return (cands: cands, reading: r);
   }
 
-  List<_Cand>? added(String text, ProbeReading r) {
+  List<_Cand>? added(String text, ProbeReading r, Segments segments) {
     final out = <_Cand>[];
     if (on('b4')) out.addAll(emailAddress(text));
     if (on('b5') || on('question 6')) {
-      final idn = idnLinks(text);
+      final idn = idnLinks(text, segments);
       if (idn == null) return null;
       for (final (link, spaced) in idn) {
         if (on(spaced ? 'b5' : 'question 6')) {
@@ -558,12 +617,12 @@ class _Run {
       }
     }
     if (on('b15')) {
-      final glue = glueLinks(text);
+      final glue = glueLinks(text, segments);
       if (glue == null) return null;
       out.addAll(glue);
     }
     if (on('b17')) {
-      final after = afterCfRuns(text);
+      final after = afterCfRuns(text, segments);
       if (after == null) return null;
       out.addAll(after);
     }
@@ -587,8 +646,9 @@ class _Run {
 
   /// b5 and question 6: the links of the IDN stand-in, each with whether
   /// its host's first label holds a letter outside ASCII and the unspaced
-  /// scripts.
-  List<(Link, bool)>? idnLinks(String text) {
+  /// scripts. Each TLD label swap reads a stand-in of its own, or, with p3,
+  /// one with every swap of its segment.
+  List<(Link, bool)>? idnLinks(String text, Segments segments) {
     final runs = labelRuns(text);
     if (runs.isEmpty) return const [];
     final main = StringBuffer();
@@ -625,7 +685,7 @@ class _Run {
       String s,
       List<Link> reading,
       int? Function(int)? map,
-      int? hostEnd,
+      Set<int>? hostEnds,
     ) {
       for (final l in reading) {
         if (l.kind != 'web' ||
@@ -633,7 +693,7 @@ class _Run {
           continue;
         }
         final sliceEnd = hostOf(s.substring(l.start, l.end)).length + l.start;
-        if (hostEnd != null && sliceEnd != hostEnd) continue;
+        if (hostEnds != null && !hostEnds.contains(sliceEnd)) continue;
         final start = map == null ? l.start : map(l.start);
         final end = map == null ? l.end : map(l.end);
         if (start == null || end == null) continue;
@@ -654,6 +714,7 @@ class _Run {
       if (w == null) return null;
       take(standIn, w, null, null);
     }
+    final swaps = <(int, int, String)>[];
     for (final (start, end) in runs) {
       var labelStart = start;
       var first = true;
@@ -667,30 +728,50 @@ class _Run {
             final tld = holds('idn:inSet', !held)
                 ? d.asciiTldOf(label.length)
                 : label;
-            final s =
-                '${standIn.substring(0, labelStart)}$tld'
-                '${standIn.substring(i)}';
-            final delta = tld.length - label.length;
-            final tldEnd = labelStart + tld.length;
-            final w = darwinOf(s);
-            if (w == null) return null;
-            take(
-              s,
-              w,
-              (q) => q <= labelStart
-                  ? q
-                  : q >= tldEnd
-                  ? q - delta
-                  : null,
-              tldEnd,
-            );
+            swaps.add((labelStart, i, tld));
           }
         }
         first = false;
         labelStart = i + 1;
       }
     }
+    for (final group
+        in on('p3')
+            ? segments.group(swaps, (swap) => swap.$1)
+            : [
+                for (final swap in swaps) [swap],
+              ]) {
+      final s = StringBuffer();
+      final tldEnds = <int>{};
+      var at = 0;
+      var shift = 0;
+      for (final (from, to, tld) in group) {
+        s
+          ..write(standIn.substring(at, from))
+          ..write(tld);
+        tldEnds.add(from + shift + tld.length);
+        shift += tld.length - (to - from);
+        at = to;
+      }
+      s.write(standIn.substring(at));
+      final w = darwinOf('$s');
+      if (w == null) return null;
+      take('$s', w, (q) => back(group, q), tldEnds);
+    }
     return out;
+  }
+
+  /// The offset in the original text of [q], an offset in the text with each
+  /// of [swaps] in place, or null inside a swapped label.
+  int? back(List<(int, int, String)> swaps, int q) {
+    var shift = 0;
+    for (final (from, to, tld) in swaps) {
+      final start = from + shift;
+      if (q <= start) return q - shift;
+      if (q < start + tld.length) return null;
+      shift += tld.length - (to - from);
+    }
+    return q - shift;
   }
 
   /// The IDN stand-in's runs of [text]: letters, marks and digits with '-',
@@ -735,23 +816,33 @@ class _Run {
   }
 
   /// b13: at each `tel:` in any case, the web link darwin reads there with
-  /// `tel` as `sms`, its URL its text.
-  List<_Cand>? telLinks(String text) {
+  /// that `tel` as `sms`, or, with p3, with every `tel` of its segment as
+  /// `sms`, its URL its text.
+  List<_Cand>? telLinks(String text, Segments segments) {
     final out = <_Cand>[];
-    final lower = text.toLowerCase();
-    for (
-      var at = lower.indexOf('tel:');
-      at >= 0;
-      at = lower.indexOf('tel:', at + 1)
-    ) {
-      final s =
-          '${text.substring(0, at)}'
-          '${String.fromCharCodes([for (var i = 0; i < 3; i++) _sms(text.codeUnitAt(at + i), i)])}'
-          '${text.substring(at + 3)}';
-      final w = darwinOf(s);
+    final ats = [
+      for (var at = 0; at + 3 < text.length; at++)
+        if (text.codeUnitAt(at + 3) == 0x3A &&
+            text.substring(at, at + 3).toLowerCase() == 'tel')
+          at,
+    ];
+    for (final group
+        in on('p3')
+            ? segments.group(ats, (at) => at)
+            : [
+                for (final at in ats) [at],
+              ]) {
+      final units = text.codeUnits.toList();
+      for (final at in group) {
+        for (var i = 0; i < 3; i++) {
+          units[at + i] = _sms(text.codeUnitAt(at + i), i);
+        }
+      }
+      final w = darwinOf(String.fromCharCodes(units));
       if (w == null) return null;
+      final starts = group.toSet();
       for (final l in w) {
-        if (l.start == at && l.kind == 'web') {
+        if (starts.contains(l.start) && l.kind == 'web') {
           out.add((
             link: Link(l.start, l.end, 'web', text.substring(l.start, l.end)),
             nsdd: false,
@@ -769,9 +860,11 @@ class _Run {
 
   /// b15's add: the host-only candidate darwin reads with the character
   /// after a host's '.' as spaces, where letterCharacterSet holds that
-  /// character and Unicode 17.0.0's L does not.
-  List<_Cand>? glueLinks(String text) {
+  /// character and Unicode 17.0.0's L does not, or, with p3, with every such
+  /// character of its segment as spaces.
+  List<_Cand>? glueLinks(String text, Segments segments) {
     final out = <_Cand>[];
+    final ats = <int>[];
     for (var at = text.indexOf('.'); at >= 0; at = text.indexOf('.', at + 1)) {
       if (at + 1 >= text.length) break;
       final cp = cpAt(text, at + 1);
@@ -780,13 +873,28 @@ class _Run {
           unspaced(cp)) {
         continue;
       }
-      final s =
-          '${text.substring(0, at + 1)}${' ' * width(cp)}'
-          '${text.substring(at + 1 + width(cp))}';
+      ats.add(at);
+    }
+    for (final group
+        in on('p3')
+            ? segments.group(ats, (at) => at)
+            : [
+                for (final at in ats) [at],
+              ]) {
+      final units = text.codeUnits.toList();
+      for (final at in group) {
+        for (var i = 0; i < width(cpAt(text, at + 1)); i++) {
+          units[at + 1 + i] = 0x20;
+        }
+      }
+      final s = String.fromCharCodes(units);
       final r = reading(s);
       if (r == null) return null;
+      final ends = group.toSet();
       for (final x in r.candidates!) {
-        if (x.link.end == at && bare(s, x.link) && hostOnly(s, x.link)) {
+        if (ends.contains(x.link.end) &&
+            bare(s, x.link) &&
+            hostOnly(s, x.link)) {
           out.add((link: x.link, nsdd: false));
         }
       }
@@ -795,9 +903,11 @@ class _Run {
   }
 
   /// b17: the candidates with no scheme darwin reads right after a Cf run
-  /// that an unspaced-script character precedes, with the run as spaces.
-  List<_Cand>? afterCfRuns(String text) {
+  /// that an unspaced-script character precedes, with the run as spaces, or,
+  /// with p3, with every such run of its segment as spaces.
+  List<_Cand>? afterCfRuns(String text, Segments segments) {
     final out = <_Cand>[];
+    final runs = <(int, int)>[];
     var i = 0;
     while (i < text.length) {
       final cp = cpAt(text, i);
@@ -813,12 +923,24 @@ class _Run {
           !holds('b17:unspaced', unspaced(cpBefore(text, start)))) {
         continue;
       }
-      final s =
-          '${text.substring(0, start)}${' ' * (i - start)}${text.substring(i)}';
+      runs.add((start, i));
+    }
+    for (final group
+        in on('p3')
+            ? segments.group(runs, (run) => run.$1)
+            : [
+                for (final run in runs) [run],
+              ]) {
+      final units = text.codeUnits.toList();
+      for (final (start, end) in group) {
+        units.fillRange(start, end, 0x20);
+      }
+      final s = String.fromCharCodes(units);
       final r = reading(s);
       if (r == null) return null;
+      final ends = {for (final (_, end) in group) end};
       for (final x in r.candidates!) {
-        if (x.link.start == i && bare(s, x.link)) {
+        if (ends.contains(x.link.start) && bare(s, x.link)) {
           out.add((link: x.link, nsdd: false));
         }
       }
@@ -1023,23 +1145,26 @@ class _Run {
     List<_Region> regions,
     List<_CutOff> cutOffs, {
     required bool stage7,
+    Map<Link, ({int at, Link? kept})>? addresses,
   }) {
     if (link.kind != 'web') {
-      final at = on('a3') ? a3Cut(text, link) : null;
-      if (at == null) return link;
-      final s =
+      final int at;
+      final Link? kept;
+      if (addresses != null) {
+        final found = addresses[link];
+        if (found == null) return link;
+        at = found.at;
+        kept = found.kept;
+      } else {
+        final cutAt = on('a3') ? a3Cut(text, link) : null;
+        if (cutAt == null) return link;
+        at = cutAt;
+        final r = reading(
           '${text.substring(0, at)}${' ' * (link.end - at)}'
-          '${text.substring(link.end)}';
-      final r = reading(s);
-      if (r == null) return null;
-      Link? kept;
-      for (final x in r.candidates!) {
-        if (x.link.kind == link.kind &&
-            x.link.start == link.start &&
-            x.link.end <= at &&
-            (kept == null || x.link.end > kept.end)) {
-          kept = x.link;
-        }
+          '${text.substring(link.end)}',
+        );
+        if (r == null) return null;
+        kept = longestFrom(r, link, at);
       }
       cutOffs.add((whole: link, link: kept, from: at, stage7: stage7));
       return kept;
@@ -1082,6 +1207,52 @@ class _Run {
             : urlOf(text, l, end),
       );
     }
+  }
+
+  /// The candidate of [r] of [link]'s kind that starts where it does and ends
+  /// by [at], the longest.
+  Link? longestFrom(ProbeReading r, Link link, int at) {
+    Link? kept;
+    for (final x in r.candidates!) {
+      if (x.link.kind == link.kind &&
+          x.link.start == link.start &&
+          x.link.end <= at &&
+          (kept == null || x.link.end > kept.end)) {
+        kept = x.link;
+      }
+    }
+    return kept;
+  }
+
+  /// p3: each email or phone of [cands] that a3 cuts, where and what it
+  /// keeps, read from one stand-in per segment with each such link's cut-off
+  /// text as spaces; null where a reading is missing.
+  Map<Link, ({int at, Link? kept})>? cutAddresses(
+    String text,
+    List<_Cand> cands,
+    Segments segments,
+  ) {
+    final cut = <(Link, int)>[];
+    if (on('a3')) {
+      for (final x in cands) {
+        if (x.link.kind == 'web') continue;
+        final at = a3Cut(text, x.link);
+        if (at != null) cut.add((x.link, at));
+      }
+    }
+    final out = <Link, ({int at, Link? kept})>{};
+    for (final group in segments.group(cut, (c) => c.$1.start)) {
+      final units = text.codeUnits.toList();
+      for (final (link, at) in group) {
+        units.fillRange(at, link.end, 0x20);
+      }
+      final r = reading(String.fromCharCodes(units));
+      if (r == null) return null;
+      for (final (link, at) in group) {
+        out[link] = (at: at, kept: longestFrom(r, link, at));
+      }
+    }
+    return out;
   }
 
   /// The first cut of the ledger that ends [l] before its end, and where.
@@ -1473,6 +1644,68 @@ int cpBefore(String text, int i) {
 
 /// [cp]'s UTF-16 length.
 int width(int cp) => cp > 0xFFFF ? 2 : 1;
+
+/// Whether the UTF-16 unit [c] ends a token: tab, LF, FF, CR or space.
+bool endsToken(int c) =>
+    c == 0x09 || c == 0x0A || c == 0x0C || c == 0x0D || c == 0x20;
+
+/// p1: the units of [text] it reads, all of them up to [inputBound], else
+/// up to its last tab, LF, FF, CR or space at or before its [inputBound]th
+/// unit that no phone of NSDataDetector's results [raw] spans.
+int boundOf(String text, List<RawResult> raw) {
+  if (text.length <= inputBound) return text.length;
+  for (var w = inputBound - 1; w >= 0; w--) {
+    if (endsToken(text.codeUnitAt(w)) &&
+        !raw.any((r) => r.phone && r.start < w && w < r.end)) {
+      return w;
+    }
+  }
+  return 0;
+}
+
+/// The segments of a text: its tokens, runs of units other than tab, LF,
+/// FF, CR and space, each run of tokens that one of NSDataDetector's phones
+/// joins taken as one.
+class Segments {
+  /// The segments of [text], whose NSDataDetector results are [raw].
+  Segments(String text, List<RawResult> raw) {
+    final joined = List.filled(text.length, false);
+    for (final r in raw) {
+      if (r.phone) joined.fillRange(r.start, r.end, true);
+    }
+    bool inside(int i) => joined[i] || !endsToken(text.codeUnitAt(i));
+    for (var i = 0; i < text.length; i++) {
+      if (inside(i) && (i == 0 || !inside(i - 1))) _starts.add(i);
+    }
+  }
+
+  final _starts = <int>[];
+
+  /// The start of the segment that holds the offset [i], or of the last one
+  /// before it; null before the first.
+  int? startOf(int i) {
+    var lo = 0;
+    var hi = _starts.length;
+    while (lo < hi) {
+      final mid = (lo + hi) >> 1;
+      if (_starts[mid] <= i) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+    return lo == 0 ? null : _starts[lo - 1];
+  }
+
+  /// [items] in their order, grouped by the segment [at] places each in.
+  List<List<T>> group<T>(List<T> items, int Function(T) at) {
+    final groups = <int?, List<T>>{};
+    for (final item in items) {
+      (groups[startOf(at(item))] ??= []).add(item);
+    }
+    return groups.values.toList();
+  }
+}
 
 /// Each of [texts]' prediction under [variant], reading every text a
 /// prediction needs through [read] until none is missing.

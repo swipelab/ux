@@ -2,7 +2,7 @@
 
 `ux` can bundle two components with distribution obligations: **FFmpeg**, used
 as a software H.264 video decoder on Android, and AOSP's **link patterns**,
-compiled into the Windows plugin. FFmpeg is **opt-in and disabled by
+compiled into the Windows plugin and ported into ux's Dart link detector. FFmpeg is **opt-in and disabled by
 default** — only apps that enable it ship it and inherit the obligation:
 
 ```yaml
@@ -70,7 +70,7 @@ patent-encumbered (Via LA pool, formerly MPEG-LA). We ship a **software AVC
 decoder** — a patent/commercial matter for counsel, **not** an open-source or
 store-policy issue. Exposure is limited to **decode** (no encoder shipped).
 
-## android.util.Patterns (Apache-2.0) — Windows only
+## android.util.Patterns (Apache-2.0)
 
 [windows/url_detect.cpp](windows/url_detect.cpp) holds the regular expressions
 of AOSP's `android.util.Patterns` — `WEB_URL`, `EMAIL_ADDRESS`, `PHONE` and the
@@ -78,8 +78,10 @@ strings they are composed from — Copyright (C) 2007 The Android Open Source
 Project, licensed under the
 [Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0).
 They are composed as `Patterns.java` composes them, each Java surrogate pair
-written as a C++ `\U` escape, and compiled into `ux_plugin.dll`. Android reads
-the platform's own `Patterns`, so ux ships no copy there.
+written as a C++ `\U` escape, and compiled into `ux_plugin.dll`.
+[lib/src/url/](lib/src/url/) holds scanners ported from them on every
+platform: `WEB_URL`'s character classes and host grammar in `web_pass.dart`,
+and `EMAIL_ADDRESS`'s grammar in `email_address.dart`.
 
 ## Unicode data (Unicode License v3)
 
