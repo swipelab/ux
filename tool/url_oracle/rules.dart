@@ -51,6 +51,7 @@ const conjuncts = [
   'a3:domain',
   'a3:mailto',
   'a3:cutOff',
+  'a3:kept',
   'b1:ascii',
   'b4:b16',
   'b5:b1',
@@ -265,9 +266,13 @@ class Predictor {
 /// A stage-2 candidate: a link and whether NSDataDetector gave it.
 typedef _Cand = ({Link link, bool nsdd});
 
-/// Text a cut removes from a link: read as text after a link's end, or, for
-/// a3, starting no link.
-typedef _Region = ({int start, int from, int to, bool read});
+/// Text a cut other than a3's removes from a link, read as text after a
+/// link's end.
+typedef _Region = ({int start, int from, int to});
+
+/// Text a3's cut removes from [whole], the link as a3 finds it, at stage 2
+/// or, where [stage7], stage 7; [link] is what the cuts leave of it.
+typedef _CutOff = ({Link whole, Link? link, int from, bool stage7});
 
 class _Run {
   _Run(this.p, this.variant);
@@ -311,10 +316,13 @@ class _Run {
     if (text.isEmpty || !hasSigil(text)) return const [];
     final state = edited(text);
     if (state == null) return const [];
-    final st3 = stage3(text, [
-      for (final x in state.cands) x.link,
-    ], everyKind: on('b2'));
-    var any = state.any;
+    return stages(text, [for (final x in state.cands) x.link], state.any);
+  }
+
+  /// darwin's stages 3 to 7 over the stage-2 candidates [cands] and the
+  /// any-scheme links [any] of [text].
+  List<Link> stages(String text, List<Link> cands, List<Link> any) {
+    final st3 = stage3(text, cands, everyKind: on('b2'));
     if (on('b2')) {
       any = [
         for (final l in any)
@@ -354,9 +362,10 @@ class _Run {
         if (!dropped(text, x)) x,
     ];
     final regions = <_Region>[];
+    final cutOffs = <_CutOff>[];
     cands = [
       for (final x in cands)
-        if (cut(text, x.link, regions, stage7: false) case final link?)
+        if (cut(text, x.link, regions, cutOffs, stage7: false) case final link?)
           (link: link, nsdd: x.nsdd),
     ];
     var any = anySchemeLinks(text);
@@ -366,21 +375,23 @@ class _Run {
           if (!webcalWithoutHost(text, r, l)) l,
       ];
     }
-    any = [for (final l in any) ?cut(text, l, regions, stage7: true)];
-    return remainders(text, cands, any, regions);
+    any = [for (final l in any) ?cut(text, l, regions, cutOffs, stage7: true)];
+    return remainders(text, cands, any, regions, cutOffs);
   }
 
   /// [cands] and [any] with each region's text read as after a link's end,
-  /// or, for a3's, starting no link.
+  /// and the text a3 cuts off each link the reading keeps whole starting no
+  /// link.
   ({List<_Cand> cands, List<Link> any})? remainders(
     String text,
     List<_Cand> cands,
     List<Link> any,
     List<_Region> regions,
+    List<_CutOff> cutOffs,
   ) {
     final read = <_Region>[];
     for (final region in regions) {
-      if (!region.read || region.from <= region.start) continue;
+      if (region.from <= region.start) continue;
       if (read.any((r) => r.from <= region.from && region.from < r.to)) {
         continue;
       }
@@ -406,19 +417,40 @@ class _Run {
           if (inside(l.start)) l,
       ];
     }
-    for (final region in regions) {
-      if (region.read || !kept('a3:cutOff')) continue;
-      bool inside(int start) => region.from <= start && start < region.to;
-      cands = [
+    bool replaced(int start) =>
+        read.any((r) => r.from <= start && start < r.to);
+    final live = [
+      for (final o in cutOffs)
+        if (!replaced(o.whole.start)) o,
+    ];
+    if (live.isEmpty || !kept('a3:cutOff')) return (cands: cands, any: any);
+    final wholeCands = [for (final x in cands) x.link];
+    final wholeAny = [...any];
+    for (final o in live) {
+      final links = o.stage7 ? wholeAny : wholeCands;
+      if (o.link != null) links.remove(o.link);
+      links.add(o.whole);
+    }
+    final whole = stages(text, wholeCands, wholeAny);
+    final cutOff = [
+      for (final o in live)
+        if (holds(
+          'a3:kept',
+          whole.any((l) => l.start == o.whole.start && l.end == o.whole.end),
+        ))
+          (o.from, o.whole.end),
+    ];
+    bool inside(int start) => cutOff.any((r) => r.$1 <= start && start < r.$2);
+    return (
+      cands: [
         for (final x in cands)
           if (!inside(x.link.start)) x,
-      ];
-      any = [
+      ],
+      any: [
         for (final l in any)
           if (!inside(l.start)) l,
-      ];
-    }
-    return (cands: cands, any: any);
+      ],
+    );
   }
 
   /// The candidates and reading the edits start from: [text]'s own, or,
@@ -977,19 +1009,19 @@ class _Run {
   }
 
   /// [link] after the cuts, in the ledger's order until none changes it,
-  /// each adding its region to [regions]; null where a cut leaves no link.
-  /// An email or phone takes a3's cut alone, as darwin reads it with the
-  /// text from the cut to its end as spaces.
+  /// each adding its region to [regions], or a3's to [cutOffs]; null where
+  /// a cut leaves no link. An email or phone takes a3's cut alone, as darwin
+  /// reads it with the text from the cut to its end as spaces.
   Link? cut(
     String text,
     Link link,
-    List<_Region> regions, {
+    List<_Region> regions,
+    List<_CutOff> cutOffs, {
     required bool stage7,
   }) {
     if (link.kind != 'web') {
       final at = on('a3') ? a3Cut(text, link) : null;
       if (at == null) return link;
-      regions.add((start: link.start, from: at, to: link.end, read: false));
       final s =
           '${text.substring(0, at)}${' ' * (link.end - at)}'
           '${text.substring(link.end)}';
@@ -1004,19 +1036,37 @@ class _Run {
           kept = x.link;
         }
       }
+      cutOffs.add((whole: link, link: kept, from: at, stage7: stage7));
       return kept;
     }
+    ({Link whole, int from})? a3;
+    Link? done(Link? result) {
+      if (a3 case final found?) {
+        cutOffs.add((
+          whole: found.whole,
+          link: result,
+          from: found.from,
+          stage7: stage7,
+        ));
+      }
+      return result;
+    }
+
     var l = link;
     while (true) {
       final (edit, at) = cutAt(text, l);
-      if (edit == null) return l;
+      if (edit == null) return done(l);
       final end = stage7
           ? trimAnyScheme(text, l.start, at!)
           : webEnd(text, l.start, at!);
-      regions.add((start: l.start, from: end, to: l.end, read: edit != 'a3'));
+      if (edit == 'a3') {
+        a3 = (whole: l, from: end);
+      } else {
+        regions.add((start: l.start, from: end, to: l.end));
+      }
       if (end <= l.start ||
           _schemeAlone.hasMatch(text.substring(l.start, end))) {
-        return null;
+        return done(null);
       }
       l = Link(
         l.start,

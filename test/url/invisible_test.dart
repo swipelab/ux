@@ -63,6 +63,16 @@ void main() {
     );
   });
 
+  test(
+    'an invisible space in a link that another link hides cuts off no text',
+    () {
+      expectLinks('see b\u00FCcher.de/xhttps://a\u200B.flutter.dev/setup x', [
+        web(4, 24, 'http://b\u00FCcher.de/xhttps://a'),
+        web(26, 43, 'http://flutter.dev/setup'),
+      ]);
+    },
+  );
+
   test("a zero-width joiner inside a word stays in a link's text and leaves its URL", () {
     expectLinks('see https://\u0915\u094D\u200D\u0937.com x', [
       web(4, 20, 'https://\u0915\u094D\u0937.com'),
