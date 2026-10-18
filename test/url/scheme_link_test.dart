@@ -44,6 +44,10 @@ void main() {
     expectLinks('HTTPS://:A.COM', [web(9, 14, 'http://A.COM')]);
   });
 
+  test("a scheme and three '/' alone link", () {
+    expectLinks('see https:/// x', [web(4, 13, 'https:///')]);
+  });
+
   test("a userinfo runs through the last '@' before the path", () {
     expectLinks('see https://a@b@c.com/x y', [
       web(4, 23, 'https://a@b@c.com/x'),

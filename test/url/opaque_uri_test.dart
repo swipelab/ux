@@ -160,6 +160,11 @@ void main() {
 
   test('an opaque URI on the list links with a body of slashes alone', () {
     expectLinks('see webcal:// x', [web(4, 13, 'webcal://')]);
+    expectLinks('see tel:/ x', [web(4, 9, 'tel:/')]);
+  });
+
+  test("a webcal: URI whose body is one '/' does not link", () {
+    expectLinks('see webcal:/ x', const [], apple: [web(4, 12, 'webcal:/')]);
   });
 
   test('a webcal:// URI whose host NSDataDetector reads links', () {
