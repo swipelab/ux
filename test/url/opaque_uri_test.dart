@@ -158,6 +158,10 @@ void main() {
     ]);
   });
 
+  test('an opaque URI on the list links with a body of slashes alone', () {
+    expectLinks('see webcal:// x', [web(4, 13, 'webcal://')]);
+  });
+
   test('a webcal:// URI whose host NSDataDetector reads links', () {
     expectLinks('webcal://a.١٢', [web(0, 13, 'webcal://a.١٢')]);
     expectLinks('webcal://a-1.١٢', [web(0, 15, 'webcal://a-1.١٢')]);

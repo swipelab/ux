@@ -52,6 +52,7 @@ const conjuncts = [
   'a3:mailto',
   'a3:cutOff',
   'a3:kept',
+  'a3:follows',
   'b1:ascii',
   'b4:b16',
   'b5:b1',
@@ -904,6 +905,7 @@ class _Run {
           !emailOnListedTld(slice);
     }
     if (link.kind != 'web') return false;
+    if (on('a3') && schemeAloneBeforeInvisible(text, link)) return true;
     if (on('b8') && x.nsdd && slice.toLowerCase() == 'webcal:/') return true;
     if (on('question 4') && schemeSlashOutsideGrammar(text, link)) return true;
     final end = link.end;
@@ -1145,6 +1147,19 @@ class _Run {
     return null;
   }
 
+  /// a3: whether [link] is a scheme and at most two '/', where the text
+  /// after its ':' is at most two '/' and then an invisible space.
+  bool schemeAloneBeforeInvisible(String text, Link link) {
+    final slice = text.substring(link.start, link.end);
+    if (!_schemeAlone.hasMatch(slice)) return false;
+    var q = link.start + slice.indexOf(':') + 1;
+    for (var n = 0; n < 2 && q < text.length && text[q] == '/'; n++) {
+      q++;
+    }
+    return q < text.length &&
+        holds('a3:follows', invisibleSpaces.contains(cpAt(text, q)));
+  }
+
   bool joins(int cp) =>
       c.letters.contains(cp) ||
       c.marks.contains(cp) ||
@@ -1355,7 +1370,7 @@ bool _fullwidthDigit(int u) => u >= 0xFF10 && u <= 0xFF19;
 bool _asciiDigit(int u) => u >= 0x30 && u <= 0x39;
 
 final _scheme = RegExp(r'^[A-Za-z][A-Za-z0-9+.\-]*://');
-final _schemeAlone = RegExp(r'^[A-Za-z][A-Za-z0-9+.\-]*:(?://)?$');
+final _schemeAlone = RegExp(r'^[A-Za-z][A-Za-z0-9+.\-]*:/{0,2}$');
 final _writtenMailto = RegExp('^mailto:(?!//)', caseSensitive: false);
 final _schemeSlash = RegExp(r'^[A-Za-z][A-Za-z0-9+.\-]*:/$');
 final _percent = RegExp('%[0-9A-Fa-f]{2}');

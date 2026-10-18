@@ -63,6 +63,27 @@ void main() {
     );
   });
 
+  test('a scheme and its slashes alone that an invisible space ends are no link, and a host after an invisible space no link holds still links', () {
+    expectLinks(
+      'see tel://\u200B+15551234567 x',
+      const [],
+      apple: [web(4, 23, 'tel://+15551234567')],
+    );
+    expectLinks(
+      'webcal:/\u200C/example.com',
+      const [],
+      apple: [web(0, 21, 'webcal://example.com')],
+    );
+    expectLinks(
+      'see webcal://\u1680example.com/cal.ics x',
+      [web(14, 33, 'http://example.com/cal.ics')],
+      apple: [
+        web(4, 13, 'webcal://'),
+        web(14, 33, 'http://example.com/cal.ics'),
+      ],
+    );
+  });
+
   test(
     'an invisible space in a link that another link hides cuts off no text',
     () {
