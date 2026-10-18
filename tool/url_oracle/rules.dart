@@ -67,6 +67,7 @@ const conjuncts = [
   'b13:phones',
   'b14:digit',
   'b16:at',
+  'b16:toAscii',
   'b17:unspaced',
   'q1:bare',
   'q2:quad',
@@ -1316,9 +1317,14 @@ class _Run {
       );
 
   /// Whether [address]'s domain, after its last '@' and up to a ':', '/',
-  /// '?' or '#', is an IPv4 address or ends in a listed TLD in any case.
+  /// '?' or '#', without the [domainInvisibleSpaces] its ToASCII form leaves
+  /// out, is an IPv4 address or ends in a listed TLD in any case.
   bool emailOnListedTld(String address) {
-    final domain = hostOf(address.substring(address.lastIndexOf('@') + 1));
+    final domain = String.fromCharCodes(
+      hostOf(address.substring(address.lastIndexOf('@') + 1)).runes.where(
+        (cp) => holds('b16:toAscii', !domainInvisibleSpaces.contains(cp)),
+      ),
+    );
     return _ipv4.hasMatch(domain) ||
         d.tlds.contains(domain.split('.').last.toLowerCase());
   }
