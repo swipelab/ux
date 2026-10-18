@@ -190,27 +190,20 @@ class CharacterClasses {
           .reduce((a, b) => a | b);
 }
 
-/// The props report: where macOS's character classes differ from Unicode
-/// 17.0.0's, and the TLDs NSDataDetector links a host or an email on.
-Future<List<String>> props(Harness harness) async {
-  final host = harness.host;
-  final classes = await CharacterClasses.read(harness);
-  final report = <String>[];
-  for (final (name, unicode, macOS) in classes.pairs) {
-    final onlyUnicode = unicode - macOS;
-    final onlyMac = macOS - unicode;
-    report
-      ..add('$name: ${onlyUnicode.length} only in Unicode 17.0.0: $onlyUnicode')
-      ..add('$name: ${onlyMac.length} only on macOS: $onlyMac');
-  }
-  report.add(
-    'letterCharacterSet holds '
-    '${(classes.macLetters - classes.letters).length} code points outside L, '
-    '${(classes.macLetters - classes.letters - classes.marks).length} of them '
-    'outside M',
-  );
+/// The TLDs NSDataDetector links on, from the probe's reading of every
+/// kTlds entry and kIdnTlds label as written in src/tld.h: [bare] in
+/// `see bücher.<tld> x`, [www] in `see www.bücher.<tld> x`, and an email's
+/// Unicode TLDs in `ops@example.<tld>` at the text's start and after a space.
+typedef NsddTlds = ({
+  List<String> bare,
+  List<String> www,
+  List<String> emailAtStart,
+  List<String> emailAfterSpace,
+});
 
-  final tlds = readTlds(await host.show(harness.commit, 'src/tld.h'));
+/// NSDataDetector's TLD sets at [harness]'s commit.
+Future<NsddTlds> nsddTlds(Harness harness) async {
+  final tlds = readTlds(await harness.host.show(harness.commit, 'src/tld.h'));
   final all = [...tlds.ascii, ...tlds.idn];
   final texts = [
     for (final t in all) ...['see bücher.$t x', 'see www.bücher.$t x'],
@@ -239,6 +232,36 @@ Future<List<String>> props(Harness harness) async {
     if (linksWhole(readings[at], 0, length, 'email')) atStart.add(t);
     if (linksWhole(readings[at + 1], 1, length, 'email')) afterSpace.add(t);
   }
+  return (
+    bare: bare,
+    www: www,
+    emailAtStart: atStart,
+    emailAfterSpace: afterSpace,
+  );
+}
+
+/// The props report: where macOS's character classes differ from Unicode
+/// 17.0.0's, and the TLDs NSDataDetector links a host or an email on.
+Future<List<String>> props(Harness harness) async {
+  final host = harness.host;
+  final classes = await CharacterClasses.read(harness);
+  final report = <String>[];
+  for (final (name, unicode, macOS) in classes.pairs) {
+    final onlyUnicode = unicode - macOS;
+    final onlyMac = macOS - unicode;
+    report
+      ..add('$name: ${onlyUnicode.length} only in Unicode 17.0.0: $onlyUnicode')
+      ..add('$name: ${onlyMac.length} only on macOS: $onlyMac');
+  }
+  report.add(
+    'letterCharacterSet holds '
+    '${(classes.macLetters - classes.letters).length} code points outside L, '
+    '${(classes.macLetters - classes.letters - classes.marks).length} of them '
+    'outside M',
+  );
+
+  final tlds = readTlds(await host.show(harness.commit, 'src/tld.h'));
+  final nsdd = await nsddTlds(harness);
   String set(List<String> s) {
     final ascii = s.where((t) => tlds.ascii.contains(t)).length;
     return '${s.length} ($ascii ASCII, ${s.length - ascii} IDN): ${s.join(' ')}';
@@ -246,9 +269,9 @@ Future<List<String>> props(Harness harness) async {
 
   return [
     ...report,
-    "TLDs of a linked 'see bücher.<tld> x': ${set(bare)}",
-    "TLDs of a linked 'see www.bücher.<tld> x': ${set(www)}",
-    "Unicode TLDs of an email 'ops@example.<tld>' at the text's start: ${set(atStart)}",
-    "Unicode TLDs of an email ' ops@example.<tld>' after a space: ${set(afterSpace)}",
+    "TLDs of a linked 'see bücher.<tld> x': ${set(nsdd.bare)}",
+    "TLDs of a linked 'see www.bücher.<tld> x': ${set(nsdd.www)}",
+    "Unicode TLDs of an email 'ops@example.<tld>' at the text's start: ${set(nsdd.emailAtStart)}",
+    "Unicode TLDs of an email ' ops@example.<tld>' after a space: ${set(nsdd.emailAfterSpace)}",
   ];
 }

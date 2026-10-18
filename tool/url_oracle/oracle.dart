@@ -132,11 +132,14 @@ Future<bool> _diff(Harness harness, _Options options) async {
     for (final t in [...tlds.ascii, ...tlds.idn, ...tlds.punycode])
       t.toLowerCase(),
   };
+  final nsdd = await nsddTlds(harness);
   final classes = disagreementClasses(
     ClassData(
       await CharacterClasses.read(harness),
       oracleTlds,
       newTlds(host.uxRoot, oracleTlds),
+      nsddBare: {for (final t in nsdd.bare) t.toLowerCase()},
+      nsddWww: {for (final t in nsdd.www) t.toLowerCase()},
     ),
   );
   final ledger = [
@@ -177,6 +180,43 @@ Future<bool> _diff(Harness harness, _Options options) async {
     ..writeAll([for (final d in ledgerUnclassified) 'UNCLASSIFIED $d'], '\n')
     ..writeln();
 
+  final mutationTexts = [for (final (_, text, _) in classMutations) text];
+  final mutationProbes = await harness.read(
+    mutationTexts,
+    locale: options.locale,
+  );
+  final mutationDarwin = await harness.replay(mutationTexts, mutationProbes);
+  var defects = 0;
+  final classified = <String>[];
+  final idle = <String>[];
+  for (var i = 0; i < classMutations.length; i++) {
+    final (beside, text, wrong) = classMutations[i];
+    final found = disagreements(
+      [
+        DarwinReading(
+          (family: 'mutation', text: text),
+          mutationDarwin[i],
+          mutationProbes[i],
+        ),
+      ],
+      [wrong(mutationDarwin[i])],
+    );
+    if (found.isEmpty) idle.add('NO DISAGREEMENT ${printable(text)}');
+    for (final d in found) {
+      defects++;
+      final c = classes.where((c) => c.holds(d)).firstOrNull;
+      if (c != null) classified.add('CLASSIFIED ${c.name}: $d, beside $beside');
+    }
+  }
+  stdout
+    ..writeln(
+      'self-check: ${classMutations.length} synthetic detector defects '
+      'beside the classes: $defects disagreeing links, '
+      '${classified.length} classified',
+    )
+    ..writeAll([...classified, ...idle], '\n')
+    ..writeln();
+
   final slice = [
     for (final r in darwin)
       if (r.corpus.family == 'phone' ||
@@ -205,7 +245,9 @@ Future<bool> _diff(Harness harness, _Options options) async {
       catalogRun.failed == 0 &&
       catalogRun.passed > 0 &&
       raw.isEmpty &&
-      ledgerUnclassified.isEmpty;
+      ledgerUnclassified.isEmpty &&
+      classified.isEmpty &&
+      idle.isEmpty;
   if (options.flags.contains('--oracle-only')) return ok;
 
   final kinds = {
