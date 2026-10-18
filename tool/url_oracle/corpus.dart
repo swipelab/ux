@@ -1189,3 +1189,105 @@ String _mixed(_Rng rng) {
   }
   return text;
 }
+
+/// [count] scheme texts of [seed], drawn apart from the corpus's shapes: a
+/// scheme from NSDataDetector's opaque list, http, https, ftp, mailto or
+/// random letters, then '://', ':' or ':/', a body of one to twelve
+/// characters from ASCII marks, letters and digits, combining marks, CJK
+/// punctuation, Cf characters, controls and spaces, and a context before
+/// and after.
+List<CorpusText> freshSchemeTexts(int seed, int count) {
+  final rng = _Rng(seed);
+  final seen = <String>{};
+  final out = <CorpusText>[];
+  String letters(int n) => String.fromCharCodes([
+    for (var i = 0; i < n; i++)
+      (rng.below(4) == 0 ? 0x41 : 0x61) + rng.below(26),
+  ]);
+  while (out.length < count) {
+    final scheme = switch (rng.below(4)) {
+      0 => letters(2 + rng.below(5)),
+      1 => rng.pick(const ['http', 'https', 'ftp', 'mailto', 'HTTPS']),
+      _ => rng.pick(_schemes.take(15).toList()),
+    };
+    final body = StringBuffer();
+    for (var n = 1 + rng.below(12); n > 0; n--) {
+      final pool = switch (rng.below(10)) {
+        0 || 1 => _freshMarks,
+        2 => _freshMarksOther,
+        3 => _freshCjk,
+        4 => _freshFormats,
+        5 => _freshControls,
+        6 => _freshSpaces,
+        _ => _freshWord,
+      };
+      body.writeCharCode(rng.pick(pool));
+    }
+    final text =
+        '${rng.pick(_freshBefore)}$scheme${rng.pick(const ['://', ':', ':/'])}'
+        '$body${rng.pick(_freshAfter)}';
+    if (seen.add(text)) out.add((family: 'fresh', text: text));
+  }
+  return out;
+}
+
+final _freshMarks = r""".,;:!?'"()[]{}<>/#%&=+-_~*@$^|`""".codeUnits;
+
+const _freshMarksOther = [
+  0x0301,
+  0x0308,
+  0x0E49,
+  0x00BB,
+  0x2019,
+  0x201D,
+  0x2026,
+];
+
+const _freshCjk = [0x3001, 0x3002, 0xFF08, 0xFF09, 0xFF1A, 0xFF0C, 0x300C];
+
+const _freshFormats = [
+  0x00AD,
+  0x200B,
+  0x200C,
+  0x200D,
+  0x200E,
+  0x200F,
+  0x2060,
+  0x202A,
+  0x202E,
+  0xFEFF,
+];
+
+const _freshControls = [0x01, 0x1F, 0x7F, 0x81, 0x9F];
+
+const _freshSpaces = [0x20, 0x09, 0x0A, 0xA0, 0x3000, 0x2028];
+
+final _freshWord = 'abcdefghijklmnopqrstuvwxyzABCXYZ0123456789'.codeUnits;
+
+const _freshBefore = [
+  '',
+  'see ',
+  '_',
+  'x',
+  '1',
+  '访问',
+  'ข้อ',
+  '(',
+  '"',
+  '\n',
+  '.',
+];
+
+const _freshAfter = [
+  '',
+  ' now',
+  '.',
+  ')',
+  '然后',
+  '!',
+  '?',
+  ' x',
+  '\n',
+  '/',
+  ',',
+];
