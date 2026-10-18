@@ -310,10 +310,10 @@ List<int> _octets(
   bool middle = false,
   bool last = false,
 }) {
-  int d(int k) {
-    if (i + k >= text.length) return -1;
+  int? d(int k) {
+    if (i + k >= text.length) return null;
     final c = text.codeUnitAt(i + k);
-    return isAsciiDigit(c) ? c - 0x30 : -1;
+    return isAsciiDigit(c) ? c - 0x30 : null;
   }
 
   final a = d(0), b = d(1), c = d(2);
@@ -322,11 +322,11 @@ List<int> _octets(
     if (out.isEmpty || out.last != n) out.add(n);
   }
 
-  if (a == 2 && b == 5 && c >= 0 && c <= 5) add(3);
-  if (a == 2 && b >= 0 && b <= 4 && c >= 0) add(3);
-  if ((a == 0 || a == 1) && b >= 0 && c >= 0) add(3);
-  if (a >= 1 && b >= 0) add(2);
-  if (last ? a >= 0 : a >= 1) add(1);
+  if (a == 2 && b == 5 && c != null && c <= 5) add(3);
+  if (a == 2 && b != null && b <= 4 && c != null) add(3);
+  if ((a == 0 || a == 1) && b != null && c != null) add(3);
+  if (a != null && a >= 1 && b != null) add(2);
+  if (a != null && (last || a >= 1)) add(1);
   if (middle && a == 0) add(1);
   return out;
 }

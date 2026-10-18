@@ -88,7 +88,21 @@ class _Scan {
   late final Int32List _queries = _forward((c) => c == 0x3F);
   late final Int32List _lastCloses = _backward((c) => c == 0x29);
   late final Int32List _lastAts = _backward((c) => c == 0x40);
-  late final Int32List _lastWordish = _backward(_wordish);
+  late final Int32List _lastWordishes = _backward(_wordish);
+
+  /// The last ')' before [p].
+  int? _lastClose(int p) => _before(_lastCloses, p);
+
+  /// The last '@' before [p].
+  int? _lastAt(int p) => _before(_lastAts, p);
+
+  /// The last character before [p] that ends a run of trailing marks.
+  int? _lastWordish(int p) => _before(_lastWordishes, p);
+
+  static int? _before(Int32List table, int p) {
+    final at = table[p];
+    return at < 0 ? null : at;
+  }
 
   /// For each position, the first at or after it whose unit [test] holds,
   /// or the text's length.
@@ -100,7 +114,8 @@ class _Scan {
     return out;
   }
 
-  /// For each position, the last before it whose unit [test] holds, or -1.
+  /// For each position, the last before it whose unit [test] holds, or -1,
+  /// read through [_before].
   Int32List _backward(bool Function(int) test) {
     final out = Int32List(n + 1)..[0] = -1;
     for (var i = 1; i <= n; i++) {
@@ -116,8 +131,8 @@ class _Scan {
     final firstOpen = _opens[p];
     final firstClose = _closes[p];
     if (firstClose < firstOpen && firstClose < end) end = firstClose;
-    final lastClose = _lastCloses[stop];
-    final from = lastClose >= p ? lastClose + 1 : p;
+    final lastClose = _lastClose(stop);
+    final from = lastClose != null && lastClose >= p ? lastClose + 1 : p;
     final open = _opens[from];
     if (open < end) end = open;
     return end;
@@ -224,7 +239,8 @@ class _Scan {
       stop--;
       if (stop < authorityEnd) authorityEnd = stop;
     }
-    final pathWord = _lastWordish[stop] >= authorityEnd;
+    final word = _lastWordish(stop);
+    final pathWord = word != null && word >= authorityEnd;
     var authority = pathWord ? _authority(s, p, authorityEnd) : null;
     if (authority is _Refused) return null;
     if (authority is _EndsAt) return authority.end;
@@ -265,8 +281,8 @@ class _Scan {
   /// the link that starts at [s]: userinfo through its last '@', a bracketed
   /// literal or a host, and an empty or digit port.
   _Authority _authority(int s, int p, int authorityEnd) {
-    final lastAt = _lastAts[authorityEnd];
-    final at = lastAt >= p ? lastAt : null;
+    final lastAt = _lastAt(authorityEnd);
+    final at = lastAt != null && lastAt >= p ? lastAt : null;
     final host = at == null ? p : at + 1;
     int hostEnd;
     if (host < authorityEnd && text.codeUnitAt(host) == 0x5B) {
@@ -340,8 +356,8 @@ class _Scan {
   /// too, and the run of `# - ~ *` before that, where `# - ~ *` or a '('
   /// follows it; then the trailing trimmed marks go.
   int _trailing(int s, int end) {
-    final word = _lastWordish[end];
-    final run = word >= s ? word + 1 : s;
+    final word = _lastWordish(end);
+    final run = word != null && word >= s ? word + 1 : s;
     for (var i = run + 1; i < end; i++) {
       if (!_trimmed(text.codeUnitAt(i))) continue;
       final next = i + 1 < n ? text.codeUnitAt(i + 1) : 0x20;
@@ -406,11 +422,11 @@ class _Scan {
   bool _mailtoAddress(int body, int end) {
     final query = _queries[body] < end ? _queries[body] : end;
     if (query == body) {
-      final lastAt = _lastAts[end];
-      return lastAt >= body;
+      final lastAt = _lastAt(end);
+      return lastAt != null && lastAt >= body;
     }
-    final at = _lastAts[query];
-    if (at <= body) return false;
+    final at = _lastAt(query);
+    if (at == null || at <= body) return false;
     final labels = text.substring(at + 1, query).split('.');
     if (labels.length < 2) return false;
     for (final label in labels) {

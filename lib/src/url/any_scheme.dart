@@ -87,9 +87,10 @@ bool _escape(String text, int i) =>
 
 bool _authorityEnd(int c) => c == 0x2F || c == 0x3F || c == 0x23;
 
-/// The length of the host character or '%XX' escape at [i], or 0.
-int _hostChar(String text, int i) {
-  if (i >= text.length) return 0;
+/// The length of the host character or '%XX' escape at [i], null where none
+/// is there.
+int? _hostChar(String text, int i) {
+  if (i >= text.length) return null;
   if (_escape(text, i)) return 3;
   final c = text.codeUnitAt(i);
   if (_ends(c) ||
@@ -98,7 +99,7 @@ int _hostChar(String text, int i) {
       c == 0x40 ||
       c == 0x28 ||
       c == 0x29) {
-    return 0;
+    return null;
   }
   return 1;
 }
@@ -108,7 +109,7 @@ int _hostChar(String text, int i) {
 int _hostRun(String text, int i, int depth) {
   while (true) {
     final n = _hostChar(text, i);
-    if (n > 0) {
+    if (n != null) {
       i += n;
     } else if (depth > 0 && i < text.length && text.codeUnitAt(i) == 0x28) {
       final close = _hostRun(text, i + 1, depth - 1);
@@ -123,7 +124,7 @@ int _hostRun(String text, int i, int depth) {
 int _matchEnd(String text, int p) {
   final n = text.length;
   var q = p;
-  var at = -1;
+  int? at;
   while (q < n) {
     if (_escape(text, q)) {
       q += 3;
@@ -134,7 +135,7 @@ int _matchEnd(String text, int p) {
     if (c == 0x40) at = q;
     q++;
   }
-  final host = at >= 0 ? at + 1 : p;
+  final host = at == null ? p : at + 1;
   var end = host;
   if (host < n && text.codeUnitAt(host) == 0x5B) {
     var r = host + 1;

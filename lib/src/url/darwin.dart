@@ -152,7 +152,7 @@ List<UrlMatch> finish(
         UrlMatch(
           start: m.start,
           end: m.end,
-          url: sanitizeUrl(_keepBidiControls(m.url, text, m.start, m.end)),
+          url: sanitizeUrl(_keepBidiControls(m, text)),
           kind: m.kind,
         ),
   ];
@@ -160,13 +160,18 @@ List<UrlMatch> finish(
   return dedupe([...links, ...anyScheme]);
 }
 
-/// `_keepBidiControls`: [url], or its scheme and the link's text where that
-/// text holds a bidi control [url] leaves out.
-String _keepBidiControls(String url, String text, int start, int end) {
-  if (url.codeUnits.any(isBidiControl)) return url;
-  final linked = text.substring(start, end);
-  if (!linked.codeUnits.any(isBidiControl)) return url;
-  final scheme = url.substring(0, url.indexOf(':') + 1).toLowerCase();
+/// `_keepBidiControls`: the URL of [m], a link of [text], or, for an email
+/// or phone whose text holds a bidi control its URL leaves out, its scheme
+/// and that text, or the text alone where it starts with the scheme.
+String _keepBidiControls(UrlMatch m, String text) {
+  final scheme = switch (m.kind) {
+    UrlMatchKind.web => null,
+    UrlMatchKind.email => 'mailto:',
+    UrlMatchKind.phone => 'tel:',
+  };
+  if (scheme == null || m.url.codeUnits.any(isBidiControl)) return m.url;
+  final linked = text.substring(m.start, m.end);
+  if (!linked.codeUnits.any(isBidiControl)) return m.url;
   return linked.toLowerCase().startsWith(scheme) ? linked : '$scheme$linked';
 }
 
