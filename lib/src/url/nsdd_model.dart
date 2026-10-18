@@ -45,7 +45,8 @@ const opaqueSchemes = {
 };
 
 /// The schemes NSDataDetector starts a link at after a '.' in a run of
-/// scheme characters.
+/// scheme characters, and whose userinfo it refuses where its user ends in
+/// a '.' and a label of two or three letters.
 const _webSchemes = {'http', 'https', 'feed'};
 
 /// What NSDataDetector reads of a link's authority.
@@ -311,6 +312,7 @@ class _Scan {
   _Authority _authority(int s, int p, int authorityEnd) {
     final lastAt = _lastAt(authorityEnd);
     final at = lastAt != null && lastAt >= p ? lastAt : null;
+    if (at != null && _hostLikeUser(s, p, at)) return _Refused();
     final host = at == null ? p : at + 1;
     int hostEnd;
     if (host < authorityEnd && text.codeUnitAt(host) == 0x5B) {
@@ -364,6 +366,30 @@ class _Scan {
       }
     }
     return _Taken(at, host, hostEnd);
+  }
+
+  /// Whether the userinfo from [p] to the '@' at [at] of the link that
+  /// starts at [s] has a user, its part before any ':', that ends in a '.'
+  /// and a label of two or three letters, under a scheme of [_webSchemes].
+  bool _hostLikeUser(int s, int p, int at) {
+    var user = p;
+    while (user < at && text.codeUnitAt(user) != 0x3A) {
+      user++;
+    }
+    var letters = 0;
+    var i = user;
+    while (i > p && isLetter(cpBefore(text, i))) {
+      i -= width(cpBefore(text, i));
+      letters++;
+    }
+    if (letters < 2 ||
+        letters > 3 ||
+        i <= p ||
+        text.codeUnitAt(i - 1) != 0x2E) {
+      return false;
+    }
+    final sep = text.indexOf(':', s);
+    return _webSchemes.contains(text.substring(s, sep).toLowerCase());
   }
 
   /// NSDataDetector's reading of a scheme on the opaque list and one '/'
@@ -586,7 +612,7 @@ bool _joinsWord(int cp) =>
     _isHangulFiller(cp) ||
     (isLetter(cp) || isDigit(cp)) &&
         !(cp >= 0x1100 && cp <= 0x11FF) &&
-        !(cp >= 0x2E80 && cp <= 0x9FFF) &&
+        !(cp >= 0x2E80 && cp <= 0x9FFF && !_isBopomofo(cp)) &&
         !(cp >= 0xA960 && cp <= 0xA97F) &&
         !(cp >= 0xAC00 && cp <= 0xD7FF) &&
         !(cp >= 0xF900 && cp <= 0xFAFF) &&
@@ -604,6 +630,9 @@ bool _midLetter(int cp) =>
     cp == 0xFE13 ||
     cp == 0xFE55 ||
     cp == 0xFF1A;
+
+bool _isBopomofo(int cp) =>
+    (cp >= 0x3100 && cp <= 0x312F) || (cp >= 0x31A0 && cp <= 0x31BF);
 
 bool _isHangulFiller(int cp) =>
     cp == 0x115F || cp == 0x1160 || cp == 0x3164 || cp == 0xFFA0;
