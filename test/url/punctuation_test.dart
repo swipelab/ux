@@ -59,7 +59,7 @@ void main() {
     expectLinks('see bl://x/a.? y', [web(4, 14, 'bl://x/a.?')]);
   });
 
-  test("a trailing '?' or ':' is trimmed with a trim mark after it", () {
+  test("a trim mark after a trailing '?' or ':' goes", () {
     expectLinks('see https://example.com/a?. x', [
       web(4, 26, 'https://example.com/a?'),
     ]);
@@ -253,12 +253,15 @@ void main() {
     );
   });
 
-  test("a link keeps its trailing non-ASCII symbols at the text's end", () {
-    expectLinks('see https://example.com/a😀', [
-      web(4, 27, 'https://example.com/a😀'),
-    ]);
-    expectLinks('see https://example.com/a€b x', [
-      web(4, 27, 'https://example.com/a€b'),
-    ]);
-  });
+  test(
+    "a link keeps a non-ASCII symbol at the text's end or inside its path",
+    () {
+      expectLinks('see https://example.com/a😀', [
+        web(4, 27, 'https://example.com/a😀'),
+      ]);
+      expectLinks('see https://example.com/a€b x', [
+        web(4, 27, 'https://example.com/a€b'),
+      ]);
+    },
+  );
 }
