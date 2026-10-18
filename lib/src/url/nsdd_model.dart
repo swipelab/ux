@@ -89,6 +89,9 @@ class _Scan {
   late final Int32List _lastCloses = _backward((c) => c == 0x29);
   late final Int32List _lastAts = _backward((c) => c == 0x40);
   late final Int32List _lastWordishes = _backward(_wordish);
+  late final Int32List _lastWords = _backwardCodePoints(
+    (cp) => isWord(cp) || _formatLike(cp),
+  );
 
   /// The last ')' before [p].
   int? _lastClose(int p) => _before(_lastCloses, p);
@@ -98,6 +101,9 @@ class _Scan {
 
   /// The last character before [p] that ends a run of trailing marks.
   int? _lastWordish(int p) => _before(_lastWordishes, p);
+
+  /// The end of the last character in ICU's `\w` or Cf before [p].
+  int? _lastWordEnd(int p) => _before(_lastWords, p);
 
   static int? _before(Int32List table, int p) {
     final at = table[p];
@@ -124,6 +130,16 @@ class _Scan {
     return out;
   }
 
+  /// For each position, the end of the last code point before it that
+  /// [test] holds, or -1, read through [_before].
+  Int32List _backwardCodePoints(bool Function(int) test) {
+    final out = Int32List(n + 1)..[0] = -1;
+    for (var i = 1; i <= n; i++) {
+      out[i] = test(cpBefore(text, i)) ? i : out[i - width(cpBefore(text, i))];
+    }
+    return out;
+  }
+
   /// Where a '(' that no ')' after it closes, or a ')' that no '(' before it
   /// opens, between [p] and [stop] ends NSDataDetector's link.
   int parenStop(int p, int stop) {
@@ -141,6 +157,16 @@ class _Scan {
   /// The end of the run that [p] starts, before a hard stop and a paren
   /// stop.
   int runEnd(int p) => parenStop(p, _stops[p]);
+
+  /// [stop], the end of the run that [p] starts, or, where a control other
+  /// than tab, LF and CR, a '<' or a private-use character below U+F800
+  /// follows it, the end of its last character in ICU's `\w` or Cf, before
+  /// a paren stop.
+  int _wordEnd(int p, int stop) {
+    if (stop >= n || !_dropsRunBefore(text.codeUnitAt(stop))) return stop;
+    final word = _lastWordEnd(stop);
+    return parenStop(p, word != null && word > p ? word : p);
+  }
 
   /// The link NSDataDetector reads at the ':' at [colon]: a scheme link where
   /// two '/' follow it, else an opaque URI.
@@ -231,6 +257,8 @@ class _Scan {
         (stop == n || text.codeUnitAt(stop) <= 0x20)) {
       stop = _segmentBefore(stop - 1, authorityEnd);
     }
+    stop = _wordEnd(p, stop);
+    if (authorityEnd > stop) authorityEnd = stop;
     if (stop < n &&
         stop > p &&
         _dropsLonePath(text.codeUnitAt(stop)) &&
@@ -404,7 +432,7 @@ class _Scan {
       stop--;
     }
     if (_formats[body] < stop) return null;
-    final e = _trailing(body, stop);
+    final e = _trailing(body, _wordEnd(body, stop));
     if (e == body) return null;
     if (mailto && !_mailtoAddress(body, e)) return null;
     return (
@@ -601,15 +629,19 @@ bool _linkStop(int c) =>
     (c >= 0xE000 && c <= 0xF8FF) ||
     isCjkPunctuation(c);
 
+/// Whether the UTF-16 unit [c] ends NSDataDetector's link together with the
+/// run of characters outside ICU's `\w` before it: a C0 control other than
+/// tab, LF and CR, DEL, a C1 control, '<' or a private-use character below
+/// U+F800.
+bool _dropsRunBefore(int c) =>
+    (c <= 0x1F && c != 0x09 && c != 0x0A && c != 0x0D) ||
+    (c >= 0x7F && c <= 0x9F) ||
+    c == 0x3C ||
+    (c >= 0xE000 && c <= 0xF7FF);
+
 /// Whether a path that is a '/' alone, or an empty port's ':', goes where the
 /// UTF-16 unit [c] follows it.
-bool _dropsLonePath(int c) =>
-    (c <= 0x1F && !(c >= 0x09 && c <= 0x0D)) ||
-    (c >= 0x7F && c <= 0x9F) ||
-    c == 0x22 ||
-    c == 0x3C ||
-    c == 0x200B ||
-    (c >= 0xE000 && c <= 0xF8FF);
+bool _dropsLonePath(int c) => c == 0x22 || c == 0x200B;
 
 /// Whether the UTF-16 unit [c] is a Cf character NSDataDetector keeps in a
 /// link: the soft hyphen, ZWNJ, ZWJ, LRM and RLM.

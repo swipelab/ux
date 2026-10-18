@@ -74,6 +74,14 @@ void main() {
     ]);
   }, skip: "step 3 models NSDataDetector's own bare hosts");
 
+  test("a control after a link takes the link's trailing characters outside \\w with it", () {
+    expectLinks('see sms:a=b&\u0001 x', [web(4, 11, 'sms:a=b')]);
+  });
+
+  test("an opaque URI whose body a control leaves without a character in \\w is no link", () {
+    expectLinks('see sms:+\u0001 x', const []);
+  });
+
   test('a C0 or C1 control inside a host splits it into two links', () {
     expectLinks('https://exam\u009Fple.com/a?b=1', [
       web(0, 12, 'https://exam'),
