@@ -1,6 +1,3 @@
-@Skip('the Dart detector does not read trailing punctuation yet')
-library;
-
 import 'package:flutter_test/flutter_test.dart';
 
 import 'links.dart';
