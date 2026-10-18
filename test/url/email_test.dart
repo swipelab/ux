@@ -52,6 +52,16 @@ void main() {
     expectLinks('ops@10.0.0.1', [email(0, 12, 'mailto:ops@10.0.0.1')]);
   });
 
+  test("an address's domain label takes '_'", () {
+    expectLinks('mail ops@exa_mple.com now', [
+      email(5, 21, 'mailto:ops@exa_mple.com'),
+    ]);
+  });
+
+  test("a combining mark in an address's domain makes no address", () {
+    expectLinks('mail ops@Bu\u0308cher.de now', const []);
+  });
+
   test("an ASCII domain stays as written in the address's URL", () {
     expectLinks('mail ops@EXAMPLE.COM now', [
       email(5, 20, 'mailto:ops@EXAMPLE.COM'),

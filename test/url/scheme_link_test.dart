@@ -108,6 +108,11 @@ void main() {
     ]);
   });
 
+  test("a scheme link's host of numbers links as written", () {
+    expectLinks('see http://010.0.0.1/ x', [web(4, 21, 'http://010.0.0.1/')]);
+    expectLinks('see http://2130706433/ x', [web(4, 22, 'http://2130706433/')]);
+  });
+
   test("a scheme link's host ends before a sub-delimiter or '~'", () {
     expectLinks(
       'see https://a.com!b x',

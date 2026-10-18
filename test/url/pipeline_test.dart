@@ -65,6 +65,15 @@ void main() {
     },
   );
 
+  test(
+    'the any-scheme link that runs past the native link from its start wins',
+    () {
+      expectLinks('see http://example.com/a\uE000b x', [
+        web(4, 26, 'http://example.com/a\uE000b'),
+      ]);
+    },
+  );
+
   test('a native link that ties the any-scheme link keeps its span and the URL leaves out a zero-width space', () {
     expectLinks('"ftp://a.io/a#\u200B +15551234567', [
       web(1, 15, 'ftp://a.io/a#'),
