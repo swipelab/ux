@@ -1322,14 +1322,14 @@ class _Run {
   /// local part, up to a ':', without the [domainInvisibleSpaces] its
   /// ToASCII form leaves out; null where no '@' ends one. After a written
   /// `mailto:`, the local part is in the first '/'-separated part of the
-  /// text before any '?' or '#' that holds an '@', and ends at its last '@';
-  /// a bare address's ends at its last '@'.
+  /// text before any '?', and after `mailto://` any '#', that holds an '@',
+  /// and ends at its last '@'; a bare address's ends at its last '@'.
   String? emailDomain(String address) {
     final mailbox = switch (_mailto.matchAsPrefix(address)) {
       final scheme? =>
         address
             .substring(scheme.end)
-            .split(RegExp('[?#]'))
+            .split(_writtenMailto.hasMatch(address) ? '?' : RegExp('[?#]'))
             .first
             .split('/')
             .where((part) => part.contains('@'))

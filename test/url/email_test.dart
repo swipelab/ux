@@ -195,6 +195,11 @@ void main() {
       email(4, 33, 'mailto:ops@example.com?cc=a@b'),
     ]);
     expectLinks(
+      'see mailto:x#y@example.zzz x',
+      const [],
+      apple: [email(4, 26, 'mailto:x%23y@example.zzz')],
+    );
+    expectLinks(
       'see mailto://ops@example.zzz/a@b.com x',
       [web(4, 36, 'mailto://ops@example.zzz/a@b.com')],
       apple: [email(4, 36, 'mailto://ops@example.zzz/a@b.com')],
