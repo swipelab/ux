@@ -9,8 +9,11 @@ typedef NsddResult = ({int start, int end, bool phone, String value});
 /// NSDataDetector's results of [text] (`.link | .phoneNumber`), in its order,
 /// as macOS 26.4 reads them under en_US.
 List<NsddResult> nsddResults(String text) {
-  final out = <NsddResult>[..._schemeLinks(text), ..._opaqueLinks(text)]
-    ..sort((a, b) => a.start.compareTo(b.start));
+  final out = <NsddResult>[
+    ..._schemeLinks(text),
+    ..._opaqueLinks(text),
+    ..._addresses(text),
+  ]..sort((a, b) => a.start.compareTo(b.start));
   return out;
 }
 
@@ -48,7 +51,7 @@ bool _gluedBefore(String text, int i) {
   var afterMid = false;
   while (i > 0) {
     final cp = cpBefore(text, i);
-    if (isMark(cp) || isFormat(cp) && cp != 0x200B) {
+    if (isMark(cp) || _formatLike(cp) && cp != 0x200B) {
       i -= width(cp);
       continue;
     }
@@ -110,17 +113,35 @@ int? _schemeStart(String text, int sep) {
 List<NsddResult> _schemeLinks(String text) {
   final out = <NsddResult>[];
   for (
-    var sep = text.indexOf('://');
-    sep >= 0;
-    sep = text.indexOf('://', sep + 1)
+    var colon = text.indexOf(':');
+    colon >= 0;
+    colon = text.indexOf(':', colon + 1)
   ) {
-    final s = _schemeStart(text, sep);
+    final p = _slashesEnd(text, colon);
+    if (p == null) continue;
+    final s = _schemeStart(text, colon);
     if (s == null) continue;
-    final end = _schemeLinkEnd(text, s, sep) ?? _schemeSlash(text, s, sep);
+    final end =
+        _schemeLinkEnd(text, s, colon, p) ?? _schemeSlash(text, s, colon, p);
     if (end == null) continue;
     out.add((start: s, end: end, phone: false, value: text.substring(s, end)));
   }
   return out;
+}
+
+/// The end of the two '/' after the ':' at [colon], with any LRM and RLM
+/// before and between them, or null where none follow it.
+int? _slashesEnd(String text, int colon) {
+  var i = colon + 1;
+  for (var slash = 0; slash < 2; slash++) {
+    while (i < text.length &&
+        (text.codeUnitAt(i) == 0x200E || text.codeUnitAt(i) == 0x200F)) {
+      i++;
+    }
+    if (i >= text.length || text.codeUnitAt(i) != 0x2F) return null;
+    i++;
+  }
+  return i;
 }
 
 /// Whether the UTF-16 unit [c] ends NSDataDetector's link before it:
@@ -144,8 +165,8 @@ bool _linkStop(int c) =>
     (c >= 0xE000 && c <= 0xF8FF) ||
     isCjkPunctuation(c);
 
-/// Whether a path that is a '/' alone ends with its link's authority where
-/// the UTF-16 unit [c] follows it.
+/// Whether a path that is a '/' alone, or an empty port's ':', goes where the
+/// UTF-16 unit [c] follows it.
 bool _dropsLonePath(int c) =>
     (c <= 0x1F && !(c >= 0x09 && c <= 0x0D)) ||
     (c >= 0x7F && c <= 0x9F) ||
@@ -165,12 +186,11 @@ bool _bidiStop(int c) => isBidiControl(c) && c != 0x200E && c != 0x200F;
 bool _segmentEnd(int c) =>
     c == 0x2F || c == 0x3F || c == 0x23 || c == 0x3D || c == 0x26;
 
-/// The end of NSDataDetector's link for the `scheme://` at [sep] that starts
-/// at [s], or null where it reads none.
-int? _schemeLinkEnd(String text, int s, int sep) {
+/// The end of NSDataDetector's link for the scheme that starts at [s] and
+/// whose ':' at [sep] and slashes end at [p], or null where it reads none.
+int? _schemeLinkEnd(String text, int s, int sep, int p) {
   final n = text.length;
   final scheme = text.substring(s, sep).toLowerCase();
-  final p = sep + 3;
   var stop = p;
   while (stop < n && !_linkStop(text.codeUnitAt(stop))) {
     stop++;
@@ -182,7 +202,7 @@ int? _schemeLinkEnd(String text, int s, int sep) {
   }
   for (var i = authorityEnd; i < stop; i++) {
     final c = text.codeUnitAt(i);
-    if (!isFormat(c) || _keptFormat(c)) continue;
+    if (!_formatLike(c) || _keptFormat(c)) continue;
     if (c == 0x200D) continue;
     final next = i + 1 < n ? text.codeUnitAt(i + 1) : 0x20;
     final atEnd = i + 1 == stop || _segmentEnd(next) || next <= 0x20;
@@ -206,11 +226,13 @@ int? _schemeLinkEnd(String text, int s, int sep) {
     }
     stop = cut > authorityEnd ? cut - 1 : authorityEnd;
   }
-  if (stop == authorityEnd + 1 &&
-      text.codeUnitAt(authorityEnd) == 0x2F &&
-      stop < n &&
-      _dropsLonePath(text.codeUnitAt(stop))) {
-    stop = authorityEnd;
+  if (stop < n &&
+      stop > p &&
+      _dropsLonePath(text.codeUnitAt(stop)) &&
+      (stop == authorityEnd + 1 && text.codeUnitAt(authorityEnd) == 0x2F ||
+          stop == authorityEnd && text.codeUnitAt(stop - 1) == 0x3A)) {
+    stop--;
+    if (stop < authorityEnd) authorityEnd = stop;
   }
   final end = _trailing(text, s, stop);
   if (authorityEnd > end) authorityEnd = end;
@@ -221,10 +243,14 @@ int? _schemeLinkEnd(String text, int s, int sep) {
     final close = text.indexOf(']', host);
     if (close < 0 || close >= authorityEnd) return null;
     for (var i = host + 1; i < close; i++) {
-      final c = text.codeUnitAt(i);
-      if (isFormat(c) && !_isHangulFiller(c)) return null;
+      if (_formatLike(text.codeUnitAt(i)) && text.codeUnitAt(i) != 0xAD) {
+        return null;
+      }
     }
     hostEnd = close + 1;
+    while (hostEnd < authorityEnd && _ignorable(text.codeUnitAt(hostEnd))) {
+      hostEnd++;
+    }
   } else {
     hostEnd = host;
     while (hostEnd < authorityEnd && text.codeUnitAt(hostEnd) != 0x3A) {
@@ -257,7 +283,7 @@ int? _schemeLinkEnd(String text, int s, int sep) {
     }
     if (d < authorityEnd) {
       final c = text.codeUnitAt(d);
-      if (isDigit(c) || (isFormat(c) && !(c >= 0x200C && c <= 0x200F))) {
+      if (isDigit(c) || (_formatLike(c) && !(c >= 0x200C && c <= 0x200F))) {
         return _trailing(text, s, hostEnd);
       }
       return null;
@@ -275,6 +301,14 @@ int? _schemeLinkEnd(String text, int s, int sep) {
 }
 
 bool _isPathStart(int c) => c == 0x2F || c == 0x3F || c == 0x23;
+
+/// Whether the UTF-16 unit [c] is Cf or U+2065, which NSDataDetector reads as
+/// one.
+bool _formatLike(int c) => isFormat(c) || c == 0x2065;
+
+/// Whether the UTF-16 unit [c] is a default-ignorable character
+/// NSDataDetector reads as part of a word: a Hangul filler or CGJ.
+bool _ignorable(int c) => _isHangulFiller(c) || c == 0x034F;
 
 bool _isDotOrDash(int c) => c == 0x2E || c == 0x2D;
 
@@ -321,20 +355,24 @@ bool _killsHost(int c) =>
     c == 0x5C ||
     c == 0x5E ||
     c == 0x2026 ||
-    isFormat(c) && c != 0xAD && c != 0x200C && c != 0x200D;
+    _formatLike(c) && c != 0xAD && c != 0x200C && c != 0x200D;
 
 /// Whether the UTF-16 unit [c] is a port character: an ASCII or fullwidth
-/// digit, or a Cf character NSDataDetector keeps in a port.
+/// digit, or a default-ignorable character NSDataDetector keeps in a port.
 bool _portChar(int c) =>
-    _portDigit(c) || c == 0xAD || c == 0x034F || c == 0x3164 || c == 0xFE0F;
+    _portDigit(c) ||
+    c == 0xAD ||
+    c == 0x034F ||
+    c == 0xFE0F ||
+    _isHangulFiller(c);
 
 /// NSDataDetector's reading of a scheme on the opaque list and one '/' where
-/// it reads no host after its `//` and no whitespace follows it.
-int? _schemeSlash(String text, int s, int sep) {
-  if (!opaqueSchemes.contains(text.substring(s, sep).toLowerCase())) {
+/// it reads no host after its `//` at [p] and no whitespace follows it.
+int? _schemeSlash(String text, int s, int sep, int p) {
+  if (!opaqueSchemes.contains(text.substring(s, sep).toLowerCase()) ||
+      p != sep + 3) {
     return null;
   }
-  final p = sep + 3;
   if (p >= text.length || _space(text.codeUnitAt(p))) return null;
   return sep + 2;
 }
@@ -456,7 +494,7 @@ List<NsddResult> _opaqueLinks(String text) {
     var killed = false;
     for (var i = body; i < stop; i++) {
       final c = text.codeUnitAt(i);
-      if (isFormat(c) && !_keptFormat(c)) killed = true;
+      if (_formatLike(c) && !_keptFormat(c)) killed = true;
     }
     if (killed) continue;
     final e = _trailing(text, body, stop);
@@ -498,6 +536,113 @@ bool _mailtoAddress(String text, int body, int end) {
     }
   }
   return labels.last.codeUnits.every(isAsciiLetter);
+}
+
+/// Whether [cp] is a character of an address's local part as NSDataDetector
+/// reads one: ASCII atext, '.', a letter, mark or digit outside the unspaced
+/// scripts or a Hangul syllable, or a bidi control.
+bool _localChar(int cp) => cp < 0x80
+    ? isAsciiLetter(cp) ||
+          isAsciiDigit(cp) ||
+          "!#\$%&'*+/=?^_`{|}~.-".codeUnits.contains(cp)
+    : isBidiControl(cp) ||
+          isLetterMarkDigit(cp) &&
+              !(cp >= 0x2E80 && cp <= 0x9FFF) &&
+              !(cp >= 0xF900 && cp <= 0xFAFF) &&
+              !(cp >= 0x20000 && cp <= 0x3FFFF);
+
+bool _domainChar(int c) =>
+    isAsciiLetter(c) ||
+    isAsciiDigit(c) ||
+    c == 0x2D ||
+    c == 0x5F ||
+    c == 0x061C ||
+    c == 0x200E ||
+    c == 0x200F;
+
+/// NSDataDetector's addresses in [text] with no written `mailto:`: a local
+/// part that no '.' starts or ends before an '@', and a domain of labels of
+/// ASCII letters, digits, '-' and '_' joined by single dots, its last
+/// label's letters ending it.
+List<NsddResult> _addresses(String text) {
+  final out = <NsddResult>[];
+  var from = 0;
+  for (var at = text.indexOf('@'); at >= 0; at = text.indexOf('@', at + 1)) {
+    if (at < from) continue;
+    var start = at;
+    while (start > 0 && _localChar(cpBefore(text, start))) {
+      start -= width(cpBefore(text, start));
+    }
+    while (start < at && text.codeUnitAt(start) == 0x2E) {
+      start++;
+    }
+    if (start == at || text.codeUnitAt(at - 1) == 0x2E) continue;
+    if (start > 0) {
+      final before = cpBefore(text, start);
+      if (before == 0x40 || _formatLike(before) && before != 0x200B) continue;
+    }
+    if (start >= 7 &&
+        text.substring(start - 7, start).toLowerCase() == 'mailto:') {
+      continue;
+    }
+    final end = _domainEnd(text, at + 1);
+    if (end == null) continue;
+    out.add((
+      start: start,
+      end: end,
+      phone: false,
+      value:
+          'mailto:${_escaped(text.substring(start, at))}@${text.substring(at + 1, end)}',
+    ));
+    from = end;
+  }
+  return out;
+}
+
+bool _domainDigitOrMark(int c) => isAsciiDigit(c) || c == 0x2D || c == 0x5F;
+
+/// The end of an address's domain at [p]: two or more labels joined by
+/// single dots whose last label is letters, or ends at the letters before a
+/// '-' in it.
+int? _domainEnd(String text, int p) {
+  var i = p;
+  var labels = 0;
+  int? end;
+  while (true) {
+    final labelStart = i;
+    while (i < text.length && _domainChar(text.codeUnitAt(i))) {
+      i++;
+    }
+    if (i == labelStart) break;
+    labels++;
+    if (labels >= 2) {
+      var letters = labelStart;
+      while (letters < i && !_domainDigitOrMark(text.codeUnitAt(letters))) {
+        letters++;
+      }
+      if (letters == i) end = i;
+      if (letters < i) {
+        if (letters > labelStart && text.codeUnitAt(letters) == 0x2D) {
+          end = letters;
+        }
+        break;
+      }
+    }
+    if (i + 1 < text.length &&
+        text.codeUnitAt(i) == 0x2E &&
+        _domainChar(text.codeUnitAt(i + 1))) {
+      i++;
+      continue;
+    }
+    break;
+  }
+  if (end == null) return null;
+  if (end < text.length &&
+      _formatLike(text.codeUnitAt(end)) &&
+      !_bidiStop(text.codeUnitAt(end))) {
+    return null;
+  }
+  return end;
 }
 
 /// [url] with each character NSDataDetector's URL escapes as UTF-8 '%XX'
