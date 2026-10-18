@@ -1147,14 +1147,13 @@ class _Run {
 
   /// The domain of [slice], the text of a link of [kind], as offsets into
   /// it, where the link is an address that no `mailto:` without `//` starts:
-  /// an email, or a link written after `mailto://`.
+  /// an email's after its last '@', or, written after `mailto://`, the host
+  /// after any userinfo.
   (int, int)? addressDomain(String slice, String kind) {
     if (_mailtoSlashes.matchAsPrefix(slice) case final scheme?) {
       final authority = authorityOf(slice.substring(scheme.end));
-      final at = authority.lastIndexOf('@');
-      return at < 0
-          ? null
-          : (scheme.end + at + 1, scheme.end + authority.length);
+      final start = scheme.end + authority.lastIndexOf('@') + 1;
+      return (start, start + hostOf(slice.substring(start)).length);
     }
     if (kind != 'email' ||
         !holds('a3:mailto', !_writtenMailto.hasMatch(slice))) {

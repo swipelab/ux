@@ -116,6 +116,11 @@ void main() {
         [email(4, 21, 'mailto://ops@exam')],
         apple: [email(4, 29, 'mailto://ops@example.com')],
       );
+      expectLinks(
+        'see mailto://exam\u00ADple.com x',
+        [email(4, 17, 'mailto://exam')],
+        apple: [email(4, 25, 'mailto://example.com')],
+      );
     },
   );
 

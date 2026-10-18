@@ -280,7 +280,10 @@ const conversionShapes = {
     'see mailto://o\$ps@example.com x',
   ],
   'domain': ['mail ops@exam\$ple.com now'],
-  'domain after mailto://': ['see mailto://ops@exam\$ple.com x'],
+  'domain after mailto://': [
+    'see mailto://ops@exam\$ple.com x',
+    'see mailto://exam\$ple.com x',
+  ],
   "domain after mailto: without '//'": ['see mailto:ops@exam\$ple.com x'],
   'phone': ['call +1 555\$123 4567 now'],
 };
