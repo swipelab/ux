@@ -6,7 +6,9 @@
 //
 // A window's time is the median of 21 reads after 5 warm-ups. A family's time
 // at a size is the median of 9 samples after 3 warm-ups, each sample a batch
-// of reads of at least 2 ms divided by its reads. With no flag it exits 0
+// of reads of about 2 ms divided by its reads, and its 4,096/1,024 ratio the
+// median of the 9 ratios of a 4,096-unit sample to the 1,024-unit sample
+// taken just before it. With no flag it exits 0
 // where the chat window reads in at most 1.0 ms and every family's 4,096-unit
 // text in at most 500 µs with a 4,096/1,024 ratio of at most 4.5; with
 // --linear, where every family's ratio is at most 4.5 and its 4,096-unit time
@@ -52,9 +54,10 @@ void main(List<String> args) {
     '${'ratio'.padLeft(6)}',
   );
   for (final (name, prefix, unit) in _families) {
-    final small = _familyTime(_text(prefix, unit, 1024));
-    final large = _familyTime(_text(prefix, unit, 4096));
-    final ratio = large / small;
+    final (:small, :large, :ratio) = _familyTimes(
+      _text(prefix, unit, 1024),
+      _text(prefix, unit, 4096),
+    );
     final pass = ratio <= ratioLimit && large <= timeLimit;
     ok = ok && pass;
     stdout.writeln(
@@ -93,27 +96,48 @@ double _elapsedMs(Stopwatch watch) =>
   return (median: times[10], min: times.first, max: times.last);
 }
 
-/// The median ms a read of [text] takes over 9 batches of at least 2 ms
-/// after 3 warm-up batches.
-double _familyTime(String text) {
+/// The ms a read of [small] and of [large] take, each the median of 9
+/// batches of reads lasting at least 2 ms after 3 warm-up batches, and the
+/// median of the 9 ratios of a large batch to the small batch read just
+/// before it.
+({double small, double large, double ratio}) _familyTimes(
+  String small,
+  String large,
+) {
+  final smallBatch = _batch(small);
+  final largeBatch = _batch(large);
+  for (var i = 0; i < 3; i++) {
+    smallBatch();
+    largeBatch();
+  }
+  final smalls = <double>[];
+  final larges = <double>[];
+  final ratios = <double>[];
+  for (var i = 0; i < 9; i++) {
+    smalls.add(smallBatch());
+    larges.add(largeBatch());
+    ratios.add(larges.last / smalls.last);
+  }
+  double median(List<double> values) => (values..sort())[values.length ~/ 2];
+  return (small: median(smalls), large: median(larges), ratio: median(ratios));
+}
+
+/// A batch of reads of [text] lasting about 2 ms, giving its ms a read; each
+/// batch sizes the next.
+double Function() _batch(String text) {
   final once = Stopwatch()..start();
   detectLinks(text);
   final first = _elapsedMs(once);
   var reads = first <= 0 ? 1000 : (2 / first).ceil();
-  double batch() {
+  return () {
     final watch = Stopwatch()..start();
     for (var i = 0; i < reads; i++) {
       detectLinks(text);
     }
-    return _elapsedMs(watch) / reads;
-  }
-
-  for (var i = 0; i < 3; i++) {
-    final perRead = batch();
-    reads = perRead <= 0 ? reads : (2 / perRead).ceil().clamp(1, 1 << 20);
-  }
-  final times = [for (var i = 0; i < 9; i++) batch()]..sort();
-  return times[4];
+    final perRead = _elapsedMs(watch) / reads;
+    if (perRead > 0) reads = (2 / perRead).ceil().clamp(1, 1 << 20);
+    return perRead;
+  };
 }
 
 String _text(String prefix, String unit, int length) {
