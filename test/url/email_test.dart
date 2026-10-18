@@ -178,6 +178,18 @@ void main() {
     ]);
   });
 
+  test('an address after mailto:// links with a port, path or fragment after its domain', () {
+    expectLinks('see mailto://ops@example.com/path x', [
+      email(4, 33, 'mailto://ops@example.com/path'),
+    ]);
+    expectLinks('see mailto://ops@example.com:25 x', [
+      email(4, 31, 'mailto://ops@example.com:25'),
+    ]);
+    expectLinks('see mailto://ops@example.com#f x', [
+      email(4, 30, 'mailto://ops@example.com#f'),
+    ]);
+  });
+
   test(
     'an address ends before trailing punctuation and brackets around it',
     () {

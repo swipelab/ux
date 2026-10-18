@@ -1315,13 +1315,10 @@ class _Run {
             labels[labels.length - 2].codeUnits.every((u) => u < 0x80),
       );
 
-  /// Whether [address]'s domain, after its last '@' and up to a '?', is an
-  /// IPv4 address or ends in a listed TLD in any case.
+  /// Whether [address]'s domain, after its last '@' and up to a ':', '/',
+  /// '?' or '#', is an IPv4 address or ends in a listed TLD in any case.
   bool emailOnListedTld(String address) {
-    final domain = address
-        .substring(address.lastIndexOf('@') + 1)
-        .split('?')
-        .first;
+    final domain = hostOf(address.substring(address.lastIndexOf('@') + 1));
     return _ipv4.hasMatch(domain) ||
         d.tlds.contains(domain.split('.').last.toLowerCase());
   }
