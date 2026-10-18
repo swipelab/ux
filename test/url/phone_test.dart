@@ -160,6 +160,10 @@ void main() {
     expectLinks('call 044.123.45.67 now', [phone(5, 18, 'tel:0441234567')]);
   });
 
+  test("a dotted phone of two, three, two and two digits links at the text's start", () {
+    expectLinks('00.256.10.99', [phone(0, 12, 'tel:002561099')]);
+  });
+
   test('a phone hides a link inside its span', () {
     expectLinks('call +1 555 10.0.0.1', [phone(5, 20, 'tel:+155510001')]);
   });

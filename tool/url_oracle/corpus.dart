@@ -1015,8 +1015,9 @@ const _phoneContexts = [
 
 /// Phone shapes from country codes, trunk prefixes, digit groups, separators,
 /// a parenthesized first group, extensions, trailers and contexts, some in
-/// fullwidth or Arabic-Indic digits, and phones a later IPv4 address or
-/// domain follows.
+/// fullwidth or Arabic-Indic digits, phones a later IPv4 address or domain
+/// follows, and dotted numbers of two, three, two and two digits with and
+/// without a phone word before them.
 void _phone(_Rng rng, _Add add) {
   for (var i = 0; i < 25000; i++) {
     final groups = rng.pick(_groups);
@@ -1046,6 +1047,18 @@ void _phone(_Rng rng, _Add add) {
   ]) {
     for (final context in [r'x $ y', r'call $', r'$']) {
       add('phone', context.replaceFirst(r'$', hidden));
+    }
+  }
+  for (final dotted in ['00.256.10.99', '01.256.10.98', '10.256.10.99']) {
+    for (final context in [
+      r'$',
+      r' $',
+      r'$ now',
+      r'x $ now',
+      r'call $ now',
+      r'访问$然后',
+    ]) {
+      add('phone', context.replaceFirst(r'$', dotted));
     }
   }
 }
