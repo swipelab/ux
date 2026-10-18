@@ -274,8 +274,13 @@ const conversionShapes = {
     'see https://example.com/\u0627\$\u0628 x',
     'see https://\u0915\u094D\$\u0937.com x',
   ],
-  'local part': ['mail o\$ps@example.com now', 'mail ops\$@example.com now'],
-  'domain': ['mail ops@exam\$ple.com now', 'see mailto://ops@exam\$ple.com x'],
+  'local part': [
+    'mail o\$ps@example.com now',
+    'mail ops\$@example.com now',
+    'see mailto://o\$ps@example.com x',
+  ],
+  'domain': ['mail ops@exam\$ple.com now'],
+  'domain after mailto://': ['see mailto://ops@exam\$ple.com x'],
   "domain after mailto: without '//'": ['see mailto:ops@exam\$ple.com x'],
   'phone': ['call +1 555\$123 4567 now'],
 };

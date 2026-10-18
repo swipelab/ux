@@ -108,6 +108,17 @@ void main() {
     );
   });
 
+  test(
+    'an address after mailto:// ends before a soft hyphen in its domain',
+    () {
+      expectLinks(
+        'see mailto://ops@exam\u00ADple.com x',
+        [email(4, 21, 'mailto://ops@exam')],
+        apple: [email(4, 29, 'mailto://ops@example.com')],
+      );
+    },
+  );
+
   test("a Hangul filler in an address's local part stays in the address and its URL", () {
     expectLinks('mail o\u3164ps@example.com now', [
       email(5, 21, 'mailto:o%E3%85%A4ps@example.com'),

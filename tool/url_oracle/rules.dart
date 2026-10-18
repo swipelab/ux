@@ -1119,14 +1119,9 @@ class _Run {
 
   /// a3: the first invisible space of [l]: one of [invisibleSpaces] other
   /// than a ZWNJ or ZWJ between letters, marks, digits or symbols, or one of
-  /// [domainInvisibleSpaces] in the domain of an address that no `mailto:`
-  /// without `//` starts.
+  /// [domainInvisibleSpaces] in its [addressDomain].
   int? a3Cut(String text, Link l) {
-    final slice = text.substring(l.start, l.end);
-    final at =
-        l.kind == 'email' && holds('a3:mailto', !_writtenMailto.hasMatch(slice))
-        ? slice.lastIndexOf('@') + l.start
-        : null;
+    final domain = addressDomain(text.substring(l.start, l.end), l.kind);
     for (var i = l.start; i < l.end;) {
       final cp = cpAt(text, i);
       if (invisibleSpaces.contains(cp)) {
@@ -1137,14 +1132,35 @@ class _Run {
             joins(cpBefore(text, i)) &&
             joins(cpAt(text, i + 1));
         if (holds('a3:joiner', !joiner)) return i;
-      } else if (at != null &&
+      } else if (domain != null &&
           domainInvisibleSpaces.contains(cp) &&
-          holds('a3:domain', i > at)) {
+          holds(
+            'a3:domain',
+            domain.$1 <= i - l.start && i - l.start < domain.$2,
+          )) {
         return i;
       }
       i += width(cp);
     }
     return null;
+  }
+
+  /// The domain of [slice], the text of a link of [kind], as offsets into
+  /// it, where the link is an address that no `mailto:` without `//` starts:
+  /// an email, or a link written after `mailto://`.
+  (int, int)? addressDomain(String slice, String kind) {
+    if (_mailtoSlashes.matchAsPrefix(slice) case final scheme?) {
+      final authority = authorityOf(slice.substring(scheme.end));
+      final at = authority.lastIndexOf('@');
+      return at < 0
+          ? null
+          : (scheme.end + at + 1, scheme.end + authority.length);
+    }
+    if (kind != 'email' ||
+        !holds('a3:mailto', !_writtenMailto.hasMatch(slice))) {
+      return null;
+    }
+    return (slice.lastIndexOf('@') + 1, slice.length);
   }
 
   /// a3: whether [link] is a scheme and at most two '/', where the text
@@ -1322,13 +1338,22 @@ final invisibleSpaces = CodePoints.of([
   (0xFEFF, 0xFEFF),
 ]);
 
-/// The invisible spaces an address ends before in its domain: the Hangul
-/// fillers, which NSDataDetector's URL leaves out of the domain of an
-/// address that no `mailto:` without `//` starts.
+/// The invisible spaces an address ends before in its domain beside
+/// [invisibleSpaces]: the Default_Ignorable code points that NSDataDetector's
+/// URL, the domain's ToASCII form, leaves out of the domain of an address
+/// that no `mailto:` without `//` starts. An address with no written scheme
+/// holds only the Hangul fillers among them.
 final domainInvisibleSpaces = CodePoints.of([
+  (0x00AD, 0x00AD),
+  (0x034F, 0x034F),
   (0x115F, 0x1160),
+  (0x17B4, 0x17B5),
+  (0x180B, 0x180D),
+  (0x180F, 0x180F),
   (0x3164, 0x3164),
+  (0xFE00, 0xFE0F),
   (0xFFA0, 0xFFA0),
+  (0xE0100, 0xE01EF),
 ]);
 
 /// Whether [link] of [text] is a web link with no scheme: its URL is
@@ -1372,6 +1397,7 @@ bool _asciiDigit(int u) => u >= 0x30 && u <= 0x39;
 final _scheme = RegExp(r'^[A-Za-z][A-Za-z0-9+.\-]*://');
 final _schemeAlone = RegExp(r'^[A-Za-z][A-Za-z0-9+.\-]*:/{0,2}$');
 final _writtenMailto = RegExp('^mailto:(?!//)', caseSensitive: false);
+final _mailtoSlashes = RegExp('mailto://', caseSensitive: false);
 final _schemeSlash = RegExp(r'^[A-Za-z][A-Za-z0-9+.\-]*:/$');
 final _percent = RegExp('%[0-9A-Fa-f]{2}');
 final _ipv4 = RegExp(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$');
