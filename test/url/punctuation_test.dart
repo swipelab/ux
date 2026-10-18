@@ -223,4 +223,12 @@ void main() {
       ]);
     },
   );
+
+  test("the text a cut removes from a link reads as a text of its own, up to the link's old end", () {
+    expectLinks(
+      'https://a.com(x)/http://[::1]:80/a\uFF1A!. ',
+      [web(0, 13, 'https://a.com')],
+      apple: [web(0, 24, 'https://a.com(x)/http://')],
+    );
+  });
 }

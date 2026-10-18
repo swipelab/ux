@@ -1,6 +1,3 @@
-@Skip('the Dart detector does not read the pipeline yet')
-library;
-
 import 'package:flutter_test/flutter_test.dart';
 
 import 'links.dart';
@@ -15,7 +12,7 @@ void main() {
         phone(60, 75, 'tel:+40712345678'),
       ],
     );
-  });
+  }, skip: "step 5 models NSDataDetector's phones");
 
   test('a text with nothing to link has no links', () {
     expectLinks('nothing to see here', const []);
@@ -29,7 +26,7 @@ void main() {
 
   test('a phone wins over a web link of the same span', () {
     expectLinks('ip 010.000.000.001 x', [phone(3, 18, 'tel:010000000001')]);
-  });
+  }, skip: "step 5 models NSDataDetector's phones");
 
   test('a web link that starts first hides the phone inside it', () {
     expectLinks('ip 123.45.67.89/x', [web(3, 17, 'http://123.45.67.89/x')]);
@@ -37,7 +34,7 @@ void main() {
 
   test('a phone the phone filter drops still hides the link it overlaps', () {
     expectLinks('x 555 123 45.67.89.10 y', const []);
-  });
+  }, skip: "step 5 models NSDataDetector's phones");
 
   test('the any-scheme pass adds the links past the cap of 64', () {
     expectLinks(List.filled(70, 'https://a.com').join(' '), [
@@ -73,7 +70,7 @@ void main() {
       [web(1, 14, 'ftp://a.io/a#'), phone(16, 28, 'tel:+15551234567')],
       apple: [web(1, 15, 'ftp://a.io/a#'), phone(16, 28, 'tel:+15551234567')],
     );
-  });
+  }, skip: "step 5 models NSDataDetector's phones");
 
   test(
     "no email or phone past a fullwidth parenthesis continues a link's path",
@@ -90,6 +87,7 @@ void main() {
         web(0, 21, 'https://example.com/a'),
       ]);
     },
+    skip: "step 4 models NSDataDetector's addresses",
   );
 
   test(
@@ -118,4 +116,20 @@ void main() {
       );
     },
   );
+
+  test('a text of more than 4,096 units reads up to its last space at or before its 4,096th unit', () {
+    expectLinks(
+      '${'x ' * 2047}https://example.com',
+      const [],
+      apple: [web(4094, 4113, 'https://example.com')],
+    );
+  });
+
+  test('a text of more than 4,096 units reads up to its last space at or before its 4,096th unit that no phone spans', () {
+    expectLinks(
+      '${'x ' * 2038}y call +40 712 345 678 now and more words',
+      const [],
+      apple: [phone(4083, 4098, 'tel:+40712345678')],
+    );
+  });
 }

@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:ux/src/url/any_scheme.dart';
 import 'package:ux/src/url/chars.dart';
 import 'package:ux/src/url/match.dart';
@@ -8,23 +10,12 @@ import 'package:ux/src/url/web_pass.dart';
 /// A stage-2 candidate: a link and whether NSDataDetector's model gave it.
 typedef Candidate = ({UrlMatch link, bool nsdd});
 
-/// url_detect.mm's stage-2 candidates of [text]: NSDataDetector's, then the
-/// second pass's.
-List<Candidate> stage2(String text) => [
-  for (final link in nsddCandidates(text, nsddResults(text)))
-    (link: link, nsdd: true),
+/// url_detect.mm's stage-2 candidates of [text], whose NSDataDetector results
+/// are [raw]: NSDataDetector's, then the second pass's.
+List<Candidate> stage2(String text, List<NsddResult> raw) => [
+  for (final link in nsddCandidates(text, raw)) (link: link, nsdd: true),
   for (final link in webPass(text)) (link: link, nsdd: false),
 ];
-
-/// The links of [text] as darwin reads them from its stage-2 candidates.
-List<UrlMatch> darwinReading(String text) {
-  if (text.isEmpty || !hasSigil(text)) return const [];
-  return finish(
-    text,
-    stage3(text, [for (final c in stage2(text)) c.link]).kept,
-    anySchemeLinks(text),
-  );
-}
 
 /// What stage 3 keeps of the candidates, and the fullwidth '(' of each cut it
 /// sets.
@@ -36,14 +27,14 @@ int _kindOrder(UrlMatchKind kind) => switch (kind) {
   UrlMatchKind.phone => 2,
 };
 
-/// url_detect.mm's stage 3 over [candidates] of [text]: sort by start, then
-/// length descending, then phone, email, web; then walk that order, skipping
-/// a web candidate, or one of any kind where [everyKind] holds, that
-/// continues the path of the current cut, setting the cut at a web candidate
-/// whose path runs on to a fullwidth '(', and dropping a candidate that
-/// starts before the last kept end.
+/// url_detect.mm's stage 3 over [candidates] of the text [index] looks up:
+/// sort by start, then length descending, then phone, email, web; then walk
+/// that order, skipping a web candidate, or one of any kind where
+/// [everyKind] holds, that continues the path of the current cut, setting
+/// the cut at a web candidate whose path runs on to a fullwidth '(', and
+/// dropping a candidate that starts before the last kept end.
 Deduped stage3(
-  String text,
+  PathIndex index,
   List<UrlMatch> candidates, {
   bool everyKind = false,
 }) {
@@ -70,11 +61,11 @@ Deduped stage3(
     final web = m.kind == UrlMatchKind.web;
     if ((web || everyKind) &&
         cut != null &&
-        continuesPath(text, cut, m.start, m.end)) {
+        index.continuesPath(cut, m.start, m.end)) {
       continue;
     }
     if (web) {
-      final paren = pathParen(text, m.start, m.end);
+      final paren = index.pathParen(m.start, m.end);
       if (paren != null) {
         cut = paren;
         cuts.add(paren);
@@ -88,36 +79,161 @@ Deduped stage3(
   return (kept: kept, cuts: cuts);
 }
 
-/// ux_path_paren: the fullwidth '(' that ends the stretch between CJK
-/// punctuation the web match [start, end) ends in, where its path runs on to
-/// it.
-int? pathParen(String text, int start, int end) {
-  if (pathStart(text, start, end) == end) return null;
-  var paren = end;
-  while (paren < text.length && !isCjkPunctuation(text.codeUnitAt(paren))) {
-    paren++;
-  }
-  if (paren == text.length ||
-      text.codeUnitAt(paren) != 0xFF08 ||
-      pathMark(text, end, paren) < paren) {
-    return null;
-  }
-  return paren;
-}
+/// The look-ups of stage 3's continuation cut in [text], each built once.
+class PathIndex {
+  /// The look-ups of [text].
+  PathIndex(this.text);
 
-/// ux_continues_path: whether the web match [start, end) continues the path
-/// that runs on to the fullwidth '(' at [paren].
-bool continuesPath(String text, int paren, int start, int end) {
-  if (start <= paren) return false;
-  var from = start;
-  while (!isCjkPunctuation(text.codeUnitAt(from - 1))) {
-    from--;
+  /// The text looked up.
+  final String text;
+
+  late final bool _paren = text.contains('\uFF08');
+
+  late final Int32List _nextCjk = _forward(isCjkPunctuation);
+
+  late final Int32List _lastCjks = () {
+    final n = text.length;
+    final out = Int32List(n + 1)..[0] = -1;
+    for (var i = 1; i <= n; i++) {
+      out[i] = isCjkPunctuation(text.codeUnitAt(i - 1)) ? i - 1 : out[i - 1];
+    }
+    return out;
+  }();
+
+  /// The last CJK punctuation before [i].
+  int? _lastCjk(int i) {
+    final at = _lastCjks[i];
+    return at < 0 ? null : at;
   }
-  if (text.codeUnitAt(from - 1) != 0xFF09) return false;
-  while (from < start && !_isPathDelimiter(text.codeUnitAt(from))) {
-    from++;
+
+  late final Int32List _nextDelimiter = _forward(_isPathDelimiter);
+
+  /// For each offset, the first code point at or after it that ends
+  /// Patterns.WEB_URL's path where the path runs to the text's end, stepping
+  /// over whole surrogate pairs; a pair's low surrogate is never one.
+  late final Int32List _nextMark = () {
+    final n = text.length;
+    final mark = List.filled(n, false);
+    for (var i = 0; i < n;) {
+      final next = _markStep(i, n);
+      mark[i] = next == null;
+      i = next ?? _width(i, n);
+    }
+    final out = Int32List(n + 1)..[n] = n;
+    for (var i = n - 1; i >= 0; i--) {
+      out[i] = mark[i] ? i : out[i + 1];
+    }
+    return out;
+  }();
+
+  Int32List _forward(bool Function(int) test) {
+    final n = text.length;
+    final out = Int32List(n + 1)..[n] = n;
+    for (var i = n - 1; i >= 0; i--) {
+      out[i] = test(text.codeUnitAt(i)) ? i : out[i + 1];
+    }
+    return out;
   }
-  return from < start && pathMark(text, paren, end) == end;
+
+  /// Where ux_path_mark's scan bounded by [end] steps on from [i], or null
+  /// where the character at [i] ends the path.
+  int? _markStep(int i, int end) {
+    final c = text.codeUnitAt(i);
+    if (c == 0x25) {
+      return i + 2 < end &&
+              isHex(text.codeUnitAt(i + 1)) &&
+              isHex(text.codeUnitAt(i + 2))
+          ? i + 1
+          : null;
+    }
+    if (c < 0x80) {
+      return c <= 0x20 || c == 0x7F || '"<>[\\]^`{|}'.codeUnits.contains(c)
+          ? null
+          : i + 1;
+    }
+    if (c >= 0xD800 &&
+        c <= 0xDBFF &&
+        i + 1 < end &&
+        _isLow(text.codeUnitAt(i + 1))) {
+      final cp =
+          0x10000 + ((c - 0xD800) << 10) + (text.codeUnitAt(i + 1) - 0xDC00);
+      return isUcsChar(cp) ? i + 2 : null;
+    }
+    return isUcsChar(c) ? i + 1 : null;
+  }
+
+  int _width(int i, int n) =>
+      i + 1 < n && _isHigh(text.codeUnitAt(i)) && _isLow(text.codeUnitAt(i + 1))
+      ? i + 2
+      : i + 1;
+
+  static bool _isHigh(int c) => c >= 0xD800 && c <= 0xDBFF;
+
+  static bool _isLow(int c) => c >= 0xDC00 && c <= 0xDFFF;
+
+  /// [pathMark] of the text from [i] to [end].
+  int pathMarkTo(int i, int end) {
+    if (i >= end) return i;
+    if (i > 0 &&
+        _isLow(text.codeUnitAt(i)) &&
+        _isHigh(text.codeUnitAt(i - 1))) {
+      return i;
+    }
+    final mark = _nextMark[i];
+    if (mark < end - 2) return mark;
+    var q = end - 2;
+    if (q - 1 >= i &&
+        _isHigh(text.codeUnitAt(q - 1)) &&
+        _isLow(text.codeUnitAt(q))) {
+      q++;
+    }
+    if (q < i) q = i;
+    while (q < end) {
+      final next = _markStep(q, end);
+      if (next == null) return q;
+      q = next;
+    }
+    return q;
+  }
+
+  /// ux_path_paren: the fullwidth '(' that ends the stretch between CJK
+  /// punctuation the web match [start, end) ends in, where its path runs on
+  /// to it.
+  int? pathParen(int start, int end) {
+    if (!_paren || pathStart(text, start, end) == end) return null;
+    final paren = _nextCjk[end];
+    if (paren == text.length ||
+        text.codeUnitAt(paren) != 0xFF08 ||
+        pathMarkTo(end, paren) < paren) {
+      return null;
+    }
+    return paren;
+  }
+
+  /// ux_continues_path: whether the web match [start, end) continues the
+  /// path that runs on to the fullwidth '(' at [paren].
+  bool continuesPath(int paren, int start, int end) {
+    if (start <= paren) return false;
+    final last = _lastCjk(start)!;
+    if (text.codeUnitAt(last) != 0xFF09) return false;
+    return _nextDelimiter[last + 1] < start && pathMarkTo(paren, end) == end;
+  }
+
+  /// Whether the cut nearest before [link], of the sorted [cuts], covers it:
+  /// only that cut can.
+  bool covers(List<int> cuts, UrlMatch link) {
+    var lo = 0;
+    var hi = cuts.length;
+    while (lo < hi) {
+      final mid = (lo + hi) >> 1;
+      if (cuts[mid] < link.start) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+    return lo > 0 && continuesPath(cuts[lo - 1], link.start, link.end);
+  }
 }
 
 bool _isPathDelimiter(int c) =>
@@ -140,14 +256,16 @@ const maxNativeLinks = 64;
 
 /// Stages 4 to 7 over [native], stage 3's links of [text]: the cap, each
 /// URL's bidi controls and sanitizing, the phone filter, then the merge with
-/// [anyScheme], the any-scheme pass's links.
+/// [anyScheme], the any-scheme pass's links. [cap] is what the cap leaves of
+/// [native].
 List<UrlMatch> finish(
   String text,
   List<UrlMatch> native,
-  List<UrlMatch> anyScheme,
-) {
+  List<UrlMatch> anyScheme, {
+  int cap = maxNativeLinks,
+}) {
   final links = [
-    for (final m in native.take(maxNativeLinks))
+    for (final m in native.take(cap < 0 ? 0 : cap))
       if (m.kind != UrlMatchKind.phone || _keepsPhone(text, m))
         UrlMatch(
           start: m.start,

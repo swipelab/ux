@@ -207,8 +207,19 @@ Future<bool> _diff(Harness harness, _Options options) async {
 
   final idle = <String>[];
   final catalogNone = [for (final t in catalog) none[index[t]!]];
+  final catalogFull = [for (final t in catalog) full[index[t]!]];
   for (final (edit, name) in ledger) {
     if (edit == 'Unicode' || edit == 'new TLDs') continue;
+    if (performanceEdits.contains(edit)) {
+      final without = await predictAll(
+        predictor,
+        catalog,
+        Variant(allEdits.difference({edit})),
+        read,
+      );
+      if (!_changes(without, catalogFull)) idle.add(name);
+      continue;
+    }
     final alone = await predictAll(predictor, catalog, Variant({edit}), read);
     if (!_changes(alone, catalogNone)) idle.add(name);
   }
@@ -256,7 +267,8 @@ Future<bool> _diff(Harness harness, _Options options) async {
     ..writeln(
       'self-check 3: of ${ledger.length - 2} edits, '
       '${idle.where((n) => !n.startsWith('Unicode') && !n.startsWith('new TLDs')).length} '
-      'change no catalog input alone; '
+      'change no catalog input alone, or, a class-p edit, from the whole '
+      'ledger without it; '
       'the Unicode stand-in changes ${unicodeChanged.length} of '
       '${unicodeTexts.length} corpus texts holding a listed code point; with '
       '$withheld withheld as new, the new-TLD stand-in gives '

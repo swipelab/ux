@@ -1,6 +1,3 @@
-@Skip('the Dart detector does not read invisible characters yet')
-library;
-
 import 'package:flutter_test/flutter_test.dart';
 
 import 'links.dart';
@@ -92,6 +89,7 @@ void main() {
         web(26, 43, 'http://flutter.dev/setup'),
       ]);
     },
+    skip: "step 3 models NSDataDetector's own bare hosts",
   );
 
   test("a zero-width joiner inside a word stays in a link's text and leaves its URL", () {
@@ -106,7 +104,7 @@ void main() {
       const [],
       apple: [email(5, 21, 'mailto:ops@example.com')],
     );
-  });
+  }, skip: "step 4 models NSDataDetector's addresses");
 
   test(
     'an address after mailto:// ends before a soft hyphen in its domain',
@@ -136,13 +134,13 @@ void main() {
     expectLinks('mail o\u3164ps@example.com now', [
       email(5, 21, 'mailto:o%E3%85%A4ps@example.com'),
     ]);
-  });
+  }, skip: "step 4 models NSDataDetector's addresses");
 
   test("a Hangul filler in the domain of an address that mailto: without '//' starts stays in the address and its URL", () {
     expectLinks('see mailto:ops@exam\u3164ple.com x', [
       email(4, 27, 'mailto:ops@exam%E3%85%A4ple.com'),
     ]);
-  });
+  }, skip: "step 4 models NSDataDetector's addresses");
 
   test('a phone ends before an ogham space mark, and no phone links where too few digits precede it', () {
     expectLinks(
@@ -193,7 +191,7 @@ void main() {
 
   test('a bare host ends before a zero-width space where what precedes it ends in a listed TLD', () {
     expectLinks('see example.co\u200Bm x', [web(4, 14, 'http://example.co')]);
-  });
+  }, skip: "step 3 models NSDataDetector's own bare hosts");
 
   test('a format character inside a bare host makes it no link', () {
     expectLinks('see exam\u200Dple.com x', const []);
@@ -220,5 +218,13 @@ void main() {
     expectLinks('see example.com/a\u0301b x', [
       web(4, 19, 'http://example.com/a\u0301b'),
     ]);
+  });
+
+  test('every Cf run after unspaced-script text in a segment reads as spaces in one stand-in', () {
+    expectLinks(
+      '\u0E02\u0E49\u0E2D\u0E21\u0E39\u0E25\u206C192.168.1.1/x\u7136\u200F\u540E',
+      [web(7, 21, 'http://192.168.1.1/x\u7136')],
+      apple: const [],
+    );
   });
 }
