@@ -33,16 +33,22 @@ class WinIcu {
     'windows/test/ux_test.cpp',
   ];
 
+  static const _standIns = ['windows.h', 'icu.h'];
+
   Future<Map<String, String>> _read() async => {
     for (final path in _sources)
       '${_dir.path}/$path': await harness.host.show(harness.commit, path),
+    for (final name in _standIns)
+      '${_dir.path}/win_icu/$name': File(
+        '${harness.host.uxRoot}/tool/url_oracle/win_icu/$name',
+      ).readAsStringSync(),
   };
 
   List<String> get _flags => [
     '-std=c++17',
     '-O2',
     '-D__declspec(x)=',
-    '-I${harness.host.uxRoot}/tool/url_oracle/win_icu',
+    '-I${_dir.path}/win_icu',
     '-I${_dir.path}/src',
     '-I$icuPrefix/include',
   ];

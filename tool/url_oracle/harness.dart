@@ -115,26 +115,27 @@ class Host {
 }
 
 /// [binary], compiled by clang++ with [arguments] from [sources], each
-/// path's text, unless an earlier build left it beside the same sources.
+/// path's text, unless an earlier build made it from the same sources and
+/// arguments, which `<binary>.sources` records.
 Future<String> compile(
   String binary,
   Map<String, String> sources,
   List<String> arguments,
 ) async {
-  final current =
-      File(binary).existsSync() &&
-      sources.entries.every(
-        (s) =>
-            File(s.key).existsSync() &&
-            File(s.key).readAsStringSync() == s.value,
-      );
-  if (current) return binary;
+  final record = File('$binary.sources');
+  final built = jsonEncode([arguments, sources]);
+  if (File(binary).existsSync() &&
+      record.existsSync() &&
+      record.readAsStringSync() == built) {
+    return binary;
+  }
   for (final MapEntry(key: path, value: text) in sources.entries) {
     File(path)
       ..createSync(recursive: true)
       ..writeAsStringSync(text);
   }
   await run('clang++', [...arguments, '-o', binary]);
+  record.writeAsStringSync(built);
   return binary;
 }
 
