@@ -1,8 +1,31 @@
+import 'diff.dart';
+import 'rules.dart';
+import 'stages.dart';
 import 'wire.dart';
 
 /// Raw NSDataDetector readings the planspec quotes: each text's result
-/// spans.
-const rawQuotes = <(String, List<(int, int)>)>[
+/// spans under the locales it quotes them in.
+final rawQuotes = <(String, List<String>, List<(int, int)>)>[
+  for (final (text, spans) in _enUsQuotes) (text, const ['en_US'], spans),
+  ('00.256.10.99', _notJapanese, [(0, 12)]),
+  ('00.256.10.99', const ['ja_JP'], []),
+  ('x 00.256.10.99 now', _notJapanese, [(2, 14)]),
+  ('x 00.256.10.99 now', const ['ja_JP'], []),
+  ('see 00.256.10.99 now', _notJapanese, [(4, 16)]),
+  ('see 00.256.10.99 now', const ['ja_JP'], []),
+  ('call 00.256.10.99 now', quotedLocales, [(5, 17)]),
+  ('00.25.10.99', quotedLocales, [(0, 11)]),
+  ('00.256.100.99', quotedLocales, [(0, 13)]),
+  ('00.256.10.999', quotedLocales, [(0, 13)]),
+  ('044.123.45.67', quotedLocales, [(0, 13)]),
+];
+
+/// The locales the planspec quotes raw readings and the locale check in.
+const quotedLocales = ['en_US', 'en_GB', 'de_DE', 'en_RO', 'ja_JP'];
+
+const _notJapanese = ['en_US', 'en_GB', 'de_DE', 'en_RO'];
+
+const _enUsQuotes = <(String, List<(int, int)>)>[
   ('Is it really https://example.com!?', [(13, 34)]),
   ('see exam​ple.com x', [(9, 16)]),
   ('webcal://10.0.0.1.١٢', [(0, 8)]),
@@ -55,11 +78,13 @@ const rawQuotes = <(String, List<(int, int)>)>[
   ('see a.com,b.com x', [(4, 9), (10, 15)]),
 ];
 
-/// Each quote of [rawQuotes] that [raw] does not reproduce, with what it
-/// reads.
-List<String> rawMismatches(Map<String, List<RawResult>> raw) => [
-  for (final (text, spans) in rawQuotes)
-    if (!_spans(raw[text]!, spans)) '${printable(text)}: raw ${raw[text]}',
+/// Each quote of [rawQuotes] that [raw], the readings by locale and text,
+/// does not reproduce, with what it reads.
+List<String> rawMismatches(Map<String, Map<String, List<RawResult>>> raw) => [
+  for (final (text, locales, spans) in rawQuotes)
+    for (final locale in locales)
+      if (!_spans(raw[locale]![text]!, spans))
+        '${printable(text)} under $locale: raw ${raw[locale]![text]}',
 ];
 
 bool _spans(List<RawResult> raw, List<(int, int)> spans) =>
@@ -69,90 +94,66 @@ bool _spans(List<RawResult> raw, List<(int, int)> spans) =>
         raw[i].start == spans[i].$1 && raw[i].end == spans[i].$2,
     ].every((same) => same);
 
-/// Synthetic detector defects, each beside the class whose predicate it
-/// must stay out of: the class, a text, and the wrong Dart reading made
-/// from the text's darwin reading.
-final classMutations = <(String, String, List<Link> Function(List<Link>))>[
-  ('question 6', 'see пример.рф x', (_) => const []),
-  (
-    'question 6',
-    'see 例子.com x',
-    (_) => const [Link(4, 10, 'web', 'http://例子.com')],
-  ),
-  (
-    'question 6',
-    'see www.example.ລາວ.com x',
-    (_) => const [Link(4, 23, 'web', 'http://www.example.ລາວ.com')],
-  ),
-  (
-    'question 6',
-    'see пример.РФ x',
-    (_) => const [Link(4, 13, 'web', 'http://пример.РФ')],
-  ),
-  (
-    'b5',
-    'see éxample.zzz x',
-    (_) => const [Link(4, 15, 'web', 'http://éxample.zzz')],
-  ),
-  (
-    'b4',
-    'mail ops@example.com now',
-    (_) => const [Link(5, 19, 'email', 'mailto:ops@example.co')],
-  ),
-  (
-    'b4',
-    'mail ops@EXAMPLE.COM now',
-    (_) => const [Link(5, 20, 'email', 'mailto:ops@example.com')],
-  ),
-  (
-    'b4',
-    'see a|b@x.com',
-    (_) => const [Link(6, 13, 'email', 'mailto:b@x.com')],
-  ),
-  (
-    'question 3',
-    'call +40 712 345 678 now',
-    (_) => const [Link(5, 20, 'phone', 'tel:+4071234567')],
-  ),
-  (
-    'question 3',
-    'call +1 (555) 123-4567 ext. 89 now',
-    (_) => const [Link(5, 30, 'phone', 'tel:+155512345')],
-  ),
-  (
-    'b10',
-    '"ftp://a.io/a#​ +15551234567',
-    (darwin) => [const Link(1, 14, 'web', 'ftp://a.io/a#'), ...darwin.skip(1)],
-  ),
-  (
-    'b10',
-    'see https://example.com/a😀',
-    (_) => const [Link(4, 25, 'web', 'https://example.com/a')],
-  ),
-  (
-    'b10',
-    'see example.zzz— x',
-    (_) => const [Link(4, 15, 'web', 'http://example.zzz')],
-  ),
-  (
-    'b11',
-    'see example.zzz… x',
-    (_) => const [Link(4, 15, 'web', 'http://example.zzz')],
-  ),
-  (
-    'b12',
-    'see example.com:８０ x',
-    (_) => const [Link(4, 18, 'web', 'http://example.com:81')],
-  ),
-  (
-    'b2',
-    'https://example.com/a）/page.com',
-    (darwin) => darwin.take(1).toList(),
-  ),
-  ('question 4', 'see https://a.com!b x', (_) => const []),
-  (
-    'question 4',
-    'see https://a.com/b.com x',
-    (darwin) => [...darwin, const Link(18, 23, 'web', 'http://b.com')],
-  ),
-];
+/// Whether [a] and [b] hold the same links in the same order.
+bool sameLinks(List<Link> a, List<Link> b) =>
+    a.length == b.length &&
+    [for (var i = 0; i < a.length; i++) a[i] == b[i]].every((same) => same);
+
+/// Self-check 1: the texts whose probe-stages buffer differs from the
+/// plain probe's, whose stage 3 over its candidates differs from that
+/// buffer, and whose stages 4 to 7 over it differ from the replay's
+/// XUrl.match [darwin], by check.
+Map<String, List<String>> stageMismatches(
+  List<String> texts,
+  List<ProbeReading> plain,
+  List<ProbeReading> staged,
+  List<List<Link>> darwin,
+) {
+  final out = {
+    'buffer': <String>[],
+    'stage 3': <String>[],
+    'stages 4-7': <String>[],
+  };
+  for (var i = 0; i < texts.length; i++) {
+    final buffer = staged[i].native;
+    if (!sameLinks(buffer, plain[i].native)) {
+      out['buffer']!.add(printable(texts[i]));
+    }
+    final kept = stage3(texts[i], [
+      for (final c in staged[i].candidates!) c.link,
+    ]).kept;
+    if (!sameLinks(kept, buffer)) out['stage 3']!.add(printable(texts[i]));
+    if (!sameLinks(darwinMatch(texts[i], buffer), darwin[i])) {
+      out['stages 4-7']!.add(printable(texts[i]));
+    }
+  }
+  return out;
+}
+
+/// Self-check 5: each code point the Unicode stand-in replaces whose
+/// representative's macOS classes differ from its Unicode 17.0.0 classes,
+/// or that has none.
+List<String> representativeMismatches(RuleData data) {
+  final c = data.characters;
+  final out = <String>[];
+  for (final (first, last) in c.differences.ranges) {
+    for (var cp = first; cp <= last; cp++) {
+      final r = data.representative(cp);
+      if (r == null || c.macClassesOf(r) != c.unicodeClassesOf(cp)) {
+        out.add('${_hex(cp)}: representative ${r == null ? 'none' : _hex(r)}');
+      }
+    }
+  }
+  return out;
+}
+
+String _hex(int c) => 'U+${c.toRadixString(16).toUpperCase().padLeft(4, '0')}';
+
+/// The count of each class among [classified], in the ledger's order.
+List<String> classCounts(Iterable<Classified> classified) {
+  final counts = <String, int>{};
+  for (final c in classified) {
+    counts[c.edit] = (counts[c.edit] ?? 0) + 1;
+  }
+  return [for (final (edit, name) in ledger) '  $name: ${counts[edit] ?? 0}'];
+}

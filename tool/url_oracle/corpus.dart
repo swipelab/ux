@@ -5,14 +5,16 @@ typedef CorpusText = ({String family, String text});
 
 /// The inputs a corpus reads besides its seed.
 class CorpusInputs {
-  /// The catalog's texts, the in-tree tests' texts, the oracle commit's TLDs
-  /// and a code point sample of each general category.
+  /// The catalog's texts, the in-tree tests' texts, the oracle commit's TLDs,
+  /// a code point sample of each general category and the ranges of
+  /// `props`' Unicode class.
   const CorpusInputs({
     required this.catalog,
     required this.inTree,
     required this.asciiTlds,
     required this.idnTlds,
     required this.categories,
+    required this.unicode,
   });
 
   /// The texts test/url passes to expectLinks.
@@ -29,6 +31,10 @@ class CorpusInputs {
 
   /// The code point ranges of each Unicode 17.0.0 general category.
   final Map<String, List<(int, int)>> categories;
+
+  /// The code point ranges where macOS 26.4's classes differ from Unicode
+  /// 17.0.0's.
+  final List<(int, int)> unicode;
 }
 
 /// The corpus of [seed]: the catalog's and the in-tree texts, then every
@@ -57,6 +63,7 @@ List<CorpusText> generateCorpus(int seed, CorpusInputs inputs) {
   _email(rng, inputs, add);
   _phone(rng, add);
   _glue(rng, inputs, add);
+  _unicode(rng, inputs, add);
   _cap(add);
   while (corpus.length < 160000) {
     add('mixed', _mixed(rng));
@@ -264,6 +271,9 @@ const _invisibles = [
   0x2029,
   0x3000,
   0x0085,
+  0x115F,
+  0x3164,
+  0xFFA0,
   0x180E,
   0x034F,
   0xFE0F,
@@ -697,6 +707,10 @@ void _opaque(_Add add) {
       'example.com',
       '1.2',
       'x1',
+      'a-1',
+      'ab-1',
+      'a.b-1',
+      'a_1',
     ]) {
       for (final digits in ['١٢', '١', '٣٤٥', '१२', '１２', '12']) {
         add('opaque', '$scheme://$host.$digits');
@@ -1016,8 +1030,8 @@ const _phoneContexts = [
 /// Phone shapes from country codes, trunk prefixes, digit groups, separators,
 /// a parenthesized first group, extensions, trailers and contexts, some in
 /// fullwidth or Arabic-Indic digits, phones a later IPv4 address or domain
-/// follows, and dotted numbers of two, three, two and two digits with and
-/// without a phone word before them.
+/// follows, and dotted numbers of four groups of two or three digits with
+/// and without a phone word before them.
 void _phone(_Rng rng, _Add add) {
   for (var i = 0; i < 25000; i++) {
     final groups = rng.pick(_groups);
@@ -1049,12 +1063,21 @@ void _phone(_Rng rng, _Add add) {
       add('phone', context.replaceFirst(r'$', hidden));
     }
   }
-  for (final dotted in ['00.256.10.99', '01.256.10.98', '10.256.10.99']) {
+  for (final dotted in [
+    '00.256.10.99',
+    '01.256.10.98',
+    '10.256.10.99',
+    '00.25.10.99',
+    '00.256.100.99',
+    '00.256.10.999',
+    '044.123.45.67',
+  ]) {
     for (final context in [
       r'$',
       r' $',
       r'$ now',
       r'x $ now',
+      r'see $ now',
       r'call $ now',
       r'访问$然后',
     ]) {
@@ -1082,6 +1105,29 @@ void _glue(_Rng rng, CorpusInputs inputs, _Add add) {
       ]) {
         add('glue', text);
       }
+    }
+  }
+}
+
+/// One code point of each range of `props`' Unicode class after a port,
+/// after and before a host, inside a word before a host, in a path, in a
+/// local part and in a domain label.
+void _unicode(_Rng rng, CorpusInputs inputs, _Add add) {
+  for (final (first, last) in inputs.unicode) {
+    final x = String.fromCharCode(first + rng.below(last - first + 1));
+    for (final text in [
+      'see example.com:80${x}x y',
+      'see example.com:80$x y',
+      'see example.com$x x',
+      'see ${x}example.com x',
+      'see a${x}example.com x',
+      'see https://example.com/a${x}b x',
+      'see example.com/a${x}b x',
+      'mail o${x}ps@example.com now',
+      'mail ops@exa${x}mple.com now',
+      'see exa${x}mple.com x',
+    ]) {
+      add('unicode', text);
     }
   }
 }

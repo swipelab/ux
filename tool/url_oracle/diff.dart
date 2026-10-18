@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'corpus.dart';
 import 'harness.dart';
+import 'rules.dart';
 import 'wire.dart';
 
 /// Where a darwin link comes from: raw NSDataDetector's link, the second pass
@@ -103,9 +104,11 @@ class DarwinReading {
   /// The probe's native buffer and raw results.
   final ProbeReading reading;
 
-  /// Whether every link's class is one of [classes].
-  bool holdsOnly(Set<LinkClass> classes) =>
-      links.every((l) => classes.contains(l.linkClass));
+  /// Whether every link's class, and every class of [predicted]'s links, is
+  /// one of [classes].
+  bool holdsOnly(Set<LinkClass> classes, List<Link> predicted) =>
+      links.every((l) => classes.contains(l.linkClass)) &&
+      predicted.every((l) => classes.contains(classOf(l, corpus.text)));
 
   /// This reading as darwin.json holds it.
   Map<String, Object> toJson() => {
@@ -223,58 +226,73 @@ void main(List<String> args) {
   ];
 }
 
-/// A link one side holds and the other does not.
-class Disagreement {
-  /// [link] of [reading]'s text, which darwin holds where [darwin] is true
-  /// and the Dart detector, whose links of the text are [dart], otherwise.
-  const Disagreement(
-    this.reading,
-    this.dart,
-    this.link, {
-    required this.darwin,
-  });
+/// A link the prediction and darwin's reading do not share, with the edit
+/// whose class it falls in.
+typedef Classified = ({Link link, bool darwin, String edit});
 
-  /// The darwin reading of the text.
-  final DarwinReading reading;
+/// Each link [darwin] and [full], the whole ledger's prediction, do not
+/// share, with whether darwin holds it and its class: the first edit, in the
+/// ledger's order, from which every longer prefix of the ledger predicts the
+/// link as the whole ledger does. [prefixes] holds the predictions of the
+/// ledger's first one, two, … edits, the last of them [full].
+List<Classified> attribute(
+  List<Link> darwin,
+  List<Link> full,
+  List<List<Link>> prefixes,
+) {
+  final out = <Classified>[];
+  void classify(Link link, {required bool inDarwin}) {
+    final inFull = full.contains(link);
+    var k = prefixes.length - 1;
+    while (k > 0 && prefixes[k - 1].contains(link) == inFull) {
+      k--;
+    }
+    out.add((link: link, darwin: inDarwin, edit: ledger[k].$1));
+  }
 
-  /// The Dart detector's links of the text.
-  final List<Link> dart;
+  for (final l in darwin) {
+    if (!full.contains(l)) classify(l, inDarwin: true);
+  }
+  for (final l in full) {
+    if (!darwin.contains(l)) classify(l, inDarwin: false);
+  }
+  return out;
+}
+
+/// A link the Dart reading and the prediction do not share, or a Dart link
+/// over a span the prediction leaves unpredicted.
+class Departure {
+  /// [link] of [text], which the Dart reading holds where [dart] is true and
+  /// the prediction otherwise.
+  const Departure(this.text, this.link, {required this.dart});
+
+  /// The text.
+  final String text;
 
   /// The link only one side holds.
   final Link link;
 
-  /// Whether darwin holds [link].
-  final bool darwin;
+  /// Whether the Dart reading holds [link].
+  final bool dart;
 
   @override
   String toString() =>
-      '${printable(reading.corpus.text)}: ${darwin ? 'darwin' : 'Dart'} only $link';
+      '${printable(text)}: ${dart ? 'Dart' : 'prediction'} only $link';
 }
 
-/// A named class of disagreements: a ledger entry, an open question or a
-/// computed class, and the predicate that decides membership.
-class DisagreementClass {
-  /// The class [name], holding the disagreements [holds] accepts.
-  const DisagreementClass(this.name, this.holds);
-
-  /// The class's name in the report.
-  final String name;
-
-  /// Whether a disagreement falls in this class.
-  final bool Function(Disagreement d) holds;
+/// The departures of [dart], the Dart reading of [text], from [prediction].
+List<Departure> departures(
+  String text,
+  List<Link> dart,
+  Prediction prediction,
+) {
+  bool over(Link l) =>
+      prediction.unpredicted.any((u) => l.start < u.$2 && u.$1 < l.end);
+  return [
+    for (final l in prediction.links)
+      if (!dart.contains(l)) Departure(text, l, dart: false),
+    for (final l in dart)
+      if (!prediction.links.contains(l) || over(l))
+        Departure(text, l, dart: true),
+  ];
 }
-
-/// Each link [darwin] and [dart] do not share, text by text.
-List<Disagreement> disagreements(
-  List<DarwinReading> darwin,
-  List<List<Link>> dart,
-) => [
-  for (var i = 0; i < darwin.length; i++) ...[
-    for (final l in darwin[i].links)
-      if (!dart[i].contains(l.link))
-        Disagreement(darwin[i], dart[i], l.link, darwin: true),
-    for (final l in dart[i])
-      if (!darwin[i].links.any((d) => d.link == l))
-        Disagreement(darwin[i], dart[i], l, darwin: false),
-  ],
-];

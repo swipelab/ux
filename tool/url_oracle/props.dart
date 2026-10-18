@@ -4,6 +4,8 @@ import 'dart:io';
 import 'corpus.dart';
 import 'harness.dart';
 import 'intree.dart';
+import 'rules.dart';
+import 'stages.dart';
 import 'wire.dart';
 
 /// A set of code points, as sorted inclusive ranges.
@@ -124,6 +126,7 @@ class CharacterClasses {
         'M': marks,
         'Nd': nd,
         'Cf': category(['Cf']),
+        'S': category(['So', 'Sk']),
         'word':
             alphabetic |
             marks |
@@ -156,6 +159,9 @@ class CharacterClasses {
   /// Unicode 17.0.0's general category Cf.
   CodePoints get format => _unicode['Cf']!;
 
+  /// Unicode 17.0.0's general categories So and Sk.
+  CodePoints get symbols => _unicode['S']!;
+
   /// ICU's `\w` as Unicode 17.0.0 defines it: Alphabetic, M, Nd, Pc, U+200C
   /// and U+200D.
   CodePoints get word => _unicode['word']!;
@@ -183,6 +189,18 @@ class CharacterClasses {
     (r'Alphabetic+M+Nd+Pc+U+200C+U+200D against ICU \w', word, macWord),
     (r'[\t\n\f\r\p{Z}] against ICU \s', space, macSpace),
   ];
+
+  /// [cp]'s Unicode 17.0.0 classes of [pairs], as a bit set.
+  int unicodeClassesOf(int cp) => [
+    for (final (i, (_, unicode, _)) in pairs.indexed)
+      if (unicode.contains(cp)) 1 << i,
+  ].fold(0, (a, b) => a | b);
+
+  /// [cp]'s macOS classes of [pairs], as a bit set.
+  int macClassesOf(int cp) => [
+    for (final (i, (_, _, mac)) in pairs.indexed)
+      if (mac.contains(cp)) 1 << i,
+  ].fold(0, (a, b) => a | b);
 
   /// Every code point where a pair of [pairs] differs.
   CodePoints get differences =>
@@ -240,8 +258,82 @@ Future<NsddTlds> nsddTlds(Harness harness) async {
   );
 }
 
+/// The positions [conversions] reads a character in, by the kind of link
+/// that holds it there; `$` stands for the character.
+const conversionShapes = {
+  'web': [
+    'see https://exam\$ple.com x',
+    'see https://example.com/a\$b x',
+    'see example.com/a\$b x',
+    'see https://example.com\$ x',
+    'see example.com/a\$ x',
+    'see tg://a/b\$c x',
+    'https://\$docs.flutter.dev',
+    'see https://example.com/?a=\$b x',
+    'see www.exam\$ple.com/x y',
+    'see https://example.com/\u0627\$\u0628 x',
+    'see https://\u0915\u094D\$\u0937.com x',
+  ],
+  'local part': ['mail o\$ps@example.com now', 'mail ops\$@example.com now'],
+  'domain': ['mail ops@exam\$ple.com now'],
+  'phone': ['call +1 555\$123 4567 now'],
+};
+
+/// The Default_Ignorable code points and U+1680 a darwin link holds in its
+/// text and leaves out of its URL, by the kind of position of
+/// [conversionShapes]: its URL is the URL of the text without the character.
+Future<Map<String, CodePoints>> conversions(Harness harness) async {
+  final universe =
+      property(
+        File(
+          '${harness.host.uxRoot}/tool/url_data/unicode-17.0.0/DerivedCoreProperties.txt',
+        ).readAsStringSync(),
+        'Default_Ignorable_Code_Point',
+      ) |
+      CodePoints.of([(0x1680, 0x1680)]);
+  final points = [
+    for (final (first, last) in universe.ranges)
+      for (var cp = first; cp <= last; cp++) cp,
+  ];
+  final shapes = [
+    for (final MapEntry(key: kind, value: list) in conversionShapes.entries)
+      for (final shape in list) (kind, shape),
+  ];
+  final texts = [
+    for (final (_, shape) in shapes) ...[
+      shape.replaceFirst(r'$', ''),
+      for (final cp in points)
+        shape.replaceFirst(r'$', String.fromCharCode(cp)),
+    ],
+  ];
+  final readings = await harness.read(texts, locale: 'en_US');
+  final found = <String, List<(int, int)>>{};
+  var at = 0;
+  for (final (kind, shape) in shapes) {
+    final position = shape.indexOf(r'$');
+    final without = darwinMatch(texts[at], readings[at].native);
+    at++;
+    for (final cp in points) {
+      final links = darwinMatch(texts[at], readings[at].native);
+      at++;
+      final converted = links.any(
+        (l) =>
+            l.start <= position &&
+            position < l.end &&
+            without.any((w) => w.start == l.start && w.url == l.url),
+      );
+      if (converted) (found[kind] ??= []).add((cp, cp));
+    }
+  }
+  return {
+    for (final kind in conversionShapes.keys)
+      kind: CodePoints.of(found[kind] ?? const []),
+  };
+}
+
 /// The props report: where macOS's character classes differ from Unicode
-/// 17.0.0's, and the TLDs NSDataDetector links a host or an email on.
+/// 17.0.0's, the TLDs NSDataDetector links a host or an email on, and the
+/// invisible characters darwin's links convert beside a3's.
 Future<List<String>> props(Harness harness) async {
   final host = harness.host;
   final classes = await CharacterClasses.read(harness);
@@ -267,8 +359,14 @@ Future<List<String>> props(Harness harness) async {
     return '${s.length} ($ascii ASCII, ${s.length - ascii} IDN): ${s.join(' ')}';
   }
 
+  final converted = await conversions(harness);
   return [
     ...report,
+    for (final MapEntry(key: kind, value: points) in converted.entries)
+      'Default_Ignorable code points and U+1680 a darwin link holds in a '
+          '$kind and leaves out of its URL: ${points.length}: $points',
+    "a3's invisible spaces: $invisibleSpaces; in an address's domain: "
+        '$domainInvisibleSpaces',
     "TLDs of a linked 'see bücher.<tld> x': ${set(nsdd.bare)}",
     "TLDs of a linked 'see www.bücher.<tld> x': ${set(nsdd.www)}",
     "Unicode TLDs of an email 'ops@example.<tld>' at the text's start: ${set(nsdd.emailAtStart)}",

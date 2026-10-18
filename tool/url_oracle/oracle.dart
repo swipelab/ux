@@ -11,10 +11,10 @@ import 'dart:io';
 
 import 'corpus.dart';
 import 'diff.dart';
-import 'classes.dart';
 import 'harness.dart';
 import 'intree.dart';
 import 'props.dart';
+import 'rules.dart';
 import 'selfcheck.dart';
 import 'win_icu.dart';
 import 'wire.dart';
@@ -59,10 +59,12 @@ Future<bool> _catalog(Harness harness, _Options options) async {
 
 Future<bool> _diff(Harness harness, _Options options) async {
   final host = harness.host;
+  final locale = options.locale;
   final seed = int.parse(options.values['--seed'] ?? '3451');
   final entries = await harness.catalog();
   final catalog = {for (final e in entries) e.text}.toList();
   final tlds = readTlds(await host.show(harness.commit, 'src/tld.h'));
+  final characters = await CharacterClasses.read(harness);
   final inputs = CorpusInputs(
     catalog: [...catalog]..sort(),
     inTree: await inTreeTexts(host, harness.commit),
@@ -73,6 +75,7 @@ Future<bool> _diff(Harness harness, _Options options) async {
         '${host.uxRoot}/tool/url_data/unicode-17.0.0/DerivedGeneralCategory.txt',
       ).readAsStringSync(),
     ),
+    unicode: characters.differences.ranges,
   );
   final corpus = generateCorpus(seed, inputs);
   final encoded = encodeCorpus(corpus);
@@ -82,13 +85,13 @@ Future<bool> _diff(Harness harness, _Options options) async {
   final head = header(
     host,
     commit: harness.commit,
-    locale: options.locale,
+    locale: locale,
     seed: seed,
     size: corpus.length,
   );
   stdout.writeln(head);
   final texts = [for (final c in corpus) c.text];
-  final probes = await harness.read(texts, locale: options.locale);
+  final probes = await harness.read(texts, locale: locale);
   final matched = await harness.replay(texts, probes);
   final darwin = [
     for (var i = 0; i < corpus.length; i++)
@@ -101,16 +104,23 @@ Future<bool> _diff(Harness harness, _Options options) async {
     ..writeAll(counts(darwin), '\n')
     ..writeln();
 
-  final byText = {for (var i = 0; i < texts.length; i++) texts[i]: probes[i]};
+  final index = {for (var i = 0; i < texts.length; i++) texts[i]: i};
   final catalogRun = await harness.checkCatalog(catalog, [
-    for (final t in catalog) byText[t]!,
+    for (final t in catalog) probes[index[t]!],
   ]);
-  final quoted = await harness.read([
-    for (final (text, _) in rawQuotes) text,
-  ], locale: options.locale);
-  final raw = rawMismatches({
-    for (var i = 0; i < rawQuotes.length; i++) rawQuotes[i].$1: quoted[i].raw,
-  });
+  final rawByLocale = <String, Map<String, List<RawResult>>>{};
+  for (final l in quotedLocales) {
+    final quoted = {
+      for (final (text, locales, _) in rawQuotes)
+        if (locales.contains(l)) text,
+    }.toList();
+    final readings = await harness.read(quoted, locale: l);
+    rawByLocale[l] = {
+      for (var i = 0; i < quoted.length; i++) quoted[i]: readings[i].raw,
+    };
+  }
+  final raw = rawMismatches(rawByLocale);
+  final quotes = [for (final (_, locales, _) in rawQuotes) ...locales].length;
   stdout
     ..writeln(
       'self-check: corpus ${deterministic ? 'byte-identical' : 'differs'} '
@@ -122,99 +132,243 @@ Future<bool> _diff(Harness harness, _Options options) async {
     )
     ..writeAll([for (final f in catalogRun.failures) 'FAILED $f'], '\n')
     ..writeln(
-      'self-check: raw NSDataDetector quotes ${rawQuotes.length - raw.length} '
-      'of ${rawQuotes.length} reproduced',
+      'self-check: raw NSDataDetector quotes ${quotes - raw.length} of '
+      '$quotes reproduced under ${quotedLocales.join(', ')}',
     )
     ..writeAll([for (final m in raw) 'RAW $m'], '\n')
     ..writeln();
 
+  final staged = await harness.readStages(texts, locale: locale);
+  final stages = stageMismatches(texts, probes, staged, matched);
   final oracleTlds = {
     for (final t in [...tlds.ascii, ...tlds.idn, ...tlds.punycode])
       t.toLowerCase(),
   };
   final nsdd = await nsddTlds(harness);
-  final classes = disagreementClasses(
-    ClassData(
-      await CharacterClasses.read(harness),
-      oracleTlds,
-      newTlds(host.uxRoot, oracleTlds),
-      nsddBare: {for (final t in nsdd.bare) t.toLowerCase()},
-      nsddWww: {for (final t in nsdd.www) t.toLowerCase()},
-    ),
+  RuleData ruleData(Set<String> newer) => RuleData(
+    characters,
+    tlds: oracleTlds,
+    nsddBare: nsdd.bare,
+    newTlds: newer,
   );
-  final ledger = [
-    for (final e in entries)
-      if (e.apple case final apple?)
-        for (final d in disagreements(
-          [
-            DarwinReading(
-              (family: 'catalog', text: e.text),
-              apple,
-              byText[e.text]!,
-            ),
-          ],
-          [e.expected],
-        ))
-          d,
-  ];
-  final ledgerCounts = <String, int>{};
-  final ledgerUnclassified = <Disagreement>[];
-  for (final d in ledger) {
-    final c = classes.where((c) => c.holds(d)).firstOrNull;
-    if (c == null) {
-      ledgerUnclassified.add(d);
-    } else {
-      ledgerCounts[c.name] = (ledgerCounts[c.name] ?? 0) + 1;
-    }
+  final data = ruleData(newTlds(host.uxRoot, oracleTlds));
+  Future<List<ProbeReading>> read(List<String> t) =>
+      harness.readStages(t, locale: locale);
+  final predictor = Predictor(data);
+  for (var i = 0; i < texts.length; i++) {
+    predictor.readings[texts[i]] = staged[i];
   }
+  final none = await predictAll(predictor, texts, const Variant({}), read);
+  final unedited = [
+    for (var i = 0; i < texts.length; i++)
+      if (!sameLinks(none[i].links, matched[i])) printable(texts[i]),
+  ];
+  final candidates = staged.fold(0, (n, r) => n + r.candidates!.length);
+  final nsddCandidates = staged.fold(
+    0,
+    (n, r) => n + r.candidates!.where((c) => c.nsdd).length,
+  );
   stdout
     ..writeln(
-      'self-check: classifier over the catalog\'s apple: readings: '
-      '${ledger.length} disagreeing links, ${ledgerUnclassified.length} '
-      'unclassified',
+      'self-check 1: probe-stages read $candidates candidates, '
+      '$nsddCandidates of them NSDataDetector\'s; texts whose probe-stages '
+      'buffer differs from the probe\'s ${stages['buffer']!.length}, whose '
+      'stage 3 differs from the buffer ${stages['stage 3']!.length}, whose '
+      'stages 4-7 differ from the replay ${stages['stages 4-7']!.length}, '
+      'whose prediction with no edit differs from darwin ${unedited.length}',
     )
     ..writeAll([
-      for (final c in classes) '  ${c.name}: ${ledgerCounts[c.name] ?? 0}',
+      for (final MapEntry(key: check, value: found) in stages.entries)
+        for (final t in found) 'STAGE $check $t',
+      for (final t in unedited) 'UNEDITED $t',
     ], '\n')
-    ..writeln()
-    ..writeAll([for (final d in ledgerUnclassified) 'UNCLASSIFIED $d'], '\n')
     ..writeln();
 
-  final mutationTexts = [for (final (_, text, _) in classMutations) text];
-  final mutationProbes = await harness.read(
-    mutationTexts,
-    locale: options.locale,
-  );
-  final mutationDarwin = await harness.replay(mutationTexts, mutationProbes);
-  var defects = 0;
-  final classified = <String>[];
+  final full = await predictAll(predictor, texts, Variant(allEdits), read);
+  final wrong = [
+    for (final e in entries)
+      if (!sameLinks(full[index[e.text]!].links, e.expected))
+        '${printable(e.text)}: predicted ${full[index[e.text]!].links}, '
+            'expected ${e.expected}',
+    for (final e in entries)
+      if (!sameLinks(none[index[e.text]!].links, e.apple ?? e.expected))
+        '${printable(e.text)}: with no edit ${none[index[e.text]!].links}, '
+            'darwin ${e.apple ?? e.expected}',
+  ];
+  stdout
+    ..writeln(
+      'self-check 2: the prediction gives ${entries.length} catalog inputs '
+      '(${entries.where((e) => e.apple != null).length} with apple:) their '
+      'expected value, and with no edit their darwin reading: '
+      '${wrong.length} differ',
+    )
+    ..writeAll([for (final w in wrong) 'CATALOG $w'], '\n')
+    ..writeln();
+
   final idle = <String>[];
-  for (var i = 0; i < classMutations.length; i++) {
-    final (beside, text, wrong) = classMutations[i];
-    final found = disagreements(
-      [
-        DarwinReading(
-          (family: 'mutation', text: text),
-          mutationDarwin[i],
-          mutationProbes[i],
-        ),
-      ],
-      [wrong(mutationDarwin[i])],
+  final catalogNone = [for (final t in catalog) none[index[t]!]];
+  for (final (edit, name) in ledger) {
+    if (edit == 'Unicode' || edit == 'new TLDs') continue;
+    final alone = await predictAll(predictor, catalog, Variant({edit}), read);
+    if (!_changes(alone, catalogNone)) idle.add(name);
+  }
+  final unicodeTexts = [
+    for (final t in texts)
+      if (t.runes.any(characters.differences.contains)) t,
+  ];
+  final unicodeAlone = await predictAll(
+    predictor,
+    unicodeTexts,
+    const Variant({'Unicode'}),
+    read,
+  );
+  final unicodeChanged = [
+    for (var i = 0; i < unicodeTexts.length; i++)
+      if (!sameLinks(
+        unicodeAlone[i].links,
+        none[index[unicodeTexts[i]]!].links,
+      ))
+        i,
+  ];
+  if (unicodeChanged.isEmpty) idle.add('Unicode');
+  const withheld = 'app';
+  final withheldData = ruleData({withheld});
+  final holding = [
+    for (final t in texts)
+      if (withheldData.holdsNewTld(t)) t,
+  ];
+  final withheldPredictor = Predictor(withheldData)
+    ..readings.addAll(predictor.readings);
+  final withheldReading = await predictAll(
+    withheldPredictor,
+    holding,
+    const Variant({'new TLDs'}),
+    read,
+  );
+  final withheldWrong = [
+    for (var i = 0; i < holding.length; i++)
+      if (!sameLinks(withheldReading[i].links, matched[index[holding[i]]!]))
+        '${printable(holding[i])}: ${withheldReading[i].links}, darwin '
+            '${matched[index[holding[i]]!]}',
+  ];
+  if (holding.isEmpty) idle.add('new TLDs');
+  stdout
+    ..writeln(
+      'self-check 3: of ${ledger.length - 2} edits, '
+      '${idle.where((n) => !n.startsWith('Unicode') && !n.startsWith('new TLDs')).length} '
+      'change no catalog input alone; '
+      'the Unicode stand-in changes ${unicodeChanged.length} of '
+      '${unicodeTexts.length} corpus texts holding a listed code point; with '
+      '$withheld withheld as new, the new-TLD stand-in gives '
+      '${holding.length - withheldWrong.length} of the ${holding.length} '
+      'corpus texts holding it their darwin reading',
+    )
+    ..writeAll([
+      for (final n in idle) 'IDLE $n',
+      for (final w in withheldWrong) 'WITHHELD $w',
+    ], '\n')
+    ..writeln();
+
+  final pinned = <String>[];
+  final redundant = <String>[];
+  final unpinned = <String>[];
+  for (final conjunct in conjuncts) {
+    final touched = [
+      for (var i = 0; i < texts.length; i++)
+        if (full[i].touched.contains(conjunct)) i,
+    ];
+    final relaxed = await predictAll(
+      predictor,
+      [for (final i in touched) texts[i]],
+      Variant(allEdits, {conjunct}),
+      read,
     );
-    if (found.isEmpty) idle.add('NO DISAGREEMENT ${printable(text)}');
-    for (final d in found) {
-      defects++;
-      final c = classes.where((c) => c.holds(d)).firstOrNull;
-      if (c != null) classified.add('CLASSIFIED ${c.name}: $d, beside $beside');
+    var changed = 0;
+    final away = <String>[];
+    for (var n = 0; n < touched.length; n++) {
+      final i = touched[n];
+      if (sameLinks(relaxed[n].links, full[i].links)) continue;
+      changed++;
+      for (final e in entries) {
+        if (e.text == texts[i] && !sameLinks(relaxed[n].links, e.expected)) {
+          away.add(printable(e.text));
+        }
+      }
+    }
+    if (away.isNotEmpty) {
+      pinned.add('$conjunct ($changed corpus texts, pinned by ${away.first})');
+    } else if (changed == 0) {
+      redundant.add(conjunct);
+    } else {
+      unpinned.add('$conjunct ($changed corpus texts)');
     }
   }
   stdout
     ..writeln(
-      'self-check: ${classMutations.length} synthetic detector defects '
-      'beside the classes: $defects disagreeing links, '
-      '${classified.length} classified',
+      'self-check 4: ${conjuncts.length} conjuncts, ${pinned.length} pinned, '
+      '${redundant.length} redundant, ${unpinned.length} unpinned',
     )
-    ..writeAll([...classified, ...idle], '\n')
+    ..writeAll([
+      for (final c in pinned) '  pinned $c',
+      for (final c in redundant) '  redundant $c',
+      for (final c in unpinned) 'UNPINNED $c',
+    ], '\n')
+    ..writeln();
+
+  final representatives = representativeMismatches(data);
+  stdout
+    ..writeln(
+      'self-check 5: ${characters.differences.length} code points of the '
+      'Unicode class, ${representatives.length} whose representative\'s '
+      'macOS classes differ from its Unicode 17.0.0 classes',
+    )
+    ..writeAll([for (final r in representatives) 'REPRESENTATIVE $r'], '\n')
+    ..writeln();
+
+  final changed = [
+    for (var i = 0; i < texts.length; i++)
+      if (!sameLinks(full[i].links, matched[i])) i,
+  ];
+  final changedTexts = [for (final i in changed) texts[i]];
+  final prefixes = <List<Prediction>>[];
+  for (var k = 1; k <= ledger.length; k++) {
+    prefixes.add(
+      await predictAll(
+        predictor,
+        changedTexts,
+        Variant({for (final (e, _) in ledger.take(k)) e}),
+        read,
+      ),
+    );
+  }
+  final classified = <int, List<Classified>>{
+    for (var n = 0; n < changed.length; n++)
+      changed[n]: attribute(matched[changed[n]], full[changed[n]].links, [
+        for (final p in prefixes) p[n].links,
+      ]),
+  };
+  final catalogClassified = [
+    for (final t in catalog) ...?classified[index[t]!],
+  ];
+  final invisibleTexts = classified.values
+      .where((c) => c.any((l) => l.edit == 'a3'))
+      .length;
+  final unpredicted = full.fold(0, (n, p) => n + p.unpredicted.length);
+  stdout
+    ..writeln(
+      'classes over the catalog: ${catalogClassified.length} disagreeing '
+      'links with darwin',
+    )
+    ..writeAll(classCounts(catalogClassified), '\n')
+    ..writeln()
+    ..writeln(
+      'classes over the corpus: the prediction changes ${changed.length} '
+      'texts, ${classified.values.fold(0, (n, c) => n + c.length)} '
+      'disagreeing links with darwin, a3 changes $invisibleTexts texts, '
+      '$unpredicted unpredicted spans; ${predictor.readings.length} texts '
+      'read through probe-stages',
+    )
+    ..writeAll(classCounts(classified.values.expand((c) => c)), '\n')
     ..writeln();
 
   final slice = [
@@ -227,9 +381,8 @@ Future<bool> _diff(Harness harness, _Options options) async {
   ];
   final sliceTexts = [for (final r in slice) r.corpus.text];
   final byLocale = {
-    for (final locale in const ['en_US', 'en_GB', 'de_DE', 'ja_JP'])
-      if (locale != options.locale)
-        locale: await harness.read(sliceTexts, locale: locale),
+    for (final l in quotedLocales)
+      if (l != locale) l: await harness.read(sliceTexts, locale: l),
   };
   final locales = localeDifferences(slice, byLocale);
   stdout
@@ -245,9 +398,13 @@ Future<bool> _diff(Harness harness, _Options options) async {
       catalogRun.failed == 0 &&
       catalogRun.passed > 0 &&
       raw.isEmpty &&
-      ledgerUnclassified.isEmpty &&
-      classified.isEmpty &&
-      idle.isEmpty;
+      stages.values.every((found) => found.isEmpty) &&
+      unedited.isEmpty &&
+      wrong.isEmpty &&
+      idle.isEmpty &&
+      withheldWrong.isEmpty &&
+      unpinned.isEmpty &&
+      representatives.isEmpty;
   if (options.flags.contains('--oracle-only')) return ok;
 
   final kinds = {
@@ -259,39 +416,40 @@ Future<bool> _diff(Harness harness, _Options options) async {
         ),
   };
   final compared = [
-    for (final r in darwin)
-      if (kinds.isEmpty || r.holdsOnly(kinds)) r,
+    for (var i = 0; i < texts.length; i++)
+      if (kinds.isEmpty || darwin[i].holdsOnly(kinds, full[i].links)) i,
   ];
   final dart = await dartReading(host.uxRoot, harness.commitDir, [
-    for (final r in compared) r.corpus.text,
+    for (final i in compared) texts[i],
   ]);
-  final found = disagreements(compared, dart);
-  final byClass = <String, int>{};
-  final unclassified = <Disagreement>[];
-  for (final d in found) {
-    final c = classes.where((c) => c.holds(d)).firstOrNull;
-    if (c == null) {
-      unclassified.add(d);
-    } else {
-      byClass[c.name] = (byClass[c.name] ?? 0) + 1;
-    }
-  }
+  final departed = [
+    for (var n = 0; n < compared.length; n++)
+      ...departures(texts[compared[n]], dart[n], full[compared[n]]),
+  ];
+  final agreeing = [
+    for (var n = 0; n < compared.length; n++)
+      if (sameLinks(dart[n], full[compared[n]].links))
+        ...?classified[compared[n]],
+  ];
   final only = kinds.isEmpty
       ? ''
       : ' holding only ${options.values['--kinds']}';
   stdout
     ..writeln(
-      'diff: ${compared.length} texts$only, ${found.length} disagreeing '
-      'links, ${unclassified.length} unclassified',
+      'diff: ${compared.length} texts$only, ${departed.length} departures '
+      'from the prediction, ${agreeing.length} disagreements with darwin by '
+      'class',
     )
-    ..writeAll([
-      for (final c in classes) '  ${c.name}: ${byClass[c.name] ?? 0}',
-    ], '\n')
+    ..writeAll(classCounts(agreeing), '\n')
     ..writeln()
-    ..writeAll([for (final d in unclassified) 'UNCLASSIFIED $d'], '\n')
+    ..writeAll([for (final d in departed) 'DEPARTURE $d'], '\n')
     ..writeln();
-  return ok && unclassified.isEmpty;
+  return ok && departed.isEmpty;
 }
+
+bool _changes(List<Prediction> a, List<Prediction> b) =>
+    [for (var i = 0; i < a.length; i++) !sameLinks(a[i].links, b[i].links)]
+        .any((changed) => changed);
 
 Future<bool> _props(Harness harness) async {
   stdout
