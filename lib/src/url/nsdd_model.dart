@@ -743,30 +743,20 @@ String _escaped(String url) {
 
 /// The TLDs NSDataDetector links a bare host with a non-ASCII label on, as
 /// macOS 26.4 reads `see bücher.<tld> x`, in src/tld.h's order.
-const nsddBareTldList = [
-  'ae', 'ai', 'ar', 'at', 'au', 'be', 'bg', 'bid', 'biz', 'bo', 'br', 'bs', //
-  'ca', 'cc', 'ch', 'cl', 'club', 'cm', 'cn', 'co', 'com', 'cx', 'cz', 'de',
-  'dk', 'edu', 'ee', 'es', 'eu', 'fi', 'fm', 'fr', 'gdn', 'gl', 'google',
-  'gov', 'gr', 'hk', 'hn', 'hr', 'hu', 'id', 'ie', 'il', 'in', 'info', 'io',
-  'ir', 'is', 'it', 'jo', 'jp', 'kr', 'la', 'lc', 'li', 'link', 'lk', 'loan',
-  'lt', 'lu', 'lv', 'ly', 'ma', 'me', 'ms', 'mx', 'my', 'net', 'nl', 'no',
-  'nz', 'online', 'org', 'ph', 'pk', 'pl', 'pn', 'pt', 'pw', 'ro', 'rs', 'ru',
-  'sa', 'se', 'sg', 'si', 'site', 'sk', 'so', 'social', 'st', 'tech', 'th',
-  'tm', 'tn', 'to', 'tr', 'tt', 'tv', 'tw', 'ua', 'uk', 'us', 'uy', 'va',
-  'vip', 'vn', 'wang', 'win', 'xin', 'xyz', 'za',
-  '\u0440\u0443\u0441',
-  '\u0440\u0444',
-  '\u0443\u043A\u0440',
-  '\u0627\u0644\u0633\u0639\u0648\u062F\u064A\u0629',
-  '\u0627\u0645\u0627\u0631\u0627\u062A',
-  '\u0645\u0635\u0631',
-  '\u0645\u0644\u064A\u0633\u064A\u0627',
-  '\u092D\u093E\u0930\u0924',
-  '\u0A2D\u0A3E\u0A30\u0A24',
-  '\u0AAD\u0ABE\u0AB0\u0AA4',
-  '\u0E44\u0E17\u0E22',
-  '\uD55C\uAD6D',
-];
+final nsddBareTldList = _nsddBare.split(' ');
 
 /// [nsddBareTldList] as a set.
 final nsddBareTlds = nsddBareTldList.toSet();
+
+const _nsddBare =
+    'ae ai ar at au be bg bid biz bo br bs ca cc ch cl club cm cn co com cx cz '
+    'de dk edu ee es eu fi fm fr gdn gl google gov gr hk hn hr hu id ie il in '
+    'info io ir is it jo jp kr la lc li link lk loan lt lu lv ly ma me ms mx '
+    'my net nl no nz online org ph pk pl pn pt pw ro rs ru sa se sg si site sk '
+    'so social st tech th tm tn to tr tt tv tw ua uk us uy va vip vn wang win '
+    'xin xyz za \u0440\u0443\u0441 \u0440\u0444 \u0443\u043A\u0440 '
+    '\u0627\u0644\u0633\u0639\u0648\u062F\u064A\u0629 '
+    '\u0627\u0645\u0627\u0631\u0627\u062A \u0645\u0635\u0631 '
+    '\u0645\u0644\u064A\u0633\u064A\u0627 \u092D\u093E\u0930\u0924 '
+    '\u0A2D\u0A3E\u0A30\u0A24 \u0AAD\u0ABE\u0AB0\u0AA4 \u0E44\u0E17\u0E22 '
+    '\uD55C\uAD6D';
