@@ -49,6 +49,7 @@ const conjuncts = [
   'a2:spaced',
   'a3:joiner',
   'a3:domain',
+  'a3:mailto',
   'a3:cutOff',
   'b1:ascii',
   'b4:b16',
@@ -1066,10 +1067,13 @@ class _Run {
 
   /// a3: the first invisible space of [l]: one of [invisibleSpaces] other
   /// than a ZWNJ or ZWJ between letters, marks, digits or symbols, or one of
-  /// [domainInvisibleSpaces] in an address's domain.
+  /// [domainInvisibleSpaces] in the domain of an address that no `mailto:`
+  /// without `//` starts.
   int? a3Cut(String text, Link l) {
-    final at = l.kind == 'email'
-        ? text.substring(l.start, l.end).lastIndexOf('@') + l.start
+    final slice = text.substring(l.start, l.end);
+    final at =
+        l.kind == 'email' && holds('a3:mailto', !_writtenMailto.hasMatch(slice))
+        ? slice.lastIndexOf('@') + l.start
         : null;
     for (var i = l.start; i < l.end;) {
       final cp = cpAt(text, i);
@@ -1254,8 +1258,8 @@ final invisibleSpaces = CodePoints.of([
 ]);
 
 /// The invisible spaces an address ends before in its domain: the Hangul
-/// fillers, which NSDataDetector's URL leaves out of a domain that holds
-/// them.
+/// fillers, which NSDataDetector's URL leaves out of the domain of an
+/// address that no `mailto:` without `//` starts.
 final domainInvisibleSpaces = CodePoints.of([
   (0x115F, 0x1160),
   (0x3164, 0x3164),
@@ -1302,6 +1306,7 @@ bool _asciiDigit(int u) => u >= 0x30 && u <= 0x39;
 
 final _scheme = RegExp(r'^[A-Za-z][A-Za-z0-9+.\-]*://');
 final _schemeAlone = RegExp(r'^[A-Za-z][A-Za-z0-9+.\-]*:(?://)?$');
+final _writtenMailto = RegExp('^mailto:(?!//)', caseSensitive: false);
 final _schemeSlash = RegExp(r'^[A-Za-z][A-Za-z0-9+.\-]*:/$');
 final _percent = RegExp('%[0-9A-Fa-f]{2}');
 final _ipv4 = RegExp(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$');

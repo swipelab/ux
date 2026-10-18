@@ -275,7 +275,8 @@ const conversionShapes = {
     'see https://\u0915\u094D\$\u0937.com x',
   ],
   'local part': ['mail o\$ps@example.com now', 'mail ops\$@example.com now'],
-  'domain': ['mail ops@exam\$ple.com now'],
+  'domain': ['mail ops@exam\$ple.com now', 'see mailto://ops@exam\$ple.com x'],
+  "domain after mailto: without '//'": ['see mailto:ops@exam\$ple.com x'],
   'phone': ['call +1 555\$123 4567 now'],
 };
 
@@ -365,8 +366,8 @@ Future<List<String>> props(Harness harness) async {
     for (final MapEntry(key: kind, value: points) in converted.entries)
       'Default_Ignorable code points and U+1680 a darwin link holds in a '
           '$kind and leaves out of its URL: ${points.length}: $points',
-    "a3's invisible spaces: $invisibleSpaces; in an address's domain: "
-        '$domainInvisibleSpaces',
+    "a3's invisible spaces: $invisibleSpaces; in the domain of an address "
+        "that no mailto: without '//' starts: $domainInvisibleSpaces",
     "TLDs of a linked 'see bücher.<tld> x': ${set(nsdd.bare)}",
     "TLDs of a linked 'see www.bücher.<tld> x': ${set(nsdd.www)}",
     "Unicode TLDs of an email 'ops@example.<tld>' at the text's start: ${set(nsdd.emailAtStart)}",

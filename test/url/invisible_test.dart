@@ -83,6 +83,12 @@ void main() {
     ]);
   });
 
+  test("a Hangul filler in the domain of an address that mailto: without '//' starts stays in the address and its URL", () {
+    expectLinks('see mailto:ops@exam\u3164ple.com x', [
+      email(4, 27, 'mailto:ops@exam%E3%85%A4ple.com'),
+    ]);
+  });
+
   test('a phone ends before an ogham space mark, and no phone links where too few digits precede it', () {
     expectLinks(
       'call +1 555\u1680123 4567 now',
