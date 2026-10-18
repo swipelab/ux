@@ -16,6 +16,7 @@
 #import <Foundation/Foundation.h>
 
 #include <cstdio>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -83,13 +84,13 @@ static int Texts(NSString *inPath, NSString *outPath) {
 
 static NSArray *Ranges(BOOL (^member)(UTF32Char)) {
     NSMutableArray *ranges = [NSMutableArray array];
-    long start = -1;
+    std::optional<UTF32Char> start;
     for (UTF32Char c = 0; c <= 0x110000; c++) {
         const BOOL in = c < 0x110000 && !(c >= 0xD800 && c <= 0xDFFF) && member(c);
-        if (in && start < 0) start = c;
-        if (!in && start >= 0) {
-            [ranges addObject:@[ @(start), @(c - 1) ]];
-            start = -1;
+        if (in && !start.has_value()) start = c;
+        if (!in && start.has_value()) {
+            [ranges addObject:@[ @(*start), @(c - 1) ]];
+            start.reset();
         }
     }
     return ranges;
