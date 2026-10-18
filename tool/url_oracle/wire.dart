@@ -77,24 +77,57 @@ class RawResult {
       '[$start,$end) ${phone ? 'phone' : 'link'} ${printable(value)}';
 }
 
+/// One of url_detect.mm's candidates before its sort.
+class Candidate {
+  /// [link], which NSDataDetector gave where [nsdd] holds and the second pass
+  /// otherwise.
+  const Candidate(this.link, {required this.nsdd});
+
+  /// The candidate's span, kind and URL.
+  final Link link;
+
+  /// Whether NSDataDetector gave it.
+  final bool nsdd;
+}
+
 /// One probe line: ux_match_url's buffer and raw NSDataDetector's results.
 class ProbeReading {
-  /// The reading of a text whose native buffer is [buffer] and whose raw
-  /// NSDataDetector results are [raw].
-  const ProbeReading(this.buffer, this.raw);
+  /// The reading of a text whose native buffer is [buffer], whose raw
+  /// NSDataDetector results are [raw] and whose url_detect.mm candidates are
+  /// [candidates] in a probe-stages reading.
+  const ProbeReading(this.buffer, this.raw, [this.candidates]);
 
-  /// The probe's JSON line `{"b": buffer, "r": raw}`.
+  /// The probe's JSON line `{"b": buffer, "r": raw}`, with `"c":
+  /// candidates` in a probe-stages reading.
   factory ProbeReading.fromLine(String line) {
     final json = jsonDecode(line) as Map<String, Object?>;
-    return ProbeReading(base64Decode(json['b']! as String), [
-      for (final r in (json['r']! as List<Object?>).cast<List<Object?>>())
-        RawResult(
-          r[0]! as int,
-          r[1]! as int,
-          phone: r[2] == 'p',
-          value: fromUtf16Base64(r[3]! as String),
-        ),
-    ]);
+    final candidates = json['c'] as List<Object?>?;
+    return ProbeReading(
+      base64Decode(json['b']! as String),
+      [
+        for (final r in (json['r']! as List<Object?>).cast<List<Object?>>())
+          RawResult(
+            r[0]! as int,
+            r[1]! as int,
+            phone: r[2] == 'p',
+            value: fromUtf16Base64(r[3]! as String),
+          ),
+      ],
+      candidates == null
+          ? null
+          : [
+              for (final c in candidates.cast<List<Object?>>())
+                Candidate(
+                  Link(
+                    c[0]! as int,
+                    c[1]! as int,
+                    _kinds[c[2]! as int],
+                    utf8.decode(base64Decode(c[3]! as String)),
+                  ),
+                  nsdd: c[4] == 'n',
+                ),
+            ],
+    );
   }
 
   /// ux_match_url's buffer, empty where it returns none.
@@ -102,6 +135,9 @@ class ProbeReading {
 
   /// Raw NSDataDetector's results.
   final List<RawResult> raw;
+
+  /// url_detect.mm's candidates before its sort, in a probe-stages reading.
+  final List<Candidate>? candidates;
 
   /// The links [buffer] holds.
   List<Link> get native => decodeBuffer(buffer);

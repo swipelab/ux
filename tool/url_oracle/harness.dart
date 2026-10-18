@@ -114,6 +114,73 @@ class Host {
   ], workingDirectory: uxRoot)).stdout;
 }
 
+/// [binary], compiled by clang++ with [arguments] from [sources], each
+/// path's text, unless an earlier build left it beside the same sources.
+Future<String> compile(
+  String binary,
+  Map<String, String> sources,
+  List<String> arguments,
+) async {
+  final current =
+      File(binary).existsSync() &&
+      sources.entries.every(
+        (s) =>
+            File(s.key).existsSync() &&
+            File(s.key).readAsStringSync() == s.value,
+      );
+  if (current) return binary;
+  for (final MapEntry(key: path, value: text) in sources.entries) {
+    File(path)
+      ..createSync(recursive: true)
+      ..writeAsStringSync(text);
+  }
+  await run('clang++', [...arguments, '-o', binary]);
+  return binary;
+}
+
+/// [source], url_detect.mm, with a declaration of the probe's
+/// ux_probe_stages after `@implementation XUrlRawMatch`, the count of
+/// NSDataDetector's candidates before `if (webRe != nil) {` and a call
+/// handing it every candidate before `if (raws.count == 0) return NULL;`.
+String instrument(String source) {
+  String insert(
+    String text,
+    String anchor,
+    String line, {
+    required bool after,
+  }) {
+    final at = text.indexOf(anchor);
+    if (at < 0 || text.indexOf(anchor, at + 1) >= 0) {
+      throw StateError('url_detect.mm holds "$anchor" other than once');
+    }
+    final lineStart = text.lastIndexOf('\n', at) + 1;
+    final lineEnd = text.indexOf('\n', at) + 1;
+    final indent = text.substring(lineStart, at);
+    return after
+        ? '${text.substring(0, lineEnd)}$indent$line\n${text.substring(lineEnd)}'
+        : '${text.substring(0, lineStart)}$indent$line\n${text.substring(lineStart)}';
+  }
+
+  var out = insert(
+    source,
+    '@implementation XUrlRawMatch',
+    'extern "C" void ux_probe_stages(NSArray *raws, NSUInteger nsdd);',
+    after: true,
+  );
+  out = insert(
+    out,
+    'if (webRe != nil) {',
+    'const NSUInteger ux_probe_nsdd = raws.count;',
+    after: false,
+  );
+  return insert(
+    out,
+    'if (raws.count == 0) return NULL;',
+    'ux_probe_stages(raws, ux_probe_nsdd);',
+    after: false,
+  );
+}
+
 /// The report header every command prints.
 String header(
   Host host, {
@@ -151,28 +218,36 @@ class Harness {
   Directory get commitDir => Directory('${work.path}/$_short');
 
   /// The probe built from [commit]'s url_detect.mm and src/tld.h.
-  Future<String> probe() async {
-    final dir = commitDir;
-    final probe = File('${dir.path}/probe');
-    if (probe.existsSync()) return probe.path;
+  Future<String> probe() async => _probe('probe', (source) => source);
+
+  /// probe-stages: the probe built from [commit]'s url_detect.mm with three
+  /// lines that hand its candidates to the probe before its sort.
+  Future<String> stagesProbe() async => _probe('probe-stages', instrument);
+
+  Future<String> _probe(
+    String name,
+    String Function(String source) edit,
+  ) async {
     const mm = 'darwin/ux/Sources/ux_url_detect/url_detect.mm';
-    final source = File('${dir.path}/src/$mm')..createSync(recursive: true);
-    source.writeAsStringSync(await host.show(commit, mm));
-    File('${dir.path}/src/src/tld.h')
-      ..createSync(recursive: true)
-      ..writeAsStringSync(await host.show(commit, 'src/tld.h'));
-    await run('clang++', [
-      '-std=c++17',
-      '-fobjc-arc',
-      '-O2',
-      '-framework',
-      'Foundation',
-      '${host.uxRoot}/tool/url_oracle/probe.mm',
-      source.path,
-      '-o',
-      probe.path,
-    ]);
-    return probe.path;
+    final dir = '${commitDir.path}/$name-src';
+    return compile(
+      '${commitDir.path}/$name',
+      {
+        '$dir/probe.mm': File('${host.uxRoot}/tool/url_oracle/probe.mm')
+            .readAsStringSync(),
+        '$dir/$mm': edit(await host.show(commit, mm)),
+        '$dir/src/tld.h': await host.show(commit, 'src/tld.h'),
+      },
+      [
+        '-std=c++17',
+        '-fobjc-arc',
+        '-O2',
+        '-framework',
+        'Foundation',
+        '$dir/probe.mm',
+        '$dir/$mm',
+      ],
+    );
   }
 
   /// [commit]'s tree from `git archive`, its packages resolved.
@@ -202,19 +277,27 @@ class Harness {
     List<String> texts, {
     required String locale,
     String? probe,
-  }) async {
-    final dir = Directory('${commitDir.path}/probe-$locale')
+  }) async => _read(texts, locale, probe ?? await this.probe(), 'texts');
+
+  /// probe-stages' readings of [texts] under [locale], one per text, each
+  /// with its candidates.
+  Future<List<ProbeReading>> readStages(
+    List<String> texts, {
+    required String locale,
+  }) async => _read(texts, locale, await stagesProbe(), 'stages');
+
+  Future<List<ProbeReading>> _read(
+    List<String> texts,
+    String locale,
+    String probe,
+    String mode,
+  ) async {
+    final dir = Directory('${commitDir.path}/$mode-$locale')
       ..createSync(recursive: true);
     final input = File('${dir.path}/texts')
       ..writeAsStringSync(_lines(texts.map(toUtf16Base64)));
     final output = File('${dir.path}/probe');
-    await run(probe ?? await this.probe(), [
-      'texts',
-      input.path,
-      output.path,
-      '-AppleLocale',
-      locale,
-    ]);
+    await run(probe, [mode, input.path, output.path, '-AppleLocale', locale]);
     final readings = output
         .readAsLinesSync()
         .map(ProbeReading.fromLine)

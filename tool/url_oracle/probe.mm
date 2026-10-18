@@ -8,6 +8,12 @@
 //     .link | .phoneNumber as [start, end, "l" or "p", base64 of the URL's or
 //     phone number's UTF-16LE code units].
 //
+//   probe stages <in> <out> [-AppleLocale <locale>]
+//     As texts, each line also holding "c", url_detect.mm's candidates before
+//     its sort, as [start, end, kind, base64 of the URL's UTF-8 bytes, "n" for
+//     NSDataDetector's or "s" for the second pass's]. Only a build whose
+//     url_detect.mm calls ux_probe_stages there reads them.
+//
 //   probe props <out>
 //     <out> is a JSON object of inclusive code point ranges: "letter" and
 //     "digit", NSCharacterSet's letterCharacterSet and decimalDigitCharacterSet,
@@ -23,6 +29,31 @@
 extern "C" uint8_t *ux_match_url(const uint16_t *utf16, int32_t len, int32_t *out_size);
 extern "C" void ux_free(uint8_t *buf);
 
+struct Candidate {
+    int32_t start;
+    int32_t end;
+    uint32_t kind;
+    std::string url;
+    bool nsdd;
+};
+
+// The candidates of the ux_match_url call on this thread, where one is read.
+static thread_local std::vector<Candidate> *stagesOut = nullptr;
+
+// Called by url_detect.mm with its candidates, the first nsdd of them
+// NSDataDetector's.
+extern "C" void ux_probe_stages(NSArray *raws, NSUInteger nsdd) {
+    if (stagesOut == nullptr) return;
+    NSUInteger i = 0;
+    for (id m in raws) {
+        NSData *url = [m valueForKey:@"urlUtf8"];
+        stagesOut->push_back({[[m valueForKey:@"start"] intValue], [[m valueForKey:@"end"] intValue],
+                              [[m valueForKey:@"kind"] unsignedIntValue],
+                              std::string((const char *)url.bytes, url.length), i < nsdd});
+        i++;
+    }
+}
+
 static NSString *Utf16Base64(NSString *s) {
     std::vector<unichar> units(s.length);
     [s getCharacters:units.data() range:NSMakeRange(0, s.length)];
@@ -35,12 +66,15 @@ static NSString *TextFromBase64(NSString *line) {
     return [[NSString alloc] initWithCharacters:(const unichar *)data.bytes length:data.length / sizeof(unichar)];
 }
 
-static NSString *Probe(NSDataDetector *detector, NSString *text) {
+static NSString *Probe(NSDataDetector *detector, NSString *text, BOOL stages) {
     const NSUInteger len = text.length;
     std::vector<unichar> units(len);
     [text getCharacters:units.data() range:NSMakeRange(0, len)];
+    std::vector<Candidate> candidates;
+    stagesOut = stages ? &candidates : nullptr;
     int32_t size = 0;
     uint8_t *buf = len == 0 ? NULL : ux_match_url(units.data(), (int32_t)len, &size);
+    stagesOut = nullptr;
     NSData *buffer = [NSData dataWithBytes:buf length:buf == NULL ? 0 : (NSUInteger)size];
     ux_free(buf);
 
@@ -54,12 +88,20 @@ static NSString *Probe(NSDataDetector *detector, NSString *text) {
         NSString *value = phone ? (result.phoneNumber ?: @"") : (result.URL.absoluteString ?: @"");
         [raw addObject:@[ @(r.location), @(NSMaxRange(r)), phone ? @"p" : @"l", Utf16Base64(value) ]];
     }];
-    NSDictionary *line = @{@"b" : [buffer base64EncodedStringWithOptions:0], @"r" : raw};
+    NSMutableDictionary *line = [@{@"b" : [buffer base64EncodedStringWithOptions:0], @"r" : raw} mutableCopy];
+    if (stages) {
+        NSMutableArray *c = [NSMutableArray array];
+        for (const Candidate &m : candidates) {
+            NSData *url = [NSData dataWithBytes:m.url.data() length:m.url.size()];
+            [c addObject:@[ @(m.start), @(m.end), @(m.kind), [url base64EncodedStringWithOptions:0], m.nsdd ? @"n" : @"s" ]];
+        }
+        line[@"c"] = c;
+    }
     NSData *json = [NSJSONSerialization dataWithJSONObject:line options:0 error:nil];
     return [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding];
 }
 
-static int Texts(NSString *inPath, NSString *outPath) {
+static int Texts(NSString *inPath, NSString *outPath, BOOL stages) {
     NSString *input = [NSString stringWithContentsOfFile:inPath encoding:NSUTF8StringEncoding error:nil];
     if (input == nil) {
         std::fprintf(stderr, "probe: cannot read %s\n", inPath.UTF8String);
@@ -74,7 +116,7 @@ static int Texts(NSString *inPath, NSString *outPath) {
     NSString *__strong *slots = out.data();
     dispatch_apply(count, dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^(size_t i) {
         @autoreleasepool {
-            slots[i] = Probe(detector, TextFromBase64(lines[i]));
+            slots[i] = Probe(detector, TextFromBase64(lines[i]), stages);
         }
     });
     NSMutableString *joined = [NSMutableString string];
@@ -120,9 +162,9 @@ static int Props(NSString *outPath) {
 int main(int argc, const char **argv) {
     @autoreleasepool {
         const std::string mode = argc > 1 ? argv[1] : "";
-        if (mode == "texts" && argc >= 4) return Texts(@(argv[2]), @(argv[3]));
+        if ((mode == "texts" || mode == "stages") && argc >= 4) return Texts(@(argv[2]), @(argv[3]), mode == "stages");
         if (mode == "props" && argc >= 3) return Props(@(argv[2]));
-        std::fprintf(stderr, "usage: probe texts <in> <out> [-AppleLocale <locale>] | probe props <out>\n");
+        std::fprintf(stderr, "usage: probe texts|stages <in> <out> [-AppleLocale <locale>] | probe props <out>\n");
         return 2;
     }
 }

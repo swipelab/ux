@@ -33,13 +33,10 @@ class WinIcu {
     'windows/test/ux_test.cpp',
   ];
 
-  Future<void> _write() async {
-    for (final path in _sources) {
-      File('${_dir.path}/$path')
-        ..createSync(recursive: true)
-        ..writeAsStringSync(await harness.host.show(harness.commit, path));
-    }
-  }
+  Future<Map<String, String>> _read() async => {
+    for (final path in _sources)
+      '${_dir.path}/$path': await harness.host.show(harness.commit, path),
+  };
 
   List<String> get _flags => [
     '-std=c++17',
@@ -61,46 +58,50 @@ class WinIcu {
   /// ux_test built from the commit's url_detect suite, with every other suite
   /// ux_test.cpp declares defined empty.
   Future<String> suite() async {
-    final binary = File('${_dir.path}/ux_test');
-    if (binary.existsSync()) return binary.path;
-    await _write();
-    final main = File('${_dir.path}/windows/test/ux_test.cpp');
+    final sources = await _read();
+    final main = '${_dir.path}/windows/test/ux_test.cpp';
     final suites = RegExp(r'^void (\w+Suite)\(\);', multiLine: true)
-        .allMatches(main.readAsStringSync())
+        .allMatches(sources[main]!)
         .map((m) => m[1]!)
         .where((name) => name != 'UrlDetectSuite');
-    final stubs = File('${_dir.path}/stubs.cpp')
-      ..writeAsStringSync([for (final s in suites) 'void $s() {}\n'].join());
-    await run('clang++', [
-      ..._flags,
-      '${_dir.path}/windows/url_detect.cpp',
-      '${_dir.path}/windows/test/url_detect_test.cpp',
-      main.path,
-      stubs.path,
-      ..._icu,
-      '-o',
-      binary.path,
-    ]);
-    return binary.path;
+    final stubs = '${_dir.path}/stubs.cpp';
+    return compile(
+      '${_dir.path}/ux_test',
+      {
+        ...sources,
+        stubs: [for (final s in suites) 'void $s() {}\n'].join(),
+      },
+      [
+        ..._flags,
+        '${_dir.path}/windows/url_detect.cpp',
+        '${_dir.path}/windows/test/url_detect_test.cpp',
+        main,
+        stubs,
+        ..._icu,
+      ],
+    );
   }
 
   /// tool/url_oracle/probe.mm linked with the commit's Windows detector.
   Future<String> probe() async {
-    final binary = File('${_dir.path}/probe');
-    if (binary.existsSync()) return binary.path;
-    await _write();
-    await run('clang++', [
-      ..._flags,
-      '-fobjc-arc',
-      '-framework',
-      'Foundation',
-      '${harness.host.uxRoot}/tool/url_oracle/probe.mm',
-      '${_dir.path}/windows/url_detect.cpp',
-      ..._icu,
-      '-o',
-      binary.path,
-    ]);
-    return binary.path;
+    final probe = '${_dir.path}/probe.mm';
+    return compile(
+      '${_dir.path}/probe',
+      {
+        ...await _read(),
+        probe: File('${harness.host.uxRoot}/tool/url_oracle/probe.mm')
+            .readAsStringSync(),
+      },
+      [
+        ..._flags,
+        '-fobjc-arc',
+        '-framework',
+        'Foundation',
+        probe,
+        '${_dir.path}/windows/url_detect.cpp',
+        ..._icu,
+      ],
+    );
   }
 
   /// The detector's readings of [texts], one per text.
@@ -109,12 +110,9 @@ class WinIcu {
 
   /// The commit's url_detect_test.cpp corpus: each case's text and recorded
   /// links.
-  Future<List<(String, List<Link>)>> corpus() async {
-    await _write();
-    return windowsCorpus(
-      File('${_dir.path}/windows/test/url_detect_test.cpp').readAsStringSync(),
-    );
-  }
+  Future<List<(String, List<Link>)>> corpus() async => windowsCorpus(
+    await harness.host.show(harness.commit, 'windows/test/url_detect_test.cpp'),
+  );
 }
 
 /// The cases of url_detect_test.cpp's [source]: each case's text and
