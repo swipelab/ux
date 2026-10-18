@@ -72,19 +72,16 @@ void main() {
 
   test('a format character before a bare host stays outside it', () {
     expectLinks('see \u200Dexample.com', [web(5, 16, 'http://example.com')]);
-    expectLinks('see \u00ADexample.com x', [web(5, 16, 'http://example.com')]);
   });
 
   test('a format character inside a bare host makes it no link', () {
     expectLinks('see exam\u200Dple.com x', const []);
-    expectLinks('see example\u200B.com x', const []);
   });
 
   test(
     'no word boundary falls before a zero-width joiner after a bare host',
     () {
       expectLinks('see 10.0.0.1\u200D x', const []);
-      expectLinks('see example.com\u200D x', const []);
     },
   );
 

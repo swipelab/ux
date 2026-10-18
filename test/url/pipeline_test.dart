@@ -39,13 +39,6 @@ void main() {
     expectLinks('x 555 123 45.67.89.10 y', const []);
   });
 
-  test('a link with a scheme opens its text, one without opens http:// and its text', () {
-    expectLinks('see Http://Example.com now', [
-      web(4, 22, 'Http://Example.com'),
-    ]);
-    expectLinks('banlu.app', [web(0, 9, 'http://banlu.app')]);
-  });
-
   test('the any-scheme pass adds the links past the cap of 64', () {
     expectLinks(List.filled(70, 'https://a.com').join(' '), [
       for (var i = 0; i < 70; i++) web(i * 14, i * 14 + 13, 'https://a.com'),

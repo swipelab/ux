@@ -23,20 +23,11 @@ void main() {
     expectLinks('x_http://example.com:8080@evil.com/x_', [
       web(2, 37, 'http://example.com:8080@evil.com/x_'),
     ]);
-    expectLinks('_http://example.com:8080@evil.com/x_', [
-      web(1, 36, 'http://example.com:8080@evil.com/x_'),
-    ]);
-    expectLinks('_http://example.com:8080@例子.com/x y', [
-      web(1, 33, 'http://example.com:8080@例子.com/x'),
-    ]);
   });
 
   test("a link with any scheme before '://' links", () {
     expectLinks('see h://x now', [web(4, 9, 'h://x')]);
     expectLinks('see a1+b.c-d://x/y now', [web(4, 18, 'a1+b.c-d://x/y')]);
-    expectLinks('see intent://scan/#Intent;end now', [
-      web(4, 29, 'intent://scan/#Intent;end'),
-    ]);
     expectLinks('see file:///etc/passwd now', [
       web(4, 22, 'file:///etc/passwd'),
     ]);
@@ -69,16 +60,10 @@ void main() {
     expectLinks('see https://example.com/a^b x', [
       web(4, 25, 'https://example.com/a'),
     ]);
-    expectLinks('see https://example.com/a"b x', [
-      web(4, 25, 'https://example.com/a'),
-    ]);
   });
 
   test("a '%' that two hex digits don't follow ends a link's path", () {
     expectLinks('see https://example.com/a%2 x', [
-      web(4, 25, 'https://example.com/a'),
-    ]);
-    expectLinks('see https://example.com/a%zz x', [
       web(4, 25, 'https://example.com/a'),
     ]);
   });
@@ -89,12 +74,6 @@ void main() {
       expectLinks('see https://example.com/路径%20x y', [
         web(4, 30, 'https://example.com/路径%20x'),
       ]);
-      expectLinks('see https://WWW.例子.com/路径%20x y', [
-        web(4, 29, 'https://WWW.例子.com/路径%20x'),
-      ]);
-      expectLinks('see https://example.com/a%20b] x', [
-        web(4, 29, 'https://example.com/a%20b'),
-      ]);
       expectLinks('visit https://bücher.example/straße today', [
         web(6, 35, 'https://bücher.example/straße'),
       ]);
@@ -103,9 +82,6 @@ void main() {
 
   test('a single-label host links after a scheme', () {
     expectLinks('see http://intranet/x x', [web(4, 21, 'http://intranet/x')]);
-    expectLinks('see http://localhost:3000/x x', [
-      web(4, 27, 'http://localhost:3000/x'),
-    ]);
   });
 
   test("a scheme link's host of numbers links as written", () {

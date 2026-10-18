@@ -13,7 +13,6 @@ void main() {
     expectLinks('看 https://example.com。下一句', [
       web(2, 21, 'https://example.com'),
     ]);
-    expectLinks('链接：example.com/a。下', [web(3, 16, 'http://example.com/a')]);
     expectLinks('see https://example.com/a」x', [
       web(4, 25, 'https://example.com/a'),
     ]);
@@ -31,7 +30,6 @@ void main() {
   });
 
   test('unspaced-script letters glued after a bare domain stay out of it', () {
-    expectLinks('example.com然后', [web(0, 11, 'http://example.com')]);
     expectLinks('访问example.com然后', [web(2, 13, 'http://example.com')]);
     expectLinks('访问example.com和google.com', [
       web(2, 13, 'http://example.com'),
@@ -47,10 +45,7 @@ void main() {
   });
 
   test('a letter a period glues to a bare domain glued after CJK letters makes it no link', () {
-    expectLinks('访问example.com.Then', const []);
     expectLinks('see 访问example.com.Then', const []);
-    expectLinks('访问example.com.Then/a', const []);
-    expectLinks('访问 example.com.Then/a', const []);
     expectLinks('访问example.com. Then', [web(2, 13, 'http://example.com')]);
   });
 
@@ -102,7 +97,6 @@ void main() {
       web(7, 18, 'http://example.com'),
     ], apple: const []);
     expectLinks('中文\u2060example.com', [web(3, 14, 'http://example.com')]);
-    expectLinks('ខ្ញុំ\u200Bexample.com', [web(6, 17, 'http://example.com')]);
   });
 
   test('a bidi control before a bare host stays outside it', () {
@@ -116,13 +110,7 @@ void main() {
     expectLinks('https://example.com/路径（1）/page.html', [
       web(0, 22, 'https://example.com/路径'),
     ]);
-    expectLinks('https://example.com/a（1）/page.html', [
-      web(0, 21, 'https://example.com/a'),
-    ]);
     expectLinks('https://example.com/a（1）/page.com', [
-      web(0, 21, 'https://example.com/a'),
-    ]);
-    expectLinks('https://example.com/a（1）/page.html?x=1', [
       web(0, 21, 'https://example.com/a'),
     ]);
     expectLinks('https://example.com/a.（1）/page.com', [

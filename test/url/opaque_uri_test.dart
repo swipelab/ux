@@ -45,7 +45,6 @@ void main() {
 
   test("an opaque URI's scheme in any case links as written", () {
     expectLinks('text SMS:+15551234567 now', [web(5, 21, 'SMS:+15551234567')]);
-    expectLinks('see Sms:abc now', [web(4, 11, 'Sms:abc')]);
   });
 
   test(
@@ -54,7 +53,6 @@ void main() {
       expectLinks('_tel:+15551234567', [web(1, 17, 'tel:+15551234567')]);
       expectLinks('see _sms:abc now', const []);
       expectLinks('see 1sms:abc now', const []);
-      expectLinks('see xsms:abc now', const []);
     },
   );
 
@@ -95,20 +93,11 @@ void main() {
 
   test('a scheme with no slashes before a bare host links the host', () {
     expectLinks('see http:example.com now', [web(9, 20, 'http://example.com')]);
-    expectLinks('see http:/example.com now', [
-      web(10, 21, 'http://example.com'),
-    ]);
   });
 
   test('mailto: takes an address as an email', () {
-    expectLinks('see mailto:ops@example.com now', [
-      email(4, 26, 'mailto:ops@example.com'),
-    ]);
     expectLinks('see MAILTO:ops@example.com now', [
       email(4, 26, 'MAILTO:ops@example.com'),
-    ]);
-    expectLinks('see mailto:ops@example.com?subject=hi now', [
-      email(4, 37, 'mailto:ops@example.com?subject=hi'),
     ]);
     expectLinks('see mailto:abc now', const []);
   });

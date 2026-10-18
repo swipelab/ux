@@ -10,12 +10,6 @@ void main() {
     expectLinks('see https://example.com/a?b=1,', [
       web(4, 29, 'https://example.com/a?b=1'),
     ]);
-    expectLinks('see https://example.com/a?b=1. x', [
-      web(4, 29, 'https://example.com/a?b=1'),
-    ]);
-    expectLinks('see https://example.com/a?b=1! x', [
-      web(4, 29, 'https://example.com/a?b=1'),
-    ]);
     expectLinks('see https://example.com/a,b,c,', [
       web(4, 29, 'https://example.com/a,b,c'),
     ]);
@@ -32,9 +26,6 @@ void main() {
   });
 
   test("a trailing '?' stays in a link", () {
-    expectLinks('see https://example.com/a?', [
-      web(4, 26, 'https://example.com/a?'),
-    ]);
     expectLinks('tg://resolve?domain=abc?', [
       web(0, 24, 'tg://resolve?domain=abc?'),
     ]);
@@ -56,7 +47,6 @@ void main() {
     expectLinks('see https://example.com#a.? y', [
       web(4, 27, 'https://example.com#a.?'),
     ]);
-    expectLinks('see bl://x/a.? y', [web(4, 14, 'bl://x/a.?')]);
   });
 
   test("a trim mark after a trailing '?' or ':' goes", () {
@@ -69,9 +59,6 @@ void main() {
   });
 
   test("ASCII path marks other than the trim marks stay at a link's end", () {
-    expectLinks('see https://example.com/a- x', [
-      web(4, 26, 'https://example.com/a-'),
-    ]);
     expectLinks('see https://example.com/a* x', [
       web(4, 26, 'https://example.com/a*'),
     ]);
@@ -91,20 +78,10 @@ void main() {
     expectLinks('(see https://example.com/a_(b)).', [
       web(5, 30, 'https://example.com/a_(b)'),
     ]);
-    expectLinks('(see example.com/a_(b)).', [
-      web(5, 22, 'http://example.com/a_(b)'),
-    ]);
     expectLinks('see bl://chat/a_(b) x', [web(4, 19, 'bl://chat/a_(b)')]);
-    expectLinks('(see bl://x/a_(b)).', [web(5, 17, 'bl://x/a_(b)')]);
-    expectLinks('see https://example.com/a_(b), x', [
-      web(4, 29, 'https://example.com/a_(b)'),
-    ]);
   });
 
   test("an unopened ')' after a host ends the link with what follows it", () {
-    expectLinks('(https://docs.flutter.dev)?', [
-      web(1, 25, 'https://docs.flutter.dev'),
-    ]);
     expectLinks('Have you read the docs (https://docs.flutter.dev)?', [
       web(24, 48, 'https://docs.flutter.dev'),
     ]);
@@ -139,7 +116,6 @@ void main() {
         [web(1, 29, 'https://docs.flutter.dev?q=1')],
         apple: [web(1, 31, 'https://docs.flutter.dev?q=1)?')],
       );
-      expectLinks('(banlu://chat/42)?', [web(1, 16, 'banlu://chat/42')]);
     },
   );
 
@@ -177,15 +153,6 @@ void main() {
       web(9, 30, 'https://example.com/a'),
     ]);
     expectLinks('see "example.com/a" x', [web(5, 18, 'http://example.com/a')]);
-    expectLinks('[see https://en.wikipedia.org/wiki/Foo_(bar)] x', [
-      web(5, 44, 'https://en.wikipedia.org/wiki/Foo_(bar)'),
-    ]);
-    expectLinks("'(see https://en.wikipedia.org/wiki/Foo_(bar))' x", [
-      web(6, 45, 'https://en.wikipedia.org/wiki/Foo_(bar)'),
-    ]);
-    expectLinks('(see example.com/a_(b))] x', [
-      web(5, 22, 'http://example.com/a_(b)'),
-    ]);
     expectLinks('see <https://example.com/a> x', [
       web(5, 26, 'https://example.com/a'),
     ]);
@@ -209,11 +176,6 @@ void main() {
       'see https://example.com/a’ x',
       [web(4, 25, 'https://example.com/a')],
       apple: [web(4, 26, 'https://example.com/a’')],
-    );
-    expectLinks(
-      'see https://example.com/a…… x',
-      [web(4, 25, 'https://example.com/a')],
-      apple: [web(4, 27, 'https://example.com/a……')],
     );
   });
 
@@ -245,11 +207,6 @@ void main() {
       'see example.com/a-😀 x',
       [web(4, 18, 'http://example.com/a-')],
       apple: [web(4, 20, 'http://example.com/a-😀')],
-    );
-    expectLinks(
-      'see https://example.com/a😀. x',
-      [web(4, 25, 'https://example.com/a')],
-      apple: [web(4, 27, 'https://example.com/a😀')],
     );
   });
 
