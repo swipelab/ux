@@ -13,6 +13,10 @@ void main() {
     ]);
   });
 
+  test('a mark before a bare host stays outside it', () {
+    expectLinks('see \u034Fexample.com x', [web(5, 16, 'http://example.com')]);
+  });
+
   test('a bare domain on an unlisted TLD does not link', () {
     expectLinks('see example.zzz x', const []);
     expectLinks('see localhost x', const []);
@@ -123,6 +127,10 @@ void main() {
     },
   );
 
+  test("a host with a non-ASCII label on one of NSDataDetector's TLDs ends before a query", () {
+    expectLinks('see пример.рф?q=1 x', [web(4, 13, 'http://пример.рф')]);
+  });
+
   test("a Hebrew, Arabic, Han, kana or Thai label links where the host's first label is www", () {
     expectLinks('see www.例子.com x', [web(4, 14, 'http://www.例子.com')]);
     expectLinks('see WWW.例子.com x', [web(4, 14, 'http://WWW.例子.com')]);
@@ -176,6 +184,9 @@ void main() {
     ], apple: const []);
     expectLinks('see bücher.app x', [
       web(4, 14, 'http://bücher.app'),
+    ], apple: const []);
+    expectLinks('see דוגמה.рф x', [
+      web(4, 12, 'http://דוגמה.рф'),
     ], apple: const []);
   });
 
@@ -236,6 +247,7 @@ void main() {
     expectLinks('see www.example.com-x y', [
       web(4, 19, 'http://www.example.com'),
     ]);
+    expectLinks('éexample.com-: 然后', [web(0, 12, 'http://éexample.com')]);
   });
 
   test('a TLD a letter or digit follows directly gives no link', () {

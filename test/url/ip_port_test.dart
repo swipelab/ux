@@ -78,6 +78,7 @@ void main() {
       const [],
       apple: [web(2, 11, 'http://010.0.0.1')],
     );
+    expectLinks('see 007.com x', [web(4, 11, 'http://007.com')]);
   });
 
   test('a bare IPv6 address gives no link', () {

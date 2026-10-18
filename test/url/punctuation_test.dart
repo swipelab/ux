@@ -85,6 +85,11 @@ void main() {
     expectLinks('Have you read the docs (https://docs.flutter.dev)?', [
       web(24, 48, 'https://docs.flutter.dev'),
     ]);
+    expectLinks(
+      'see (example.com/a)? x',
+      [web(5, 18, 'http://example.com/a')],
+      apple: [web(5, 20, 'http://example.com/a)?')],
+    );
   });
 
   test(

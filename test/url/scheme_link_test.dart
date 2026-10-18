@@ -108,6 +108,11 @@ void main() {
       [web(4, 17, 'https://a.com'), web(18, 23, 'http://b.com')],
       apple: [web(4, 23, 'https://a.com,b.com')],
     );
+    expectLinks(
+      'https://a.com(x)bücher.de/x, ',
+      [web(0, 13, 'https://a.com'), web(16, 27, 'http://bücher.de/x')],
+      apple: [web(0, 27, 'https://a.com(x)bücher.de/x')],
+    );
   });
 
   test(

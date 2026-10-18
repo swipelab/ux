@@ -77,14 +77,17 @@ void main() {
     expectLinks('call tel:555 now', [web(5, 12, 'tel:555')]);
   });
 
+  test('a scheme off the opaque list with an address after it links the address as an email', () {
+    expectLinks(
+      'see facetime:user@example.com now',
+      [email(13, 29, 'mailto:user@example.com')],
+      apple: [web(18, 29, 'http://example.com')],
+    );
+  });
+
   test(
-    'a scheme off the opaque list with an email after it links the email',
+    'an opaque URI on the list whose body is an address links as itself',
     () {
-      expectLinks(
-        'see facetime:user@example.com now',
-        [email(13, 29, 'mailto:user@example.com')],
-        apple: [web(18, 29, 'http://example.com')],
-      );
       expectLinks('see xmpp:user@example.com now', [
         web(4, 25, 'xmpp:user@example.com'),
       ]);
@@ -133,11 +136,31 @@ void main() {
         const [],
         apple: [web(0, 21, 'webcal://256.1.1.1.١٢')],
       );
+      expectLinks(
+        'webcal://x1.١٢',
+        const [],
+        apple: [web(0, 14, 'webcal://x1.١٢')],
+      );
+      expectLinks(
+        'see webcal://\u001Fexample.com/cal.ics x',
+        [web(14, 33, 'http://example.com/cal.ics')],
+        apple: [
+          web(4, 12, 'webcal:/'),
+          web(14, 33, 'http://example.com/cal.ics'),
+        ],
+      );
     },
   );
 
+  test('a webcal:// URI whose host NSDataDetector reads as nothing keeps the any-scheme link where the host holds no non-ASCII digit', () {
+    expectLinks('see webcal://example.\u202Ecom/cal.ics x', [
+      web(4, 33, 'webcal://example.\u202Ecom/cal.ics'),
+    ]);
+  });
+
   test('a webcal:// URI whose host NSDataDetector reads links', () {
     expectLinks('webcal://a.١٢', [web(0, 13, 'webcal://a.١٢')]);
+    expectLinks('webcal://a-1.١٢', [web(0, 15, 'webcal://a-1.١٢')]);
     expectLinks('webcal://256.1.1.1', [web(0, 18, 'webcal://256.1.1.1')]);
     expectLinks('sms://10.0.0.1.١٢', [web(0, 17, 'sms://10.0.0.1.١٢')]);
   });

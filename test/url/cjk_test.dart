@@ -65,6 +65,9 @@ void main() {
       [web(4, 10, 'bl://x')],
       apple: [web(4, 12, 'bl://x然后')],
     );
+    expectLinks('https://example.com.访问', [
+      web(0, 22, 'https://example.com.访问'),
+    ]);
   });
 
   test("a scheme link's path keeps unspaced-script letters, and its port ends before them", () {
@@ -97,6 +100,7 @@ void main() {
       web(7, 18, 'http://example.com'),
     ], apple: const []);
     expectLinks('中文\u2060example.com', [web(3, 14, 'http://example.com')]);
+    expectLinks('a.\u206Dwww.例子.co\u206Cm 然后', const []);
   });
 
   test('a bidi control before a bare host stays outside it', () {

@@ -67,11 +67,12 @@ void main() {
     },
   );
 
-  test('a native link that ties the any-scheme link keeps its span and the URL leaves out a zero-width space', () {
-    expectLinks('"ftp://a.io/a#\u200B +15551234567', [
-      web(1, 15, 'ftp://a.io/a#'),
-      phone(16, 28, 'tel:+15551234567'),
-    ]);
+  test('a link ends before a trailing zero-width space and the phone after it links', () {
+    expectLinks(
+      '"ftp://a.io/a#\u200B +15551234567',
+      [web(1, 14, 'ftp://a.io/a#'), phone(16, 28, 'tel:+15551234567')],
+      apple: [web(1, 15, 'ftp://a.io/a#'), phone(16, 28, 'tel:+15551234567')],
+    );
   });
 
   test(
