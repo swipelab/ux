@@ -20,8 +20,8 @@ Future<List<String>> inTreeTexts(Host host, String commit) async => [
     text,
 ];
 
-/// The string literal each call to one of [callees] in [source] passes
-/// first, where it passes one.
+/// The string each call to one of [callees] in [source] passes first, where
+/// it passes a literal or a `const` its test declares with one.
 List<String> dartCalls(String source, List<String> callees) {
   final texts = <String>[];
   for (final callee in callees) {
@@ -30,11 +30,25 @@ List<String> dartCalls(String source, List<String> callees) {
       at >= 0;
       at = source.indexOf(callee, at + 1)
     ) {
-      final text = _literals(source, at + callee.length);
+      final text =
+          _literals(source, at + callee.length) ??
+          _constant(source, at + callee.length);
       if (text != null) texts.add(text);
     }
   }
   return texts;
+}
+
+/// The value of the `const` named at [at] in [source], where the test
+/// around [at] declares it before [at].
+String? _constant(String source, int at) {
+  final name = RegExp(r'\s*([A-Za-z_]\w*)').matchAsPrefix(source, at)?[1];
+  if (name == null) return null;
+  final test = source.lastIndexOf('test(', at);
+  final declared = RegExp('const $name = ')
+      .allMatches(source.substring(0, at), test < 0 ? 0 : test)
+      .lastOrNull;
+  return declared == null ? null : _literals(source, declared.end);
 }
 
 /// The value of the adjacent Dart string literals at [at] in [source], or
