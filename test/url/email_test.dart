@@ -190,6 +190,29 @@ void main() {
     ]);
   });
 
+  test("an address's domain follows the '@' that ends its own local part, not one in its query or a later path part", () {
+    expectLinks('see mailto:ops@example.com?cc=a@b x', [
+      email(4, 33, 'mailto:ops@example.com?cc=a@b'),
+    ]);
+    expectLinks(
+      'see mailto://ops@example.zzz/a@b.com x',
+      [web(4, 36, 'mailto://ops@example.zzz/a@b.com')],
+      apple: [email(4, 36, 'mailto://ops@example.zzz/a@b.com')],
+    );
+    expectLinks('see mailto://a.zzz/ops@example.com x', [
+      email(4, 34, 'mailto://a.zzz/ops@example.com'),
+    ]);
+    expectLinks('see mailto://a@b.zzz:x@example.com x', [
+      email(4, 34, 'mailto://a%40b.zzz:x@example.com'),
+    ]);
+  });
+
+  test("a mailto: URI with no '@' before its query links", () {
+    expectLinks('see mailto:?to=ops@example.zzz x', [
+      email(4, 30, 'mailto:?to=ops@example.zzz'),
+    ]);
+  });
+
   test(
     'an address ends before trailing punctuation and brackets around it',
     () {

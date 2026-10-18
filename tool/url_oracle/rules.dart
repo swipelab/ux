@@ -573,7 +573,7 @@ class _Run {
   /// b4: each EMAIL_ADDRESS match b16 keeps, as an email.
   List<_Cand> emailAddress(String text) => [
     for (final m in _emailAddress.allMatches(text))
-      if (holds('b4:b16', emailOnListedTld(m[0]!)))
+      if (holds('b4:b16', onListedTld(emailDomain(m[0]!)!)))
         (
           link: Link(
             m.start,
@@ -902,8 +902,10 @@ class _Run {
     final slice = text.substring(link.start, link.end);
     if (link.kind == 'email') {
       return on('b16') &&
-          holds('b16:at', slice.contains('@')) &&
-          !emailOnListedTld(slice);
+          switch (emailDomain(slice)) {
+            final domain? => !onListedTld(domain),
+            null => holds('b16:at', false),
+          };
     }
     if (link.kind != 'web') return false;
     if (on('a3') && schemeAloneBeforeInvisible(text, link)) return true;
@@ -1316,18 +1318,41 @@ class _Run {
             labels[labels.length - 2].codeUnits.every((u) => u < 0x80),
       );
 
-  /// Whether [address]'s domain, after its last '@' and up to a ':', '/',
-  /// '?' or '#', without the [domainInvisibleSpaces] its ToASCII form leaves
-  /// out, is an IPv4 address or ends in a listed TLD in any case.
-  bool emailOnListedTld(String address) {
-    final domain = String.fromCharCodes(
-      hostOf(address.substring(address.lastIndexOf('@') + 1)).runes.where(
-        (cp) => holds('b16:toAscii', !domainInvisibleSpaces.contains(cp)),
-      ),
+  /// The domain of [address], an email's text: after the '@' that ends its
+  /// local part, up to a ':', without the [domainInvisibleSpaces] its
+  /// ToASCII form leaves out; null where no '@' ends one. After a written
+  /// `mailto:`, the local part is in the first '/'-separated part of the
+  /// text before any '?' or '#' that holds an '@', and ends at its last '@';
+  /// a bare address's ends at its last '@'.
+  String? emailDomain(String address) {
+    final mailbox = switch (_mailto.matchAsPrefix(address)) {
+      final scheme? =>
+        address
+            .substring(scheme.end)
+            .split(RegExp('[?#]'))
+            .first
+            .split('/')
+            .where((part) => part.contains('@'))
+            .firstOrNull,
+      null => address,
+    };
+    if (mailbox == null || !mailbox.contains('@')) return null;
+    final domain = mailbox.substring(mailbox.lastIndexOf('@') + 1);
+    return String.fromCharCodes(
+      domain
+          .split(':')
+          .first
+          .runes
+          .where(
+            (cp) => holds('b16:toAscii', !domainInvisibleSpaces.contains(cp)),
+          ),
     );
-    return _ipv4.hasMatch(domain) ||
-        d.tlds.contains(domain.split('.').last.toLowerCase());
   }
+
+  /// Whether [domain] is an IPv4 address or ends in a listed TLD in any case.
+  bool onListedTld(String domain) =>
+      _ipv4.hasMatch(domain) ||
+      d.tlds.contains(domain.split('.').last.toLowerCase());
 }
 
 /// The invisible spaces a link ends before: the characters a darwin link
@@ -1399,6 +1424,7 @@ bool _asciiDigit(int u) => u >= 0x30 && u <= 0x39;
 final _scheme = RegExp(r'^[A-Za-z][A-Za-z0-9+.\-]*://');
 final _schemeAlone = RegExp(r'^[A-Za-z][A-Za-z0-9+.\-]*:/{0,2}$');
 final _writtenMailto = RegExp('^mailto:(?!//)', caseSensitive: false);
+final _mailto = RegExp('mailto:', caseSensitive: false);
 final _mailtoSlashes = RegExp('mailto://', caseSensitive: false);
 final _schemeSlash = RegExp(r'^[A-Za-z][A-Za-z0-9+.\-]*:/$');
 final _percent = RegExp('%[0-9A-Fa-f]{2}');
