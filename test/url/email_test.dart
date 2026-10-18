@@ -23,7 +23,9 @@ void main() {
   });
 
   test("a '.' that starts a local part is left out of the address", () {
-    expectLinks('.a@example.com', [email(1, 14, 'mailto:a@example.com')]);
+    expectLinks('.josé@example.com', [
+      email(1, 17, 'mailto:jos%C3%A9@example.com'),
+    ]);
   });
 
   test('a local part takes some non-ASCII letters, which its URL escapes', () {

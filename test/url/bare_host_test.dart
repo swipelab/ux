@@ -152,9 +152,9 @@ void main() {
   });
 
   test(
-    "a Bengali label does not link, even where the host's first label is www",
+    "a Lao label does not link, even where the host's first label is www",
     () {
-      expectLinks('see www.example.বাংলা.com x', const []);
+      expectLinks('see www.example.ລາວ.com x', const []);
     },
   );
 
@@ -234,6 +234,9 @@ void main() {
     ], apple: const []);
     expectLinks('see www.例子.中国 x', [
       web(4, 13, 'http://www.例子.中国'),
+    ], apple: const []);
+    expectLinks('see www.example.বাংলা.com x', [
+      web(4, 25, 'http://www.example.বাংলা.com'),
     ], apple: const []);
   });
 

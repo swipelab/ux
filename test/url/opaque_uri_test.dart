@@ -149,7 +149,6 @@ void main() {
 
   test('a webcal:// URI whose host NSDataDetector reads links', () {
     expectLinks('webcal://a.١٢', [web(0, 13, 'webcal://a.١٢')]);
-    expectLinks('webcal://+15551234567', [web(0, 21, 'webcal://+15551234567')]);
     expectLinks('webcal://256.1.1.1', [web(0, 18, 'webcal://256.1.1.1')]);
     expectLinks('sms://10.0.0.1.١٢', [web(0, 17, 'sms://10.0.0.1.١٢')]);
   });

@@ -115,16 +115,30 @@ void main() {
       apple: [web(4, 19, 'https://a.com!b')],
     );
     expectLinks(
-      'see https://a.com,b.com x',
-      [web(4, 17, 'https://a.com')],
-      apple: [web(4, 23, 'https://a.com,b.com')],
-    );
-    expectLinks(
       'see https://a.com~b x',
       [web(4, 17, 'https://a.com')],
       apple: [web(4, 19, 'https://a.com~b')],
     );
   });
+
+  test("a bare host after a scheme link's cut host links on its own", () {
+    expectLinks(
+      'see https://a.com,b.com x',
+      [web(4, 17, 'https://a.com'), web(18, 23, 'http://b.com')],
+      apple: [web(4, 23, 'https://a.com,b.com')],
+    );
+  });
+
+  test(
+    'a scheme link whose host starts with a sub-delimiter gives no link',
+    () {
+      expectLinks(
+        'webcal://+15551234567',
+        const [],
+        apple: [web(0, 21, 'webcal://+15551234567')],
+      );
+    },
+  );
 
   test("a scheme link's host ends before a parenthesis", () {
     expectLinks(
