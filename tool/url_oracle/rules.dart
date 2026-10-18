@@ -623,7 +623,7 @@ class _Run {
     void take(
       String s,
       List<Link> reading,
-      int Function(int)? map,
+      int? Function(int)? map,
       int? hostEnd,
     ) {
       for (final l in reading) {
@@ -635,7 +635,7 @@ class _Run {
         if (hostEnd != null && sliceEnd != hostEnd) continue;
         final start = map == null ? l.start : map(l.start);
         final end = map == null ? l.end : map(l.end);
-        if (start < 0 || end < 0) continue;
+        if (start == null || end == null) continue;
         final slice = text.substring(start, end);
         final host = hostOf(slice);
         if (host.codeUnits.every((u) => u < 0x80)) continue;
@@ -680,7 +680,7 @@ class _Run {
                   ? q
                   : q >= tldEnd
                   ? q - delta
-                  : -1,
+                  : null,
               tldEnd,
             );
           }
