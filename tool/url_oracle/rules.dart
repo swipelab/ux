@@ -2,6 +2,7 @@
 // an edit of their state at the stage the planspec's edit table names, and
 // darwin's own later stages over the edited state.
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'props.dart';
 import 'stages.dart';
@@ -39,10 +40,11 @@ const ledger = <(String, String)>[
   ('p1', 'p1: the input bound'),
   ('p2', 'p2: the remainder read'),
   ('p3', 'p3: stand-ins per segment'),
+  ('p4', "p4: NSDataDetector's reading per segment"),
 ];
 
 /// The edits of class p, each a departure in how another edit reads.
-const performanceEdits = {'p1', 'p2', 'p3'};
+const performanceEdits = {'p1', 'p2', 'p3', 'p4'};
 
 /// The units a text reads up to, by p1.
 const inputBound = 4096;
@@ -84,6 +86,9 @@ const conjuncts = [
   'idn:inSet',
   'idn:markStart',
   'cut:remainder',
+  'p4:phones',
+  'p4:overlap',
+  'p4:standIn',
 ];
 
 /// The entries of tool/url_data's newest TLD list that [oracleTlds] lacks,
@@ -323,6 +328,107 @@ class _Run {
     return r == null ? null : darwinMatch(text, r.native);
   }
 
+  /// p4: darwin's reading of [window], a stand-in of a segment's window,
+  /// whose cap counts the [before] native links of the segments before it,
+  /// and the native links stage 3 keeps in the segment from [start] to
+  /// [end] of it.
+  ({List<Link> links, int kept})? windowDarwinOf(
+    String window,
+    int before,
+    int start,
+    int end,
+  ) {
+    final r = reading(window);
+    if (r == null) return null;
+    final native = r.native;
+    return (
+      links: finish(
+        window,
+        native,
+        anySchemeLinks(window),
+        cap: maxNativeLinks - before,
+      ),
+      kept: native.where((l) => start <= l.start && l.start < end).length,
+    );
+  }
+
+  /// p4: [own], the reading of [text], with NSDataDetector's candidates and
+  /// results in each of [segments] those of the segment's window read as a
+  /// text of its own, with [own]'s phones in the segment in place of the
+  /// window's, each dropping the window's candidates and results it
+  /// overlaps; null where a reading is missing.
+  ProbeReading? perSegment(String text, ProbeReading own, Segments segments) {
+    final candidates = <Candidate>[];
+    final raw = <RawResult>[];
+    for (final (start, end) in segments.spans) {
+      bool inside(int i) => start <= i && i < end;
+      final from = start == 0 ? 0 : start - 1;
+      final to = end + 3 > text.length ? text.length : end + 3;
+      final w = reading(text.substring(from, to));
+      if (w == null) return null;
+      final textPhones = [
+        for (final x in own.raw)
+          if (x.phone && inside(x.start)) x,
+      ];
+      final windowPhones = [
+        for (final x in w.raw)
+          if (x.phone && inside(x.start + from))
+            RawResult(
+              x.start + from,
+              x.end + from,
+              phone: true,
+              value: x.value,
+            ),
+      ];
+      final textsPhones =
+          _sameResults(textPhones, windowPhones) || kept('p4:phones');
+      final phones = textsPhones ? textPhones : windowPhones;
+      bool dropped(int s, int e) =>
+          phones.any((p) => p.start < e && s < p.end) && kept('p4:overlap');
+      for (final x in w.candidates!) {
+        final s = x.link.start + from;
+        final e = x.link.end + from;
+        if (!x.nsdd || !inside(s) || x.link.kind == 'phone' || dropped(s, e)) {
+          continue;
+        }
+        candidates.add(
+          Candidate(Link(s, e, x.link.kind, x.link.url), nsdd: true),
+        );
+      }
+      for (final x in w.raw) {
+        final s = x.start + from;
+        if (x.phone || !inside(s) || dropped(s, x.end + from)) continue;
+        raw.add(RawResult(s, x.end + from, phone: false, value: x.value));
+      }
+      raw.addAll(phones);
+      if (textsPhones) {
+        candidates.addAll([
+          for (final x in own.candidates!)
+            if (x.nsdd && x.link.kind == 'phone' && inside(x.link.start)) x,
+        ]);
+      } else {
+        candidates.addAll([
+          for (final x in w.candidates!)
+            if (x.nsdd && x.link.kind == 'phone' && inside(x.link.start + from))
+              Candidate(
+                Link(
+                  x.link.start + from,
+                  x.link.end + from,
+                  'phone',
+                  x.link.url,
+                ),
+                nsdd: true,
+              ),
+        ]);
+      }
+    }
+    return ProbeReading(Uint8List(0), raw, [
+      ...candidates,
+      for (final x in own.candidates!)
+        if (!x.nsdd) x,
+    ]);
+  }
+
   List<Link> predict(String text) {
     if (on('p1') && text.length > inputBound) {
       final r = reading(text);
@@ -357,12 +463,21 @@ class _Run {
   ({List<_Cand> cands, List<Link> any})? edited(String text, {int level = 0}) {
     final original = reading(text);
     if (original == null) return null;
-    final base = standInBase(text, original);
+    final segments = Segments(text, original.raw);
+    final perSegments = on('p4') && level == 0;
+    final own = perSegments ? perSegment(text, original, segments) : original;
+    if (own == null) return null;
+    final windows = perSegments
+        ? _Windows(
+            text,
+            stage3(text, [for (final x in own.candidates!) x.link]).kept,
+          )
+        : null;
+    final base = standInBase(text, own, perSegments: perSegments);
     if (base == null) return null;
     final r = base.reading;
-    final segments = Segments(text, original.raw);
     var cands = base.cands;
-    final tel = on('b13') ? telLinks(text, segments) : const <_Cand>[];
+    final tel = on('b13') ? telLinks(text, segments, windows) : const <_Cand>[];
     cands = [
       for (final x in cands)
         if (!(tel ?? const []).any(
@@ -372,7 +487,7 @@ class _Run {
               holds('b13:phones', x.link.kind == 'phone'),
         ))
           x,
-      ...?added(text, r, segments),
+      ...?added(text, segments, windows),
       ...?tel,
     ];
     cands = [for (final x in cands) (link: rewrite(text, r, x), nsdd: x.nsdd)];
@@ -382,7 +497,9 @@ class _Run {
     ];
     final regions = <_Region>[];
     final cutOffs = <_CutOff>[];
-    final addresses = on('p3') ? cutAddresses(text, cands, segments) : null;
+    final addresses = on('p3')
+        ? cutAddresses(text, cands, segments, windows)
+        : null;
     if (on('p3') && addresses == null) return null;
     cands = [
       for (final x in cands)
@@ -514,14 +631,16 @@ class _Run {
     );
   }
 
-  /// The candidates and reading the edits start from: [text]'s own, or,
-  /// for the Unicode and new-TLD edits, those of the stand-in with each
-  /// listed code point as its representative and each new TLD as an oracle
-  /// TLD of its class, mapped back to [text].
+  /// The candidates and reading the edits start from: [own], or, for the
+  /// Unicode and new-TLD edits, those of the stand-in with each listed code
+  /// point as its representative and each new TLD as an oracle TLD of its
+  /// class, mapped back to [text], the stand-in read per segment (p4) where
+  /// [perSegments] holds.
   ({List<_Cand> cands, ProbeReading reading})? standInBase(
     String text,
-    ProbeReading own,
-  ) {
+    ProbeReading own, {
+    required bool perSegments,
+  }) {
     final swaps = <(int, int, String)>[];
     final unicode = <int>[];
     if (on('Unicode')) {
@@ -553,7 +672,11 @@ class _Run {
     }
     s.write(text.substring(at));
     final standIn = s.toString();
-    final r = reading(standIn);
+    final whole = reading(standIn);
+    if (whole == null) return null;
+    final r = perSegments
+        ? perSegment(standIn, whole, Segments(standIn, whole.raw))
+        : whole;
     if (r == null) return null;
     int? back(int q) {
       var shift = 0;
@@ -604,11 +727,11 @@ class _Run {
     return (cands: cands, reading: r);
   }
 
-  List<_Cand>? added(String text, ProbeReading r, Segments segments) {
+  List<_Cand>? added(String text, Segments segments, _Windows? windows) {
     final out = <_Cand>[];
     if (on('b4')) out.addAll(emailAddress(text));
     if (on('b5') || on('question 6')) {
-      final idn = idnLinks(text, segments);
+      final idn = idnLinks(text, segments, windows);
       if (idn == null) return null;
       for (final (link, spaced) in idn) {
         if (on(spaced ? 'b5' : 'question 6')) {
@@ -617,17 +740,21 @@ class _Run {
       }
     }
     if (on('b15')) {
-      final glue = glueLinks(text, segments);
+      final glue = glueLinks(text, segments, windows);
       if (glue == null) return null;
       out.addAll(glue);
     }
     if (on('b17')) {
-      final after = afterCfRuns(text, segments);
+      final after = afterCfRuns(text, segments, windows);
       if (after == null) return null;
       out.addAll(after);
     }
     return out;
   }
+
+  /// p4: whether [windows] reads each segment's stand-in as its window with
+  /// the segment's occurrences substituted.
+  bool inWindows(_Windows? windows) => windows != null && kept('p4:standIn');
 
   /// b4: each EMAIL_ADDRESS match b16 keeps, as an email.
   List<_Cand> emailAddress(String text) => [
@@ -647,18 +774,56 @@ class _Run {
   /// b5 and question 6: the links of the IDN stand-in, each with whether
   /// its host's first label holds a letter outside ASCII and the unspaced
   /// scripts. Each TLD label swap reads a stand-in of its own, or, with p3,
-  /// one with every swap of its segment.
-  List<(Link, bool)>? idnLinks(String text, Segments segments) {
-    final runs = labelRuns(text);
-    if (runs.isEmpty) return const [];
+  /// one with every swap of its segment, and, with p4, each segment reads
+  /// its window's stand-ins, whose cap counts the native links the IDN
+  /// stand-in's reading keeps in the segments before it.
+  List<(Link, bool)>? idnLinks(
+    String text,
+    Segments segments,
+    _Windows? windows,
+  ) {
+    if (labelRuns(text).isEmpty) return const [];
+    if (!inWindows(windows)) {
+      return idnLinksOf(text, segments, null)?.links;
+    }
+    final out = <(Link, bool)>[];
+    var gained = 0;
+    for (final span in segments.spans) {
+      final (from, to) = windows!.of(span);
+      final found = idnLinksOf(text.substring(from, to), null, (
+        start: span.$1 - from,
+        end: span.$2 - from,
+        before: windows.before(span.$1) + gained,
+      ));
+      if (found == null) return null;
+      if (found.kept case final kept?) gained += kept - windows.keptIn(span);
+      for (final (l, spaced) in found.links) {
+        if (l.start + from < span.$1 || l.start + from >= span.$2) continue;
+        out.add((Link(l.start + from, l.end + from, l.kind, l.url), spaced));
+      }
+    }
+    return out;
+  }
+
+  /// [idnLinks] of [s]: the whole text, its TLD label swaps grouped by its
+  /// [segments], or a segment's [window], its swaps those of its segment,
+  /// whose readings' cap counts the native links of the segments before it;
+  /// with the native links the main stand-in's reading keeps in the segment,
+  /// where it differs from [s].
+  ({List<(Link, bool)> links, int? kept})? idnLinksOf(
+    String s,
+    Segments? segments,
+    ({int start, int end, int before})? window,
+  ) {
+    final runs = labelRuns(s);
     final main = StringBuffer();
     var at = 0;
     var changed = false;
     final replaced = <int>{};
     for (final (start, end) in runs) {
-      main.write(text.substring(at, start));
+      main.write(s.substring(at, start));
       for (var i = start; i < end;) {
-        final cp = cpAt(text, i);
+        final cp = cpAt(s, i);
         final w = width(cp);
         if (cp >= 0x80 && !unspaced(cp)) {
           if (c.letters.contains(cp) || c.marks.contains(cp)) {
@@ -669,35 +834,40 @@ class _Run {
             main.write('0' * w);
             changed = true;
           } else {
-            main.write(text.substring(i, i + w));
+            main.write(s.substring(i, i + w));
           }
         } else {
-          main.write(text.substring(i, i + w));
+          main.write(s.substring(i, i + w));
         }
         i += w;
       }
       at = end;
     }
-    main.write(text.substring(at));
+    main.write(s.substring(at));
     final standIn = main.toString();
     final out = <(Link, bool)>[];
+    List<Link>? darwin(String x) {
+      if (window == null) return darwinOf(x);
+      return windowDarwinOf(x, window.before, window.start, window.end)?.links;
+    }
+
     void take(
-      String s,
+      String t,
       List<Link> reading,
       int? Function(int)? map,
       Set<int>? hostEnds,
     ) {
       for (final l in reading) {
         if (l.kind != 'web' ||
-            l.url != 'http://${s.substring(l.start, l.end)}') {
+            l.url != 'http://${t.substring(l.start, l.end)}') {
           continue;
         }
-        final sliceEnd = hostOf(s.substring(l.start, l.end)).length + l.start;
+        final sliceEnd = hostOf(t.substring(l.start, l.end)).length + l.start;
         if (hostEnds != null && !hostEnds.contains(sliceEnd)) continue;
         final start = map == null ? l.start : map(l.start);
         final end = map == null ? l.end : map(l.end);
         if (start == null || end == null) continue;
-        final slice = text.substring(start, end);
+        final slice = s.substring(start, end);
         final host = hostOf(slice);
         if (host.codeUnits.every((u) => u < 0x80)) continue;
         final labels = host.split('.');
@@ -709,18 +879,34 @@ class _Run {
       }
     }
 
+    int? kept;
     if (changed) {
-      final w = darwinOf(standIn);
-      if (w == null) return null;
-      take(standIn, w, null, null);
+      if (window == null) {
+        final w = darwinOf(standIn);
+        if (w == null) return null;
+        take(standIn, w, null, null);
+      } else {
+        final w = windowDarwinOf(
+          standIn,
+          window.before,
+          window.start,
+          window.end,
+        );
+        if (w == null) return null;
+        kept = w.kept;
+        take(standIn, w.links, null, null);
+      }
     }
     final swaps = <(int, int, String)>[];
     for (final (start, end) in runs) {
+      if (window != null && (start < window.start || start >= window.end)) {
+        continue;
+      }
       var labelStart = start;
       var first = true;
       for (var i = start; i <= end; i++) {
-        if (i < end && text[i] != '.') continue;
-        final label = text.substring(labelStart, i);
+        if (i < end && s[i] != '.') continue;
+        final label = s.substring(labelStart, i);
         if (!first && d.listed(label)) {
           final held = d.inNsddBare(label);
           final replacedLetter = replaced.any((r) => labelStart <= r && r < i);
@@ -735,30 +921,32 @@ class _Run {
         labelStart = i + 1;
       }
     }
-    for (final group
-        in on('p3')
-            ? segments.group(swaps, (swap) => swap.$1)
-            : [
-                for (final swap in swaps) [swap],
-              ]) {
-      final s = StringBuffer();
+    final groups = !on('p3')
+        ? [
+            for (final swap in swaps) [swap],
+          ]
+        : window == null
+        ? segments!.group(swaps, (swap) => swap.$1)
+        : [if (swaps.isNotEmpty) swaps];
+    for (final group in groups) {
+      final t = StringBuffer();
       final tldEnds = <int>{};
       var at = 0;
       var shift = 0;
       for (final (from, to, tld) in group) {
-        s
+        t
           ..write(standIn.substring(at, from))
           ..write(tld);
         tldEnds.add(from + shift + tld.length);
         shift += tld.length - (to - from);
         at = to;
       }
-      s.write(standIn.substring(at));
-      final w = darwinOf('$s');
+      t.write(standIn.substring(at));
+      final w = darwin('$t');
       if (w == null) return null;
-      take('$s', w, (q) => back(group, q), tldEnds);
+      take('$t', w, (q) => back(group, q), tldEnds);
     }
-    return out;
+    return (links: out, kept: kept);
   }
 
   /// The offset in the original text of [q], an offset in the text with each
@@ -815,10 +1003,45 @@ class _Run {
     return runs;
   }
 
+  /// p4: the window the stand-in of [group], occurrences at [at] of
+  /// [text], reads, as offsets in [text], with its segment's span in it and
+  /// the native links of the segments before it; null where the stand-in
+  /// reads all of [text].
+  ({int from, int to, int start, int end, int before})? windowOf<T>(
+    String text,
+    List<T> group,
+    int Function(T) at,
+    Segments segments,
+    _Windows? windows,
+  ) {
+    if (!inWindows(windows)) return null;
+    final span = segments.spanOf(at(group.first))!;
+    final (from, to) = windows!.of(span);
+    return (
+      from: from,
+      to: to,
+      start: span.$1 - from,
+      end: span.$2 - from,
+      before: windows.before(span.$1),
+    );
+  }
+
+  /// [items], occurrences at [at], grouped by their segment of [segments]
+  /// with p3, else one group each.
+  List<List<T>> occurrences<T>(
+    List<T> items,
+    int Function(T) at,
+    Segments segments,
+  ) => on('p3')
+      ? segments.group(items, at)
+      : [
+          for (final item in items) [item],
+        ];
+
   /// b13: at each `tel:` in any case, the web link darwin reads there with
   /// that `tel` as `sms`, or, with p3, with every `tel` of its segment as
   /// `sms`, its URL its text.
-  List<_Cand>? telLinks(String text, Segments segments) {
+  List<_Cand>? telLinks(String text, Segments segments, _Windows? windows) {
     final out = <_Cand>[];
     final ats = [
       for (var at = 0; at + 3 < text.length; at++)
@@ -826,25 +1049,30 @@ class _Run {
             text.substring(at, at + 3).toLowerCase() == 'tel')
           at,
     ];
-    for (final group
-        in on('p3')
-            ? segments.group(ats, (at) => at)
-            : [
-                for (final at in ats) [at],
-              ]) {
-      final units = text.codeUnits.toList();
+    for (final group in occurrences(ats, (at) => at, segments)) {
+      final window = windowOf(text, group, (at) => at, segments, windows);
+      final from = window?.from ?? 0;
+      final units = text
+          .substring(from, window?.to ?? text.length)
+          .codeUnits
+          .toList();
       for (final at in group) {
         for (var i = 0; i < 3; i++) {
-          units[at + i] = _sms(text.codeUnitAt(at + i), i);
+          units[at - from + i] = _sms(text.codeUnitAt(at + i), i);
         }
       }
-      final w = darwinOf(String.fromCharCodes(units));
+      final s = String.fromCharCodes(units);
+      final w = window == null
+          ? darwinOf(s)
+          : windowDarwinOf(s, window.before, window.start, window.end)?.links;
       if (w == null) return null;
       final starts = group.toSet();
       for (final l in w) {
-        if (starts.contains(l.start) && l.kind == 'web') {
+        final start = l.start + from;
+        final end = l.end + from;
+        if (starts.contains(start) && l.kind == 'web') {
           out.add((
-            link: Link(l.start, l.end, 'web', text.substring(l.start, l.end)),
+            link: Link(start, end, 'web', text.substring(start, end)),
             nsdd: false,
           ));
         }
@@ -862,7 +1090,7 @@ class _Run {
   /// after a host's '.' as spaces, where letterCharacterSet holds that
   /// character and Unicode 17.0.0's L does not, or, with p3, with every such
   /// character of its segment as spaces.
-  List<_Cand>? glueLinks(String text, Segments segments) {
+  List<_Cand>? glueLinks(String text, Segments segments, _Windows? windows) {
     final out = <_Cand>[];
     final ats = <int>[];
     for (var at = text.indexOf('.'); at >= 0; at = text.indexOf('.', at + 1)) {
@@ -875,27 +1103,27 @@ class _Run {
       }
       ats.add(at);
     }
-    for (final group
-        in on('p3')
-            ? segments.group(ats, (at) => at)
-            : [
-                for (final at in ats) [at],
-              ]) {
-      final units = text.codeUnits.toList();
+    for (final group in occurrences(ats, (at) => at, segments)) {
+      final window = windowOf(text, group, (at) => at, segments, windows);
+      final from = window?.from ?? 0;
+      final units = text
+          .substring(from, window?.to ?? text.length)
+          .codeUnits
+          .toList();
       for (final at in group) {
         for (var i = 0; i < width(cpAt(text, at + 1)); i++) {
-          units[at + 1 + i] = 0x20;
+          units[at + 1 - from + i] = 0x20;
         }
       }
       final s = String.fromCharCodes(units);
       final r = reading(s);
       if (r == null) return null;
-      final ends = group.toSet();
+      final ends = {for (final at in group) at - from};
       for (final x in r.candidates!) {
         if (ends.contains(x.link.end) &&
             bare(s, x.link) &&
             hostOnly(s, x.link)) {
-          out.add((link: x.link, nsdd: false));
+          out.add((link: _shifted(x.link, from), nsdd: false));
         }
       }
     }
@@ -905,7 +1133,7 @@ class _Run {
   /// b17: the candidates with no scheme darwin reads right after a Cf run
   /// that an unspaced-script character precedes, with the run as spaces, or,
   /// with p3, with every such run of its segment as spaces.
-  List<_Cand>? afterCfRuns(String text, Segments segments) {
+  List<_Cand>? afterCfRuns(String text, Segments segments, _Windows? windows) {
     final out = <_Cand>[];
     final runs = <(int, int)>[];
     var i = 0;
@@ -925,23 +1153,23 @@ class _Run {
       }
       runs.add((start, i));
     }
-    for (final group
-        in on('p3')
-            ? segments.group(runs, (run) => run.$1)
-            : [
-                for (final run in runs) [run],
-              ]) {
-      final units = text.codeUnits.toList();
+    for (final group in occurrences(runs, (run) => run.$1, segments)) {
+      final window = windowOf(text, group, (run) => run.$1, segments, windows);
+      final from = window?.from ?? 0;
+      final units = text
+          .substring(from, window?.to ?? text.length)
+          .codeUnits
+          .toList();
       for (final (start, end) in group) {
-        units.fillRange(start, end, 0x20);
+        units.fillRange(start - from, end - from, 0x20);
       }
       final s = String.fromCharCodes(units);
       final r = reading(s);
       if (r == null) return null;
-      final ends = {for (final (_, end) in group) end};
+      final ends = {for (final (_, end) in group) end - from};
       for (final x in r.candidates!) {
         if (ends.contains(x.link.start) && bare(s, x.link)) {
-          out.add((link: x.link, nsdd: false));
+          out.add((link: _shifted(x.link, from), nsdd: false));
         }
       }
     }
@@ -1231,6 +1459,7 @@ class _Run {
     String text,
     List<_Cand> cands,
     Segments segments,
+    _Windows? windows,
   ) {
     final cut = <(Link, int)>[];
     if (on('a3')) {
@@ -1242,14 +1471,26 @@ class _Run {
     }
     final out = <Link, ({int at, Link? kept})>{};
     for (final group in segments.group(cut, (c) => c.$1.start)) {
-      final units = text.codeUnits.toList();
+      final window = windowOf(
+        text,
+        group,
+        (c) => c.$1.start,
+        segments,
+        windows,
+      );
+      final from = window?.from ?? 0;
+      final units = text
+          .substring(from, window?.to ?? text.length)
+          .codeUnits
+          .toList();
       for (final (link, at) in group) {
-        units.fillRange(at, link.end, 0x20);
+        units.fillRange(at - from, link.end - from, 0x20);
       }
       final r = reading(String.fromCharCodes(units));
       if (r == null) return null;
       for (final (link, at) in group) {
-        out[link] = (at: at, kept: longestFrom(r, link, at));
+        final kept = longestFrom(r, _shifted(link, -from), at - from);
+        out[link] = (at: at, kept: kept == null ? null : _shifted(kept, from));
       }
     }
     return out;
@@ -1676,10 +1917,27 @@ class Segments {
     bool inside(int i) => joined[i] || !endsToken(text.codeUnitAt(i));
     for (var i = 0; i < text.length; i++) {
       if (inside(i) && (i == 0 || !inside(i - 1))) _starts.add(i);
+      if (inside(i) && (i + 1 == text.length || !inside(i + 1))) {
+        _ends.add(i + 1);
+      }
     }
   }
 
   final _starts = <int>[];
+  final _ends = <int>[];
+
+  /// The segments as [start, end) spans, in order.
+  List<(int, int)> get spans => [
+    for (var k = 0; k < _starts.length; k++) (_starts[k], _ends[k]),
+  ];
+
+  /// The span of the segment that holds the offset [i], or of the last one
+  /// before it; null before the first.
+  (int, int)? spanOf(int i) {
+    final start = startOf(i);
+    if (start == null) return null;
+    return (start, _ends[_starts.indexOf(start)]);
+  }
 
   /// The start of the segment that holds the offset [i], or of the last one
   /// before it; null before the first.
@@ -1706,6 +1964,41 @@ class Segments {
     return groups.values.toList();
   }
 }
+
+/// p4's segment windows of a text, from the unit before a segment to three
+/// after it, and the native links stage 3 keeps of the text's reading, which
+/// a window's stand-in's cap counts in the segments before its own.
+class _Windows {
+  _Windows(this.text, List<Link> kept)
+    : _kept = [for (final l in kept) l.start]..sort();
+
+  final String text;
+  final List<int> _kept;
+
+  /// The window of the segment [span], as offsets in the text.
+  (int, int) of((int, int) span) => (
+    span.$1 == 0 ? 0 : span.$1 - 1,
+    span.$2 + 3 > text.length ? text.length : span.$2 + 3,
+  );
+
+  /// The native links stage 3 keeps before [start].
+  int before(int start) => _kept.where((k) => k < start).length;
+
+  /// The native links stage 3 keeps in the segment [span].
+  int keptIn((int, int) span) =>
+      _kept.where((k) => span.$1 <= k && k < span.$2).length;
+}
+
+Link _shifted(Link l, int by) => Link(l.start + by, l.end + by, l.kind, l.url);
+
+bool _sameResults(List<RawResult> a, List<RawResult> b) =>
+    a.length == b.length &&
+    [
+      for (var i = 0; i < a.length; i++)
+        a[i].start == b[i].start &&
+            a[i].end == b[i].end &&
+            a[i].value == b[i].value,
+    ].every((same) => same);
 
 /// Each of [texts]' prediction under [variant], reading every text a
 /// prediction needs through [read] until none is missing.
