@@ -62,7 +62,7 @@ void main() {
 
   test('a phone whose text holds an invisible space goes', () {
     expect(
-      _merged('call +1 555 123 4567 now', [
+      _merged('call +1 555\u1680123 4567 now', [
         (start: 5, end: 20, phone: '+1 555 123 4567'),
       ]),
       const <UrlMatch>[],
@@ -102,10 +102,10 @@ void main() {
   test('a phone whose text holds a bidi control takes its text for its '
       'URL', () {
     expect(
-      _merged('see +1‏5551234567。', [
-        (start: 4, end: 17, phone: '+1‏5551234567'),
+      _merged('see +1\u200F5551234567。', [
+        (start: 4, end: 17, phone: '+1\u200F5551234567'),
       ]),
-      [_phone(4, 17, 'tel:+1‏5551234567')],
+      [_phone(4, 17, 'tel:+1\u200F5551234567')],
     );
   });
 
