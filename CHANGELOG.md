@@ -39,17 +39,18 @@
     outside these scripts follows directly, or a letter after a `.`, is no
     link: `see example.com.Then you` links nothing. A host right before
     `://` is that scheme's text: `1.tg://a.io/a x` links `tg://a.io/a`.
-  - **IP addresses and ports.** A bare IPv4 address links where no number of
-    two or more digits in it starts with `0` and no `.` and ASCII digit
-    follow it: `ip 010.168.1.1 x` links nothing. A port of fullwidth digits
-    reads as its ASCII digits: `see example.com:８０ x` links
-    `http://example.com:80`.
+  - **IP addresses and ports.** A bare IPv4 address links where neither its
+    first number nor any number of two or more digits in it starts with `0`,
+    and no `.` and ASCII digit follow it: `ip 010.168.1.1 x` links nothing.
+    A port of fullwidth digits reads as its ASCII digits:
+    `see example.com:８０ x` links `http://example.com:80`.
   - **Emails.** An email's local part is the run of ASCII letters, digits,
     `.`, `_`, `%`, `+` and `-` before its `@`, wherever the run starts:
     `see a|b@x.com` links `mailto:b@x.com`. Its domain is two or more ASCII
     labels, the last a top-level domain on IANA's list in any case:
-    `mail ops@example.zzz now` links nothing. Where an `@` has no such local
-    part or domain, the text after it reads as any text does:
+    `mail ops@example.zzz now` links nothing. A bidi control between two of
+    an email's characters stays in it. Where an `@` has no such local part or
+    domain, the text after it reads as any text does:
     `mail ops@Bücher.de now` links `http://Bücher.de`.
   - **Invisible and bidi characters.** No link holds an invisible space,
     such as a zero-width space: a web link or email ends before one, the
