@@ -81,7 +81,7 @@ They are composed as `Patterns.java` composes them, each Java surrogate pair
 written as a C++ `\U` escape, and compiled into `ux_plugin.dll`.
 [lib/src/url/](lib/src/url/) holds scanners ported from them on every
 platform: `WEB_URL`'s character classes and host grammar in `web_pass.dart`,
-and `EMAIL_ADDRESS`'s grammar in `email_address.dart`.
+and `EMAIL_ADDRESS`'s local-part class in `email.dart`.
 
 ## Unicode data (Unicode License v3)
 
