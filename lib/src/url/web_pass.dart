@@ -102,7 +102,7 @@ class _Pass {
   bool _startsMatch(int s) {
     if (s > lo) {
       final before = _cpBefore(s);
-      if (before >= 0xAD && _skipped(before)) {
+      if (_skipped(before)) {
         var j = s - width(before);
         while (j > lo && _skipped(_cpBefore(j))) {
           j -= width(_cpBefore(j));

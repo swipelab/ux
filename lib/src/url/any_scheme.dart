@@ -45,9 +45,13 @@ bool _schemeChar(int c) =>
 
 /// Whether the UTF-16 unit [c] ends an any-scheme match: Dart's `\s`, a C0
 /// or C1 control or DEL, `" % < > [ \ ] ^ ` { | }` or CJK punctuation.
-bool _ends(int c) => c < 0x80
-    ? c <= 0x20 || c == 0x7F || c == 0x25 || isPathStop(c)
-    : c <= 0x9F || isDartSpace(c) || isCjkPunctuation(c);
+bool _ends(int c) =>
+    c <= 0x20 ||
+    (c >= 0x7F && c <= 0x9F) ||
+    isDartSpace(c) ||
+    c == 0x25 ||
+    isPathStop(c) ||
+    isCjkPunctuation(c);
 
 bool _escape(String text, int i, int hi) =>
     i + 2 < hi &&

@@ -433,13 +433,7 @@ class _Reading {
     if (h != null) {
       var q = h;
       while (q < l.end) {
-        final c = text.codeUnitAt(q);
-        if (c < 0x80) {
-          if (_isAuthorityMark(c)) break;
-          if (grammar == null && !_hostChar(q)) grammar = q;
-          q++;
-          continue;
-        }
+        if (_isAuthorityMark(text.codeUnitAt(q))) break;
         final cp = cpAtIn(text, q, hi);
         if (unspaced == null &&
             q > h &&
@@ -470,7 +464,6 @@ class _Reading {
     int? invisible;
     int? paren;
     var open = 0;
-    var nonAscii = false;
     for (var i = l.start; i < l.end; i++) {
       final c = text.codeUnitAt(i);
       if (c == 0x29) {
@@ -478,22 +471,17 @@ class _Reading {
         open--;
       } else if (c == 0x28) {
         open++;
-      } else if (c >= 0x80) {
-        nonAscii = true;
-        if (invisible == null && c >= 0x1680 && _invisibleAt(i)) {
-          invisible = i;
-        }
+      } else if (invisible == null && _invisibleAt(i)) {
+        invisible = i;
       }
     }
     if (invisible != null) return (_Cut.invisibleSpace, invisible);
     if (paren != null) return (_Cut.unopenedParen, paren);
     if (unspaced != null) return (_Cut.unspacedInHost, unspaced);
-    if (nonAscii) {
-      if (_trailingSymbolsCut(l) case final at?) {
-        return (_Cut.trailingSymbols, at);
-      }
-      if (_closingQuotesCut(l) case final at?) return (_Cut.closingQuotes, at);
+    if (_trailingSymbolsCut(l) case final at?) {
+      return (_Cut.trailingSymbols, at);
     }
+    if (_closingQuotesCut(l) case final at?) return (_Cut.closingQuotes, at);
     if (grammar != null) return (_Cut.hostGrammar, grammar);
     return null;
   }
@@ -537,21 +525,17 @@ class _Reading {
   /// Whether the character at [i] is one a scheme link's host takes: a
   /// letter, mark, digit, Cf, '-', '_', '.' or a '%XX'.
   bool _hostChar(int i) {
-    final c = text.codeUnitAt(i);
-    if (c < 0x80) {
-      if (c == 0x25) {
-        return i + 2 < hi &&
-            isHex(text.codeUnitAt(i + 1)) &&
-            isHex(text.codeUnitAt(i + 2));
-      }
-      return isAsciiLetter(c) ||
-          isAsciiDigit(c) ||
-          c == 0x2D ||
-          c == 0x5F ||
-          c == 0x2E;
-    }
     final cp = cpAtIn(text, i, hi);
-    return isLetterMarkDigit(cp) || isFormat(cp);
+    if (cp == 0x25) {
+      return i + 2 < hi &&
+          isHex(text.codeUnitAt(i + 1)) &&
+          isHex(text.codeUnitAt(i + 2));
+    }
+    return isLetterMarkDigit(cp) ||
+        isFormat(cp) ||
+        cp == 0x2D ||
+        cp == 0x5F ||
+        cp == 0x2E;
   }
 
   /// Where the host of [l], a link written with a scheme and `://`, starts:

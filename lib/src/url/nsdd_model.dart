@@ -425,11 +425,6 @@ class _Scan {
       hostEnd = host;
       while (hostEnd < authorityEnd && text.codeUnitAt(hostEnd) != 0x3A) {
         final c = text.codeUnitAt(hostEnd);
-        if (c < 0x80) {
-          if (_killsHost(c)) return _Refused();
-          hostEnd++;
-          continue;
-        }
         if (_foreignDigit(cpAtIn(text, hostEnd, hi))) {
           var cut = _wordStart(hostEnd, host);
           while (cut > host && _isDotOrDash(text.codeUnitAt(cut - 1))) {
@@ -617,7 +612,7 @@ bool _wordOrFormat(int cp) => isWord(cp) || _formatLike(cp);
 
 /// Whether the UTF-16 unit [c] is a Cf character that cuts a link's path:
 /// one other than the soft hyphen, ZWNJ, ZWJ, LRM and RLM.
-bool _cutsPath(int c) => c >= 0xAD && _formatLike(c) && !_keptFormat(c);
+bool _cutsPath(int c) => _formatLike(c) && !_keptFormat(c);
 
 /// Whether [cp] joins a word as NSDataDetector reads one: a Hangul filler,
 /// or a letter or digit outside Han, kana and Hangul.
@@ -641,19 +636,23 @@ bool _isHangulFiller(int cp) =>
 /// Whether the UTF-16 unit [c] ends NSDataDetector's link before it:
 /// whitespace, a C0 or C1 control or DEL, `{ } < > "`, CJK punctuation,
 /// ZWSP or a private-use character of [_privateUseStop].
-bool _linkStop(int c) => c < 0x7F
-    ? c <= 0x20 || c == 0x22 || c == 0x3C || c == 0x3E || c == 0x7B || c == 0x7D
-    : c <= 0xA0 ||
-          c >= 0x1680 &&
-              (c == 0x1680 ||
-                  (c >= 0x2000 && c <= 0x200B) ||
-                  c == 0x2028 ||
-                  c == 0x2029 ||
-                  c == 0x202F ||
-                  c == 0x205F ||
-                  c == 0x3000 ||
-                  _privateUseStop(c) ||
-                  isCjkPunctuation(c));
+bool _linkStop(int c) =>
+    c <= 0x20 ||
+    (c >= 0x7F && c <= 0xA0) ||
+    c == 0x22 ||
+    c == 0x3C ||
+    c == 0x3E ||
+    c == 0x7B ||
+    c == 0x7D ||
+    c == 0x1680 ||
+    (c >= 0x2000 && c <= 0x200B) ||
+    c == 0x2028 ||
+    c == 0x2029 ||
+    c == 0x202F ||
+    c == 0x205F ||
+    c == 0x3000 ||
+    _privateUseStop(c) ||
+    isCjkPunctuation(c);
 
 /// Whether the UTF-16 unit [c] is a private-use character that ends
 /// NSDataDetector's link: U+E000–U+F7F2, U+F8A1–U+F8A7, U+F8B4–U+F8B7 or
@@ -707,7 +706,7 @@ bool _isPathStart(int c) => c == 0x2F || c == 0x3F || c == 0x23;
 
 /// Whether the UTF-16 unit [c] is Cf or U+2065, which NSDataDetector reads as
 /// one.
-bool _formatLike(int c) => c >= 0xAD && (isFormat(c) || c == 0x2065);
+bool _formatLike(int c) => isFormat(c) || c == 0x2065;
 
 /// Whether the UTF-16 unit [c] is a default-ignorable character
 /// NSDataDetector reads as part of a word: a Hangul filler or CGJ.
@@ -732,10 +731,9 @@ bool _killsHost(int c) =>
     c == 0x7C ||
     c == 0x5C ||
     c == 0x5E ||
-    c >= 0xAD &&
-        (c == 0x2026 ||
-            _privateUse(c) ||
-            _formatLike(c) && c != 0xAD && c != 0x200C && c != 0x200D);
+    c == 0x2026 ||
+    _privateUse(c) ||
+    _formatLike(c) && c != 0xAD && c != 0x200C && c != 0x200D;
 
 bool _privateUse(int c) => c >= 0xE000 && c <= 0xF8FF;
 
