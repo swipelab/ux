@@ -11,23 +11,28 @@ typedef PassLink = ({int start, int end, bool written});
 /// its hosts of ASCII labels and IPv4 addresses with no scheme, each ended
 /// by [webEnd].
 ///
-/// A host with no scheme links where its TLD is listed, no '.' and letter
-/// glue a word to it, no word character outside the unspaced scripts
-/// follows it, no '://' follows it, and, an IPv4 address, no octet of two
-/// or more digits starts with '0' and no '.' and digit follow it; a port of
-/// fullwidth digits that an unspaced character follows joins it. With [idn],
-/// the pass reads labels that also hold letters, marks and digits outside
-/// ASCII and the unspaced scripts, and gives only the hosts with no scheme
-/// that hold one.
+/// A host with no scheme links where its TLD is listed, a label in an
+/// unspaced script before its TLD is Hangul, or Han, kana or Thai in a host
+/// whose first label is 'www', no ASCII label stands right before a TLD in
+/// an unspaced script, no '.' and letter glue a word to it, no '://' follows
+/// it, and, an IPv4 address, no octet of two or more digits starts with '0'
+/// and no '.' and digit follow it; a port of fullwidth digits that an
+/// unspaced character follows joins it.
+///
+/// With [nsdd], it reads NSDataDetector's hosts with no scheme instead: its
+/// labels are letters, marks and digits, each label in the unspaced scripts
+/// or outside them, '-' and '_' aside; it reads no IPv4 address; a path
+/// starts at '/' and ends before ZWSP; and a host ends before ZWSP, ZWNJ, or
+/// a bidi control other than LRM and RLM that no label character follows.
 List<PassLink> webPass(
   String text,
   int lo,
   int hi,
   int from,
   int to, {
-  bool idn = false,
+  bool nsdd = false,
 }) {
-  final pass = _Pass(text, lo, hi, idn);
+  final pass = _Pass(text, lo, hi, nsdd);
   final out = <PassLink>[];
   var s = from;
   while (s < to) {
@@ -39,7 +44,7 @@ List<PassLink> webPass(
     final written = pass.written;
     var end = webEnd(text, s, matchEnd);
     if (!written) end = pass.bareEnd(s, end);
-    if (end > s && (written ? !idn : pass.keepsBare(s, end))) {
+    if (end > s && (written || pass.keepsBare(s, end))) {
       out.add((start: s, end: end, written: written));
     }
     s = matchEnd;
@@ -48,12 +53,14 @@ List<PassLink> webPass(
 }
 
 class _Pass {
-  _Pass(this.text, this.lo, this.hi, this.idn);
+  _Pass(this.text, this.lo, this.hi, this.nsdd);
 
   final String text;
   final int lo;
   final int hi;
-  final bool idn;
+
+  /// Whether it reads NSDataDetector's hosts with no scheme.
+  final bool nsdd;
 
   /// Whether the last match [matchAt] gave writes a scheme.
   bool written = false;
@@ -64,16 +71,8 @@ class _Pass {
 
   /// The end of the pattern's match at [s], or null.
   int? matchAt(int s) {
-    final c = text.codeUnitAt(s);
-    if (!(isAsciiDigit(c) ||
-        isAsciiLetter(c) ||
-        c == 0x17F ||
-        c == 0x212A ||
-        idn && c >= 0x80 && _idnLetterOrDigit(_cp(s)))) {
-      return null;
-    }
-    if (!_startsMatch(s)) return null;
-    final scheme = _schemeEnd(s);
+    if (!_labelEdge(_cp(s), false) || !_startsMatch(s)) return null;
+    final scheme = nsdd ? null : _schemeEnd(s);
     if (scheme != null) {
       final userinfo = _userinfoEnd(scheme);
       if (userinfo != null) {
@@ -93,8 +92,10 @@ class _Pass {
   }
 
   /// The pattern's start: a word boundary, or after a '_' or an unspaced
-  /// letter, but neither after a letter, mark or digit outside the unspaced
-  /// scripts and a run of 1 to 62 '_' and '-' or a '.', nor after "://".
+  /// letter, but not after a letter, mark or digit outside the unspaced
+  /// scripts and a run of 1 to 62 '_' and '-', not after a '.' that such a
+  /// character, or with [nsdd] any letter, mark or digit, precedes, and not
+  /// after "://".
   /// Before that test, a run of Cf characters and Hangul fillers is skipped:
   /// a host starts after one that an unspaced character precedes, and none
   /// after one that a letter, mark or digit outside the unspaced scripts
@@ -119,10 +120,11 @@ class _Pass {
             (text.codeUnitAt(s - 1) == 0x5F || isUnspaced(_cpBefore(s))))) {
       return false;
     }
-    if (s - 1 > lo &&
-        text.codeUnitAt(s - 1) == 0x2E &&
-        isSpacedLetterMarkDigit(_cpBefore(s - 1))) {
-      return false;
+    if (s - 1 > lo && text.codeUnitAt(s - 1) == 0x2E) {
+      final b = _cpBefore(s - 1);
+      if (nsdd ? isLetterMarkDigit(b) : isSpacedLetterMarkDigit(b)) {
+        return false;
+      }
     }
     var run = 0;
     while (run < 63 &&
@@ -222,27 +224,44 @@ class _Pass {
       cp == 0x17F ||
       cp == 0x212A;
 
-  bool _labelEdge(int cp, bool scheme) =>
-      _asciiAlnum(cp) ||
-      cp >= 0x80 && (scheme ? _ucs(cp) : idn && _idnLetterOrDigit(cp));
+  /// Whether [cp] starts and ends a label: with [nsdd] a letter, mark or
+  /// digit, else an ASCII letter or digit, or a UCS_CHAR after a scheme.
+  bool _labelEdge(int cp, bool scheme) => nsdd
+      ? isLetterMarkDigit(cp)
+      : _asciiAlnum(cp) || scheme && cp >= 0x80 && _ucs(cp);
 
   bool _labelInner(int cp, bool scheme) =>
       _labelEdge(cp, scheme) || cp == 0x2D || cp == 0x5F;
 
-  bool _tldChar(int cp, bool scheme) =>
-      (cp < 0x80 && isAsciiLetter(cp)) ||
-      cp == 0x17F ||
-      cp == 0x212A ||
-      cp >= 0x80 && (scheme ? _ucs(cp) : idn && _idnLetter(cp));
+  /// Whether [cp] is a TLD's letter: with [nsdd] a letter or mark, else an
+  /// ASCII letter, or a UCS_CHAR after a scheme.
+  bool _tldChar(int cp, bool scheme) => nsdd
+      ? isLetter(cp) || isMark(cp)
+      : (cp < 0x80 && isAsciiLetter(cp)) ||
+            cp == 0x17F ||
+            cp == 0x212A ||
+            scheme && cp >= 0x80 && _ucs(cp);
+
+  /// Whether [cp] stays in a label whose first character is in an unspaced
+  /// script where [unspaced] holds: with [nsdd], '-', '_' or a character in
+  /// the unspaced scripts exactly where the first is.
+  bool _onSide(int cp, bool unspaced) =>
+      !nsdd || cp == 0x2D || cp == 0x5F || isUnspaced(cp) == unspaced;
 
   /// The end of the label at [p] where a '.' follows it: 1 to 63 characters
   /// that a letter or digit starts and ends.
   int? _label(int p, bool scheme) {
     var q = p;
     var n = 0;
+    var unspaced = false;
     while (n < 63 && q < hi) {
       final cp = _cp(q);
-      if (!(n == 0 ? _labelEdge(cp, scheme) : _labelInner(cp, scheme))) break;
+      if (n == 0) {
+        if (!_labelEdge(cp, scheme)) break;
+        unspaced = isUnspaced(cp);
+      } else if (!_labelInner(cp, scheme) || !_onSide(cp, unspaced)) {
+        break;
+      }
       q += width(cp);
       n++;
     }
@@ -269,7 +288,7 @@ class _Pass {
       final end = _tld(start, scheme);
       if (end != null) return end;
     }
-    return idn || p >= hi || !isAsciiDigit(text.codeUnitAt(p))
+    return nsdd || p >= hi || !isAsciiDigit(text.codeUnitAt(p))
         ? null
         : _ipv4(p, scheme);
   }
@@ -287,7 +306,7 @@ class _Pass {
       var r = 0;
       while (r < 59 && q < hi) {
         final cp = _cp(q);
-        if (!(_xnChar(cp, scheme) || cp == 0x2D)) break;
+        if (!(_xnChar(cp, scheme) || cp == 0x2D) || !_onSide(cp, false)) break;
         q += width(cp);
         r++;
       }
@@ -302,9 +321,10 @@ class _Pass {
     }
     var q = a;
     var n = 0;
+    final unspaced = a < hi && isUnspaced(_cp(a));
     while (n < 63 && q < hi) {
       final cp = _cp(q);
-      if (!_tldChar(cp, scheme)) break;
+      if (!_tldChar(cp, scheme) || !_onSide(cp, unspaced)) break;
       q += width(cp);
       n++;
     }
@@ -316,9 +336,8 @@ class _Pass {
     return null;
   }
 
-  bool _xnChar(int cp, bool scheme) => scheme
-      ? isWord(cp)
-      : _asciiAlnum(cp) || cp >= 0x80 && idn && _idnLetterOrDigit(cp);
+  bool _xnChar(int cp, bool scheme) =>
+      scheme ? isWord(cp) : _labelEdge(cp, false);
 
   int? _tail(int h, bool scheme) => scheme ? _portAfterScheme(h) : _tailBare(h);
 
@@ -429,10 +448,21 @@ class _Pass {
   int? _bareEnd(int p) {
     final path = _pathEnd(p);
     if (path != null) return path;
+    if (nsdd && p < hi && _endsHost(p)) return p;
     if ((_boundary(p) || _textEnd(p) || _unspacedAt(p)) && !_emailAhead(p)) {
       return p;
     }
     return null;
+  }
+
+  /// Whether NSDataDetector ends a host with no scheme before [p] and links
+  /// it: before ZWSP or ZWNJ, or before a bidi control other than LRM and
+  /// RLM that no letter, mark, digit, '-' or '_' follows.
+  bool _endsHost(int p) {
+    final c = text.codeUnitAt(p);
+    if (c == 0x200B || c == 0x200C) return true;
+    if (!isBidiControl(c) || c == 0x200E || c == 0x200F) return false;
+    return p + 1 == hi || !_labelInner(_cp(p + 1), false);
   }
 
   /// Whether `@`, a letter or digit, up to 64 letters, digits and '-', a '.'
@@ -455,11 +485,12 @@ class _Pass {
 
   /// The end of the pattern's path at [p], a '/' or '?' and the characters
   /// and '%XX' escapes after it up to whitespace, `" < > [ \ ] ^ ` { | }`, a
-  /// lone '%' or CJK punctuation.
+  /// lone '%' or CJK punctuation; with [nsdd], a '/' and the characters after
+  /// it up to those or ZWSP.
   int? _pathEnd(int p) {
     if (p >= hi) return null;
     final first = text.codeUnitAt(p);
-    if (first != 0x2F && first != 0x3F) return null;
+    if (first != 0x2F && (nsdd || first != 0x3F)) return null;
     var q = p + 1;
     while (q < hi) {
       final c = text.codeUnitAt(q);
@@ -473,7 +504,12 @@ class _Pass {
         break;
       }
       final cp = _cp(q);
-      if (isIcuSpace(cp) || isPathStop(c) || isCjkPunctuation(c)) break;
+      if (isIcuSpace(cp) ||
+          isPathStop(c) ||
+          isCjkPunctuation(c) ||
+          nsdd && c == 0x200B) {
+        break;
+      }
       q += width(cp);
     }
     return q;
@@ -502,8 +538,7 @@ class _Pass {
   /// Whether the host with no scheme from [s] to [end] links.
   bool keepsBare(int s, int end) {
     final host = hostEnd(text, s, end);
-    if (idn && !_holdsNonAscii(s, host)) return false;
-    if (!hasTld(text, s, end)) return false;
+    if (!hasTld(text, s, end) || !_labelsLink(s, host)) return false;
     if (_startsWithIn('://', end)) return false;
     if (end + 1 < hi &&
         text.codeUnitAt(end) == 0x2E &&
@@ -511,10 +546,6 @@ class _Pass {
         !isUnspacedUnit(text.codeUnitAt(end + 1)) &&
         isLetter(_cp(end + 1))) {
       return false;
-    }
-    if (end < hi && host == end) {
-      final next = _cp(end);
-      if (isWord(next) && !isUnspaced(next)) return false;
     }
     if (_ipv4Host(s, host) case final zeroLed?) {
       if (zeroLed) return false;
@@ -527,11 +558,30 @@ class _Pass {
     return true;
   }
 
-  bool _holdsNonAscii(int from, int to) {
-    for (var i = from; i < to; i++) {
-      if (text.codeUnitAt(i) >= 0x80) return true;
+  /// Whether the labels of the host from [s] to [host] link, as [webPass]
+  /// states.
+  bool _labelsLink(int s, int host) {
+    var tld = host;
+    while (text.codeUnitAt(tld - 1) != 0x2E) {
+      tld--;
     }
-    return false;
+    final unspacedTld = isUnspaced(_cp(tld));
+    final www = _literal(s, 'www.');
+    for (var label = s; label < tld;) {
+      final first = _cp(label);
+      var ascii = true;
+      var dot = label;
+      for (; text.codeUnitAt(dot) != 0x2E; dot++) {
+        if (text.codeUnitAt(dot) >= 0x80) ascii = false;
+      }
+      if (isUnspaced(first) &&
+          !(_isHangul(first) || www && _isHanKanaThai(first))) {
+        return false;
+      }
+      if (unspacedTld && ascii && dot + 1 == tld) return false;
+      label = dot + 1;
+    }
+    return true;
   }
 
   /// Whether the host from [s] to [host] is four dot-separated runs of one
@@ -566,12 +616,25 @@ bool _skipped(int cp) =>
     cp == 0x3164 ||
     cp == 0xFFA0;
 
-/// Whether [cp] is a letter or mark outside ASCII and the unspaced scripts.
-bool _idnLetter(int cp) => !isUnspaced(cp) && (isLetter(cp) || isMark(cp));
+/// Whether [cp] is in a Hangul block.
+bool _isHangul(int cp) =>
+    (cp >= 0x1100 && cp <= 0x11FF) ||
+    (cp >= 0x3130 && cp <= 0x318F) ||
+    (cp >= 0xA960 && cp <= 0xA97F) ||
+    (cp >= 0xAC00 && cp <= 0xD7FF) ||
+    (cp >= 0xFFA0 && cp <= 0xFFDC);
 
-/// Whether [cp] is a letter, mark or digit outside ASCII and the unspaced
-/// scripts.
-bool _idnLetterOrDigit(int cp) => isSpacedLetterMarkDigit(cp);
+/// Whether [cp] is Han, kana or Thai, by block.
+bool _isHanKanaThai(int cp) =>
+    (cp >= 0x0E00 && cp <= 0x0E7F) ||
+    (cp >= 0x2E80 &&
+        cp <= 0x9FFF &&
+        !_isHangul(cp) &&
+        !(cp >= 0x3100 && cp <= 0x312F) &&
+        !(cp >= 0x31A0 && cp <= 0x31BF)) ||
+    (cp >= 0xF900 && cp <= 0xFAFF) ||
+    (cp >= 0xFF66 && cp <= 0xFF9F) ||
+    cp >= 0x20000;
 
 bool _fullwidthDigit(int u) => u >= 0xFF10 && u <= 0xFF19;
 

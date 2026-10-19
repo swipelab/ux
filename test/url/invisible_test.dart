@@ -89,7 +89,6 @@ void main() {
         web(26, 43, 'http://flutter.dev/setup'),
       ]);
     },
-    skip: "step 3 models NSDataDetector's own bare hosts",
   );
 
   test("a zero-width joiner inside a word stays in a link's text and leaves its URL", () {
@@ -173,7 +172,14 @@ void main() {
 
   test('a bare host ends before a zero-width space where what precedes it ends in a listed TLD', () {
     expectLinks('see example.co\u200Bm x', [web(4, 14, 'http://example.co')]);
-  }, skip: "step 3 models NSDataDetector's own bare hosts");
+  });
+
+  test("a bidi control after a bare host ends it where no letter, mark, digit, '-' or '_' follows the control", () {
+    expectLinks('see \u2066b\u00FCcher.de\u2069 x', [
+      web(5, 14, 'http://b\u00FCcher.de'),
+    ]);
+    expectLinks('see example.com\u202C\u00E9 x', const []);
+  });
 
   test('a format character inside a bare host makes it no link', () {
     expectLinks('see exam\u200Dple.com x', const []);

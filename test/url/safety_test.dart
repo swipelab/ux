@@ -69,7 +69,7 @@ void main() {
     expectLinks('see https://a.com/x\u007Fy x', [
       web(4, 19, 'https://a.com/x'),
     ]);
-  }, skip: "step 3 models NSDataDetector's own bare hosts");
+  });
 
   test("a control after a link takes a trailing '&' with it", () {
     expectLinks('see sms:a=b&\u0001 x', [web(4, 11, 'sms:a=b')]);
