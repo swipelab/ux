@@ -1,6 +1,3 @@
-@Skip('the Dart detector does not read bare hosts yet')
-library;
-
 import 'package:flutter_test/flutter_test.dart';
 
 import 'links.dart';
@@ -153,6 +150,12 @@ void main() {
     },
   );
 
+  test('a Hangul label that holds Han links only where the first label is www, and a label that holds Lao never', () {
+    expectLinks('see 한국中文.com x', const []);
+    expectLinks('see www.한국中文.com x', [web(4, 16, 'http://www.한국中文.com')]);
+    expectLinks('see www.例子ລາວ.com x', const []);
+  });
+
   test('a host whose first label is www links on any listed ASCII TLD', () {
     expectLinks('see www.bücher.app x', [web(4, 18, 'http://www.bücher.app')]);
     expectLinks('see www.例子.app x', [web(4, 14, 'http://www.例子.app')]);
@@ -210,6 +213,14 @@ void main() {
       );
     },
   );
+
+  test('a Hangul label glued after a letter starts its host where the Hangul begins', () {
+    expectLinks('see e나라도움.kr x', [web(5, 12, 'http://나라도움.kr')]);
+    expectLinks('see example.com한국.com x', [
+      web(4, 15, 'http://example.com'),
+      web(15, 21, 'http://한국.com'),
+    ]);
+  });
 
   test('a non-ASCII label under an unspaced-script TLD links', () {
     expectLinks('see 한국.한국 x', [web(4, 9, 'http://한국.한국')]);

@@ -134,19 +134,13 @@ class _Reading {
       if (_dropped(link)) continue;
       if (cut(link, any: false) case final kept?) cands.add(kept);
     }
-    for (final idn in const [false, true]) {
-      for (final (:start, :end, :written) in webPass(
-        text,
-        lo,
-        hi,
-        this.start,
-        this.end,
-        idn: idn,
-      )) {
-        final link = Link(start, end, written ? Source.written : Source.bare);
-        if (written && _dropped(link)) continue;
-        if (cut(link, any: false) case final kept?) cands.add(kept);
-      }
+    for (final (:start, :end, :written) in _merged(
+      webPass(text, lo, hi, this.start, this.end),
+      webPass(text, lo, hi, this.start, this.end, nsdd: true),
+    )) {
+      final link = Link(start, end, written ? Source.written : Source.bare);
+      if (written && _dropped(link)) continue;
+      if (cut(link, any: false) case final kept?) cands.add(kept);
     }
     for (final e in emailsOf(text, lo, hi, start, end)) {
       final link = Link(
@@ -579,6 +573,25 @@ enum _Cut {
   trailingSymbols,
   closingQuotes,
   hostGrammar,
+}
+
+/// The second pass's links [pass] and NSDataDetector's hosts with no scheme
+/// [hosts], each sorted by start, in one list sorted by start, without a
+/// host that [pass] gives too.
+List<PassLink> _merged(List<PassLink> pass, List<PassLink> hosts) {
+  final out = <PassLink>[];
+  var j = 0;
+  for (final l in pass) {
+    while (j < hosts.length && hosts[j].start < l.start) {
+      out.add(hosts[j++]);
+    }
+    if (j < hosts.length && hosts[j] == l) j++;
+    out.add(l);
+  }
+  for (; j < hosts.length; j++) {
+    out.add(hosts[j]);
+  }
+  return out;
 }
 
 /// [links] sorted by start, then length descending, then email before web,
