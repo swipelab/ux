@@ -1,49 +1,79 @@
 ### 0.18.0
-- **A link with a scheme starts after a `_` and keeps a trailing `?` or `:`
-  on every platform.** `XUrl.match`'s any-scheme pass starts a link at the
-  first letter of the scheme characters before its `://`, as
-  `Patterns.WEB_URL` starts an http link, so a `_` or a digit before a scheme
-  does not keep it from linking: `_banlu://chat/42 x` links `banlu://chat/42`
-  on Android and Windows, as on iOS and macOS. It ends a link before a
-  trailing `.`, `,`, `;`, `!`, `'` or `(`, and before a `)` the link does not
-  open with those marks, `?` and `:` after it, as NSDataDetector ends a web
-  link, so `(see bl://x/a_(b)).` links `bl://x/a_(b)` and
-  `(https://docs.flutter.dev#setup)?` links `https://docs.flutter.dev#setup`
-  on every platform. A trailing `?`, or a `:` after its path, query or
-  fragment, stays, as the native detectors keep it: `tg://resolve?domain=abc?`
-  keeps its `?` and `see banlu://chat/42: y` links `banlu://chat/42:`. A
-  native web link that runs on past such a `)` stays:
-  `(https://docs.flutter.dev/setup)?` links
-  `https://docs.flutter.dev/setup)?`. The pass reads each run of scheme
-  characters once, so its time stays linear in the text, a long word of
-  letters joined by `-`, `.` or `+` included.
-- **A link with a scheme ends where its host or port does.** Unless a `/`, `?`
-  or `#` follows its host or port, `XUrl.match`'s any-scheme pass ends a link
-  there, as the native detectors end a web link, so a `)` the host does not
-  open, a `:` after the port and a port that ASCII letters follow stay out of
-  it on every platform: `(https://docs.flutter.dev)?` links
-  `https://docs.flutter.dev`, `Server http://10.0.0.5:8080: down` links
-  `http://10.0.0.5:8080` and `foo _http://example.com:8080abc x` links
-  `http://example.com`, as `foo http://example.com:8080abc x` does. On Android
-  and Windows, a `:` with no port stays out of it too:
-  `Status at https://example.com: green` links `https://example.com`. Its host
-  keeps parentheses in pairs it opens and closes, nested at most two deep, so
-  `see https://a.com(a(b)c) y` links `https://a.com(a(b)c)` on every platform;
-  on Android and Windows a pair nested deeper ends the host.
-- **A link whose text hides a bidi control does not launch on iOS and
-  macOS.** Where the native detector's URL leaves out a bidi control the
-  link's text holds, as NSDataDetector's email and phone URLs do,
-  `XUrl.match` gives the link the URL's scheme and then its text, so
-  `XUrl.launch` refuses it as it refuses a web link hiding one: `see mailto:`
-  with an Arabic letter mark before `ops@example.com` links
-  `mailto:ops@example.com` with the mark kept, and `call +1 ` with a
-  right-to-left mark before `555 123 4567` links `tel:+1 555 123 4567` with
-  the mark kept.
-- **A link ends before a C0 or C1 control.** `XUrl.match`'s any-scheme pass
-  ends a link before a C0 or C1 control, as it does at whitespace and as the
-  native detectors do, so no link's URL holds one: `see https://a.com/x`
-  with U+001F before `163.com/1` links `https://a.com/x` and
-  `http://163.com/1`.
+- **`XUrl.match` reads links with one Dart detector on every platform.** It
+  reads web links and emails in Dart, the same on every platform, as Apple's
+  `NSDataDetector` reads common link shapes and by the rules below.
+  Breaking: `XUrl.debugDetect`, `UrlMatchKind.wireByte` and
+  `UrlMatchKind.fromByte` are removed, and macOS and Windows link no phones.
+  - **Scheme links.** A scheme link's host ends before a sub-delimiter, a
+    `~`, a parenthesis, or dots before a `?` or `:`, and a link may start in
+    the text after it: `see https://a.com,b.com x` links `https://a.com` and
+    `http://b.com`. A written `tel:` URI is a web link whose URL is its
+    text: `call tel:+15551234567 now` links `tel:+15551234567`. A `webcal:`
+    URI whose body is one `/` is no link: `see webcal:/ x` links nothing.
+  - **Where a link ends.** A `)` the link does not open ends it where only
+    `.`, `,`, `;`, `!`, `'`, parentheses, `?` and `:` follow it:
+    `(https://docs.flutter.dev/setup)?` links
+    `https://docs.flutter.dev/setup`. A link ends before a trailing `”`, `’`
+    or `…`, and a bare host starts after a `“`:
+    `see “https://example.com/a” x` links `https://example.com/a`. Where a
+    character other than a letter, mark, digit or `_` follows it, a link
+    ends before its trailing symbols and punctuation from the first
+    non-ASCII one: `see example.com/a-😀 x` links `http://example.com/a-`.
+    Text past fullwidth parentheses that continues a link's path links
+    nothing: `https://example.com/a（1）/x?m=a@b.com` links
+    `https://example.com/a` alone.
+  - **Hosts.** A host with no scheme links where its last label is a
+    top-level domain on IANA's list, version 2026101500: `banlu.app` links
+    `http://banlu.app`. The top-level domain matches written in lowercase or
+    as its Unicode label, or in any case for com, edu, gov, net and org:
+    `see EXAMPLE.APP x` links nothing. A host's labels are Unicode 17.0.0's
+    letters, marks and digits with `-` or `_` inside:
+    `see example.bücher.app x` links `http://example.bücher.app`. Before the
+    top-level domain, Korean letters stand in any host, Chinese, Japanese
+    and Thai letters only in one whose first label is `www`, and Lao, Khmer
+    and Myanmar letters in none. An ASCII label right before a top-level
+    domain in one of these scripts makes no link: `see example.ไทย now`
+    links nothing. A host, with a scheme or without, ends before letters of
+    these scripts glued to it: `http://example.com然后` links
+    `http://example.com`. A host with no scheme that a letter, mark or digit
+    outside these scripts follows directly, or a letter after a `.`, is no
+    link: `see example.com.Then you` links nothing. A host right before
+    `://` is that scheme's text: `1.tg://a.io/a x` links `tg://a.io/a`.
+  - **IP addresses and ports.** A bare IPv4 address links where no number of
+    two or more digits in it starts with `0` and no `.` and ASCII digit
+    follow it: `ip 010.168.1.1 x` links nothing. A port of fullwidth digits
+    reads as its ASCII digits: `see example.com:８０ x` links
+    `http://example.com:80`.
+  - **Emails.** An email's local part is the run of ASCII letters, digits,
+    `.`, `_`, `%`, `+` and `-` before its `@`, wherever the run starts:
+    `see a|b@x.com` links `mailto:b@x.com`. Its domain is two or more ASCII
+    labels, the last a top-level domain on IANA's list in any case:
+    `mail ops@example.zzz now` links nothing. Where an `@` has no such local
+    part or domain, the text after it reads as any text does:
+    `mail ops@Bücher.de now` links `http://Bücher.de`.
+  - **Invisible and bidi characters.** No link holds an invisible space,
+    such as a zero-width space: a web link or email ends before one, the
+    text it cuts off starts no link, and a phone holding one does not link:
+    `see https://exam\u200Bple.com x` links `https://exam`. A format
+    character inside a word starts no bare host unless Chinese, Japanese,
+    Korean, Thai, Lao, Khmer or Myanmar letters precede it:
+    `ข้อมูล\u2060example.com` links `http://example.com`. A web link keeps a
+    bidi control of its text in its URL, an email or phone whose text holds
+    one takes its scheme and its text for its URL, and `XUrl.launch` refuses
+    a URL holding one:
+    `mail ops\u061C@example.com.` links `mailto:ops\u061C@example.com`.
+  - **Phones.** On iOS and Android alone, `XUrl.match` adds the phones the
+    platform's detector reads, `NSDataDetector`'s on iOS and
+    `Patterns.PHONE`'s on Android, where one starts the text or follows a
+    space with `(`, `+` or `0`, its number holds seven digits or more and it
+    overlaps no web link or email: `call +40 712 345 678 now` links
+    `tel:+40712345678`. A phone's URL is `tel:` and its number, without an
+    extension: `call +1 (555) 123-4567 ext. 89 now` links
+    `tel:+15551234567`.
+  - **Long texts.** No web link or email spans a space, tab, LF, FF or CR,
+    and a text of more than 4,096 UTF-16 units links nothing past its last
+    such character at or before its 4,096th unit:
+    `'x ' * 2047 + 'https://example.com'` links nothing.
 - **A screen can claim back that pops nothing.** `Screen.claimsBack` says
   that the screen's `handleBack` takes back now, as a home's does while it
   closes a search. While back goes to a screen that claims it, the one
@@ -52,22 +82,6 @@
   a predictive back reach its `handleBack` rather than the OS. A screen whose
   claim changes emits, where it is a `Listenable`, or calls
   `XRouter.pagesChanged`.
-- **A link hiding an Arabic letter mark does not launch.** `XUrl.launch`
-  refuses a URL holding U+061C ARABIC LETTER MARK, as it refuses the other
-  bidi controls, so in `see evil.com/` with an Arabic letter mark before
-  `good.com`, the link's URL keeps the mark and does not launch.
-- **A link hiding a bidi isolate does not launch.** `XUrl.match` keeps the
-  bidi isolates U+2066–U+2069 in a link's URL, as it keeps the other bidi
-  controls, so `XUrl.launch` refuses the link whichever pass finds it: in
-  `see evil.com/` with `good.com` in a right-to-left isolate, the link's URL
-  keeps the isolate and does not launch.
-- **A link's URL is the same whichever pass finds it.** `XUrl.match` strips
-  a zero-width space, joiner or non-joiner and U+2060–U+206F but the bidi
-  isolates from the URL of a link its any-scheme pass finds, as from one the
-  native detector finds, so `see ftp://a.io/a#` with a zero-width space after
-  the `#` links `ftp://a.io/a#` on Android and Windows, as on iOS and macOS,
-  and a zero-width space after `bl://x?code=1` stays out of its URL on every
-  platform. `XUrl.debugDetect` stands in for the native detector in tests.
 - **A camera page showing an error leaves the picker's camera cell in view.**
   A `CameraPage` covers its picker's camera cell only while it flies the
   cell's preview, so the cell shows under a camera page with an error, as
@@ -94,30 +108,6 @@
   `transitionDuration`, leaves in the build that drops it, so it builds and
   paints no frame after its pop. A leaving screen's `onRemoved`, and the
   stack's, run after the frame it leaves in.
-- **A dotted IPv4 address is no phone number.** `XUrl.match` links a bare
-  IPv4 address as `http://` and the address on every platform, whatever its
-  digits: `ip 192.168.1.1 x` links `http://192.168.1.1`. A number dotted like
-  an IPv4 address that a `0` starts, a national trunk prefix, is a phone
-  number: `call 044.123.45.67 now` links `tel:0441234567`, and
-  `ip 010.000.000.001 x` links `tel:010000000001`. On Android and Windows, an
-  IPv4 address that Chinese, Japanese, Korean, Thai, Lao, Khmer or Myanmar
-  letters follow links, as on iOS and macOS: `访问192.168.1.1然后` links
-  `http://192.168.1.1`.
-- **A web link's URL on iOS and macOS is the text it covers.** On iOS and
-  macOS, `XUrl.match` gives a web link `NSDataDetector` finds the text it
-  covers for its URL, after `http://` where it writes no scheme, as on Android
-  and Windows, so its `%` escapes, its host's case and an IDN host's letters
-  stay as written: `see https://WWW.例子.com/路径%20x y` links
-  `https://WWW.例子.com/路径%20x`.
-- **A bare IPv4 address, a port and a URL `NSDataDetector` misses link on iOS
-  and macOS as on Android and Windows.** On iOS and macOS, `ip 10.0.0.1 x`
-  links `http://10.0.0.1`. A bare domain's port that a letter outside Chinese,
-  Japanese, Korean, Thai, Lao, Khmer or Myanmar follows stays out of its link:
-  `访问example.com:8080abc然后` links `http://example.com`. A port those letters
-  follow has ASCII digits: `访问example.com:8080٣然后` links
-  `http://example.com`. A URL with a scheme that `NSDataDetector` misses after
-  a `_` links as on Android and Windows: `_http://example.com:8080@evil.com/x_`
-  links the whole URL.
 - **A `ScreenHero` flies.** A `ScreenHero` registers with the `ScreenStack`
   around it. When a screen is pushed over another or popped off it, a hero on
   one that shares its tag with a hero on the other flies from its place to the
@@ -139,28 +129,6 @@
   effects off, `SPI_GETCLIENTAREAANIMATION`, read again on each
   `WM_SETTINGCHANGE`. On iOS, Android and Linux, whose Flutter
   `AccessibilityFeatures` carry the setting, it stays false.
-- **A bare domain links on iOS and macOS as on Android and Windows.** On iOS
-  and macOS, `XUrl.match` links a web match with no scheme only where its host
-  is an IP address or ends in a top-level domain on IANA's list, as on Android
-  and Windows, so `see www.example.com.Then you` and
-  `see example.com.Then/x you` link nothing. A bare domain on a top-level
-  domain `NSDataDetector` does not know links with no path after it, and
-  straight after Chinese, Japanese, Korean, Thai, Lao, Khmer or Myanmar
-  letters: `banlu.app` links `http://banlu.app` and `访问banlu.app/x` links
-  `http://banlu.app/x`. A bare domain straight after Lao, Khmer or Myanmar
-  letters links on any top-level domain: `មើលexample.com` links
-  `http://example.com`.
-- **A web link leaves out the quotes and brackets around it.**
-  `XUrl.match` ends a web link before a trailing `'` or `(`, and before a `"`,
-  `<`, `>`, `[`, `\`, `]`, `^`, `` ` ``, `{`, `|`, `}` or a `%` that two hex
-  digits do not follow, which `Patterns.WEB_URL`'s path does not take; an IP
-  literal host keeps its brackets. `He said 'https://example.com/a'.` and
-  `see <https://example.com/a> x` link `https://example.com/a` on every
-  platform. On iOS and macOS, `see "example.com/a" x` links
-  `http://example.com/a`, `see example.com/a|example.org/b z` links
-  `http://example.com/a` and `http://example.org/b`, and
-  `[see https://en.wikipedia.org/wiki/Foo_(bar)] x` links
-  `https://en.wikipedia.org/wiki/Foo_(bar)`, as on Android and Windows.
 - **A link written with non-ASCII text opens before iOS 17 and macOS 14.** On
   iOS and macOS, `XUrl.launch` percent-encodes a link's UTF-8 bytes outside RFC
   3986's URL characters, a `#` after the first and a `[` or `]` outside the
@@ -168,11 +136,6 @@
   `https://zh.wikipedia.org/wiki/北京_(城市)` opens
   `https://zh.wikipedia.org/wiki/%E5%8C%97%E4%BA%AC_(%E5%9F%8E%E5%B8%82)` and
   `https://example.com/aé%20b` opens `https://example.com/a%C3%A9%20b`.
-- **A web link leaves out a `)` it does not open.** On iOS and macOS,
-  `XUrl.match` ends a web link `NSDataDetector` finds before a trailing `)` the
-  link does not open and a trailing `.`, `,`, `;` or `!`, as on Android and
-  Windows, so `(see https://example.com/a_(b)).` links
-  `https://example.com/a_(b)`.
 - **A video export cancelled as it starts ends cancelled.** On iOS and macOS,
   `XVideoExportSession.cancel` fails `done` with `cancelled` and leaves no file
   whenever it comes after `XVideoExporter.start`, right after it included, on
@@ -205,15 +168,6 @@
   carry the counter from its low 64 bits into its high 64 bits where they wrap,
   so their ciphertext equals `encryptChunk`'s for every `iv` and `pos`, as on
   Android and Windows.
-- **A word a period glues to a bare domain makes it no link.** On Android and
-  Windows, `XUrl.match` links a web match with no scheme only where its host is
-  an IP address or ends in a top-level domain on IANA's list, in lowercase or as
-  its Unicode label, or in com, edu, gov, net or org in any case.
-  `see example.com.Then you`, `see example.com.It works` and
-  `see example.com.Über x` link nothing, as on macOS. On iOS and macOS, Chinese
-  or Japanese text before such a domain does not change this:
-  `访问example.com.Then` and `访问example.com.Then/a` link nothing, as on
-  Android and Windows.
 - **A cancelled video export ends.** On iOS and macOS, cancelling an export
   that re-encodes with a `transform` while it runs fails `done` with
   `cancelled` and deletes the partial file, as on Android and Windows.
@@ -240,15 +194,6 @@
   `XVideoPlayerBackend.disposeInstance` documents.
   `XVideoPlayerController.dispose` fails with any other error the platform
   answers, once it has disposed the controller.
-- **A link's path past fullwidth parentheses is no second link.** On every
-  platform, `XUrl.match` links no part of the path a web link runs on into
-  past fullwidth parentheses, `（` and `）`, so
-  `https://example.com/a（1）/page.com` links `https://example.com/a` alone,
-  not also `http://page.com`. A domain past any other ideographic, fullwidth
-  or halfwidth punctuation, or with no `/`, `?`, `#`, `&` or `=` between it and
-  the mark before it, links on its own:
-  `https://example.com/a，/example.org` and
-  `https://example.com/a，备用:example.org` link `http://example.org`.
 - **Windows pastes images and files.** `XClipboard.readFiles` on Windows
   answers the path and name of each file an Explorer copy put on the
   clipboard. `XClipboard.readImage` answers the bytes of the clipboard's
@@ -283,37 +228,6 @@
   `SetThreadExecutionState` until it is released or the window is destroyed.
 - **XWindow logs focus.** Each focus event logs `focused: <bool>` at info
   level, tagged `window`.
-- **A bare domain leaves out the letters glued to it.** On Android and
-  Windows, a host in `XUrl.match` ends at a change between Chinese, Japanese,
-  Korean, Thai, Lao, Khmer or Myanmar letters and other characters inside a
-  label, and leaves out the labels in these scripts that begin or end it and
-  the `.` beside them, so a domain written straight before, after or between
-  such text opens the right host: `访问example.com，然后`, `example.com然后`,
-  `请看example.com.谢谢` and `ข้อมูลที่example.com` link `http://example.com`,
-  and `访问example.com和google.com` links `http://example.com` and
-  `http://google.com`, as on macOS. A host that begins or ends with a label in
-  these scripts beside labels of other characters, such as `例子.com` or
-  `example.中国`, is not linked, as on macOS. Such a label between a host's
-  other labels stays in it, as in `www.例子.com`. A port these letters follow
-  stays in the link: `访问example.com:8080然后` links
-  `http://example.com:8080`, as on macOS.
-- **A web link keeps the slash that ends it.** On Android and Windows, a web
-  match that text follows keeps its path's trailing `/`, the other path
-  punctuation a URL may end in, such as `?`, `=`, `#`, `-` and `*`, and a
-  trailing `)` it opens, as on macOS. A link typed with a trailing `/` is
-  complete when a space is typed after it.
-- **A web link ends before CJK punctuation.** On every platform, `XUrl.match`
-  ends a web match before ideographic, fullwidth and halfwidth punctuation
-  such as `。`, `，`, `、`, `；`, `：`, `！` and `？`, and starts a bare domain
-  match after one. A link ending a Chinese sentence opens without the mark and
-  the text after it, and a link typed before one of these marks is complete
-  when the mark is typed.
-- **A web link leaves out the period after it.** On Android and Windows, and
-  for the bare domains with a path that macOS matches beside `NSDataDetector`,
-  `XUrl.match` ends a web match before a trailing `.`, `,`, `;` or `!` and
-  before a trailing `)` the link does not open. A link that ends a sentence
-  opens without the period, and a link typed before one of these marks is
-  complete when the mark is typed.
 - **Windows probes images.** `XImageProbe.size` and `XImageProbe.thumbnail`
   answer on Windows through WIC, upright with the image's orientation applied,
   for every format an installed codec decodes, HEIC and HEIF included where
@@ -353,12 +267,9 @@
   Windows.
 - **ux has a Windows plugin.** The pubspec declares `windows: pluginClass:
   XPluginCApi`, built as `ux_plugin.dll` on the Windows SDK alone, for Windows
-  10 1903 or later. `XUrl.match` detects web, email and phone links there with
-  AOSP's `Patterns.WEB_URL`, `EMAIL_ADDRESS` and `PHONE`, as Android does, so a
-  bare domain is a link where macOS's detector leaves it plain. `XUrl.launch`
-  opens a URL with the handler Windows has for its scheme, and
-  `openAppSettings` answers false. `windows/test` holds the plugin's native
-  tests.
+  10 1903 or later. `XUrl.launch` opens a URL with the handler Windows has for
+  its scheme, and `openAppSettings` answers false. `windows/test` holds the
+  plugin's native tests.
 - **Avatar editors close on accept.** `ComposeResult.imageBytes` is a
   `Future<Uint8List>` encoded after `ComposePage` pops, so the caller shows
   progress where the image lands; it fails with a `FormatException` when the
