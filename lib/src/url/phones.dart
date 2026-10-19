@@ -13,7 +13,7 @@ typedef PlatformPhone = ({int start, int end, String phone});
 /// [text].
 typedef PhoneReader = List<PlatformPhone> Function(String text, int length);
 
-/// The phones a text keeps.
+/// The most phones a text keeps.
 const maxPhones = 64;
 
 /// [links], the links [detectLinks] reads in [text], with the phones [read]
