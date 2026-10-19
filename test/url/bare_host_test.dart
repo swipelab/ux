@@ -150,6 +150,12 @@ void main() {
     },
   );
 
+  test('a Hangul label that holds Han links only where the first label is www, and a label that holds Lao never', () {
+    expectLinks('see 한국中文.com x', const []);
+    expectLinks('see www.한국中文.com x', [web(4, 16, 'http://www.한국中文.com')]);
+    expectLinks('see www.例子ລາວ.com x', const []);
+  });
+
   test('a host whose first label is www links on any listed ASCII TLD', () {
     expectLinks('see www.bücher.app x', [web(4, 18, 'http://www.bücher.app')]);
     expectLinks('see www.例子.app x', [web(4, 14, 'http://www.例子.app')]);

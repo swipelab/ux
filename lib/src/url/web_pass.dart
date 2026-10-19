@@ -11,9 +11,9 @@ typedef PassLink = ({int start, int end, bool written});
 /// its hosts of ASCII labels and IPv4 addresses with no scheme, each ended
 /// by [webEnd].
 ///
-/// A host with no scheme links where its TLD is listed, a label in an
-/// unspaced script before its TLD is Hangul, or Han, kana or Thai in a host
-/// whose first label is 'www', no ASCII label stands right before a TLD in
+/// A host with no scheme links where its TLD is listed, each unspaced-script
+/// character of a label before its TLD is Hangul, or Han, kana or Thai in a
+/// host whose first label is 'www', no ASCII label stands right before a TLD in
 /// an unspaced script, no '.' and letter glue a word to it, no '://' follows
 /// it, and, an IPv4 address, no octet of two or more digits starts with '0'
 /// and no '.' and digit follow it; a port of fullwidth digits that an
@@ -570,15 +570,15 @@ class _Pass {
     final unspacedTld = isUnspaced(_cp(tld));
     final www = _literal(s, 'www.');
     for (var label = s; label < tld;) {
-      final first = _cp(label);
       var ascii = true;
       var dot = label;
-      for (; text.codeUnitAt(dot) != 0x2E; dot++) {
-        if (text.codeUnitAt(dot) >= 0x80) ascii = false;
-      }
-      if (isUnspaced(first) &&
-          !(_isHangul(first) || www && _isHanKanaThai(first))) {
-        return false;
+      while (text.codeUnitAt(dot) != 0x2E) {
+        final cp = _cp(dot);
+        if (cp >= 0x80) ascii = false;
+        if (isUnspaced(cp) && !(_isHangul(cp) || www && _isHanKanaThai(cp))) {
+          return false;
+        }
+        dot += width(cp);
       }
       if (unspacedTld && ascii && dot + 1 == tld) return false;
       label = dot + 1;
