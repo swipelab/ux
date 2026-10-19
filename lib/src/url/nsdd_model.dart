@@ -159,10 +159,9 @@ class _Scan {
   /// stop.
   int runEnd(int p) => parenStop(p, _stops[p]);
 
-  /// [stop], the end of the run that [p] starts, or, where a control other
-  /// than tab, LF and CR, a '<' or a private-use character below U+F800
-  /// follows it, the end of its last character in ICU's `\w` or Cf, before
-  /// a paren stop.
+  /// [stop], the end of the run that [p] starts, or, where a unit of
+  /// [_dropsRunBefore] follows it, the end of its last character in ICU's
+  /// `\w` or Cf, before a paren stop.
   int _wordEnd(int p, int stop) {
     if (stop >= n || !_dropsRunBefore(text.codeUnitAt(stop))) return stop;
     final word = _lastWordEnd(stop);
@@ -231,9 +230,10 @@ class _Scan {
   ///
   /// The link runs to a hard or paren stop. A Cf character in its path cuts
   /// it back before its segment, or a bidi control at a segment's end ends
-  /// it there, and a ZWJ ending it cuts its last segment. A '/' alone or an
-  /// empty port's ':' goes before a control, '"', '<', ZWSP or a private-use
-  /// character. Its trailing marks go, and then its authority decides.
+  /// it there, and a ZWJ ending it cuts its last segment. Before a unit of
+  /// [_dropsRunBefore] it ends at [_wordEnd], and a '/' alone or an empty
+  /// port's ':' goes before '"' or ZWSP. Its trailing marks go, and then
+  /// its authority decides.
   int? _schemeLinkEnd(int s, int sep, int p) {
     final scheme = text.substring(s, sep).toLowerCase();
     var stop = runEnd(p);
@@ -319,7 +319,7 @@ class _Scan {
       var close = host + 1;
       while (close < authorityEnd && text.codeUnitAt(close) != 0x5D) {
         final c = text.codeUnitAt(close);
-        if (_formatLike(c) && c != 0xAD) return _Refused();
+        if (_formatLike(c) && c != 0xAD || _privateUse(c)) return _Refused();
         close++;
       }
       if (close >= authorityEnd) return _Refused();
@@ -470,9 +470,10 @@ class _Scan {
   }
 
   /// Whether [body, end), a `mailto:` URI's body, holds an address
-  /// NSDataDetector reads: before any '?', a local part and a domain of
-  /// labels of ASCII letters, digits, '-' and '_' joined by single dots whose
-  /// last label is letters, or a body that is a query holding an '@'.
+  /// NSDataDetector reads: before any '?', a local part with no private-use
+  /// character and a domain of labels of ASCII letters, digits, '-' and '_'
+  /// joined by single dots whose last label is letters, or a body that is a
+  /// query holding an '@'.
   bool _mailtoAddress(int body, int end) {
     final query = _queries[body] < end ? _queries[body] : end;
     if (query == body) {
@@ -481,6 +482,9 @@ class _Scan {
     }
     final at = _lastAt(query);
     if (at == null || at <= body) return false;
+    for (var i = body; i < at; i++) {
+      if (_privateUse(text.codeUnitAt(i))) return false;
+    }
     final labels = text.substring(at + 1, query).split('.');
     if (labels.length < 2) return false;
     for (final label in labels) {
@@ -639,7 +643,7 @@ bool _isHangulFiller(int cp) =>
 
 /// Whether the UTF-16 unit [c] ends NSDataDetector's link before it:
 /// whitespace, a C0 or C1 control or DEL, `{ } < > "`, CJK punctuation,
-/// ZWSP or a private-use character.
+/// ZWSP or a private-use character of [_privateUseStop].
 bool _linkStop(int c) =>
     c <= 0x20 ||
     (c >= 0x7F && c <= 0xA0) ||
@@ -655,18 +659,27 @@ bool _linkStop(int c) =>
     c == 0x202F ||
     c == 0x205F ||
     c == 0x3000 ||
-    (c >= 0xE000 && c <= 0xF8FF) ||
+    _privateUseStop(c) ||
     isCjkPunctuation(c);
 
-/// Whether the UTF-16 unit [c] ends NSDataDetector's link together with the
-/// run of characters outside ICU's `\w` before it: a C0 control other than
-/// tab, LF and CR, DEL, a C1 control, '<' or a private-use character below
-/// U+F800.
+/// Whether the UTF-16 unit [c] is a private-use character that ends
+/// NSDataDetector's link: U+E000–U+F7F2, U+F8A1–U+F8A7, U+F8B4–U+F8B7 or
+/// U+F8BB–U+F8C0.
+bool _privateUseStop(int c) =>
+    (c >= 0xE000 && c <= 0xF7F2) ||
+    (c >= 0xF8A1 && c <= 0xF8A7) ||
+    (c >= 0xF8B4 && c <= 0xF8B7) ||
+    (c >= 0xF8BB && c <= 0xF8C0);
+
+/// Whether the UTF-16 unit [c] ends NSDataDetector's link at [_Scan._wordEnd]:
+/// a C0 control other than tab, LF and CR, DEL, a C1 control, '<' or a
+/// private-use character of [_privateUseStop] other than U+F8B4, U+F8BE and
+/// U+F8BF.
 bool _dropsRunBefore(int c) =>
     (c <= 0x1F && c != 0x09 && c != 0x0A && c != 0x0D) ||
     (c >= 0x7F && c <= 0x9F) ||
     c == 0x3C ||
-    (c >= 0xE000 && c <= 0xF7FF);
+    _privateUseStop(c) && c != 0xF8B4 && c != 0xF8BE && c != 0xF8BF;
 
 /// Whether a path that is a '/' alone, or an empty port's ':', goes where the
 /// UTF-16 unit [c] follows it.
@@ -738,7 +751,10 @@ bool _killsHost(int c) =>
     c == 0x5C ||
     c == 0x5E ||
     c == 0x2026 ||
+    _privateUse(c) ||
     _formatLike(c) && c != 0xAD && c != 0x200C && c != 0x200D;
+
+bool _privateUse(int c) => c >= 0xE000 && c <= 0xF8FF;
 
 /// Whether the UTF-16 unit [c] is a port character: an ASCII or fullwidth
 /// digit, or a default-ignorable character NSDataDetector keeps in a port.

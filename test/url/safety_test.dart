@@ -78,6 +78,13 @@ void main() {
     expectLinks('see sms:a=b&\u0001 x', [web(4, 11, 'sms:a=b')]);
   });
 
+  test(
+    "a private-use character outside NSDataDetector's stops stays in a link",
+    () {
+      expectLinks('see sms:ab\uF7FFc x', [web(4, 12, 'sms:ab\uF7FFc')]);
+    },
+  );
+
   test("an opaque URI whose body a control leaves without a character in \\w is no link", () {
     expectLinks('see sms:+\u0001 x', const []);
   });
