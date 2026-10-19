@@ -1,9 +1,10 @@
 # ux — Third-Party Licenses & Compliance
 
-`ux` can bundle two components with distribution obligations: **FFmpeg**, used
-as a software H.264 video decoder on Android, and AOSP's **link patterns**,
-compiled into the Windows plugin and ported into ux's Dart link detector. FFmpeg is **opt-in and disabled by
-default** — only apps that enable it ship it and inherit the obligation:
+`ux` can bundle three components with distribution obligations: **FFmpeg**,
+used as a software H.264 video decoder on Android; AOSP's **link patterns**,
+ported into ux's Dart link detector; and **Unicode data**, generated into that
+detector's tables. FFmpeg is **opt-in and disabled by default** — only apps
+that enable it ship it and inherit the obligation:
 
 ```yaml
 ux:
