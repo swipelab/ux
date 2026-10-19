@@ -57,8 +57,8 @@ void main() {
       [web(9, 18, 'http://Bücher.de')],
       apple: [email(5, 18, 'mailto:ops@xn--bcher-kva.de')],
     );
-    expectLinks('mail ops@Bücher.de now', [
-      web(9, 19, 'http://Bücher.de'),
+    expectLinks('mail ops@Bu\u0308cher.de now', [
+      web(9, 19, 'http://Bu\u0308cher.de'),
     ], apple: const []);
   });
 
