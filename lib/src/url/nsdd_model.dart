@@ -192,11 +192,13 @@ class _Scan {
   ///
   /// A trimmed mark inside the tail that no '/' follows ends the link as
   /// [_trailing] reads it. Otherwise `# - ~ *` before the stop go, then a
-  /// '?', ':', ']' or trimmed mark goes with the character before it and
-  /// the run of `# - ~ *` that character ends. A '/' or apostrophe goes
-  /// alone where [_tailKept] holds; else the character before it goes too,
-  /// and after an apostrophe the run of `# - ~ *` before that, or after a
-  /// '/' one more character unless that one is a '/' or apostrophe.
+  /// '?', ':', ']' or trimmed mark goes with the run of `# - ~ *` before it
+  /// and the character before that run. A '/' or apostrophe goes alone
+  /// where [_tailKept] holds; else the character before it goes too, and
+  /// after an apostrophe, where that character is one of `# - ~ *`, the rest
+  /// of its run and the character before that run, or after a '/', where
+  /// that character is not a '/' or apostrophe, one more character. The
+  /// link ends no earlier than [word].
   int? _tailEnd(int word, int stop, bool literal) {
     final lead = cpBefore(text, word);
     if (stop - word > 3 || !isMacLetter(lead) && !isAsciiDigit(lead)) {
@@ -227,8 +229,8 @@ class _Scan {
     return word;
   }
 
-  /// [e] without the character before it and the run of `# - ~ *` that
-  /// character ends, no earlier than [word].
+  /// [e] without the run of `# - ~ *` before it and the character before
+  /// that run, no earlier than [word].
   int _dropRun(int word, int e) {
     while (e > word) {
       if (!_dropsBefore(text.codeUnitAt(--e))) break;
@@ -492,9 +494,9 @@ class _Scan {
 
   /// The end of NSDataDetector's link from [s] to [end] after its trailing
   /// marks: a trimmed mark that is not the first of the run and that anything
-  /// but '/' follows ends the link there, dropping the character before it
-  /// too, and the run of `# - ~ *` before that, where `# - ~ *` or a '('
-  /// follows it; then the trailing trimmed marks go.
+  /// but '/' follows ends the link there; where `# - ~ *` or a '(' follows
+  /// it, the run of `# - ~ *` before it goes too, and so does the mark
+  /// before that run; then the trailing trimmed marks go.
   int _trailing(int s, int end) {
     final word = _lastWordish(end);
     final run = word != null && word >= s ? word + 1 : s;
