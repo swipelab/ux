@@ -13,9 +13,9 @@ import io.flutter.plugin.common.MethodChannel
 class UrlPlugin : NativePlugin, MethodChannel.MethodCallHandler {
     companion object {
         init {
-            // Trigger JNI_OnLoad in libux.so so the FFI shim's
-            // android.util.Patterns bindings are cached before the first
-            // XUrl.match call from Dart.
+            // Runs JNI_OnLoad in libux.so, which caches
+            // android.util.Patterns.PHONE for XUrl.match's phones before the
+            // first XUrl.match call from Dart.
             System.loadLibrary("ux")
         }
     }
