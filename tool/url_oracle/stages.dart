@@ -244,10 +244,17 @@ bool sanitizeStrips(int c) =>
 String sanitizeUrl(String url) =>
     String.fromCharCodes(url.codeUnits.where((c) => !sanitizeStrips(c)));
 
+/// The links stage 4 keeps of stage 3's: the first 64.
+const maxNativeLinks = 64;
+
 /// The native links of [buffer] as `_decode` gives them for [text]: the first
-/// 64, each URL with its bidi controls kept and sanitized.
-List<Link> decodeNative(List<Link> buffer, String text) => [
-  for (final m in buffer.take(64))
+/// [cap], each URL with its bidi controls kept and sanitized.
+List<Link> decodeNative(
+  List<Link> buffer,
+  String text, {
+  int cap = maxNativeLinks,
+}) => [
+  for (final m in buffer.take(cap < 0 ? 0 : cap))
     Link(
       m.start,
       m.end,
@@ -381,11 +388,16 @@ List<Link> dedupe(List<Link> links) {
   return out;
 }
 
-/// Stages 4 to 7 over [native] of [text], the stage-3 links: the cap, the
-/// URLs' bidi controls and sanitizing, the phone filter, then the merge with
-/// [anyScheme], the any-scheme pass's links.
-List<Link> finish(String text, List<Link> native, List<Link> anyScheme) {
-  final links = tightenPhones(decodeNative(native, text), text);
+/// Stages 4 to 7 over [native] of [text], the stage-3 links: the cap of
+/// [cap], the URLs' bidi controls and sanitizing, the phone filter, then the
+/// merge with [anyScheme], the any-scheme pass's links.
+List<Link> finish(
+  String text,
+  List<Link> native,
+  List<Link> anyScheme, {
+  int cap = maxNativeLinks,
+}) {
+  final links = tightenPhones(decodeNative(native, text, cap: cap), text);
   if (!text.contains('://') || anyScheme.isEmpty) return links;
   return dedupe([...links, ...anyScheme]);
 }

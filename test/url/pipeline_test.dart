@@ -132,4 +132,23 @@ void main() {
       apple: [phone(4083, 4098, 'tel:+40712345678')],
     );
   });
+
+  test('a segment links what NSDataDetector reads in its window, from the unit before it to three after it, its stand-ins in that window too', () {
+    expectLinks(
+      '\u4E2D\u6587 exa\u034Fmple.co\u2061m x',
+      const [],
+      apple: [web(7, 14, 'http://mple.co')],
+    );
+  });
+
+  test("a segment's window reads the phones the whole text reads", () {
+    expectLinks('call +40 712 345 678x now', [phone(5, 16, 'tel:+40712345')]);
+  }, skip: "step 5 models NSDataDetector's phones");
+
+  test("a phone the whole text reads drops the link its segment's window reads over it", () {
+    expectLinks(
+      '\u0E02\u0E49\u0E2D\u0E21\u0E39\u0E25 ?. sms:+15551234567. //',
+      const [],
+    );
+  }, skip: "step 5 models NSDataDetector's phones");
 }

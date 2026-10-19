@@ -27,8 +27,8 @@ class Recorded {
   /// The texts asked for and lacked since [readAll]'s last round.
   final Set<String> missing = {};
 
-  /// The segment windows [stage2] answers from the reading of the text they
-  /// are cut from: that text, the window's offset in it and the segment.
+  /// The segment windows of the text [cutWindows] last cut: the text, the
+  /// window's offset in it and the segment.
   final Map<String, ({String text, int from, int start, int end})> windows = {};
 
   var _misses = 0;
@@ -44,8 +44,7 @@ class Recorded {
     return r;
   }
 
-  /// darwin's stage-2 state of [text] as probe-stages recorded it, or, for
-  /// one of [windows], as it recorded the segment in the text it is cut from.
+  /// darwin's stage-2 state of [text] as probe-stages recorded it.
   Stage2 stage2(String text) {
     final r = _recorded(text);
     return (
@@ -56,32 +55,11 @@ class Recorded {
     );
   }
 
-  /// probe-stages' candidates and raw results of [text], those of one of
-  /// [windows] from the segment in the text it is cut from.
+  /// probe-stages' candidates and raw results of [text].
   ({List<Candidate> candidates, List<RawResult> raw}) _recorded(String text) {
-    final window = windows[text];
-    final r = _of(window?.text ?? text);
+    final r = _of(text);
     if (r == null) return (candidates: const [], raw: const []);
-    if (window == null) return (candidates: r.candidates!, raw: r.raw);
-    final (:from, :start, :end, text: _) = window;
-    bool inside(int i) => start <= i && i < end;
-    return (
-      candidates: [
-        for (final c in r.candidates!)
-          if (inside(c.link.start))
-            Candidate(_shifted(c.link, -from), nsdd: c.nsdd),
-      ],
-      raw: [
-        for (final x in r.raw)
-          if (inside(x.start))
-            RawResult(
-              x.start - from,
-              x.end - from,
-              phone: x.phone,
-              value: x.value,
-            ),
-      ],
-    );
+    return (candidates: r.candidates!, raw: r.raw);
   }
 
   /// Sets [windows] to the segment windows readLinks reads of [text], and
@@ -106,10 +84,46 @@ class Recorded {
     return bounded;
   }
 
+  /// The texts of [texts], in order, darwin reads otherwise in a segment's
+  /// window alone than in the text, reading every window reading it lacks
+  /// through [read].
+  Future<List<String>> nonLocal(
+    List<String> texts,
+    Future<List<ProbeReading>> Function(List<String> texts) read,
+  ) async {
+    final found = <String>{};
+    var pending = texts;
+    while (pending.isNotEmpty) {
+      missing.clear();
+      final next = <String>[];
+      for (final t in pending) {
+        final local = _local(cutWindows(t)!);
+        if (local == null) {
+          next.add(t);
+        } else if (!local) {
+          found.add(t);
+        }
+      }
+      if (missing.isNotEmpty) {
+        final lacked = missing.toList();
+        final readings = await read(lacked);
+        for (var i = 0; i < lacked.length; i++) {
+          this.readings[lacked[i]] = readings[i];
+        }
+      }
+      pending = next;
+    }
+    windows.clear();
+    return [
+      for (final t in texts)
+        if (found.contains(t)) t,
+    ];
+  }
+
   /// Whether darwin reads each segment window of [bounded], which
   /// [cutWindows] gave, as it reads that segment in the text; null where a
   /// window's own reading is missing.
-  bool? local(String bounded) {
+  bool? _local(String bounded) {
     final whole = readings[bounded]!;
     for (final MapEntry(key: window, value: (:from, :start, :end, text: _))
         in windows.entries) {
@@ -136,10 +150,9 @@ class Recorded {
   ];
 
   /// The Dart detector's stage-2 state of [text] with probe-stages' recorded
-  /// NSDataDetector candidates of [kinds] in place of its model's, a
-  /// window's from the text it is cut from: a recorded candidate drops each
-  /// of the model's it overlaps, and recorded phones join the model's
-  /// results.
+  /// NSDataDetector candidates of [kinds] in place of its model's: a
+  /// recorded candidate drops each of the model's it overlaps, and recorded
+  /// phones join the model's results.
   Stage2 assisted(String text, Set<UrlMatchKind> kinds) {
     final raw = nsddResults(text);
     final r = _recorded(text);

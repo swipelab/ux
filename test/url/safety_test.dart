@@ -74,6 +74,25 @@ void main() {
     ]);
   }, skip: "step 3 models NSDataDetector's own bare hosts");
 
+  test("a control after a link takes a trailing '&' with it", () {
+    expectLinks('see sms:a=b&\u0001 x', [web(4, 11, 'sms:a=b')]);
+  });
+
+  test("a control after a link takes only the last of two '/' with it", () {
+    expectLinks('see sms:ab//\u0001 x', [web(4, 11, 'sms:ab/')]);
+  });
+
+  test(
+    "a private-use character outside NSDataDetector's stops stays in a link",
+    () {
+      expectLinks('see sms:ab\uF7FFc x', [web(4, 12, 'sms:ab\uF7FFc')]);
+    },
+  );
+
+  test("an opaque URI whose body a control leaves without a character in \\w is no link", () {
+    expectLinks('see sms:+\u0001 x', const []);
+  });
+
   test('a C0 or C1 control inside a host splits it into two links', () {
     expectLinks('https://exam\u009Fple.com/a?b=1', [
       web(0, 12, 'https://exam'),

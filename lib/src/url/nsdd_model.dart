@@ -45,7 +45,8 @@ const opaqueSchemes = {
 };
 
 /// The schemes NSDataDetector starts a link at after a '.' in a run of
-/// scheme characters.
+/// scheme characters, and whose userinfo it refuses where its user ends in
+/// a '.' and a label of two or three letters.
 const _webSchemes = {'http', 'https', 'feed'};
 
 /// What NSDataDetector reads of a link's authority.
@@ -89,6 +90,9 @@ class _Scan {
   late final Int32List _lastCloses = _backward((c) => c == 0x29);
   late final Int32List _lastAts = _backward((c) => c == 0x40);
   late final Int32List _lastWordishes = _backward(_wordish);
+  late final Int32List _lastWords = _backwardCodePoints(
+    (cp) => isWord(cp) || _formatLike(cp),
+  );
 
   /// The last ')' before [p].
   int? _lastClose(int p) => _before(_lastCloses, p);
@@ -98,6 +102,9 @@ class _Scan {
 
   /// The last character before [p] that ends a run of trailing marks.
   int? _lastWordish(int p) => _before(_lastWordishes, p);
+
+  /// The end of the last character in ICU's `\w` or Cf before [p].
+  int? _lastWordEnd(int p) => _before(_lastWords, p);
 
   static int? _before(Int32List table, int p) {
     final at = table[p];
@@ -124,6 +131,16 @@ class _Scan {
     return out;
   }
 
+  /// For each position, the end of the last code point before it that
+  /// [test] holds, or -1, read through [_before].
+  Int32List _backwardCodePoints(bool Function(int) test) {
+    final out = Int32List(n + 1)..[0] = -1;
+    for (var i = 1; i <= n; i++) {
+      out[i] = test(cpBefore(text, i)) ? i : out[i - width(cpBefore(text, i))];
+    }
+    return out;
+  }
+
   /// Where a '(' that no ')' after it closes, or a ')' that no '(' before it
   /// opens, between [p] and [stop] ends NSDataDetector's link.
   int parenStop(int p, int stop) {
@@ -141,6 +158,103 @@ class _Scan {
   /// The end of the run that [p] starts, before a hard stop and a paren
   /// stop.
   int runEnd(int p) => parenStop(p, _stops[p]);
+
+  /// [stop], the end of the run that [p] starts, or, where a unit of
+  /// [_dropsRunBefore] follows it, the end [_tailEnd] reads for the run's
+  /// tail after its last character in ICU's `\w` or Cf, else that
+  /// character's end before a paren stop. [authorityEnd] ends a scheme
+  /// link's authority, whose bracketed host's ']' a tail may start at.
+  int _wordEnd(int p, int stop, [int? authorityEnd]) {
+    if (stop >= n || !_dropsRunBefore(text.codeUnitAt(stop))) return stop;
+    final last = _lastWordEnd(stop);
+    final word = last != null && last > p ? last : p;
+    final literal =
+        authorityEnd != null && _literalClose(p, authorityEnd) == word;
+    return _tailEnd(word, stop, literal) ?? parenStop(p, word);
+  }
+
+  /// The ']' that closes the bracketed host of the authority from [p] to
+  /// [authorityEnd].
+  int? _literalClose(int p, int authorityEnd) {
+    final lastAt = _lastAt(authorityEnd);
+    final host = lastAt != null && lastAt >= p ? lastAt + 1 : p;
+    if (host >= authorityEnd || text.codeUnitAt(host) != 0x5B) return null;
+    for (var i = host + 1; i < authorityEnd; i++) {
+      if (text.codeUnitAt(i) == 0x5D) return i;
+    }
+    return null;
+  }
+
+  /// Where NSDataDetector ends a link before a unit of [_dropsRunBefore]
+  /// where its tail [word, stop) follows a letter, mark or ASCII digit and is
+  /// at most three of `/ ' ? : # - ~ * . , ! ;`, after a bracketed host's
+  /// ']' where [literal] holds, or null for any other tail.
+  ///
+  /// A trimmed mark inside the tail that no '/' follows ends the link as
+  /// [_trailing] reads it. Otherwise `# - ~ *` before the stop go, then a
+  /// '?', ':', ']' or trimmed mark goes with the run of `# - ~ *` before it
+  /// and the character before that run. A '/' or apostrophe goes alone
+  /// where [_tailKept] holds; else the character before it goes too, and
+  /// after an apostrophe, where that character is one of `# - ~ *`, the rest
+  /// of its run and the character before that run, or after a '/', where
+  /// that character is not a '/' or apostrophe, one more character. The
+  /// link ends no earlier than [word].
+  int? _tailEnd(int word, int stop, bool literal) {
+    final lead = cpBefore(text, word);
+    if (stop - word > 3 || !isMacLetter(lead) && !isAsciiDigit(lead)) {
+      return null;
+    }
+    for (var i = literal ? word + 1 : word; i < stop; i++) {
+      if (!_tailChar(text.codeUnitAt(i))) return null;
+    }
+    for (var i = word + 1; i < stop - 1; i++) {
+      final next = text.codeUnitAt(i + 1);
+      if (!_trimmed(text.codeUnitAt(i)) || next == 0x2F) continue;
+      return _dropsBefore(next) ? _dropRun(word, i) : i;
+    }
+    var e = stop;
+    while (e > word) {
+      final c = text.codeUnitAt(e - 1);
+      if (_dropsBefore(c)) {
+        e--;
+        continue;
+      }
+      if (!_slashLike(c)) return _dropRun(word, e - 1);
+      e--;
+      if (_tailKept(word, e, c)) return e;
+      final b = text.codeUnitAt(--e);
+      if (c == 0x27) return _dropsBefore(b) ? _dropRun(word, e) : e;
+      return !_slashLike(b) && e > word ? e - 1 : e;
+    }
+    return word;
+  }
+
+  /// [e] without the run of `# - ~ *` before it and the character before
+  /// that run, no earlier than [word].
+  int _dropRun(int word, int e) {
+    while (e > word) {
+      if (!_dropsBefore(text.codeUnitAt(--e))) break;
+    }
+    return e;
+  }
+
+  /// Whether a tail from [word] that ends at [e] before the '/' or
+  /// apostrophe [c] stays before a hard stop: it is empty, or its last
+  /// character is not a trimmed mark and the one before that is the
+  /// character before [word], an apostrophe, ']' or a trimmed mark, or the
+  /// two are `//`, `--` or `**`, or `:/` before a '/'.
+  bool _tailKept(int word, int e, int c) {
+    if (e == word) return true;
+    final b = text.codeUnitAt(e - 1);
+    if (_trimmed(b)) return false;
+    if (e - 1 == word) return true;
+    final a = text.codeUnitAt(e - 2);
+    return a == 0x27 ||
+        a == 0x5D ||
+        _trimmed(a) ||
+        a == b && (a == 0x2F || a == 0x2D || a == 0x2A) ||
+        c == 0x2F && a == 0x3A && b == 0x2F;
+  }
 
   /// The link NSDataDetector reads at the ':' at [colon]: a scheme link where
   /// two '/' follow it, else an opaque URI.
@@ -204,9 +318,10 @@ class _Scan {
   ///
   /// The link runs to a hard or paren stop. A Cf character in its path cuts
   /// it back before its segment, or a bidi control at a segment's end ends
-  /// it there, and a ZWJ ending it cuts its last segment. A '/' alone or an
-  /// empty port's ':' goes before a control, '"', '<', ZWSP or a private-use
-  /// character. Its trailing marks go, and then its authority decides.
+  /// it there, and a ZWJ ending it cuts its last segment. Before a unit of
+  /// [_dropsRunBefore] it ends at [_wordEnd], and a '/' alone or an empty
+  /// port's ':' goes before '"' or ZWSP. Its trailing marks go, and then
+  /// its authority decides.
   int? _schemeLinkEnd(int s, int sep, int p) {
     final scheme = text.substring(s, sep).toLowerCase();
     var stop = runEnd(p);
@@ -231,6 +346,8 @@ class _Scan {
         (stop == n || text.codeUnitAt(stop) <= 0x20)) {
       stop = _segmentBefore(stop - 1, authorityEnd);
     }
+    stop = _wordEnd(p, stop, authorityEnd);
+    if (authorityEnd > stop) authorityEnd = stop;
     if (stop < n &&
         stop > p &&
         _dropsLonePath(text.codeUnitAt(stop)) &&
@@ -283,13 +400,14 @@ class _Scan {
   _Authority _authority(int s, int p, int authorityEnd) {
     final lastAt = _lastAt(authorityEnd);
     final at = lastAt != null && lastAt >= p ? lastAt : null;
+    if (at != null && _hostLikeUser(s, p, at)) return _Refused();
     final host = at == null ? p : at + 1;
     int hostEnd;
     if (host < authorityEnd && text.codeUnitAt(host) == 0x5B) {
       var close = host + 1;
       while (close < authorityEnd && text.codeUnitAt(close) != 0x5D) {
         final c = text.codeUnitAt(close);
-        if (_formatLike(c) && c != 0xAD) return _Refused();
+        if (_formatLike(c) && c != 0xAD || _privateUse(c)) return _Refused();
         close++;
       }
       if (close >= authorityEnd) return _Refused();
@@ -338,6 +456,30 @@ class _Scan {
     return _Taken(at, host, hostEnd);
   }
 
+  /// Whether the userinfo from [p] to the '@' at [at] of the link that
+  /// starts at [s] has a user, its part before any ':', that ends in a '.'
+  /// and a label of two or three letters, under a scheme of [_webSchemes].
+  bool _hostLikeUser(int s, int p, int at) {
+    var user = p;
+    while (user < at && text.codeUnitAt(user) != 0x3A) {
+      user++;
+    }
+    var letters = 0;
+    var i = user;
+    while (i > p && isLetter(cpBefore(text, i))) {
+      i -= width(cpBefore(text, i));
+      letters++;
+    }
+    if (letters < 2 ||
+        letters > 3 ||
+        i <= p ||
+        text.codeUnitAt(i - 1) != 0x2E) {
+      return false;
+    }
+    final sep = text.indexOf(':', s);
+    return _webSchemes.contains(text.substring(s, sep).toLowerCase());
+  }
+
   /// NSDataDetector's reading of a scheme on the opaque list and one '/'
   /// where it reads no host after its `//` at [p] and no whitespace follows
   /// it.
@@ -352,9 +494,9 @@ class _Scan {
 
   /// The end of NSDataDetector's link from [s] to [end] after its trailing
   /// marks: a trimmed mark that is not the first of the run and that anything
-  /// but '/' follows ends the link there, dropping the character before it
-  /// too, and the run of `# - ~ *` before that, where `# - ~ *` or a '('
-  /// follows it; then the trailing trimmed marks go.
+  /// but '/' follows ends the link there; where `# - ~ *` or a '(' follows
+  /// it, the run of `# - ~ *` before it goes too, and so does the mark
+  /// before that run; then the trailing trimmed marks go.
   int _trailing(int s, int end) {
     final word = _lastWordish(end);
     final run = word != null && word >= s ? word + 1 : s;
@@ -404,7 +546,7 @@ class _Scan {
       stop--;
     }
     if (_formats[body] < stop) return null;
-    final e = _trailing(body, stop);
+    final e = _trailing(body, _wordEnd(body, stop));
     if (e == body) return null;
     if (mailto && !_mailtoAddress(body, e)) return null;
     return (
@@ -416,9 +558,10 @@ class _Scan {
   }
 
   /// Whether [body, end), a `mailto:` URI's body, holds an address
-  /// NSDataDetector reads: before any '?', a local part and a domain of
-  /// labels of ASCII letters, digits, '-' and '_' joined by single dots whose
-  /// last label is letters, or a body that is a query holding an '@'.
+  /// NSDataDetector reads: before any '?', a local part with no private-use
+  /// character and a domain of labels of ASCII letters, digits, '-' and '_'
+  /// joined by single dots whose last label is letters, or a body that is a
+  /// query holding an '@'.
   bool _mailtoAddress(int body, int end) {
     final query = _queries[body] < end ? _queries[body] : end;
     if (query == body) {
@@ -427,6 +570,9 @@ class _Scan {
     }
     final at = _lastAt(query);
     if (at == null || at <= body) return false;
+    for (var i = body; i < at; i++) {
+      if (_privateUse(text.codeUnitAt(i))) return false;
+    }
     final labels = text.substring(at + 1, query).split('.');
     if (labels.length < 2) return false;
     for (final label in labels) {
@@ -558,7 +704,7 @@ bool _joinsWord(int cp) =>
     _isHangulFiller(cp) ||
     (isLetter(cp) || isDigit(cp)) &&
         !(cp >= 0x1100 && cp <= 0x11FF) &&
-        !(cp >= 0x2E80 && cp <= 0x9FFF) &&
+        !(cp >= 0x2E80 && cp <= 0x9FFF && !_isBopomofo(cp)) &&
         !(cp >= 0xA960 && cp <= 0xA97F) &&
         !(cp >= 0xAC00 && cp <= 0xD7FF) &&
         !(cp >= 0xF900 && cp <= 0xFAFF) &&
@@ -577,12 +723,15 @@ bool _midLetter(int cp) =>
     cp == 0xFE55 ||
     cp == 0xFF1A;
 
+bool _isBopomofo(int cp) =>
+    (cp >= 0x3100 && cp <= 0x312F) || (cp >= 0x31A0 && cp <= 0x31BF);
+
 bool _isHangulFiller(int cp) =>
     cp == 0x115F || cp == 0x1160 || cp == 0x3164 || cp == 0xFFA0;
 
 /// Whether the UTF-16 unit [c] ends NSDataDetector's link before it:
 /// whitespace, a C0 or C1 control or DEL, `{ } < > "`, CJK punctuation,
-/// ZWSP or a private-use character.
+/// ZWSP or a private-use character of [_privateUseStop].
 bool _linkStop(int c) =>
     c <= 0x20 ||
     (c >= 0x7F && c <= 0xA0) ||
@@ -598,18 +747,45 @@ bool _linkStop(int c) =>
     c == 0x202F ||
     c == 0x205F ||
     c == 0x3000 ||
-    (c >= 0xE000 && c <= 0xF8FF) ||
+    _privateUseStop(c) ||
     isCjkPunctuation(c);
+
+/// Whether the UTF-16 unit [c] is a private-use character that ends
+/// NSDataDetector's link: U+E000–U+F7F2, U+F8A1–U+F8A7, U+F8B4–U+F8B7 or
+/// U+F8BB–U+F8C0.
+bool _privateUseStop(int c) =>
+    (c >= 0xE000 && c <= 0xF7F2) ||
+    (c >= 0xF8A1 && c <= 0xF8A7) ||
+    (c >= 0xF8B4 && c <= 0xF8B7) ||
+    (c >= 0xF8BB && c <= 0xF8C0);
+
+/// Whether the UTF-16 unit [c] ends NSDataDetector's link at [_Scan._wordEnd]:
+/// a C0 control other than tab, LF and CR, DEL, a C1 control, '<' or a
+/// private-use character of [_privateUseStop] other than U+F8B4, U+F8BE and
+/// U+F8BF.
+bool _dropsRunBefore(int c) =>
+    (c <= 0x1F && c != 0x09 && c != 0x0A && c != 0x0D) ||
+    (c >= 0x7F && c <= 0x9F) ||
+    c == 0x3C ||
+    _privateUseStop(c) && c != 0xF8B4 && c != 0xF8BE && c != 0xF8BF;
+
+/// Whether the UTF-16 unit [c] is one of `/ ' ? : # - ~ * . , ! ;`, the
+/// characters of a tail [_Scan._tailEnd] reads.
+bool _tailChar(int c) =>
+    _slashLike(c) ||
+    c == 0x3F ||
+    c == 0x3A ||
+    _dropsBefore(c) ||
+    c == 0x2E ||
+    c == 0x2C ||
+    c == 0x21 ||
+    c == 0x3B;
+
+bool _slashLike(int c) => c == 0x2F || c == 0x27;
 
 /// Whether a path that is a '/' alone, or an empty port's ':', goes where the
 /// UTF-16 unit [c] follows it.
-bool _dropsLonePath(int c) =>
-    (c <= 0x1F && !(c >= 0x09 && c <= 0x0D)) ||
-    (c >= 0x7F && c <= 0x9F) ||
-    c == 0x22 ||
-    c == 0x3C ||
-    c == 0x200B ||
-    (c >= 0xE000 && c <= 0xF8FF);
+bool _dropsLonePath(int c) => c == 0x22 || c == 0x200B;
 
 /// Whether the UTF-16 unit [c] is a Cf character NSDataDetector keeps in a
 /// link: the soft hyphen, ZWNJ, ZWJ, LRM and RLM.
@@ -677,7 +853,10 @@ bool _killsHost(int c) =>
     c == 0x5C ||
     c == 0x5E ||
     c == 0x2026 ||
+    _privateUse(c) ||
     _formatLike(c) && c != 0xAD && c != 0x200C && c != 0x200D;
+
+bool _privateUse(int c) => c >= 0xE000 && c <= 0xF8FF;
 
 /// Whether the UTF-16 unit [c] is a port character: an ASCII or fullwidth
 /// digit, or a default-ignorable character NSDataDetector keeps in a port.

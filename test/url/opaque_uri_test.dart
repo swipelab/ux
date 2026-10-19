@@ -53,6 +53,13 @@ void main() {
     },
   );
 
+  test(
+    'a Bopomofo letter before an opaque URI joins its scheme to the word',
+    () {
+      expectLinks('see \u3105sms:+15551234567 y', const []);
+    },
+  );
+
   test('a written sms: URI links as itself', () {
     expectLinks('text sms:+15551234567 now', [web(5, 21, 'sms:+15551234567')]);
     expectLinks('text sms:+1-555-123-4567 now', [

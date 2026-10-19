@@ -343,6 +343,33 @@ Future<bool> _diff(Harness harness, _Options options) async {
     ..writeAll([for (final r in representatives) 'REPRESENTATIVE $r'], '\n')
     ..writeln();
 
+  final withoutP4 = await predictAll(
+    predictor,
+    texts,
+    Variant(allEdits.difference({'p4'})),
+    read,
+  );
+  final p4Changed = [
+    for (var i = 0; i < texts.length; i++)
+      if (!texts[i].runes.any(characters.differences.contains) &&
+          !sameLinks(full[i].links, withoutP4[i].links))
+        texts[i],
+  ];
+  final p4NonLocal = (await Recorded(
+    predictor.readings,
+  ).nonLocal(p4Changed, read)).toSet();
+  stdout
+    ..writeln(
+      'class p: p4 changes the prediction of ${p4Changed.length} corpus '
+      'texts outside the Unicode class, ${p4NonLocal.length} of them read by '
+      'darwin otherwise in a segment\'s window alone',
+    )
+    ..writeAll([
+      for (final t in p4Changed)
+        '${p4NonLocal.contains(t) ? 'P4' : 'P4 LOCAL'} ${printable(t)}',
+    ], '\n')
+    ..writeln();
+
   final changed = [
     for (var i = 0; i < texts.length; i++)
       if (!sameLinks(full[i].links, matched[i])) i,
@@ -422,7 +449,8 @@ Future<bool> _diff(Harness harness, _Options options) async {
       idle.isEmpty &&
       withheldWrong.isEmpty &&
       unpinned.isEmpty &&
-      representatives.isEmpty;
+      representatives.isEmpty &&
+      p4NonLocal.length == p4Changed.length;
   if (options.flags.contains('--oracle-only')) return ok;
 
   final kinds = {
@@ -535,29 +563,9 @@ Future<bool> _stages(Harness harness, _Options options) async {
     [for (final i in outside) reading[i]],
     [for (final i in outside) full[i].links],
   );
-  final nonLocal = <String>[];
-  var pending = [for (final i in outside) texts[i]];
-  while (pending.isNotEmpty) {
-    recorded.missing.clear();
-    final next = <String>[];
-    for (final t in pending) {
-      final local = recorded.local(recorded.cutWindows(t)!);
-      if (local == null) {
-        next.add(t);
-      } else if (!local) {
-        nonLocal.add(t);
-      }
-    }
-    if (recorded.missing.isNotEmpty) {
-      final lacked = recorded.missing.toList();
-      final found = await read(lacked);
-      for (var i = 0; i < lacked.length; i++) {
-        recorded.readings[lacked[i]] = found[i];
-      }
-    }
-    pending = next;
-  }
-  recorded.windows.clear();
+  final nonLocal = await recorded.nonLocal([
+    for (final i in outside) texts[i],
+  ], read);
   final nonLocalSet = nonLocal.toSet();
   final families = <String, int>{};
   for (final c in corpus) {
@@ -565,15 +573,15 @@ Future<bool> _stages(Harness harness, _Options options) async {
       families[c.family] = (families[c.family] ?? 0) + 1;
     }
   }
-  final editsLocal = [
+  final nonLocalEdits = [
     for (final i in outside)
-      if (!nonLocalSet.contains(texts[i]) &&
+      if (nonLocalSet.contains(texts[i]) &&
           !sameLinks(reading[i], full[i].links))
         i,
   ];
   stdout
     ..writeln(
-      '(a) readLinks over recorded readings, each segment window as the text '
+      '(a) readLinks over recorded readings, each segment window read as p4 '
       'reads it: ${texts.length} texts, ${texts.length - outside.length} in '
       'the Unicode class, ${outside.length - edits.length} of the other '
       '${outside.length} give the prediction; ${recorded.requested.length} '
@@ -585,8 +593,7 @@ Future<bool> _stages(Harness harness, _Options options) async {
       '(a) segment locality: ${nonLocal.length} of the ${outside.length} texts '
       'outside the Unicode class are read by darwin otherwise in a segment\'s '
       'window alone (${[for (final MapEntry(:key, :value) in families.entries) '$key $value'].join(', ')}), '
-      'counted apart; ${editsLocal.length} of the others do not give the '
-      'prediction',
+      '${nonLocalEdits.length} of them do not give the prediction',
     )
     ..writeAll([for (final t in nonLocal) 'NONLOCAL ${printable(t)}'], '\n')
     ..writeln();
@@ -669,7 +676,7 @@ Future<bool> _stages(Harness harness, _Options options) async {
         for (final m in misses[k] ?? const <String>[]) 'MODEL ${k.label} $m',
     ], '\n')
     ..writeln();
-  return editsLocal.isEmpty && passes.isEmpty && modelOk;
+  return edits.isEmpty && passes.isEmpty && modelOk;
 }
 
 /// The model's agreement by class over the seed-3451 corpus, as `(c)`

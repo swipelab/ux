@@ -3,6 +3,7 @@ import 'package:ux/src/url/chars.dart';
 import 'package:ux/src/url/darwin.dart';
 import 'package:ux/src/url/email_address.dart';
 import 'package:ux/src/url/match.dart';
+import 'package:ux/src/url/nsdd.dart';
 import 'package:ux/src/url/nsdd_model.dart';
 import 'package:ux/src/url/tld.dart';
 import 'package:ux/src/url/web_pass.dart';
@@ -25,7 +26,9 @@ const inputBound = 4096;
 /// stage it changes. Each segment that holds a link trigger or a phone reads
 /// alone, with the unit before it and three after. A segment is a token, a
 /// run of units other than tab, LF, FF, CR and space, or a run of tokens
-/// that one of the phones [phones] reads joins.
+/// that one of the phones [phones] reads joins. With [phones], a segment's
+/// window takes the text's phones in the segment in place of its own, each
+/// dropping the window's NSDataDetector candidates and results it overlaps.
 List<UrlMatch> readLinks(
   String text,
   Stage2Reader read, {
@@ -35,7 +38,7 @@ List<UrlMatch> readLinks(
     text = text.substring(0, boundOf(text, phones?.call(text) ?? const []));
   }
   if (!hasTrigger(text) || !hasSigil(text)) return const [];
-  return _Run(read).links(text, phones?.call(text) ?? const []);
+  return _Run(read).links(text, phones?.call(text));
 }
 
 /// Whether the UTF-16 unit [c] ends a token: tab, LF, FF, CR or space.
@@ -195,11 +198,11 @@ class _Run {
   /// The links of [text], whose phones are [phones]: each segment read in
   /// its window, then the cap, URL finishing, the phone filter and the
   /// any-scheme merge over their links in order.
-  List<UrlMatch> links(String text, List<NsddResult> phones) {
+  List<UrlMatch> links(String text, List<NsddResult>? phones) {
     final native = <UrlMatch>[];
     final any = <UrlMatch>[];
     var before = _none;
-    for (final (start, end) in segmentsOf(text, phones)) {
+    for (final (start, end) in segmentsOf(text, phones ?? const [])) {
       final from = start == 0 ? 0 : start - 1;
       final to = end + 3 > text.length ? text.length : end + 3;
       final window = _Text(
@@ -209,6 +212,18 @@ class _Run {
         start: start - from,
         end: end - from,
         before: before,
+        phones: phones == null
+            ? null
+            : [
+                for (final p in phones)
+                  if (start <= p.start && p.start < end)
+                    (
+                      start: p.start - from,
+                      end: p.end - from,
+                      phone: true,
+                      value: p.value,
+                    ),
+              ],
       );
       final read = window.read();
       native.addAll(read.native.map((l) => _shift(l, from)));
@@ -239,6 +254,7 @@ class _Text {
     this.start = 0,
     int? end,
     this.before = _none,
+    this.phones,
   }) : end = end ?? text.length;
 
   final _Run run;
@@ -248,7 +264,37 @@ class _Text {
   final int end;
   final _Counts before;
 
-  late final Stage2 r = run.reading(text);
+  /// The phones of the text a window is cut from, in its segment, which
+  /// stand in for the window's own.
+  final List<NsddResult>? phones;
+
+  late final Stage2 r = switch (phones) {
+    final phones? => _withPhones(run.reading(text), phones),
+    null => run.reading(text),
+  };
+
+  /// [own] with [phones] in place of its phones, each dropping the
+  /// NSDataDetector candidates and results it overlaps.
+  Stage2 _withPhones(Stage2 own, List<NsddResult> phones) {
+    bool overlaps(int s, int e) => phones.any((p) => p.start < e && s < p.end);
+    return (
+      candidates: [
+        for (final x in own.candidates)
+          if (!x.nsdd ||
+              x.link.kind != UrlMatchKind.phone &&
+                  !overlaps(x.link.start, x.link.end))
+            x,
+        for (final link in nsddCandidates(text, phones))
+          (link: link, nsdd: true),
+      ],
+      raw: [
+        for (final x in own.raw)
+          if (!x.phone && !overlaps(x.start, x.end)) x,
+        ...phones,
+      ],
+    );
+  }
+
   late final PathIndex index = PathIndex(text);
 
   int? _idnKept;
