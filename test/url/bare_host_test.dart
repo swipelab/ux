@@ -208,6 +208,14 @@ void main() {
     },
   );
 
+  test('a Hangul label glued after a letter starts its host where the Hangul begins', () {
+    expectLinks('see e나라도움.kr x', [web(5, 12, 'http://나라도움.kr')]);
+    expectLinks('see example.com한국.com x', [
+      web(4, 15, 'http://example.com'),
+      web(15, 21, 'http://한국.com'),
+    ]);
+  });
+
   test('a non-ASCII label under an unspaced-script TLD links', () {
     expectLinks('see 한국.한국 x', [web(4, 9, 'http://한국.한국')]);
     expectLinks('see éa.ไทย x', [web(4, 10, 'http://éa.ไทย')]);

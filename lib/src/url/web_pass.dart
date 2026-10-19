@@ -91,11 +91,11 @@ class _Pass {
     return end;
   }
 
-  /// The pattern's start: a word boundary, or after a '_' or an unspaced
-  /// letter, but not after a letter, mark or digit outside the unspaced
-  /// scripts and a run of 1 to 62 '_' and '-', not after a '.' that such a
-  /// character, or with [nsdd] any letter, mark or digit, precedes, and not
-  /// after "://".
+  /// The pattern's start: a word boundary, after a '_', or where the unspaced
+  /// scripts begin or end, not at a Hangul filler; but not after a letter,
+  /// mark or digit outside the unspaced scripts and a run of 1 to 62 '_' and
+  /// '-', not after a '.' that such a character, or with [nsdd] any letter,
+  /// mark or digit, precedes, and not after "://".
   /// Before that test, a run of Cf characters and Hangul fillers is skipped:
   /// a host starts after one that an unspaced character precedes, and none
   /// after one that a letter, mark or digit outside the unspaced scripts
@@ -117,7 +117,9 @@ class _Pass {
     }
     if (!_boundary(s) &&
         !(s > lo &&
-            (text.codeUnitAt(s - 1) == 0x5F || isUnspaced(_cpBefore(s))))) {
+            (text.codeUnitAt(s - 1) == 0x5F ||
+                isUnspaced(_cpBefore(s)) != isUnspaced(_cp(s)) &&
+                    !_skipped(_cp(s))))) {
       return false;
     }
     if (s - 1 > lo && text.codeUnitAt(s - 1) == 0x2E) {
