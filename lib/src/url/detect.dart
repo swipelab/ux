@@ -16,7 +16,7 @@ const inputBound = 4096;
 /// [inputBound]th. The first [maxNativeLinks] native links of the tokens
 /// are kept, and the any-scheme pass's links join them.
 List<UrlMatch> detectLinks(String text) {
-  final n = text.length > inputBound ? boundOf(text) : text.length;
+  final n = boundOf(text);
   final out = <UrlMatch>[];
   var kept = 0;
   var i = _nextTrigger(text, 0, n);
@@ -52,10 +52,11 @@ int? _nextTrigger(String text, int from, int n) {
 /// Whether the UTF-16 unit [c] ends a token: tab, LF, FF, CR or space.
 bool endsToken(int c) => c == 0x20 || (c >= 0x09 && c <= 0x0D && c != 0x0B);
 
-/// p1: the units of [text], longer than [inputBound], that it reads: those
-/// before its last tab, LF, FF, CR or space at or before its [inputBound]th
-/// unit.
+/// p1: the units of [text] it reads: all of them up to [inputBound] units,
+/// else those before its last tab, LF, FF, CR or space at or before its
+/// [inputBound]th unit.
 int boundOf(String text) {
+  if (text.length <= inputBound) return text.length;
   for (var w = inputBound - 1; w >= 0; w--) {
     if (endsToken(text.codeUnitAt(w))) return w;
   }

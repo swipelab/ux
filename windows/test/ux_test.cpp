@@ -15,7 +15,6 @@ void MethodArgsSuite();
 void PlatformThreadSuite();
 void RasterSuite();
 void ToastSuite();
-void UrlDetectSuite();
 void VideoExportSuite();
 void VideoPlayerSuite();
 void WindowSuite();
@@ -44,7 +43,6 @@ constexpr Suite kSuites[] = {
     {"platform_thread", PlatformThreadSuite},
     {"raster", RasterSuite},
     {"toast", ToastSuite},
-    {"url_detect", UrlDetectSuite},
     {"video_export", VideoExportSuite},
     {"video_player", VideoPlayerSuite},
     {"window", WindowSuite},

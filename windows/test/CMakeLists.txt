@@ -31,7 +31,6 @@ add_executable(ux_test
   "raster_test.cpp"
   "support.h"
   "toast_test.cpp"
-  "url_detect_test.cpp"
   "video_export_test.cpp"
   "video_player_test.cpp"
   "window_test.cpp"
@@ -45,7 +44,7 @@ target_compile_features(ux_test PRIVATE cxx_std_17)
 target_compile_options(ux_test PRIVATE /W4 /WX /wd4100 /EHsc)
 target_compile_definitions(ux_test PRIVATE UNICODE _UNICODE _HAS_EXCEPTIONS=0 "$<$<CONFIG:Debug>:_DEBUG>"
   "UX_TEST_ASSETS=\"${ASSETS}\"" ${UX_PLUGIN_DEFINITIONS})
-target_include_directories(ux_test PRIVATE "${ENGINE}" "${WRAPPER}/include" ${UX_PLUGIN_INCLUDE_DIRECTORIES})
+target_include_directories(ux_test PRIVATE "${ENGINE}" "${WRAPPER}/include")
 target_link_libraries(ux_test PRIVATE "${ENGINE}/flutter_windows.dll.lib" ${UX_PLUGIN_LIBRARIES} dxgi powrprof)
 target_link_options(ux_test PRIVATE ${UX_PLUGIN_LINK_OPTIONS})
 add_custom_command(TARGET ux_test POST_BUILD
@@ -64,7 +63,6 @@ add_test(NAME method_args COMMAND ux_test method_args)
 add_test(NAME platform_thread COMMAND ux_test platform_thread)
 add_test(NAME raster COMMAND ux_test raster)
 add_test(NAME toast COMMAND ux_test toast)
-add_test(NAME url_detect COMMAND ux_test url_detect)
 add_test(NAME video_export COMMAND ux_test video_export)
 add_test(NAME video_player COMMAND ux_test video_player)
 add_test(NAME window COMMAND ux_test window)

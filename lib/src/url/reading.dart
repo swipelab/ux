@@ -270,7 +270,7 @@ class _Reading {
     return {for (final l in dedupe(links)) (l.start, l.end)};
   }
 
-  /// url_detect.mm's stage 3 over [candidates]: sort by start, then length
+  /// Stage 3 over [candidates]: sort by start, then length
   /// descending, then email before web; then walk that order, skipping a
   /// candidate that continues the path of the current cut, setting the cut
   /// at a web candidate whose path runs on to a fullwidth '(', and dropping
@@ -693,7 +693,7 @@ class PathIndex {
     return out;
   }
 
-  /// Where ux_path_mark's scan bounded by [end] steps on from [i], or null
+  /// Where [pathMark]'s scan bounded by [end] steps on from [i], or null
   /// where the character at [i] ends the path.
   int? _markStep(int i, int end) {
     final c = text.codeUnitAt(i);
@@ -752,7 +752,7 @@ class PathIndex {
     return q;
   }
 
-  /// ux_path_paren: the fullwidth '(' that ends the stretch between CJK
+  /// The fullwidth '(' that ends the stretch between CJK
   /// punctuation the web match [start, end) ends in, where its path runs on
   /// to it.
   int? pathParen(int start, int end) {
@@ -766,7 +766,7 @@ class PathIndex {
     return paren;
   }
 
-  /// ux_continues_path: whether the web match [start, end) continues the
+  /// Whether the web match [start, end) continues the
   /// path that runs on to the fullwidth '(' at [paren].
   bool continuesPath(int paren, int start, int end) {
     if (start <= paren) return false;
