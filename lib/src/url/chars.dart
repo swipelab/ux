@@ -24,6 +24,32 @@ int cpBefore(String text, int i) {
   return low;
 }
 
+/// The code point that starts at [i] of [text], no unit of it at or after
+/// [hi].
+int cpAtIn(String text, int i, int hi) {
+  final high = text.codeUnitAt(i);
+  if (high >= 0xD800 && high <= 0xDBFF && i + 1 < hi) {
+    final low = text.codeUnitAt(i + 1);
+    if (low >= 0xDC00 && low <= 0xDFFF) {
+      return 0x10000 + ((high - 0xD800) << 10) + (low - 0xDC00);
+    }
+  }
+  return high;
+}
+
+/// The code point that ends before [i] of [text], no unit of it before
+/// [lo].
+int cpBeforeIn(String text, int i, int lo) {
+  final low = text.codeUnitAt(i - 1);
+  if (i - 2 >= lo && low >= 0xDC00 && low <= 0xDFFF) {
+    final high = text.codeUnitAt(i - 2);
+    if (high >= 0xD800 && high <= 0xDBFF) {
+      return 0x10000 + ((high - 0xD800) << 10) + (low - 0xDC00);
+    }
+  }
+  return low;
+}
+
 /// [cp]'s UTF-16 length.
 int width(int cp) => cp > 0xFFFF ? 2 : 1;
 
@@ -147,6 +173,23 @@ bool isUcsChar(int cp) {
           cp == 0x202F ||
           cp == 0x3000);
 }
+
+/// Whether the UTF-16 unit [c] is one of `" < > [ \ ] ^ ` { | }`, the ASCII
+/// marks a link's path ends before.
+bool isPathStop(int c) => switch (c) {
+  0x22 ||
+  0x3C ||
+  0x3E ||
+  0x5B ||
+  0x5C ||
+  0x5D ||
+  0x5E ||
+  0x60 ||
+  0x7B ||
+  0x7C ||
+  0x7D => true,
+  _ => false,
+};
 
 /// Whether the UTF-16 unit [c] is an ASCII digit.
 bool isAsciiDigit(int c) => c >= 0x30 && c <= 0x39;

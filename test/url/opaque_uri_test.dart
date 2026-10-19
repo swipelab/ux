@@ -109,9 +109,22 @@ void main() {
     expectLinks('see mailto:abc now', const []);
   });
 
-  test('mailto:// links as an email', () {
-    expectLinks('see mailto://a.io/a now', [email(4, 19, 'mailto://a.io/a')]);
-    expectLinks("see mailto://a.io/a'", [email(4, 20, "mailto://a.io/a'")]);
+  test('a mailto:// URI links as the any-scheme pass reads it', () {
+    expectLinks(
+      'see mailto://a.io/a now',
+      [web(4, 19, 'mailto://a.io/a')],
+      apple: [email(4, 19, 'mailto://a.io/a')],
+    );
+    expectLinks(
+      "see mailto://a.io/a'",
+      [web(4, 19, 'mailto://a.io/a')],
+      apple: [email(4, 20, "mailto://a.io/a'")],
+    );
+    expectLinks(
+      'see mailto://ops@example.zzz/a@b.com x',
+      [web(4, 36, 'mailto://ops@example.zzz/a@b.com')],
+      apple: [email(4, 36, 'mailto://ops@example.zzz/a@b.com')],
+    );
   });
 
   test("a mailto: after a '_' links its address as an email", () {

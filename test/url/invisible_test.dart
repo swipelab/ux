@@ -104,56 +104,38 @@ void main() {
       const [],
       apple: [email(5, 21, 'mailto:ops@example.com')],
     );
-  }, skip: "step 4 models NSDataDetector's addresses");
+    expectLinks(
+      'see mailto:ops@exam\u3164ple.com x',
+      const [],
+      apple: [email(4, 27, 'mailto:ops@exam%E3%85%A4ple.com')],
+    );
+  });
 
   test(
-    'an address after mailto:// ends before a soft hyphen in its domain',
+    "a Hangul filler in an address's local part ends the local part's run",
     () {
       expectLinks(
-        'see mailto://ops@exam\u00ADple.com x',
-        [email(4, 21, 'mailto://ops@exam')],
-        apple: [email(4, 29, 'mailto://ops@example.com')],
-      );
-      expectLinks(
-        'see mailto://exam\u00ADple.com x',
-        [email(4, 17, 'mailto://exam')],
-        apple: [email(4, 25, 'mailto://example.com')],
+        'mail o\u3164ps@example.com now',
+        [email(7, 21, 'mailto:ps@example.com')],
+        apple: [email(5, 21, 'mailto:o%E3%85%A4ps@example.com')],
       );
     },
   );
-
-  test('an address after mailto:// with a soft hyphen after its TLD stays an email and ends before it', () {
-    expectLinks(
-      'see mailto://ops@example.com\u00AD x',
-      [email(4, 28, 'mailto://ops@example.com')],
-      apple: [email(4, 29, 'mailto://ops@example.com')],
-    );
-  });
-
-  test("a Hangul filler in an address's local part stays in the address and its URL", () {
-    expectLinks('mail o\u3164ps@example.com now', [
-      email(5, 21, 'mailto:o%E3%85%A4ps@example.com'),
-    ]);
-  }, skip: "step 4 models NSDataDetector's addresses");
-
-  test("a Hangul filler in the domain of an address that mailto: without '//' starts stays in the address and its URL", () {
-    expectLinks('see mailto:ops@exam\u3164ple.com x', [
-      email(4, 27, 'mailto:ops@exam%E3%85%A4ple.com'),
-    ]);
-  }, skip: "step 4 models NSDataDetector's addresses");
-
-  test('a phone ends before an ogham space mark, and no phone links where too few digits precede it', () {
-    expectLinks(
-      'call +1 555\u1680123 4567 now',
-      const [],
-      apple: [phone(5, 20, 'tel:+15551234567')],
-    );
-  });
 
   test("a soft hyphen stays in a link's URL", () {
     expectLinks('see https://example.com/a\u00ADb x', [
       web(4, 27, 'https://example.com/a\u00ADb'),
     ]);
+    expectLinks(
+      'see mailto://ops@exam\u00ADple.com x',
+      [web(4, 29, 'mailto://ops@exam\u00ADple.com')],
+      apple: [email(4, 29, 'mailto://ops@example.com')],
+    );
+    expectLinks(
+      'see mailto://ops@example.com\u00AD x',
+      [web(4, 29, 'mailto://ops@example.com\u00AD')],
+      apple: [email(4, 29, 'mailto://ops@example.com')],
+    );
   });
 
   test('a no-break space, a line separator, an ideographic space or a next line ends a link', () {
@@ -220,10 +202,10 @@ void main() {
     ]);
   });
 
-  test('every Cf run after unspaced-script text in a segment reads as spaces in one stand-in', () {
+  test('a host starts after a Cf run that an unspaced-script character precedes, and reads on as after a space', () {
     expectLinks(
       '\u0E02\u0E49\u0E2D\u0E21\u0E39\u0E25\u206C192.168.1.1/x\u7136\u200F\u540E',
-      [web(7, 21, 'http://192.168.1.1/x\u7136')],
+      [web(7, 23, 'http://192.168.1.1/x\u7136\u200F\u540E')],
       apple: const [],
     );
   });

@@ -2,16 +2,12 @@
 // url_detect.mm and NSDataDetector, on macOS 26.4 (25E246).
 //
 //   dart run tool/url_oracle/oracle.dart catalog [--commit C] [--locale L]
-//   dart run tool/url_oracle/oracle.dart diff [--oracle-only] [--kinds K,...] [--assist K,...] [--seed N] [--commit C] [--locale L]
-//   dart run tool/url_oracle/oracle.dart stages [--model K,...] [--seed N | --fresh N --seed S] [--threshold P] [--locale L]
+//   dart run tool/url_oracle/oracle.dart diff [--oracle-only] [--kinds K,...] [--seed N] [--commit C] [--locale L]
 //   dart run tool/url_oracle/oracle.dart props [--commit C]
 //   dart run tool/url_oracle/oracle.dart win [--commit C]
 //
 // It writes only under --work, a directory outside the checkout.
 import 'dart:io';
-
-import 'package:ux/src/url/match.dart';
-import 'package:ux/src/url/reading.dart';
 
 import 'corpus.dart';
 import 'diff.dart';
@@ -40,7 +36,6 @@ Future<void> main(List<String> args) async {
     'catalog' => await _catalog(harness, options),
     'win' => await _win(harness),
     'diff' => await _diff(harness, options),
-    'stages' => await _stages(harness, options),
     'props' => await _props(harness),
     _ => _usage(),
   };
@@ -465,26 +460,9 @@ Future<bool> _diff(Harness harness, _Options options) async {
     for (var i = 0; i < texts.length; i++)
       if (kinds.isEmpty || darwin[i].holdsOnly(kinds, full[i].links)) i,
   ];
-  final assist = {
-    for (final k in (options.values['--assist'] ?? '').split(','))
-      if (k.isNotEmpty)
-        UrlMatchKind.values.firstWhere((c) => c.name == k, orElse: _usage),
-  };
-  final comparedTexts = [for (final i in compared) texts[i]];
-  final List<List<Link>> dart;
-  if (assist.isEmpty) {
-    dart = await dartReading(host.uxRoot, harness.commitDir, comparedTexts);
-  } else {
-    final recorded = Recorded(predictor.readings);
-    dart = await recorded.readAll(comparedTexts, (t) {
-      if (recorded.cutWindows(t) == null) return const [];
-      return readLinks(
-        t,
-        (s) => recorded.assisted(s, assist),
-        phones: assist.contains(UrlMatchKind.phone) ? recorded.phones : null,
-      );
-    }, read);
-  }
+  final dart = await dartReading(host.uxRoot, harness.commitDir, [
+    for (final i in compared) texts[i],
+  ]);
   final departed = [
     for (var n = 0; n < compared.length; n++)
       ...departures(texts[compared[n]], dart[n], full[compared[n]]),
@@ -494,9 +472,9 @@ Future<bool> _diff(Harness harness, _Options options) async {
       if (sameLinks(dart[n], full[compared[n]].links))
         ...?classified[compared[n]],
   ];
-  final only =
-      '${kinds.isEmpty ? '' : ' holding only ${options.values['--kinds']}'}'
-      '${assist.isEmpty ? '' : ', NSDataDetector\'s ${options.values['--assist']} recorded'}';
+  final only = kinds.isEmpty
+      ? ''
+      : ' holding only ${options.values['--kinds']}';
   stdout
     ..writeln(
       'diff: ${compared.length} texts$only, ${departed.length} departures '
@@ -508,239 +486,6 @@ Future<bool> _diff(Harness harness, _Options options) async {
     ..writeAll([for (final d in departed) 'DEPARTURE $d'], '\n')
     ..writeln();
   return ok && departed.isEmpty;
-}
-
-Future<bool> _stages(Harness harness, _Options options) async {
-  final host = harness.host;
-  final locale = options.locale;
-  final seed = int.parse(options.values['--seed'] ?? '3451');
-  final fresh = options.values['--fresh'];
-  final threshold = switch (options.values['--threshold']) {
-    final p? => double.parse(p),
-    null => null,
-  };
-  final modelled = {
-    for (final k in (options.values['--model'] ?? '').split(','))
-      if (k.isNotEmpty)
-        LinkClass.values.firstWhere((c) => c.label == k, orElse: _usage),
-  };
-  final characters = await CharacterClasses.read(harness);
-  final inputs = await _corpusInputs(harness, characters);
-  final corpus = fresh == null
-      ? generateCorpus(seed, inputs)
-      : freshSchemeTexts(seed, int.parse(fresh));
-  stdout.writeln(
-    header(
-      host,
-      commit: harness.commit,
-      locale: locale,
-      seed: seed,
-      size: corpus.length,
-    ),
-  );
-  final texts = [for (final c in corpus) c.text];
-  Future<List<ProbeReading>> read(List<String> t) =>
-      harness.readStages(t, locale: locale);
-  final predictor = Predictor(await _ruleData(harness, characters));
-  final staged = await read(texts);
-  for (var i = 0; i < texts.length; i++) {
-    predictor.readings[texts[i]] = staged[i];
-  }
-  final full = await predictAll(predictor, texts, Variant(allEdits), read);
-  bool unicode(String t) => t.runes.any(characters.differences.contains);
-
-  final recorded = Recorded(predictor.readings);
-  final reading = await recorded.readAll(texts, (t) {
-    if (recorded.cutWindows(t) == null) return const [];
-    return readLinks(t, recorded.stage2, phones: recorded.phones);
-  }, read);
-  final outside = [
-    for (var i = 0; i < texts.length; i++)
-      if (!unicode(texts[i])) i,
-  ];
-  final edits = differing(
-    [for (final i in outside) texts[i]],
-    [for (final i in outside) reading[i]],
-    [for (final i in outside) full[i].links],
-  );
-  final nonLocal = await recorded.nonLocal([
-    for (final i in outside) texts[i],
-  ], read);
-  final nonLocalSet = nonLocal.toSet();
-  final families = <String, int>{};
-  for (final c in corpus) {
-    if (nonLocalSet.contains(c.text)) {
-      families[c.family] = (families[c.family] ?? 0) + 1;
-    }
-  }
-  final nonLocalEdits = [
-    for (final i in outside)
-      if (nonLocalSet.contains(texts[i]) &&
-          !sameLinks(reading[i], full[i].links))
-        i,
-  ];
-  stdout
-    ..writeln(
-      '(a) readLinks over recorded readings, each segment window read as p4 '
-      'reads it: ${texts.length} texts, ${texts.length - outside.length} in '
-      'the Unicode class, ${outside.length - edits.length} of the other '
-      '${outside.length} give the prediction; ${recorded.requested.length} '
-      'texts read',
-    )
-    ..writeAll([for (final d in edits) 'EDITS $d'], '\n')
-    ..writeln()
-    ..writeln(
-      '(a) segment locality: ${nonLocal.length} of the ${outside.length} texts '
-      'outside the Unicode class are read by darwin otherwise in a segment\'s '
-      'window alone (${[for (final MapEntry(:key, :value) in families.entries) '$key $value'].join(', ')}), '
-      '${nonLocalEdits.length} of them do not give the prediction',
-    )
-    ..writeAll([for (final t in nonLocal) 'NONLOCAL ${printable(t)}'], '\n')
-    ..writeln();
-
-  final all = {...texts, ...recorded.requested}.toList();
-  final passes = <String>[];
-  var passTexts = 0;
-  for (final t in all) {
-    if (unicode(t)) continue;
-    passTexts++;
-    final r = recorded.readings[t]!;
-    final (:dart, recorded: other) = secondPass(t, r);
-    if (!sameLinks(dart, other)) {
-      passes.add('${printable(t)}: Dart $dart, url_detect.mm $other');
-    }
-  }
-  stdout
-    ..writeln(
-      '(b) the second pass: ${passTexts - passes.length} of $passTexts texts '
-      'outside the Unicode class give url_detect.mm\'s candidates',
-    )
-    ..writeAll([for (final d in passes) 'SECOND $d'], '\n')
-    ..writeln();
-
-  final corpusTexts = texts.toSet();
-  final agree = <LinkClass, int>{};
-  final total = <LinkClass, int>{};
-  final requestedMiss = <LinkClass, int>{};
-  final misses = <LinkClass, List<String>>{};
-  for (final t in all) {
-    if (unicode(t)) continue;
-    for (final MapEntry(key: k, value: (:dart, recorded: other)) in model(
-      t,
-      recorded.readings[t]!,
-    ).entries) {
-      final same = sameLinks(dart, other);
-      if (corpusTexts.contains(t)) {
-        total[k] = (total[k] ?? 0) + 1;
-        if (same) agree[k] = (agree[k] ?? 0) + 1;
-      } else if (!same) {
-        requestedMiss[k] = (requestedMiss[k] ?? 0) + 1;
-      }
-      if (!same) {
-        (misses[k] ??= []).add(
-          '${corpusTexts.contains(t) ? 'corpus' : 'read'} ${printable(t)}: '
-          'model $dart, NSDataDetector $other',
-        );
-      }
-    }
-  }
-  String percent(LinkClass k) =>
-      (100 * (agree[k] ?? 0) / (total[k] ?? 1)).toStringAsFixed(2);
-  var modelOk = true;
-  for (final k in modelled) {
-    final exact =
-        (agree[k] ?? 0) == (total[k] ?? 0) && (requestedMiss[k] ?? 0) == 0;
-    final met = threshold == null
-        ? exact
-        : 100 * (agree[k] ?? 0) >= threshold * (total[k] ?? 0);
-    modelOk = modelOk && met;
-  }
-  final baseline = seed == 3451 && fresh == null
-      ? null
-      : await _modelAgreement(harness, inputs, characters, locale);
-  stdout
-    ..writeln(
-      '(c) NSDataDetector\'s model by class, texts outside the Unicode class '
-      'agreeing with url_detect.mm\'s NSDataDetector candidates:',
-    )
-    ..writeAll([
-      for (final k in LinkClass.values)
-        if (total.containsKey(k) || requestedMiss.containsKey(k))
-          '  ${k.label}: ${agree[k] ?? 0} of ${total[k] ?? 0} corpus texts '
-              '(${percent(k)}%), ${requestedMiss[k] ?? 0} texts read that '
-              'differ${baseline == null ? '' : '; seed 3451 corpus ${baseline[k] ?? '-'}'}',
-    ], '\n')
-    ..writeln()
-    ..writeAll([
-      for (final k in modelled)
-        for (final m in misses[k] ?? const <String>[]) 'MODEL ${k.label} $m',
-    ], '\n')
-    ..writeln();
-  return edits.isEmpty && passes.isEmpty && modelOk;
-}
-
-/// The model's agreement by class over the seed-3451 corpus, as `(c)`
-/// reports it.
-Future<Map<LinkClass, String>> _modelAgreement(
-  Harness harness,
-  CorpusInputs inputs,
-  CharacterClasses characters,
-  String locale,
-) async {
-  final texts = [for (final c in generateCorpus(3451, inputs)) c.text];
-  final staged = await harness.readStages(texts, locale: locale);
-  final agree = <LinkClass, int>{};
-  final total = <LinkClass, int>{};
-  for (var i = 0; i < texts.length; i++) {
-    if (texts[i].runes.any(characters.differences.contains)) continue;
-    for (final MapEntry(key: k, value: (:dart, :recorded)) in model(
-      texts[i],
-      staged[i],
-    ).entries) {
-      total[k] = (total[k] ?? 0) + 1;
-      if (sameLinks(dart, recorded)) agree[k] = (agree[k] ?? 0) + 1;
-    }
-  }
-  return {
-    for (final k in total.keys)
-      k: '${(100 * (agree[k] ?? 0) / total[k]!).toStringAsFixed(2)}%',
-  };
-}
-
-Future<CorpusInputs> _corpusInputs(
-  Harness harness,
-  CharacterClasses characters,
-) async {
-  final host = harness.host;
-  final entries = await harness.catalog();
-  final tlds = readTlds(await host.show(harness.commit, 'src/tld.h'));
-  return CorpusInputs(
-    catalog: {for (final e in entries) e.text}.toList()..sort(),
-    inTree: await inTreeTexts(host, harness.commit),
-    asciiTlds: tlds.ascii,
-    idnTlds: tlds.idn,
-    categories: readCategories(
-      File(
-        '${host.uxRoot}/tool/url_data/unicode-17.0.0/DerivedGeneralCategory.txt',
-      ).readAsStringSync(),
-    ),
-    unicode: characters.differences.ranges,
-  );
-}
-
-Future<RuleData> _ruleData(Harness harness, CharacterClasses characters) async {
-  final tlds = readTlds(await harness.host.show(harness.commit, 'src/tld.h'));
-  final oracleTlds = {
-    for (final t in [...tlds.ascii, ...tlds.idn, ...tlds.punycode])
-      t.toLowerCase(),
-  };
-  final nsdd = await nsddTlds(harness);
-  return RuleData(
-    characters,
-    tlds: oracleTlds,
-    nsddBare: nsdd.bare,
-    newTlds: newTlds(harness.host.uxRoot, oracleTlds),
-  );
 }
 
 bool _changes(List<Prediction> a, List<Prediction> b) =>
@@ -819,10 +564,6 @@ class _Options {
     '--locale',
     '--seed',
     '--kinds',
-    '--assist',
-    '--model',
-    '--fresh',
-    '--threshold',
     '--work',
   };
   static const _flags = {'--oracle-only'};
@@ -841,9 +582,9 @@ class _Options {
 
 Never _usage() {
   stderr.writeln(
-    'usage: dart run tool/url_oracle/oracle.dart catalog|diff|stages|props|win '
-    '[--commit C] [--locale L] [--seed N] [--kinds K,...] [--assist K,...] '
-    '[--oracle-only] [--model K,...] [--fresh N] [--threshold P] [--work DIR]',
+    'usage: dart run tool/url_oracle/oracle.dart catalog|diff|props|win '
+    '[--commit C] [--locale L] [--seed N] [--kinds K,...] [--oracle-only] '
+    '[--work DIR]',
   );
   exit(2);
 }

@@ -1,28 +1,25 @@
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:ux/src/url/chars.dart';
+import 'package:ux/src/url/web_pass.dart';
 
-/// One NSDataDetector result: a link with its URL, or a phone number with its
-/// phone string.
-typedef NsddResult = ({int start, int end, bool phone, String value});
-
-/// NSDataDetector's results of [text] (`.link | .phoneNumber`), in its order,
-/// as macOS 26.4 reads them under en_US: scheme links, opaque URIs and
-/// addresses that do not overlap, each read at its ':' or '@' from the left.
-List<NsddResult> nsddResults(String text) {
-  final scan = _Scan(text);
-  final out = <NsddResult>[];
-  var lastEnd = 0;
-  for (var i = 0; i < text.length; i++) {
-    final c = text.codeUnitAt(i);
-    if ((c != 0x3A && c != 0x40) || i < lastEnd) continue;
-    final r = c == 0x3A ? scan.colonLink(i) : scan.address(i);
-    if (r == null || r.start < lastEnd) continue;
-    out.add(r);
-    lastEnd = r.end;
+/// NSDataDetector's links in the text [text] holds from [lo] to [hi], read as
+/// a text of its own, at each ':' from [from] to [to], as macOS 26.4 reads
+/// them under en_US: scheme links and opaque URIs that do not overlap, each
+/// read at its ':' from the left and ended by [webEnd], as their spans.
+List<(int, int)> nsddLinks(String text, int lo, int hi, int from, int to) {
+  List<(int, int)>? out;
+  _Scan? scan;
+  var lastEnd = lo;
+  for (var i = from; i < to; i++) {
+    if (text.codeUnitAt(i) != 0x3A || i < lastEnd) continue;
+    final r = (scan ??= _Scan(text, lo, hi)).colonLink(i);
+    if (r == null || r.$1 < lastEnd) continue;
+    lastEnd = r.$2;
+    final end = webEnd(text, r.$1, r.$2);
+    if (end > r.$1) (out ??= []).add((r.$1, end));
   }
-  return out;
+  return out ?? const [];
 }
 
 /// The schemes NSDataDetector links with a body and no `//`.
@@ -72,92 +69,92 @@ final class _EndsAt extends _Authority {
 /// An authority that leaves NSDataDetector no link.
 final class _Refused extends _Authority {}
 
-/// [text] with the positions NSDataDetector's model looks ahead and back to,
-/// each computed once.
+/// The text from [lo] to [hi] with the positions NSDataDetector's model
+/// looks ahead and back to, each computed once.
 class _Scan {
-  _Scan(this.text) : n = text.length;
+  _Scan(this.text, this.lo, this.hi);
 
   final String text;
-  final int n;
+  final int lo;
+  final int hi;
 
   late final Int32List _stops = _forward(_linkStop);
   late final Int32List _opens = _forward((c) => c == 0x28);
   late final Int32List _closes = _forward((c) => c == 0x29);
-  late final Int32List _formats = _forward(
-    (c) => _formatLike(c) && !_keptFormat(c),
-  );
-  late final Int32List _queries = _forward((c) => c == 0x3F);
+  late final Int32List _formats = _forward(_cutsPath);
   late final Int32List _lastCloses = _backward((c) => c == 0x29);
   late final Int32List _lastAts = _backward((c) => c == 0x40);
   late final Int32List _lastWordishes = _backward(_wordish);
-  late final Int32List _lastWords = _backwardCodePoints(
-    (cp) => isWord(cp) || _formatLike(cp),
-  );
-
-  /// The last ')' before [p].
-  int? _lastClose(int p) => _before(_lastCloses, p);
-
-  /// The last '@' before [p].
-  int? _lastAt(int p) => _before(_lastAts, p);
-
-  /// The last character before [p] that ends a run of trailing marks.
-  int? _lastWordish(int p) => _before(_lastWordishes, p);
-
-  /// The end of the last character in ICU's `\w` or Cf before [p].
-  int? _lastWordEnd(int p) => _before(_lastWords, p);
-
-  static int? _before(Int32List table, int p) {
-    final at = table[p];
-    return at < 0 ? null : at;
-  }
+  late final Int32List _lastWords = () {
+    final out = Int32List(hi - lo + 1)..[0] = -1;
+    for (var i = lo + 1; i <= hi; i++) {
+      final cp = cpBeforeIn(text, i, lo);
+      out[i - lo] = _wordOrFormat(cp) ? i : out[i - lo - width(cp)];
+    }
+    return out;
+  }();
 
   /// For each position, the first at or after it whose unit [test] holds,
-  /// or the text's length.
+  /// or [hi].
   Int32List _forward(bool Function(int) test) {
-    final out = Int32List(n + 1)..[n] = n;
-    for (var i = n - 1; i >= 0; i--) {
-      out[i] = test(text.codeUnitAt(i)) ? i : out[i + 1];
+    final out = Int32List(hi - lo + 1)..[hi - lo] = hi;
+    for (var i = hi - 1; i >= lo; i--) {
+      out[i - lo] = test(text.codeUnitAt(i)) ? i : out[i - lo + 1];
     }
     return out;
   }
 
-  /// For each position, the last before it whose unit [test] holds, or -1,
-  /// read through [_before].
+  /// For each position, the last before it whose unit [test] holds, or -1.
   Int32List _backward(bool Function(int) test) {
-    final out = Int32List(n + 1)..[0] = -1;
-    for (var i = 1; i <= n; i++) {
-      out[i] = test(text.codeUnitAt(i - 1)) ? i - 1 : out[i - 1];
+    final out = Int32List(hi - lo + 1)..[0] = -1;
+    for (var i = lo + 1; i <= hi; i++) {
+      out[i - lo] = test(text.codeUnitAt(i - 1)) ? i - 1 : out[i - lo - 1];
     }
     return out;
   }
 
-  /// For each position, the end of the last code point before it that
-  /// [test] holds, or -1, read through [_before].
-  Int32List _backwardCodePoints(bool Function(int) test) {
-    final out = Int32List(n + 1)..[0] = -1;
-    for (var i = 1; i <= n; i++) {
-      out[i] = test(cpBefore(text, i)) ? i : out[i - width(cpBefore(text, i))];
-    }
-    return out;
+  /// [table]'s position for [p], where it is at or after [from].
+  int? _from(Int32List table, int from, int p) {
+    final at = table[p - lo];
+    return at >= from ? at : null;
+  }
+
+  /// The last ')' from [from] and before [p].
+  int? _lastClose(int from, int p) => _from(_lastCloses, from, p);
+
+  /// The last '@' from [from] and before [p].
+  int? _lastAt(int from, int p) => _from(_lastAts, from, p);
+
+  /// The last character from [from] and before [p] that ends a run of
+  /// trailing marks.
+  int? _lastWordish(int from, int p) => _from(_lastWordishes, from, p);
+
+  /// The end of the last character in ICU's `\w` or Cf after [from] and at or
+  /// before [p].
+  int? _lastWordEnd(int from, int p) => _from(_lastWords, from + 1, p);
+
+  /// The first Cf character other than the soft hyphen, ZWNJ, ZWJ, LRM and
+  /// RLM at or after [p] and before [stop], or [stop].
+  int _formatBefore(int p, int stop) {
+    final at = _formats[p - lo];
+    return at < stop ? at : stop;
   }
 
   /// Where a '(' that no ')' after it closes, or a ')' that no '(' before it
   /// opens, between [p] and [stop] ends NSDataDetector's link.
   int parenStop(int p, int stop) {
     var end = stop;
-    final firstOpen = _opens[p];
-    final firstClose = _closes[p];
+    final firstOpen = _opens[p - lo];
+    final firstClose = _closes[p - lo];
     if (firstClose < firstOpen && firstClose < end) end = firstClose;
-    final lastClose = _lastClose(stop);
-    final from = lastClose != null && lastClose >= p ? lastClose + 1 : p;
-    final open = _opens[from];
-    if (open < end) end = open;
-    return end;
+    final lastClose = _lastClose(p, stop);
+    final open = _opens[(lastClose == null ? p : lastClose + 1) - lo];
+    return open < end ? open : end;
   }
 
   /// The end of the run that [p] starts, before a hard stop and a paren
   /// stop.
-  int runEnd(int p) => parenStop(p, _stops[p]);
+  int runEnd(int p) => parenStop(p, _stops[p - lo]);
 
   /// [stop], the end of the run that [p] starts, or, where a unit of
   /// [_dropsRunBefore] follows it, the end [_tailEnd] reads for the run's
@@ -165,9 +162,8 @@ class _Scan {
   /// character's end before a paren stop. [authorityEnd] ends a scheme
   /// link's authority, whose bracketed host's ']' a tail may start at.
   int _wordEnd(int p, int stop, [int? authorityEnd]) {
-    if (stop >= n || !_dropsRunBefore(text.codeUnitAt(stop))) return stop;
-    final last = _lastWordEnd(stop);
-    final word = last != null && last > p ? last : p;
+    if (stop >= hi || !_dropsRunBefore(text.codeUnitAt(stop))) return stop;
+    final word = _lastWordEnd(p, stop) ?? p;
     final literal =
         authorityEnd != null && _literalClose(p, authorityEnd) == word;
     return _tailEnd(word, stop, literal) ?? parenStop(p, word);
@@ -176,8 +172,8 @@ class _Scan {
   /// The ']' that closes the bracketed host of the authority from [p] to
   /// [authorityEnd].
   int? _literalClose(int p, int authorityEnd) {
-    final lastAt = _lastAt(authorityEnd);
-    final host = lastAt != null && lastAt >= p ? lastAt + 1 : p;
+    final lastAt = _lastAt(p, authorityEnd);
+    final host = lastAt == null ? p : lastAt + 1;
     if (host >= authorityEnd || text.codeUnitAt(host) != 0x5B) return null;
     for (var i = host + 1; i < authorityEnd; i++) {
       if (text.codeUnitAt(i) == 0x5D) return i;
@@ -200,7 +196,7 @@ class _Scan {
   /// that character is not a '/' or apostrophe, one more character. The
   /// link ends no earlier than [word].
   int? _tailEnd(int word, int stop, bool literal) {
-    final lead = cpBefore(text, word);
+    final lead = cpBeforeIn(text, word, lo);
     if (stop - word > 3 || !isMacLetter(lead) && !isAsciiDigit(lead)) {
       return null;
     }
@@ -257,15 +253,25 @@ class _Scan {
   }
 
   /// The link NSDataDetector reads at the ':' at [colon]: a scheme link where
-  /// two '/' follow it, else an opaque URI.
-  NsddResult? colonLink(int colon) {
+  /// two '/' follow it, else an opaque URI; none for `mailto`.
+  (int, int)? colonLink(int colon) {
     final p = _slashesEnd(colon);
     if (p == null) return _opaque(colon);
     final s = _schemeStart(colon);
-    if (s == null) return null;
+    if (s == null || _isMailto(s, colon)) return null;
     final end = _schemeLinkEnd(s, colon, p) ?? _schemeSlash(s, colon, p);
-    if (end == null) return null;
-    return (start: s, end: end, phone: false, value: text.substring(s, end));
+    return end == null ? null : (s, end);
+  }
+
+  /// Whether the scheme from [s] to [sep] is `mailto` in any case.
+  bool _isMailto(int s, int sep) {
+    if (sep - s != 6) return false;
+    for (var k = 0; k < 6; k++) {
+      if (text.codeUnitAt(s + k) | 0x20 != 'mailto'.codeUnitAt(k)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   /// The end of the two '/' after the ':' at [colon], with any LRM and RLM
@@ -273,11 +279,11 @@ class _Scan {
   int? _slashesEnd(int colon) {
     var i = colon + 1;
     for (var slash = 0; slash < 2; slash++) {
-      while (i < n &&
+      while (i < hi &&
           (text.codeUnitAt(i) == 0x200E || text.codeUnitAt(i) == 0x200F)) {
         i++;
       }
-      if (i >= n || text.codeUnitAt(i) != 0x2F) return null;
+      if (i >= hi || text.codeUnitAt(i) != 0x2F) return null;
       i++;
     }
     return i;
@@ -288,7 +294,7 @@ class _Scan {
   /// letter or digit precedes, or a web scheme after a '.' in the run.
   int? _schemeStart(int sep) {
     var run = sep;
-    while (run > 0 && _schemeChar(text.codeUnitAt(run - 1))) {
+    while (run > lo && _schemeChar(text.codeUnitAt(run - 1))) {
       run--;
     }
     for (var dot = sep - 1; dot >= run; dot--) {
@@ -308,7 +314,7 @@ class _Scan {
         }
         return p;
       }
-      return _gluedBefore(text, p) ? null : p;
+      return _gluedBefore(p) ? null : p;
     }
     return null;
   }
@@ -323,17 +329,16 @@ class _Scan {
   /// port's ':' goes before '"' or ZWSP. Its trailing marks go, and then
   /// its authority decides.
   int? _schemeLinkEnd(int s, int sep, int p) {
-    final scheme = text.substring(s, sep).toLowerCase();
     var stop = runEnd(p);
     var authorityEnd = p;
     while (authorityEnd < stop &&
         !_isPathStart(text.codeUnitAt(authorityEnd))) {
       authorityEnd++;
     }
-    final format = _formats[authorityEnd];
+    final format = _formatBefore(authorityEnd, stop);
     if (format < stop) {
       final c = text.codeUnitAt(format);
-      final next = format + 1 < n ? text.codeUnitAt(format + 1) : 0x20;
+      final next = format + 1 < hi ? text.codeUnitAt(format + 1) : 0x20;
       if (_bidiStop(c) &&
           (format + 1 == stop || _segmentEnd(next) || next <= 0x20)) {
         stop = format;
@@ -343,12 +348,12 @@ class _Scan {
     }
     if (stop > authorityEnd &&
         text.codeUnitAt(stop - 1) == 0x200D &&
-        (stop == n || text.codeUnitAt(stop) <= 0x20)) {
+        (stop == hi || text.codeUnitAt(stop) <= 0x20)) {
       stop = _segmentBefore(stop - 1, authorityEnd);
     }
     stop = _wordEnd(p, stop, authorityEnd);
     if (authorityEnd > stop) authorityEnd = stop;
-    if (stop < n &&
+    if (stop < hi &&
         stop > p &&
         _dropsLonePath(text.codeUnitAt(stop)) &&
         (stop == authorityEnd + 1 && text.codeUnitAt(authorityEnd) == 0x2F ||
@@ -356,8 +361,7 @@ class _Scan {
       stop--;
       if (stop < authorityEnd) authorityEnd = stop;
     }
-    final word = _lastWordish(stop);
-    final pathWord = word != null && word >= authorityEnd;
+    final pathWord = _lastWordish(authorityEnd, stop) != null;
     var authority = pathWord ? _authority(s, p, authorityEnd) : null;
     if (authority is _Refused) return null;
     if (authority is _EndsAt) return authority.end;
@@ -376,13 +380,16 @@ class _Scan {
             at == null &&
             hostEnd == authorityEnd &&
             end == authorityEnd) {
-          final alone = end == p && (p == n || _space(text.codeUnitAt(p)));
-          return opaqueSchemes.contains(scheme) && alone ? p : null;
+          final alone = end == p && (p == hi || _space(text.codeUnitAt(p)));
+          return _onOpaqueList(s, sep) && alone ? p : null;
         }
         if (at != null && host == hostEnd && end == authorityEnd) return null;
         return end;
     }
   }
+
+  bool _onOpaqueList(int s, int sep) =>
+      opaqueSchemes.contains(text.substring(s, sep).toLowerCase());
 
   /// The end of the segment before the one that holds [i], no earlier than
   /// [from].
@@ -398,8 +405,7 @@ class _Scan {
   /// the link that starts at [s]: userinfo through its last '@', a bracketed
   /// literal or a host, and an empty or digit port.
   _Authority _authority(int s, int p, int authorityEnd) {
-    final lastAt = _lastAt(authorityEnd);
-    final at = lastAt != null && lastAt >= p ? lastAt : null;
+    final at = _lastAt(p, authorityEnd);
     if (at != null && _hostLikeUser(s, p, at)) return _Refused();
     final host = at == null ? p : at + 1;
     int hostEnd;
@@ -419,13 +425,18 @@ class _Scan {
       hostEnd = host;
       while (hostEnd < authorityEnd && text.codeUnitAt(hostEnd) != 0x3A) {
         final c = text.codeUnitAt(hostEnd);
-        if (_foreignDigit(cpAt(text, hostEnd))) {
-          var cut = _wordStart(text, hostEnd, host);
+        if (c < 0x80) {
+          if (_killsHost(c)) return _Refused();
+          hostEnd++;
+          continue;
+        }
+        if (_foreignDigit(cpAtIn(text, hostEnd, hi))) {
+          var cut = _wordStart(hostEnd, host);
           while (cut > host && _isDotOrDash(text.codeUnitAt(cut - 1))) {
             cut--;
           }
           for (var i = host; i < cut; i++) {
-            if (isLetterMarkDigit(cpAt(text, i))) return _EndsAt(cut);
+            if (isLetterMarkDigit(cpAtIn(text, i, hi))) return _EndsAt(cut);
           }
           return _Refused();
         }
@@ -466,8 +477,8 @@ class _Scan {
     }
     var letters = 0;
     var i = user;
-    while (i > p && isLetter(cpBefore(text, i))) {
-      i -= width(cpBefore(text, i));
+    while (i > p && isLetter(cpBeforeIn(text, i, lo))) {
+      i -= width(cpBeforeIn(text, i, lo));
       letters++;
     }
     if (letters < 2 ||
@@ -484,11 +495,8 @@ class _Scan {
   /// where it reads no host after its `//` at [p] and no whitespace follows
   /// it.
   int? _schemeSlash(int s, int sep, int p) {
-    if (!opaqueSchemes.contains(text.substring(s, sep).toLowerCase()) ||
-        p != sep + 3) {
-      return null;
-    }
-    if (p >= n || _space(text.codeUnitAt(p))) return null;
+    if (!_onOpaqueList(s, sep) || p != sep + 3) return null;
+    if (p >= hi || _space(text.codeUnitAt(p))) return null;
     return sep + 2;
   }
 
@@ -498,11 +506,11 @@ class _Scan {
   /// it, the run of `# - ~ *` before it goes too, and so does the mark
   /// before that run; then the trailing trimmed marks go.
   int _trailing(int s, int end) {
-    final word = _lastWordish(end);
-    final run = word != null && word >= s ? word + 1 : s;
+    final word = _lastWordish(s, end);
+    final run = word == null ? s : word + 1;
     for (var i = run + 1; i < end; i++) {
       if (!_trimmed(text.codeUnitAt(i))) continue;
-      final next = i + 1 < n ? text.codeUnitAt(i + 1) : 0x20;
+      final next = i + 1 < hi ? text.codeUnitAt(i + 1) : 0x20;
       if (next == 0x2F) continue;
       if (i + 1 == end && next != 0x28) continue;
       end = i;
@@ -521,23 +529,18 @@ class _Scan {
   }
 
   /// The opaque URI NSDataDetector reads at the ':' at [colon]: a scheme on
-  /// the opaque list or `mailto`, glued to no word, and a body of link
+  /// the opaque list in any case, glued to no word, and a body of link
   /// characters that holds no Cf character other than the soft hyphen, ZWNJ,
   /// ZWJ, LRM and RLM, with its trailing marks and bidi controls dropped.
-  NsddResult? _opaque(int colon) {
+  (int, int)? _opaque(int colon) {
     var s = colon;
-    while (s > 0 && isAsciiLetter(text.codeUnitAt(s - 1))) {
+    while (s > lo && isAsciiLetter(text.codeUnitAt(s - 1))) {
       s--;
     }
-    if (s == colon) return null;
-    final scheme = text.substring(s, colon);
-    final lower = scheme.toLowerCase();
-    final mailto = lower == 'mailto';
-    if (!mailto && !opaqueSchemes.contains(lower)) return null;
-    if (lower == 'tel' && scheme != 'tel') return null;
-    if (s > 0) {
+    if (s == colon || !_onOpaqueList(s, colon)) return null;
+    if (s > lo) {
       final before = text.codeUnitAt(s - 1);
-      if (before == 0x5F ? lower != 'tel' : _gluedBefore(text, s)) return null;
+      if (before == 0x5F ? !_isTel(s, colon) : _gluedBefore(s)) return null;
       if (isAsciiDigit(before)) return null;
     }
     final body = colon + 1;
@@ -545,158 +548,76 @@ class _Scan {
     while (stop > body && _bidiStop(text.codeUnitAt(stop - 1))) {
       stop--;
     }
-    if (_formats[body] < stop) return null;
+    if (_formatBefore(body, stop) < stop) return null;
     final e = _trailing(body, _wordEnd(body, stop));
-    if (e == body) return null;
-    if (mailto && !_mailtoAddress(body, e)) return null;
-    return (
-      start: s,
-      end: e,
-      phone: false,
-      value: mailto ? _escaped(text.substring(s, e)) : text.substring(s, e),
-    );
+    return e == body ? null : (s, e);
   }
 
-  /// Whether [body, end), a `mailto:` URI's body, holds an address
-  /// NSDataDetector reads: before any '?', a local part with no private-use
-  /// character and a domain of labels of ASCII letters, digits, '-' and '_'
-  /// joined by single dots whose last label is letters, or a body that is a
-  /// query holding an '@'.
-  bool _mailtoAddress(int body, int end) {
-    final query = _queries[body] < end ? _queries[body] : end;
-    if (query == body) {
-      final lastAt = _lastAt(end);
-      return lastAt != null && lastAt >= body;
-    }
-    final at = _lastAt(query);
-    if (at == null || at <= body) return false;
-    for (var i = body; i < at; i++) {
-      if (_privateUse(text.codeUnitAt(i))) return false;
-    }
-    final labels = text.substring(at + 1, query).split('.');
-    if (labels.length < 2) return false;
-    for (final label in labels) {
-      if (label.isEmpty) return false;
-      for (final c in label.codeUnits) {
-        if (!(isAsciiLetter(c) || isAsciiDigit(c) || c == 0x2D || c == 0x5F)) {
-          return false;
-        }
-      }
-    }
-    return labels.last.codeUnits.every(isAsciiLetter);
-  }
+  /// Whether the scheme from [s] to [sep] is `tel` in any case.
+  bool _isTel(int s, int sep) =>
+      sep - s == 3 &&
+      text.codeUnitAt(s) | 0x20 == 0x74 &&
+      text.codeUnitAt(s + 1) | 0x20 == 0x65 &&
+      text.codeUnitAt(s + 2) | 0x20 == 0x6C;
 
-  /// The address NSDataDetector reads at the '@' at [at] with no written
-  /// `mailto:`: a local part that no '.' starts or ends and that no '@', Cf
-  /// character or word-joining mark glues to, and a domain of labels of ASCII
-  /// letters, digits, '-' and '_' and ALM, LRM or RLM joined by single dots,
-  /// whose last label is letters or ends at the letters before a '-'.
-  NsddResult? address(int at) {
-    var start = at;
-    while (start > 0 && _localChar(cpBefore(text, start))) {
-      start -= width(cpBefore(text, start));
-    }
-    while (start < at && text.codeUnitAt(start) == 0x2E) {
-      start++;
-    }
-    if (start == at || text.codeUnitAt(at - 1) == 0x2E) return null;
-    if (start > 0) {
-      final before = cpBefore(text, start);
-      if (before == 0x40 || _formatLike(before) && before != 0x200B) {
-        return null;
-      }
-      if (_midLetter(before) &&
-          start >= 2 &&
-          isLetter(cpBefore(text, start - width(before)))) {
-        return null;
-      }
-    }
-    if (start >= 7 &&
-        text.substring(start - 7, start).toLowerCase() == 'mailto:') {
-      return null;
-    }
-    final end = _domainEnd(at + 1);
-    if (end == null) return null;
-    return (
-      start: start,
-      end: end,
-      phone: false,
-      value:
-          'mailto:${_escaped(text.substring(start, at))}@'
-          '${text.substring(at + 1, end)}',
-    );
-  }
-
-  /// The end of an address's domain at [p]: two or more labels joined by
-  /// single dots whose last label is letters, or ends at the letters before a
-  /// '-' in it.
-  int? _domainEnd(int p) {
-    var i = p;
-    var labels = 0;
-    int? end;
-    while (true) {
-      final labelStart = i;
-      while (i < n && _domainChar(text.codeUnitAt(i))) {
-        i++;
-      }
-      if (i == labelStart) break;
-      labels++;
-      if (labels >= 2) {
-        var letters = labelStart;
-        while (letters < i && !_domainDigitOrMark(text.codeUnitAt(letters))) {
-          letters++;
-        }
-        if (letters == i) end = i;
-        if (letters < i) {
-          if (letters > labelStart && text.codeUnitAt(letters) == 0x2D) {
-            end = letters;
-          }
-          break;
-        }
-      }
-      if (i + 1 < n &&
-          text.codeUnitAt(i) == 0x2E &&
-          _domainChar(text.codeUnitAt(i + 1))) {
-        i++;
+  /// Whether NSDataDetector's word joins the character at [i] to what
+  /// precedes it: a letter or digit outside Han, kana and Hangul, or such a
+  /// letter and a ':', '：' or '.', ends there, skipping marks and Cf
+  /// characters other than U+200B.
+  bool _gluedBefore(int i) {
+    var afterMid = false;
+    while (i > lo) {
+      final cp = cpBeforeIn(text, i, lo);
+      if (isMark(cp) || _formatLike(cp) && cp != 0x200B) {
+        i -= width(cp);
         continue;
+      }
+      if (_joinsWord(cp)) return !afterMid || isLetter(cp);
+      if (!afterMid && (cp == 0x3A || cp == 0xFF1A || cp == 0x2E)) {
+        afterMid = true;
+        i -= 1;
+        continue;
+      }
+      return false;
+    }
+    return false;
+  }
+
+  /// The start of the word that holds the character at [i], no earlier than
+  /// [from]: word characters join, and a '.' joins two letters or two
+  /// digits.
+  int _wordStart(int i, int from) {
+    var j = i;
+    while (j > from) {
+      final before = cpBeforeIn(text, j, lo);
+      if (_hostWord(before)) {
+        j -= width(before);
+        continue;
+      }
+      if (before == 0x2E && j - 1 > from) {
+        final left = cpBeforeIn(text, j - 1, lo);
+        final right = cpAtIn(text, j, hi);
+        if (isDigit(left) && isDigit(right) ||
+            isLetter(left) && isLetter(right)) {
+          j -= 1;
+          continue;
+        }
       }
       break;
     }
-    if (end == null) return null;
-    if (end < n &&
-        _formatLike(text.codeUnitAt(end)) &&
-        !_bidiStop(text.codeUnitAt(end))) {
-      return null;
-    }
-    return end;
+    return j;
   }
 }
 
 bool _schemeChar(int c) =>
     isAsciiLetter(c) || isAsciiDigit(c) || c == 0x2B || c == 0x2E || c == 0x2D;
 
-/// Whether NSDataDetector's word joins the character at [i] of [text] to
-/// what precedes it: a letter or digit outside Han, kana and Hangul, or such
-/// a letter and a ':', '：' or '.', ends there, skipping marks and Cf
-/// characters other than U+200B.
-bool _gluedBefore(String text, int i) {
-  var afterMid = false;
-  while (i > 0) {
-    final cp = cpBefore(text, i);
-    if (isMark(cp) || _formatLike(cp) && cp != 0x200B) {
-      i -= width(cp);
-      continue;
-    }
-    if (_joinsWord(cp)) return !afterMid || isLetter(cp);
-    if (!afterMid && (cp == 0x3A || cp == 0xFF1A || cp == 0x2E)) {
-      afterMid = true;
-      i -= 1;
-      continue;
-    }
-    return false;
-  }
-  return false;
-}
+/// Whether [cp] is in ICU's `\w` or Cf.
+bool _wordOrFormat(int cp) => isWord(cp) || _formatLike(cp);
+
+/// Whether the UTF-16 unit [c] is a Cf character that cuts a link's path:
+/// one other than the soft hyphen, ZWNJ, ZWJ, LRM and RLM.
+bool _cutsPath(int c) => c >= 0xAD && _formatLike(c) && !_keptFormat(c);
 
 /// Whether [cp] joins a word as NSDataDetector reads one: a Hangul filler,
 /// or a letter or digit outside Han, kana and Hangul.
@@ -711,18 +632,6 @@ bool _joinsWord(int cp) =>
         !(cp >= 0xFF66 && cp <= 0xFFDC) &&
         !(cp >= 0x20000 && cp <= 0x3FFFF);
 
-/// Whether [cp] joins two letters into one word: ':', '·' and the other
-/// MidLetter characters.
-bool _midLetter(int cp) =>
-    cp == 0x3A ||
-    cp == 0xB7 ||
-    cp == 0x0387 ||
-    cp == 0x05F4 ||
-    cp == 0x2027 ||
-    cp == 0xFE13 ||
-    cp == 0xFE55 ||
-    cp == 0xFF1A;
-
 bool _isBopomofo(int cp) =>
     (cp >= 0x3100 && cp <= 0x312F) || (cp >= 0x31A0 && cp <= 0x31BF);
 
@@ -732,23 +641,19 @@ bool _isHangulFiller(int cp) =>
 /// Whether the UTF-16 unit [c] ends NSDataDetector's link before it:
 /// whitespace, a C0 or C1 control or DEL, `{ } < > "`, CJK punctuation,
 /// ZWSP or a private-use character of [_privateUseStop].
-bool _linkStop(int c) =>
-    c <= 0x20 ||
-    (c >= 0x7F && c <= 0xA0) ||
-    c == 0x22 ||
-    c == 0x3C ||
-    c == 0x3E ||
-    c == 0x7B ||
-    c == 0x7D ||
-    c == 0x1680 ||
-    (c >= 0x2000 && c <= 0x200B) ||
-    c == 0x2028 ||
-    c == 0x2029 ||
-    c == 0x202F ||
-    c == 0x205F ||
-    c == 0x3000 ||
-    _privateUseStop(c) ||
-    isCjkPunctuation(c);
+bool _linkStop(int c) => c < 0x7F
+    ? c <= 0x20 || c == 0x22 || c == 0x3C || c == 0x3E || c == 0x7B || c == 0x7D
+    : c <= 0xA0 ||
+          c >= 0x1680 &&
+              (c == 0x1680 ||
+                  (c >= 0x2000 && c <= 0x200B) ||
+                  c == 0x2028 ||
+                  c == 0x2029 ||
+                  c == 0x202F ||
+                  c == 0x205F ||
+                  c == 0x3000 ||
+                  _privateUseStop(c) ||
+                  isCjkPunctuation(c));
 
 /// Whether the UTF-16 unit [c] is a private-use character that ends
 /// NSDataDetector's link: U+E000–U+F7F2, U+F8A1–U+F8A7, U+F8B4–U+F8B7 or
@@ -802,7 +707,7 @@ bool _isPathStart(int c) => c == 0x2F || c == 0x3F || c == 0x23;
 
 /// Whether the UTF-16 unit [c] is Cf or U+2065, which NSDataDetector reads as
 /// one.
-bool _formatLike(int c) => isFormat(c) || c == 0x2065;
+bool _formatLike(int c) => c >= 0xAD && (isFormat(c) || c == 0x2065);
 
 /// Whether the UTF-16 unit [c] is a default-ignorable character
 /// NSDataDetector reads as part of a word: a Hangul filler or CGJ.
@@ -819,31 +724,6 @@ bool _foreignDigit(int cp) =>
 bool _hostWord(int cp) =>
     cp == 0x5F || isMark(cp) || isDigit(cp) || isLetter(cp) && _joinsWord(cp);
 
-/// The start of the word that holds the character at [i] of [text], no
-/// earlier than [from]: word characters join, and a '.' joins two letters
-/// or two digits.
-int _wordStart(String text, int i, int from) {
-  var j = i;
-  while (j > from) {
-    final before = cpBefore(text, j);
-    if (_hostWord(before)) {
-      j -= width(before);
-      continue;
-    }
-    if (before == 0x2E && j - 1 > from) {
-      final left = cpBefore(text, j - 1);
-      final right = cpAt(text, j);
-      if (isDigit(left) && isDigit(right) ||
-          isLetter(left) && isLetter(right)) {
-        j -= 1;
-        continue;
-      }
-    }
-    break;
-  }
-  return j;
-}
-
 /// Whether the UTF-16 unit [c] in a link's host means no link.
 bool _killsHost(int c) =>
     c == 0x5B ||
@@ -852,9 +732,10 @@ bool _killsHost(int c) =>
     c == 0x7C ||
     c == 0x5C ||
     c == 0x5E ||
-    c == 0x2026 ||
-    _privateUse(c) ||
-    _formatLike(c) && c != 0xAD && c != 0x200C && c != 0x200D;
+    c >= 0xAD &&
+        (c == 0x2026 ||
+            _privateUse(c) ||
+            _formatLike(c) && c != 0xAD && c != 0x200C && c != 0x200D);
 
 bool _privateUse(int c) => c >= 0xE000 && c <= 0xF8FF;
 
@@ -895,63 +776,3 @@ bool _wordish(int c) =>
         c == 0x2F ||
         _dropsBefore(c) ||
         c == 0x28);
-
-/// Whether [cp] is a character of an address's local part as NSDataDetector
-/// reads one: ASCII atext, '.', a letter, mark or digit outside the unspaced
-/// scripts or a Hangul syllable, or a bidi control.
-bool _localChar(int cp) => cp < 0x80
-    ? isAsciiLetter(cp) ||
-          isAsciiDigit(cp) ||
-          "!#\$%&'*+/=?^_`{|}~.-".codeUnits.contains(cp)
-    : isBidiControl(cp) ||
-          isLetterMarkDigit(cp) &&
-              (!isUnspaced(cp) || cp >= 0xAC00 && cp <= 0xD7A3);
-
-bool _domainChar(int c) =>
-    isAsciiLetter(c) ||
-    isAsciiDigit(c) ||
-    c == 0x2D ||
-    c == 0x5F ||
-    c == 0x061C ||
-    c == 0x200E ||
-    c == 0x200F;
-
-bool _domainDigitOrMark(int c) => isAsciiDigit(c) || c == 0x2D || c == 0x5F;
-
-/// [url] with each character NSDataDetector's URL escapes as UTF-8 '%XX'
-/// escapes: `" # % < > [ \ ] ^ ` { | }`, controls, spaces and non-ASCII.
-String _escaped(String url) {
-  final out = StringBuffer();
-  for (final rune in url.runes) {
-    if (rune < 0x80 &&
-        rune > 0x20 &&
-        !'"#%<>[\\]^`{|}'.codeUnits.contains(rune)) {
-      out.writeCharCode(rune);
-      continue;
-    }
-    for (final byte in utf8.encode(String.fromCharCode(rune))) {
-      out.write('%${byte.toRadixString(16).toUpperCase().padLeft(2, '0')}');
-    }
-  }
-  return out.toString();
-}
-
-/// The TLDs NSDataDetector links a bare host with a non-ASCII label on, as
-/// macOS 26.4 reads `see bücher.<tld> x`, in src/tld.h's order.
-final nsddBareTldList = _nsddBare.split(' ');
-
-/// [nsddBareTldList] as a set.
-final nsddBareTlds = nsddBareTldList.toSet();
-
-const _nsddBare =
-    'ae ai ar at au be bg bid biz bo br bs ca cc ch cl club cm cn co com cx cz '
-    'de dk edu ee es eu fi fm fr gdn gl google gov gr hk hn hr hu id ie il in '
-    'info io ir is it jo jp kr la lc li link lk loan lt lu lv ly ma me ms mx '
-    'my net nl no nz online org ph pk pl pn pt pw ro rs ru sa se sg si site sk '
-    'so social st tech th tm tn to tr tt tv tw ua uk us uy va vip vn wang win '
-    'xin xyz za \u0440\u0443\u0441 \u0440\u0444 \u0443\u043A\u0440 '
-    '\u0627\u0644\u0633\u0639\u0648\u062F\u064A\u0629 '
-    '\u0627\u0645\u0627\u0631\u0627\u062A \u0645\u0635\u0631 '
-    '\u0645\u0644\u064A\u0633\u064A\u0627 \u092D\u093E\u0930\u0924 '
-    '\u0A2D\u0A3E\u0A30\u0A24 \u0AAD\u0ABE\u0AB0\u0AA4 \u0E44\u0E17\u0E22 '
-    '\uD55C\uAD6D';
