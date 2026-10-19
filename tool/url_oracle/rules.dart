@@ -1003,12 +1003,11 @@ class _Run {
     return runs;
   }
 
-  /// p4: the window the stand-in of [group], occurrences at [at] of
-  /// [text], reads, as offsets in [text], with its segment's span in it and
+  /// p4: the window the stand-in of [group], occurrences at [at] of the
+  /// text, reads, as offsets in the text, with its segment's span in it and
   /// the native links of the segments before it; null where the stand-in
-  /// reads all of [text].
+  /// reads all of the text.
   ({int from, int to, int start, int end, int before})? windowOf<T>(
-    String text,
     List<T> group,
     int Function(T) at,
     Segments segments,
@@ -1050,7 +1049,7 @@ class _Run {
           at,
     ];
     for (final group in occurrences(ats, (at) => at, segments)) {
-      final window = windowOf(text, group, (at) => at, segments, windows);
+      final window = windowOf(group, (at) => at, segments, windows);
       final from = window?.from ?? 0;
       final units = text
           .substring(from, window?.to ?? text.length)
@@ -1104,7 +1103,7 @@ class _Run {
       ats.add(at);
     }
     for (final group in occurrences(ats, (at) => at, segments)) {
-      final window = windowOf(text, group, (at) => at, segments, windows);
+      final window = windowOf(group, (at) => at, segments, windows);
       final from = window?.from ?? 0;
       final units = text
           .substring(from, window?.to ?? text.length)
@@ -1154,7 +1153,7 @@ class _Run {
       runs.add((start, i));
     }
     for (final group in occurrences(runs, (run) => run.$1, segments)) {
-      final window = windowOf(text, group, (run) => run.$1, segments, windows);
+      final window = windowOf(group, (run) => run.$1, segments, windows);
       final from = window?.from ?? 0;
       final units = text
           .substring(from, window?.to ?? text.length)
@@ -1471,13 +1470,7 @@ class _Run {
     }
     final out = <Link, ({int at, Link? kept})>{};
     for (final group in segments.group(cut, (c) => c.$1.start)) {
-      final window = windowOf(
-        text,
-        group,
-        (c) => c.$1.start,
-        segments,
-        windows,
-      );
+      final window = windowOf(group, (c) => c.$1.start, segments, windows);
       final from = window?.from ?? 0;
       final units = text
           .substring(from, window?.to ?? text.length)
