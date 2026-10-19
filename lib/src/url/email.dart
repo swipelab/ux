@@ -19,7 +19,7 @@ typedef Email = ({int start, int at, int end, bool mailto});
 /// and R1's body after it, which ends as a path ends, and a '?' that no body
 /// character stays after goes.
 List<Email> emailsOf(String text, int lo, int hi, int from, int to) {
-  List<Email>? out;
+  final out = <Email>[];
   var lastEnd = lo;
   for (var at = from; at < to; at++) {
     if (text.codeUnitAt(at) != 0x40 || at < lastEnd) continue;
@@ -33,15 +33,10 @@ List<Email> emailsOf(String text, int lo, int hi, int from, int to) {
       final query = webEnd(text, mailto, _bodyEnd(text, end + 1, hi));
       if (query > end + 1) end = query;
     }
-    (out ??= []).add((
-      start: mailto ?? start,
-      at: at,
-      end: end,
-      mailto: mailto != null,
-    ));
+    out.add((start: mailto ?? start, at: at, end: end, mailto: mailto != null));
     lastEnd = end;
   }
-  return out ?? const [];
+  return out;
 }
 
 /// The URL of [email], a link of [text]: `mailto:`, or the written `mailto:`

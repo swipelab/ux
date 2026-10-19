@@ -17,7 +17,7 @@ const inputBound = 4096;
 /// are kept, and the any-scheme pass's links join them.
 List<UrlMatch> detectLinks(String text) {
   final n = text.length > inputBound ? boundOf(text) : text.length;
-  List<UrlMatch>? out;
+  final out = <UrlMatch>[];
   var kept = 0;
   var i = _nextTrigger(text, 0, n);
   while (i != null) {
@@ -33,11 +33,11 @@ List<UrlMatch> detectLinks(String text) {
     final room = maxNativeLinks - kept;
     kept += native.length;
     for (final l in dedupe([...native.take(room < 0 ? 0 : room), ...any])) {
-      (out ??= []).add(_match(text, l));
+      out.add(_match(text, l));
     }
     i = _nextTrigger(text, end, n);
   }
-  return out ?? const [];
+  return out;
 }
 
 /// The first link trigger of [text] at or after [from] and before [n].

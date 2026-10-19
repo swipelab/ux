@@ -8,18 +8,18 @@ import 'package:ux/src/url/web_pass.dart';
 /// them under en_US: scheme links and opaque URIs that do not overlap, each
 /// read at its ':' from the left and ended by [webEnd], as their spans.
 List<(int, int)> nsddLinks(String text, int lo, int hi, int from, int to) {
-  List<(int, int)>? out;
-  _Scan? scan;
+  final out = <(int, int)>[];
+  final scan = _Scan(text, lo, hi);
   var lastEnd = lo;
   for (var i = from; i < to; i++) {
     if (text.codeUnitAt(i) != 0x3A || i < lastEnd) continue;
-    final r = (scan ??= _Scan(text, lo, hi)).colonLink(i);
+    final r = scan.colonLink(i);
     if (r == null || r.$1 < lastEnd) continue;
     lastEnd = r.$2;
     final end = webEnd(text, r.$1, r.$2);
-    if (end > r.$1) (out ??= []).add((r.$1, end));
+    if (end > r.$1) out.add((r.$1, end));
   }
-  return out ?? const [];
+  return out;
 }
 
 /// The schemes NSDataDetector links with a body and no `//`.

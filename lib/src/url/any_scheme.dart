@@ -13,7 +13,7 @@ import 'package:ux/src/url/chars.dart';
 /// follows, and a path of characters and '%XX' escapes after a '/', '?' or
 /// '#'.
 List<(int, int)> anySchemeLinks(String text, int lo, int hi, int from, int to) {
-  List<(int, int)>? out;
+  final out = <(int, int)>[];
   var after = lo;
   for (var sep = from; sep < to; sep++) {
     if (text.codeUnitAt(sep) != 0x3A ||
@@ -34,10 +34,10 @@ List<(int, int)> anySchemeLinks(String text, int lo, int hi, int from, int to) {
     if (run < after || letter == sep) continue;
     final end = _matchEnd(text, sep + 3, hi);
     final kept = trimAnyScheme(text, letter, end);
-    if (kept != sep + 3) (out ??= []).add((letter, kept));
+    if (kept != sep + 3) out.add((letter, kept));
     after = end;
   }
-  return out ?? const [];
+  return out;
 }
 
 bool _schemeChar(int c) =>

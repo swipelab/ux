@@ -72,12 +72,10 @@ TokenReading readToken(String text, int n, int start, int end, int before) {
   final st3 = reading.stage3(state.cands);
   return (
     native: st3.kept,
-    any: st3.cuts.isEmpty
-        ? state.any
-        : [
-            for (final l in state.any)
-              if (!reading.index.covers(st3.cuts, l)) l,
-          ],
+    any: [
+      for (final l in state.any)
+        if (!reading.index.covers(st3.cuts, l)) l,
+    ],
   );
 }
 
@@ -122,17 +120,17 @@ class _Reading {
   late final PathIndex index = PathIndex(text, lo, hi);
 
   /// The regions the cuts remove, and the text invisible spaces cut off.
-  List<_Region>? _regions;
-  List<_CutOff>? _cutOffs;
+  final _regions = <_Region>[];
+  final _cutOffs = <_CutOff>[];
 
   /// The candidates and any-scheme links of the text after the ledger's
   /// edits and cuts, its remainders read.
   _State edited() {
     final cands = <Link>[];
-    List<int>? webcals;
+    final webcals = <int>[];
     for (final (s, e) in nsddLinks(text, lo, hi, start, end)) {
       final link = Link(s, e, Source.nsdd);
-      if (_isWebcalSlash(s, e)) (webcals ??= []).add(s);
+      if (_isWebcalSlash(s, e)) webcals.add(s);
       if (_dropped(link)) continue;
       if (cut(link, any: false) case final kept?) cands.add(kept);
     }
@@ -167,27 +165,21 @@ class _Reading {
     final any = <Link>[];
     for (final (s, e) in anySchemeLinks(text, lo, hi, start, end)) {
       final link = Link(s, e, Source.anyScheme);
-      if (webcals != null && _webcalWithoutHost(webcals, link)) continue;
+      if (_webcalWithoutHost(webcals, link)) continue;
       if (cut(link, any: true) case final kept?) any.add(kept);
     }
-    if (_regions == null && _cutOffs == null) return (cands: cands, any: any);
-    return remainders(cands, any, _regions ?? const [], _cutOffs ?? const []);
+    return remainders(cands, any);
   }
 
   /// [cands] and [any] with each remainder read as a text of its own (p2),
   /// and the text an invisible space cuts off each link the reading keeps
   /// whole starting no link.
-  _State remainders(
-    List<Link> cands,
-    List<Link> any,
-    List<_Region> regions,
-    List<_CutOff> cutOffs,
-  ) {
+  _State remainders(List<Link> cands, List<Link> any) {
     final read = <_Region>[];
     if (level < 2) {
       final order =
           [
-            for (final region in regions)
+            for (final region in _regions)
               if (region.from > region.start) region,
           ]..sort((a, b) {
             final byStart = a.from.compareTo(b.from);
@@ -232,7 +224,7 @@ class _Reading {
       ];
     }
     final live = [
-      for (final o in cutOffs)
+      for (final o in _cutOffs)
         if (!replaced(o.whole.start)) o,
     ];
     if (live.isEmpty) return (cands: cands, any: any);
@@ -291,11 +283,10 @@ class _Reading {
   /// a candidate that starts before the last kept end. The cuts come
   /// sorted.
   ({List<Link> kept, List<int> cuts}) stage3(List<Link> candidates) {
-    if (candidates.isEmpty) return (kept: const [], cuts: const []);
     final order = List.of(candidates);
-    if (order.length > 1) _sortLinks(order);
+    _sortLinks(order);
     final kept = <Link>[];
-    List<int>? cuts;
+    final cuts = <int>[];
     var lastEnd = 0;
     int? cut;
     for (final m in order) {
@@ -304,14 +295,14 @@ class _Reading {
         final paren = index.pathParen(m.start, m.end);
         if (paren != null) {
           cut = paren;
-          (cuts ??= []).add(paren);
+          cuts.add(paren);
         }
       }
       if (kept.isNotEmpty && m.start < lastEnd) continue;
       kept.add(m);
       lastEnd = m.end;
     }
-    return (kept: kept, cuts: cuts == null ? const [] : (cuts..sort()));
+    return (kept: kept, cuts: cuts..sort());
   }
 
   /// Whether the link from [s] to [e] is NSDataDetector's `webcal:/` alone.
@@ -405,12 +396,12 @@ class _Reading {
         whole = l;
         from = end;
       } else {
-        (_regions ??= []).add((start: l.start, from: end, to: l.end));
+        _regions.add((start: l.start, from: end, to: l.end));
       }
       l = end <= l.start || _schemeAlone(l.start, end) ? null : l.endedAt(end);
     }
     if (whole != null) {
-      (_cutOffs ??= []).add((whole: whole, link: l, from: from, any: any));
+      _cutOffs.add((whole: whole, link: l, from: from, any: any));
     }
     return l;
   }

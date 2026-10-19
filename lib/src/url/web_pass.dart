@@ -28,7 +28,7 @@ List<PassLink> webPass(
   bool idn = false,
 }) {
   final pass = _Pass(text, lo, hi, idn);
-  List<PassLink>? out;
+  final out = <PassLink>[];
   var s = from;
   while (s < to) {
     final matchEnd = pass.matchAt(s);
@@ -40,11 +40,11 @@ List<PassLink> webPass(
     var end = webEnd(text, s, matchEnd);
     if (!written) end = pass.bareEnd(s, end);
     if (end > s && (written ? !idn : pass.keepsBare(s, end))) {
-      (out ??= []).add((start: s, end: end, written: written));
+      out.add((start: s, end: end, written: written));
     }
     s = matchEnd;
   }
-  return out ?? const [];
+  return out;
 }
 
 class _Pass {
