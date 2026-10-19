@@ -1,29 +1,9 @@
 import 'package:ux/src/url/chars.dart';
-import 'package:ux/src/url/match.dart';
 
-/// The any-scheme pass's links of [text]: each `scheme://` link from the
-/// first letter of its scheme characters, trimmed, without a scheme and its
-/// `://` alone, its URL sanitized.
-List<UrlMatch> anySchemeLinks(String text) => [
-  for (final (start, end) in anySchemeMatches(text))
-    ?anySchemeLink(text, start, end),
-];
-
-/// The any-scheme link of [text] from [start] to the match end [end], after
-/// its trim, or null where only its scheme and `://` remain.
-UrlMatch? anySchemeLink(String text, int start, int end) {
-  final kept = trimAnyScheme(text, start, end);
-  if (kept == text.indexOf('://', start) + 3) return null;
-  return UrlMatch(
-    start: start,
-    end: kept,
-    url: sanitizeUrl(text.substring(start, kept)),
-    kind: UrlMatchKind.web,
-  );
-}
-
-/// The matches of `_kAnySchemeRegex` at ux cae30daa in [text], each from the
-/// first letter of its scheme characters to the match's end.
+/// The any-scheme pass's links in the text [text] holds from [lo] to [hi],
+/// read as a text of its own, whose '://' falls from [from] to [to]: each
+/// `scheme://` link from the first letter of its scheme characters, trimmed,
+/// without a scheme and its `://` alone, as their spans.
 ///
 /// A match takes the run of scheme characters before a `://` that no scheme
 /// character precedes, any userinfo through its last '@' before a '/', '?',
@@ -32,28 +12,32 @@ UrlMatch? anySchemeLink(String text, int start, int end) {
 /// digits that no ASCII word character follows or a ':' that '/', '?' or '#'
 /// follows, and a path of characters and '%XX' escapes after a '/', '?' or
 /// '#'.
-List<(int, int)> anySchemeMatches(String text) {
+List<(int, int)> anySchemeLinks(String text, int lo, int hi, int from, int to) {
   final out = <(int, int)>[];
-  var from = 0;
-  while (true) {
-    final sep = text.indexOf('://', from);
-    if (sep < 0) return out;
+  var after = lo;
+  for (var sep = from; sep < to; sep++) {
+    if (text.codeUnitAt(sep) != 0x3A ||
+        sep < after ||
+        sep + 3 > hi ||
+        text.codeUnitAt(sep + 1) != 0x2F ||
+        text.codeUnitAt(sep + 2) != 0x2F) {
+      continue;
+    }
     var run = sep;
-    while (run > 0 && _schemeChar(text.codeUnitAt(run - 1))) {
+    while (run > lo && _schemeChar(text.codeUnitAt(run - 1))) {
       run--;
     }
     var letter = run;
     while (letter < sep && !isAsciiLetter(text.codeUnitAt(letter))) {
       letter++;
     }
-    if (run < from || letter == sep) {
-      from = sep + 1;
-      continue;
-    }
-    final end = _matchEnd(text, sep + 3);
-    out.add((letter, end));
-    from = end;
+    if (run < after || letter == sep) continue;
+    final end = _matchEnd(text, sep + 3, hi);
+    final kept = trimAnyScheme(text, letter, end);
+    if (kept != sep + 3) out.add((letter, kept));
+    after = end;
   }
+  return out;
 }
 
 bool _schemeChar(int c) =>
@@ -65,22 +49,12 @@ bool _ends(int c) =>
     c <= 0x20 ||
     (c >= 0x7F && c <= 0x9F) ||
     isDartSpace(c) ||
-    c == 0x22 ||
     c == 0x25 ||
-    c == 0x3C ||
-    c == 0x3E ||
-    c == 0x5B ||
-    c == 0x5C ||
-    c == 0x5D ||
-    c == 0x5E ||
-    c == 0x60 ||
-    c == 0x7B ||
-    c == 0x7C ||
-    c == 0x7D ||
+    isPathStop(c) ||
     isCjkPunctuation(c);
 
-bool _escape(String text, int i) =>
-    i + 2 < text.length &&
+bool _escape(String text, int i, int hi) =>
+    i + 2 < hi &&
     text.codeUnitAt(i) == 0x25 &&
     isHex(text.codeUnitAt(i + 1)) &&
     isHex(text.codeUnitAt(i + 2));
@@ -89,9 +63,9 @@ bool _authorityEnd(int c) => c == 0x2F || c == 0x3F || c == 0x23;
 
 /// The length of the host character or '%XX' escape at [i], null where none
 /// is there.
-int? _hostChar(String text, int i) {
-  if (i >= text.length) return null;
-  if (_escape(text, i)) return 3;
+int? _hostChar(String text, int i, int hi) {
+  if (i >= hi) return null;
+  if (_escape(text, i, hi)) return 3;
   final c = text.codeUnitAt(i);
   if (_ends(c) ||
       _authorityEnd(c) ||
@@ -106,14 +80,14 @@ int? _hostChar(String text, int i) {
 
 /// The end of a run of host characters and parenthesis pairs that [depth]
 /// more levels may nest in, from [i].
-int _hostRun(String text, int i, int depth) {
+int _hostRun(String text, int i, int hi, int depth) {
   while (true) {
-    final n = _hostChar(text, i);
+    final n = _hostChar(text, i, hi);
     if (n != null) {
       i += n;
-    } else if (depth > 0 && i < text.length && text.codeUnitAt(i) == 0x28) {
-      final close = _hostRun(text, i + 1, depth - 1);
-      if (close >= text.length || text.codeUnitAt(close) != 0x29) return i;
+    } else if (depth > 0 && i < hi && text.codeUnitAt(i) == 0x28) {
+      final close = _hostRun(text, i + 1, hi, depth - 1);
+      if (close >= hi || text.codeUnitAt(close) != 0x29) return i;
       i = close + 1;
     } else {
       return i;
@@ -121,12 +95,11 @@ int _hostRun(String text, int i, int depth) {
   }
 }
 
-int _matchEnd(String text, int p) {
-  final n = text.length;
+int _matchEnd(String text, int p, int n) {
   var q = p;
   int? at;
   while (q < n) {
-    if (_escape(text, q)) {
+    if (_escape(text, q, n)) {
       q += 3;
       continue;
     }
@@ -144,7 +117,7 @@ int _matchEnd(String text, int p) {
     }
     if (r > host + 1 && r < n && text.codeUnitAt(r) == 0x5D) end = r + 1;
   } else {
-    end = _hostRun(text, host, 2);
+    end = _hostRun(text, host, n, 2);
   }
   if (end < n && text.codeUnitAt(end) == 0x3A) {
     var d = end + 1;
@@ -160,9 +133,11 @@ int _matchEnd(String text, int p) {
   if (end < n && _authorityEnd(text.codeUnitAt(end))) {
     end++;
     while (end < n) {
-      if (_escape(text, end)) {
+      final c = text.codeUnitAt(end);
+      if (c == 0x25) {
+        if (!_escape(text, end, n)) break;
         end += 3;
-      } else if (_ends(text.codeUnitAt(end))) {
+      } else if (_ends(c)) {
         break;
       } else {
         end++;

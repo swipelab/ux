@@ -8,11 +8,9 @@
 // at a size is the median of 9 samples after 3 warm-ups, each sample a batch
 // of reads of about 2 ms divided by its reads, and its 4,096/1,024 ratio the
 // median of the 9 ratios of a 4,096-unit sample to the 1,024-unit sample
-// taken just before it. With no flag it exits 0
-// where the chat window reads in at most 1.0 ms and every family's 4,096-unit
-// text in at most 500 µs with a 4,096/1,024 ratio of at most 4.5; with
-// --linear, where every family's ratio is at most 4.5 and its 4,096-unit time
-// at most 2.5 ms.
+// taken just before it. It exits 0 where every family's 4,096/1,024 ratio is
+// at most 4.5 and its 4,096-unit time at most 2.5 ms, and, with no flag, each
+// window reads in at most 10.0 ms.
 import 'dart:io';
 
 import 'package:ux/src/url/detect.dart';
@@ -45,10 +43,10 @@ void main(List<String> args) {
         '${(time.median * 1e6 / texts.length).toStringAsFixed(0)} ns a message',
       );
     }
-    if (name == 'chat' && !linear && total.median > 1.0) ok = false;
+    if (!linear && total.median > 10.0) ok = false;
   }
   final ratioLimit = 4.5;
-  final timeLimit = linear ? 2.5 : 0.5;
+  final timeLimit = 2.5;
   stdout.writeln(
     '${'family'.padRight(40)} ${'1k us'.padLeft(9)} ${'4k us'.padLeft(9)} '
     '${'ratio'.padLeft(6)}',

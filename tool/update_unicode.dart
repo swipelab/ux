@@ -11,7 +11,6 @@ const _output = 'lib/src/url/unicode.dart';
 const _files = {
   'DerivedGeneralCategory.txt': 'ucd',
   'DerivedCoreProperties.txt': 'ucd',
-  'IdnaMappingTable.txt': 'idna',
 };
 
 /// Each generated class: its constant, its doc, and the general categories

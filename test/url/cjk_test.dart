@@ -1,6 +1,3 @@
-@Skip('the Dart detector does not read unspaced-script text yet')
-library;
-
 import 'package:flutter_test/flutter_test.dart';
 
 import 'links.dart';

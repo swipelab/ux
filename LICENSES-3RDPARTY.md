@@ -81,15 +81,14 @@ They are composed as `Patterns.java` composes them, each Java surrogate pair
 written as a C++ `\U` escape, and compiled into `ux_plugin.dll`.
 [lib/src/url/](lib/src/url/) holds scanners ported from them on every
 platform: `WEB_URL`'s character classes and host grammar in `web_pass.dart`,
-and `EMAIL_ADDRESS`'s grammar in `email_address.dart`.
+and `EMAIL_ADDRESS`'s local-part class in `email.dart`.
 
 ## Unicode data (Unicode License v3)
 
 [tool/url_data/unicode-17.0.0/](tool/url_data/unicode-17.0.0/) holds
-`IdnaMappingTable.txt`, `DerivedGeneralCategory.txt` and
-`DerivedCoreProperties.txt` of Unicode 17.0.0, unmodified, from
-https://www.unicode.org/Public/17.0.0/. This notice covers those files and every
-table generated from them:
+`DerivedGeneralCategory.txt` and `DerivedCoreProperties.txt` of Unicode 17.0.0,
+unmodified, from https://www.unicode.org/Public/17.0.0/. This notice covers
+those files and every table generated from them:
 
 ```
 UNICODE LICENSE V3

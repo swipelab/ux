@@ -40,25 +40,22 @@ void main() {
     expectLinks('see ops@examp\u061Cle.com,', [
       email(4, 20, 'mailto:ops@examp\u061Cle.com'),
     ]);
-  }, skip: "step 4 models NSDataDetector's addresses");
+  });
 
-  test('a phone whose text holds a bidi control takes tel: and its text for its URL', () {
-    expectLinks('call +1 \u200F555 123 4567 x', [
-      phone(5, 21, 'tel:+1 \u200F555 123 4567'),
+  test("a bidi control before an address's first character or after its last stays outside it", () {
+    expectLinks('see \u202Eops@example.com x', [
+      email(5, 20, 'mailto:ops@example.com'),
     ]);
-    expectLinks('see +1\u200F5551234567。', [
-      phone(4, 17, 'tel:+1\u200F5551234567'),
+    expectLinks('see \u2066ops@example.com\u2069 x', [
+      email(5, 20, 'mailto:ops@example.com'),
     ]);
-  }, skip: "step 5 models NSDataDetector's phones");
+  });
 
   test('a bidi control outside a link leaves its URL as the link reads', () {
     expectLinks('see \u202Ehttps://evil.com/?moc.knab//:sptth x', [
       web(5, 39, 'https://evil.com/?moc.knab//:sptth'),
     ]);
-    expectLinks('call \u200F +1 555 123 4567 x', [
-      phone(7, 22, 'tel:+15551234567'),
-    ]);
-  }, skip: "step 5 models NSDataDetector's phones");
+  });
 
   test('a C0 or C1 control or DEL ends a link', () {
     expectLinks('see https://a.com/x\u001F163.com/1 x', [

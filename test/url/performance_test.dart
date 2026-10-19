@@ -1,4 +1,3 @@
-@Skip('the Dart detector does not read long texts yet')
 @Tags(['performance'])
 library;
 
