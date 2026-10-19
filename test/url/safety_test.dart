@@ -74,8 +74,12 @@ void main() {
     ]);
   }, skip: "step 3 models NSDataDetector's own bare hosts");
 
-  test("a control after a link takes the link's trailing characters outside \\w with it", () {
+  test("a control after a link takes a trailing '&' with it", () {
     expectLinks('see sms:a=b&\u0001 x', [web(4, 11, 'sms:a=b')]);
+  });
+
+  test("a control after a link takes only the last of two '/' with it", () {
+    expectLinks('see sms:ab//\u0001 x', [web(4, 11, 'sms:ab/')]);
   });
 
   test(
