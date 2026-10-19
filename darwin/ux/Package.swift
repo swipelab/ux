@@ -11,10 +11,10 @@ import PackageDescription
 // across the target (SPM emits one object file per basename, so a second
 // `FilePlugin.swift` would collide).
 //
-// `url_detect.mm` is its own C target: SPM forbids mixing Objective-C and
+// `ux_phone_detect` is its own C target: SPM forbids mixing Objective-C and
 // Swift in a single target. Nothing imports it — Dart reaches
-// `ux_match_url`/`ux_free` through dart:ffi — so it needs no headers
-// exposed to the Swift side, only to be linked into the binary.
+// `ux_match_phones`/`ux_free` through dart:ffi — so it needs no headers
+// exposed to the Swift side, only to be linked into the iOS binary.
 //
 // `ux_extension` is the subset an app extension may link. `ux` itself is not
 // linkable from one: keyboard, gallery, camera and url all go through
@@ -50,7 +50,7 @@ let package = Package(
       dependencies: [
         .target(name: "ux_extension"),
         .target(name: "ux_macos_core"),
-        .target(name: "ux_url_detect"),
+        .target(name: "ux_phone_detect", condition: .when(platforms: [.iOS])),
         .product(
           name: "ZIPFoundation",
           package: "ZIPFoundation",
@@ -80,8 +80,8 @@ let package = Package(
       path: "Sources/ux_macos_core"
     ),
     .target(
-      name: "ux_url_detect",
-      path: "Sources/ux_url_detect",
+      name: "ux_phone_detect",
+      path: "Sources/ux_phone_detect",
       publicHeadersPath: "include"
     ),
     .testTarget(
@@ -89,7 +89,5 @@ let package = Package(
       dependencies: ["ux_macos_core"],
       path: "Tests/ux_macos_coreTests"
     ),
-  ],
-  // src/tld.h, which url_detect.mm shares with Android and Windows, is C++17.
-  cxxLanguageStandard: .cxx17
+  ]
 )

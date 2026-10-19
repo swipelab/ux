@@ -1,9 +1,10 @@
 # ux — Third-Party Licenses & Compliance
 
-`ux` can bundle two components with distribution obligations: **FFmpeg**, used
-as a software H.264 video decoder on Android, and AOSP's **link patterns**,
-compiled into the Windows plugin. FFmpeg is **opt-in and disabled by
-default** — only apps that enable it ship it and inherit the obligation:
+`ux` can bundle three components with distribution obligations: **FFmpeg**,
+used as a software H.264 video decoder on Android; AOSP's **link patterns**,
+ported into ux's Dart link detector; and **Unicode data**, generated into that
+detector's tables. FFmpeg is **opt-in and disabled by default** — only apps
+that enable it ship it and inherit the obligation:
 
 ```yaml
 ux:
@@ -70,16 +71,63 @@ patent-encumbered (Via LA pool, formerly MPEG-LA). We ship a **software AVC
 decoder** — a patent/commercial matter for counsel, **not** an open-source or
 store-policy issue. Exposure is limited to **decode** (no encoder shipped).
 
-## android.util.Patterns (Apache-2.0) — Windows only
+## android.util.Patterns (Apache-2.0)
 
-[windows/url_detect.cpp](windows/url_detect.cpp) holds the regular expressions
-of AOSP's `android.util.Patterns` — `WEB_URL`, `EMAIL_ADDRESS`, `PHONE` and the
-strings they are composed from — Copyright (C) 2007 The Android Open Source
-Project, licensed under the
-[Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0).
-They are composed as `Patterns.java` composes them, each Java surrogate pair
-written as a C++ `\U` escape, and compiled into `ux_plugin.dll`. Android reads
-the platform's own `Patterns`, so ux ships no copy there.
+[lib/src/url/](lib/src/url/) holds scanners ported from the regular
+expressions of AOSP's `android.util.Patterns`, Copyright (C) 2007 The Android
+Open Source Project, licensed under the
+[Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0), on
+every platform: `WEB_URL`'s character classes and host grammar in
+`web_pass.dart`, and `EMAIL_ADDRESS`'s local-part class in `email.dart`.
+
+## Unicode data (Unicode License v3)
+
+[tool/url_data/unicode-17.0.0/](tool/url_data/unicode-17.0.0/) holds
+`DerivedGeneralCategory.txt` and `DerivedCoreProperties.txt` of Unicode 17.0.0,
+unmodified, from https://www.unicode.org/Public/17.0.0/. This notice covers
+those files and every table generated from them:
+
+```
+UNICODE LICENSE V3
+
+COPYRIGHT AND PERMISSION NOTICE
+
+Copyright © 1991-2025 Unicode, Inc.
+
+NOTICE TO USER: Carefully read the following legal agreement. BY
+DOWNLOADING, INSTALLING, COPYING OR OTHERWISE USING DATA FILES, AND/OR
+SOFTWARE, YOU UNEQUIVOCALLY ACCEPT, AND AGREE TO BE BOUND BY, ALL OF THE
+TERMS AND CONDITIONS OF THIS AGREEMENT. IF YOU DO NOT AGREE, DO NOT
+DOWNLOAD, INSTALL, COPY, DISTRIBUTE OR USE THE DATA FILES OR SOFTWARE.
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of data files and any associated documentation (the "Data Files") or
+software and any associated documentation (the "Software") to deal in the
+Data Files or Software without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, and/or sell
+copies of the Data Files or Software, and to permit persons to whom the
+Data Files or Software are furnished to do so, provided that either (a)
+this copyright and permission notice appear with all copies of the Data
+Files or Software, or (b) this copyright and permission notice appear in
+associated Documentation.
+
+THE DATA FILES AND SOFTWARE ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF
+THIRD PARTY RIGHTS.
+
+IN NO EVENT SHALL THE COPYRIGHT HOLDER OR HOLDERS INCLUDED IN THIS NOTICE
+BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL INDIRECT OR CONSEQUENTIAL DAMAGES,
+OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
+WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THE DATA
+FILES OR SOFTWARE.
+
+Except as contained in this notice, the name of a copyright holder shall
+not be used in advertising or otherwise to promote the sale, use or other
+dealings in these Data Files or Software without prior written
+authorization of the copyright holder.
+```
 
 ## Release checklist
 - [ ] FFmpeg/Media3 tags unchanged, or doc + archived source updated if bumped.

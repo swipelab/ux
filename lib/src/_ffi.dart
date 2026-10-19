@@ -8,7 +8,6 @@ DynamicLibrary? _open() {
   try {
     if (Platform.isIOS || Platform.isMacOS) return DynamicLibrary.process();
     if (Platform.isAndroid) return DynamicLibrary.open('libux.so');
-    if (Platform.isWindows) return DynamicLibrary.open('ux_plugin.dll');
   } catch (_) {
     return null;
   }
