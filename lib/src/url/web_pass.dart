@@ -4,7 +4,7 @@ import 'package:ux/src/url/tld.dart';
 /// A link of the second pass: its span, and whether it writes a scheme.
 typedef PassLink = ({int start, int end, bool written});
 
-/// url_detect.mm's second pass over the text [text] holds from [lo] to [hi],
+/// The second pass over the text [text] holds from [lo] to [hi],
 /// read as a text of its own, at each start from [from] to [to]: the matches
 /// of its case-insensitive ICU pattern, Patterns.WEB_URL's http, https, rtsp
 /// and ftp links with a host of two or more labels or an IPv4 address, and
@@ -688,7 +688,7 @@ bool _userChar(int c) =>
 /// punctuation.
 bool _ucs(int cp) => isUcsChar(cp) && !(cp <= 0xFFFF && isCjkPunctuation(cp));
 
-/// ux_path_start: the first '/', '?' or '#' of the web match [start, end)
+/// The first '/', '?' or '#' of the web match [start, end)
 /// past the "//" that follows a scheme.
 int pathStart(String text, int start, int end) {
   var i = start;
@@ -705,7 +705,7 @@ int pathStart(String text, int start, int end) {
 bool _isAuthorityEnd(int c, {required bool colon}) =>
     c == 0x2F || c == 0x3F || c == 0x23 || colon && c == 0x3A;
 
-/// ux_path_mark: the first character in [i, end) that Patterns.WEB_URL's
+/// The first character in [i, end) that Patterns.WEB_URL's
 /// path does not take, or [end].
 int pathMark(String text, int i, int end) {
   while (i < end) {
@@ -736,7 +736,7 @@ int pathMark(String text, int i, int end) {
   return i;
 }
 
-/// ux_web_end: the end of the web match [start, end) before the first
+/// The end of the web match [start, end) before the first
 /// character its path does not take, then before a trailing '.', ',', ';',
 /// '!', '\'' or '(' and a trailing ')' it does not open.
 int webEnd(String text, int start, int end) {
@@ -775,7 +775,7 @@ int hostEnd(String text, int start, int end) {
   return i;
 }
 
-/// ux_has_tld: whether the web match [start, end), which has no scheme, has
+/// Whether the web match [start, end), which has no scheme, has
 /// an IPv4 address, or a host whose last label starts with an ASCII digit or
 /// is a TLD.
 bool hasTld(String text, int start, int end) {

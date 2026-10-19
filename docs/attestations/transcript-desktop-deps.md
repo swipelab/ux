@@ -104,11 +104,10 @@ lines below are in that SDK's `ScreenCaptureKit.framework/Headers/` and
 | The package is named `ux` and declares platforms iOS 13.0 and macOS 10.15. | `darwin/ux/Package.swift:23-28` | 2026-08-06 |
 | It vends two library products, `ux` and `ux_extension`. | `darwin/ux/Package.swift:29-32` | 2026-08-06 |
 | Its only external dependency is ZIPFoundation, up to next minor from 0.9.20. | `darwin/ux/Package.swift:33-37` | 2026-08-06 |
-| Target `ux` covers `Sources/ux` in one Swift target for both platforms, depends on `ux_extension` and `ux_url_detect`, links ZIPFoundation on macOS only, and links AVFoundation, CoreMedia, CoreVideo plus platform-conditional IOKit/Intents/Photos/PhotosUI. | `darwin/ux/Package.swift:39-60` | 2026-08-06 |
+| Target `ux` covers `Sources/ux` in one Swift target for both platforms, depends on `ux_extension`, links ZIPFoundation on macOS only, and links AVFoundation, CoreMedia, CoreVideo plus platform-conditional IOKit/Intents/Photos/PhotosUI. | `darwin/ux/Package.swift:39-60` | 2026-08-06 |
 | Target `ux_extension` covers `Sources/ux_extension` and builds with `-application-extension`. | `darwin/ux/Package.swift:61-65` | 2026-08-06 |
-| Target `ux_url_detect` is the C target for `Sources/ux_url_detect` with `publicHeadersPath: "include"`. | `darwin/ux/Package.swift:66-70` | 2026-08-06 |
 | The package declares no test target, and `darwin/ux/` holds only `Package.swift` and `Sources`. | `darwin/ux/Package.swift:38-71`; `ls darwin/ux` | 2026-08-06 |
-| `Sources/ux` holds 52 files, 34 of which import Flutter; all 5 files of `Sources/ux_extension` import Flutter; `Sources/ux_url_detect` (2 files) imports none. | `grep -rl "import Flutter" darwin/ux/Sources/<target>` | 2026-08-06 |
+| `Sources/ux` holds 52 files, 34 of which import Flutter; all 5 files of `Sources/ux_extension` import Flutter. | `grep -rl "import Flutter" darwin/ux/Sources/<target>` | 2026-08-06 |
 | Consequence: both Swift targets import Flutter, so neither builds under bare `swift build`/`swift test`. | `darwin/ux/Package.swift:38-71` plus the import counts above | 2026-08-06 |
 | `darwin/` contains no reference to WebRTC or flutter_webrtc. | `grep -rn "WebRTC\|flutter_webrtc" darwin/` returns nothing | 2026-08-06 |
 | `darwin/` and `lib/` contain no reference to ScreenCaptureKit or `SCShareableContent`. | `grep -rn "ScreenCaptureKit\|SCShareableContent" darwin/ lib/` returns nothing | 2026-08-06 |

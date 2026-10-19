@@ -182,7 +182,7 @@ int trimAnyScheme(String text, int start, int end) {
   return kept;
 }
 
-/// Whether `_sanitizeUrl` leaves the UTF-16 unit [c] out of a URL: tab, LF,
+/// Whether a URL leaves the UTF-16 unit [c] out: tab, LF,
 /// CR, NBSP, ZWSP, ZWNJ, ZWJ, U+2060–U+2065, U+206A–U+206F and U+FEFF.
 bool sanitizeStrips(int c) =>
     c == 0x09 ||
@@ -194,7 +194,7 @@ bool sanitizeStrips(int c) =>
     (c >= 0x206A && c <= 0x206F) ||
     c == 0xFEFF;
 
-/// `_sanitizeUrl`: [url] without the units [sanitizeStrips] holds.
+/// [url] without the units [sanitizeStrips] holds.
 String sanitizeUrl(String url) {
   for (var i = 0; i < url.length; i++) {
     if (sanitizeStrips(url.codeUnitAt(i))) {
