@@ -205,6 +205,68 @@ Future<XRouter> _bootSheet(
   return router;
 }
 
+/// A route that builds [screen] in a [ScreenBackHandler] over a slot of its
+/// own on the route's controller, with no [ScreenStack] around it, and counts
+/// the pops the handler commits.
+class _SlotRoute extends PageRoute<void> {
+  _SlotRoute(this.screen);
+
+  final Screen<void> screen;
+  late final _slot = ScreenSlot(page: screen, controller: controller!);
+  int pops = 0;
+
+  @override
+  bool get opaque => true;
+  @override
+  bool get maintainState => true;
+  @override
+  Color? get barrierColor => null;
+  @override
+  String? get barrierLabel => null;
+  @override
+  Duration get transitionDuration => screen.transitionDuration;
+
+  @override
+  Widget buildPage(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+  ) => ScreenBackHandler(
+    entry: _slot,
+    enabled: ModalRoute.isCurrentOf(context)!,
+    onPop: () => pops++,
+  );
+
+  @override
+  void dispose() {
+    _slot.focusScope.dispose();
+    super.dispose();
+  }
+}
+
+/// Pumps a [Navigator] on [platform] and pushes a [_SlotRoute] of a [_Page],
+/// settled.
+Future<_SlotRoute> _bootRoute(
+  WidgetTester tester,
+  TargetPlatform platform,
+) async {
+  tester.view.physicalSize = const Size(_width, 800);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+  final navigator = GlobalKey<NavigatorState>();
+  await tester.pumpWidget(
+    MaterialApp(
+      navigatorKey: navigator,
+      theme: ThemeData(platform: platform),
+      home: const SizedBox.expand(),
+    ),
+  );
+  final route = _SlotRoute(_Page());
+  navigator.currentState!.push(route);
+  await tester.pumpAndSettle();
+  return route;
+}
+
 /// A [ScreenStack] over a [_Home] showing the screens [pages] holds.
 Widget _fed(ValueNotifier<List<Screen>> pages) => ValueListenableBuilder(
   valueListenable: pages,
@@ -679,6 +741,28 @@ void main() {
       const Duration(milliseconds: 300) * 0.75,
     );
     expect(find.byKey(_pageKey), findsNothing);
+  });
+
+  testWidgets('a ScreenBackHandler with no ScreenStack around it pops its '
+      'slot on an edge swipe that commits', (tester) async {
+    final route = await _bootRoute(tester, TargetPlatform.iOS);
+
+    final drag = await _edgeDrag(tester, _width * 0.6, steps: 40);
+    await drag.up();
+    await tester.pumpAndSettle();
+    expect(route.pops, 1);
+  });
+
+  testWidgets('a ScreenBackHandler with no ScreenStack around it pops its '
+      'slot on a predictive back that commits', (tester) async {
+    final route = await _bootRoute(tester, TargetPlatform.android);
+
+    await _backGesture(tester, 'startBackGesture', 0);
+    await _backGesture(tester, 'updateBackGestureProgress', 0.25);
+    await tester.pump();
+    await _backGesture(tester, 'commitBackGesture');
+    await tester.pumpAndSettle();
+    expect(route.pops, 1);
   });
 
   testWidgets('a pushed screen slides in on its transition\'s curve', (

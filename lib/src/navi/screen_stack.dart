@@ -705,6 +705,10 @@ class _GestureCurve extends Animation<double>
 /// since the touch went down, over the entry's width, and Android's predictive
 /// back by the gesture's progress.
 ///
+/// A handler with no [ScreenStack] around it, as one a host builds over a slot
+/// of its own, takes each such gesture while it is enabled; where a
+/// [ScreenStack] is around it, the stacks name the one handler that takes it:
+///
 /// One predictive back goes to one handler: that of the outermost
 /// [ScreenStack]'s [ScreenStackState.backTop], which an `XRouter`'s system
 /// back and Esc go to too. The handler that took it cancels it once a stack's
@@ -761,9 +765,11 @@ class ScreenBackHandlerState extends State<ScreenBackHandler>
     }
   }
 
-  /// The outermost [ScreenStack] around the handler while it holds a
-  /// predictive back.
+  /// The outermost [ScreenStack] around the handler, where one is, while it
+  /// holds a predictive back.
   ScreenStackState? _backRoot;
+
+  bool get _holdsBack => _backs.contains(this);
 
   @override
   void initState() {
@@ -790,12 +796,13 @@ class ScreenBackHandlerState extends State<ScreenBackHandler>
     super.dispose();
   }
 
-  /// Whether a predictive back goes to this handler, from [root].
-  bool _ownsBack(ScreenStackState root) =>
-      widget.enabled && root._back == widget.entry;
+  /// Whether a predictive back goes to this handler, from [root], the
+  /// outermost [ScreenStack] around it, where one is.
+  bool _ownsBack(ScreenStackState? root) =>
+      widget.enabled && (root == null || root._back == widget.entry);
 
   void _reviewBack() {
-    if (_backRoot case final root? when !_ownsBack(root)) {
+    if (_holdsBack && !_ownsBack(_backRoot)) {
       _releaseBack();
       _cancel();
     }
@@ -827,7 +834,7 @@ class ScreenBackHandlerState extends State<ScreenBackHandler>
     if (backEvent.isButtonEvent || !widget.entry.page.canSwipeBack) {
       return false;
     }
-    final root = ScreenStack.of(context)._root;
+    final root = ScreenStack.maybeOf(context)?._root;
     if (!_ownsBack(root)) return false;
     _backRoot = root;
     _backs.add(this);
@@ -838,14 +845,14 @@ class ScreenBackHandlerState extends State<ScreenBackHandler>
 
   @override
   void handleUpdateBackGestureProgress(PredictiveBackEvent backEvent) {
-    if (_backRoot == null) return;
+    if (!_holdsBack) return;
     widget.entry.controller.value = 1.0 - backEvent.progress;
   }
 
   @override
   void handleCommitBackGesture() {
     _reviewBack();
-    if (_backRoot == null) return;
+    if (!_holdsBack) return;
     _releaseBack();
     if (widget.entry.page.handleBack()) {
       _springBack();
@@ -856,7 +863,7 @@ class ScreenBackHandlerState extends State<ScreenBackHandler>
 
   @override
   void handleCancelBackGesture() {
-    if (_backRoot == null) return;
+    if (!_holdsBack) return;
     _releaseBack();
     _springBack();
   }
@@ -920,11 +927,11 @@ class ScreenBackHandlerState extends State<ScreenBackHandler>
   }
 
   bool get _takesSwipe {
-    final stack = ScreenStack.of(context);
+    final stack = ScreenStack.maybeOf(context);
     return widget.enabled &&
         widget.entry.page.canSwipeBack &&
-        stack._shows(widget.entry) &&
-        !stack._holdsCover(widget.entry);
+        (stack == null ||
+            stack._shows(widget.entry) && !stack._holdsCover(widget.entry));
   }
 
   bool get _canSwipe => _isIOSLike && _takesSwipe;
