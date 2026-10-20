@@ -436,6 +436,11 @@
   starts, as Android's predictive back reads it as the gesture starts, so a
   screen whose `canSwipeBack` changes needs no router rebuild. The edge swipe
   reads it again as it moves and lifts, and adds no semantics node.
+- **A `ScreenBackHandler` outside any `ScreenStack` takes the back gestures.**
+  A `ScreenBackHandler` with no `ScreenStack` around it, as one a host builds
+  over a `Navigator` route's own slot, takes the iOS edge swipe and the
+  predictive back for its slot while it is enabled; the rules that give one
+  back to one screen hold where a `ScreenStack` is around it.
 - **An `XApp` over another `XRouter` shows that router's screens.** An `XApp`
   rebuilt with another `router` shows that router's screens, which take no
   State from the old router's, and the old router's screens leave the tree.
