@@ -6,7 +6,7 @@ adaptive rate — this package takes.
 
 Paths are anchored at the `ux` package root. The ownership model this design is
 scoped against is the `XCameraEffects` row of
-[docs/architecture.md](architecture.md): the host owns the camera and the track,
+[doc/architecture.md](architecture.md): the host owns the camera and the track,
 the core owns the composite and the buffers it renders into, and pixels are
 given up only by closing a frame. Nothing here moves those boundaries.
 

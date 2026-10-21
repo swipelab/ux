@@ -12,8 +12,6 @@ topics:
   - ui
   - animation
 
-publish_to: none
-
 environment:
   sdk: ">=3.13.0 <4.0.0"
   flutter: ">=3.47.0"
@@ -27,9 +25,7 @@ dependencies:
   collection: ^1.18.0
   path: ^1.9.0
   path_provider: ^2.1.5
-  swipelab_webp:
-    git:
-      url: https://github.com/swipelab/swipelab_webp
+  swipelab_webp: ^1.1.0
   flutter_svg: ^2.0.10
   vector_math: ^2.1.4
   ffi: ^2.1.0
